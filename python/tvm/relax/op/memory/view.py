@@ -104,7 +104,6 @@ def view(
     )
 
     return _Call(
-        ty,
         "relax.memory.view",
         [
             data,
@@ -113,6 +112,7 @@ def view(
             Tuple([]) if relative_byte_offset is None else relative_byte_offset,
         ],
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -131,8 +131,8 @@ def ensure_zero_offset(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> E
         The tensor with elem_offset == 0
     """
     return _Call(
-        ty,
         "relax.memory.ensure_zero_offset",
         [data],
         loc=loc,
+        ty=ty,
     )  # type: ignore

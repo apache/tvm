@@ -388,7 +388,6 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
 
     x = relax.Var("x", input_ty)
     call = relax.Call(
-        None,
         tvm_tirx.ir.Op.get("relax.call_dps_packed"),
         [relax.ExternFunc("test.op.nested_outputs"), relax.Tuple([x])],
         ty_args=[output_ty],

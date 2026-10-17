@@ -83,9 +83,9 @@ def clz(x):
         The result.
     """
     return Call(
-        "int32",
         "prim.clz",
         [x],
+        ty="int32",
     )
 
 
@@ -156,7 +156,7 @@ def log2(x, *, ty=None, loc: Location = UNKNOWN_LOC):
         The result.
     """
     x = convert(x)
-    return Call(ty, "prim.log2", [x], loc=loc)
+    return Call("prim.log2", [x], loc=loc, ty=ty)
 
 
 def ceil(x, loc: Location = UNKNOWN_LOC):
@@ -559,7 +559,7 @@ def vscale(*, ty=None, loc: Location = UNKNOWN_LOC):
     call : Expr
         Call to the vscale intrinsic
     """
-    return Call(ty, "prim.vscale", [], loc=loc)
+    return Call("prim.vscale", [], loc=loc, ty=ty)
 
 
 def min(a, b, loc: Location = UNKNOWN_LOC):
@@ -573,7 +573,7 @@ def max(a, b, loc: Location = UNKNOWN_LOC):
 
 
 def _call_prim(op, *args, ty, loc: Location = UNKNOWN_LOC):
-    return Call(ty, op, args, loc=loc)
+    return Call(op, args, loc=loc, ty=ty)
 
 
 def _require_float_arg(op_name, x):
@@ -1244,7 +1244,7 @@ def isnan(x, loc: Location = UNKNOWN_LOC, *, ty=None):
     y : Expr
         The result.
     """
-    return Call(ty, "prim.isnan", [x], loc=loc)
+    return Call("prim.isnan", [x], loc=loc, ty=ty)
 
 
 def isfinite(x, loc: Location = UNKNOWN_LOC):

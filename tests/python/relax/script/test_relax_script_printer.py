@@ -432,7 +432,7 @@ class Module:
         def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             return y
 
-        z: R.Tensor((), dtype="int32") = T.Call(R.Tensor((), dtype="int32"), nested, [x])
+        z: R.Tensor((), dtype="int32") = T.Call(nested, [x], ty=R.Tensor((), dtype="int32"))
         return z
 """.replace("R.", f"{relax_prefix}.")
         .replace("script as R", f"script as {relax_prefix}")

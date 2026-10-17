@@ -23,23 +23,23 @@ from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 
 def nki_load(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call(ty, "tirx.nki.load", [res, data], loc=loc)
+    return Call("tirx.nki.load", [res, data], loc=loc, ty=ty)
 
 
 def nki_store(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call(ty, "tirx.nki.store", [res, data], loc=loc)
+    return Call("tirx.nki.store", [res, data], loc=loc, ty=ty)
 
 
 def nki_tensor_copy(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call(ty, "tirx.nki.tensor_copy", [res, data], loc=loc)
+    return Call("tirx.nki.tensor_copy", [res, data], loc=loc, ty=ty)
 
 
 def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
-        ty,
         "tirx.nki.matmul",
         [res, lhs, rhs, accum],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -47,37 +47,37 @@ def nki_activation(
     result, data, opcode, bias=0.0, scale=1.0, *, ty=None, loc: Location = UNKNOWN_LOC
 ):
     return Call(
-        ty,
         "tirx.nki.activation",
         [result, data, opcode, bias, scale],
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_reciprocal(result, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
-        ty,
         "tirx.nki.reciprocal",
         [result, data],
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
-        ty,
         "tirx.nki.tensorreduce",
         [result, data, opcode, negate, *axes],
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
-        ty,
         "tirx.nki.tensortensor",
         [result, operand0, operand1, opcode],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -92,15 +92,15 @@ def nki_tensorscalar(
     loc: Location = UNKNOWN_LOC,
 ):
     return Call(
-        ty,
         "tirx.nki.tensorscalar",
         [result, operand0, operand1, opcode, reverse],
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_memset(result, value, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call(ty, "tirx.nki.memset", [result, value], loc=loc)
+    return Call("tirx.nki.memset", [result, value], loc=loc, ty=ty)
 
 
 def nki_activation_reduce(
@@ -116,10 +116,10 @@ def nki_activation_reduce(
     loc: Location = UNKNOWN_LOC,
 ):
     return Call(
-        ty,
         "tirx.nki.activation_reduce",
         [reduce_res, act_res, data, opcode, reduce_opcode, bias, scale],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -136,15 +136,15 @@ def nki_tensorscalar_reduce(
     loc: Location = UNKNOWN_LOC,
 ):
     return Call(
-        ty,
         "tirx.nki.tensorscalar_reduce",
         [reduce_res, tensorscalar_res, operand0, operand1, opcode, reduce_opcode, reverse],
         loc=loc,
+        ty=ty,
     )
 
 
 def nki_identity(result, size, *, ty=None, loc: Location = UNKNOWN_LOC):
-    return Call(ty, "tirx.nki.identity", [result, size], loc=loc)
+    return Call("tirx.nki.identity", [result, size], loc=loc, ty=ty)
 
 
 def nki_scalar_tensor_tensor(
@@ -161,10 +161,10 @@ def nki_scalar_tensor_tensor(
     loc: Location = UNKNOWN_LOC,
 ):
     return Call(
-        ty,
         "tirx.nki.scalar_tensor_tensor",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -182,10 +182,10 @@ def nki_scalar_tensor_scalar(
     loc: Location = UNKNOWN_LOC,
 ):
     return Call(
-        ty,
         "tirx.nki.scalar_tensor_scalar",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -193,10 +193,10 @@ def nki_affine_select(
     result, pred, true_value, false_value, *, ty=None, loc: Location = UNKNOWN_LOC
 ):
     return Call(
-        ty,
         "tirx.nki.affine_select",
         [result, pred, true_value, false_value],
         loc=loc,
+        ty=ty,
     )
 
 

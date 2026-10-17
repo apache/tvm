@@ -213,12 +213,12 @@ def _make_op_api(op, module_name):
                 )
             return region(op, operands, body_params=body_params, attrs=attrs)
         return Call(
-            ty,
             op,
             operands,
             attrs=attrs,
             ty_args=ty_args,
             loc=loc,
+            ty=ty,
         )
 
     call.__name__ = op.name.rsplit(".", 1)[-1]

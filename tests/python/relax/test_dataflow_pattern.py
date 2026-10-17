@@ -1462,7 +1462,7 @@ def test_commutative_pattern_match():
         arg = matches[pattern_arg]
         const = matches[pattern_const].value.numpy()
         if const.shape == tuple() and const[()] == 1.0:
-            return rx.Call(None, op, [arg, rx.const(2.0)])
+            return rx.Call(op, [arg, rx.const(2.0)])
         else:
             return expr
 

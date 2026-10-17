@@ -82,7 +82,6 @@ def roi_align(
     if isinstance(pooled_size, int):
         pooled_size = (pooled_size, pooled_size)
     return _Call(
-        ty,
         "relax.vision.roi_align",
         [data, rois],
         attrs=_make_attrs(
@@ -95,4 +94,5 @@ def roi_align(
             mode=mode,
         ),
         loc=loc,
+        ty=ty,
     )

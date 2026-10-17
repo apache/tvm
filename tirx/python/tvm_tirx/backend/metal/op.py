@@ -31,10 +31,10 @@ def make_filled_simdgroup_matrix(
     """Create a filled SIMDGroup matrix."""
 
     return Call(
-        ty,
         "tirx.metal.make_filled_simdgroup_matrix",
         [d, index, value, col, row],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -53,10 +53,10 @@ def simdgroup_load(
     """Load data from device or threadgroup memory to simdgroup."""
 
     return Call(
-        ty,
         "tirx.metal.simdgroup_load",
         [d, index, ptr, stride, col, row, transpose_matrix],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -75,10 +75,10 @@ def simdgroup_store(
     """Store data from simdgroup to device or threadgroup memory."""
 
     return Call(
-        ty,
         "tirx.metal.simdgroup_store",
         [d, index, ptr, stride, col, row, transpose_matrix],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -88,10 +88,10 @@ def simdgroup_multiply_accumulate(
     """Multiply and accumulate two matrices in simdgroup."""
 
     return Call(
-        ty,
         "tirx.metal.simdgroup_multiply_accumulate",
         [d, index_d, a, index_a, b, index_b, c, index_c],
         loc=loc,
+        ty=ty,
     )
 
 

@@ -70,11 +70,11 @@ def max(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.max",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -111,11 +111,11 @@ def mean(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.mean",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -152,11 +152,11 @@ def min(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.min",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -193,11 +193,11 @@ def prod(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.prod",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -234,11 +234,11 @@ def std(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.std",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -275,11 +275,11 @@ def sum(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.sum",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -351,13 +351,13 @@ def cumprod(
         exclusive = False
 
     return _Call(
-        ty,
         "relax.cumprod",
         [data],
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -424,13 +424,13 @@ def cumsum(
         exclusive = False
 
     return _Call(
-        ty,
         "relax.cumsum",
         [data],
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -467,11 +467,11 @@ def variance(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.variance",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -507,9 +507,9 @@ def median(
     if isinstance(axis, int):
         axis = [axis]
     return _Call(
-        ty,
         "relax.median",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         loc=loc,
+        ty=ty,
     )  # type: ignore

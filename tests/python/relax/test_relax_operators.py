@@ -453,7 +453,7 @@ def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace
     tvm_tirx.ir.assert_structural_equal(call, with_attrs)
     # Roundtrip printing requires a type-consistent Call after constructor checks.
     call = tvm_tirx.ir.Call(
-        None, call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
+        call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
     )
     printed = call.script()
     assert printed.startswith(f"R.{name}(")
@@ -488,11 +488,11 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kin
     loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("packed_call"), 1, 3, 2, 4)
     call = relax.op.call_dps_packed(callee, (x,), ty_args=[output_type], ty=result_type, loc=loc)
     expected = tvm_tirx.ir.Call(
-        result_type,
         "relax.call_dps_packed",
         [expected_callee, (x,)],
         ty_args=[output_type],
         loc=loc,
+        ty=result_type,
     )
     tvm_tirx.ir.assert_structural_equal(call, expected)
     assert call.loc.same_as(loc)
@@ -505,7 +505,7 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kin
     )
     # Roundtrip printing requires a type-consistent Call after constructor checks.
     call = tvm_tirx.ir.Call(
-        None, call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
+        call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
     )
     printed = call.script()
     assert printed.startswith("R.call_dps_packed(")
@@ -537,7 +537,7 @@ def test_call_dps_packed_raw_roundtrip(exception):
     if attrs is not None:
         assert call.attrs.same_as(attrs)
     printed = call.script()
-    assert printed.startswith('T.Call(T.Missing(), "relax.call_dps_packed",')
+    assert printed.startswith('T.Call("relax.call_dps_packed",')
     reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x, "args": args})
     tvm_tirx.ir.assert_structural_equal(call, reconstructed)
 
@@ -559,7 +559,11 @@ def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
     x = relax.Var("x", tensor_type)
     call = builder("callback", (x,), ty_args=[output_type], ty=result_type, loc=loc)
     expected = tvm_tirx.ir.Call(
-        result_type, "relax.call_py_func", ["callback", (x,)], ty_args=[output_type], loc=loc
+        "relax.call_py_func",
+        ["callback", (x,)],
+        ty_args=[output_type],
+        loc=loc,
+        ty=result_type,
     )
     tvm_tirx.ir.assert_structural_equal(call, expected)
     assert call.loc.same_as(loc)
@@ -571,7 +575,7 @@ def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
     )
     # Roundtrip printing requires a type-consistent Call after constructor checks.
     call = tvm_tirx.ir.Call(
-        None, call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
+        call.op, call.args, attrs=call.attrs, ty_args=call.ty_args, loc=call.loc
     )
     printed = call.script()
     assert printed.startswith("R.call_py_func(")

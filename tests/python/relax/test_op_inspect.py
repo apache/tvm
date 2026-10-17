@@ -51,7 +51,7 @@ elem_offset = tvm_tirx.testing.parameter(0, 64, 128)
 
 
 def inspect_tensor_field(op_name, *args):
-    return relax.Call(None, Op.get(f"relax.inspect.{op_name}"), args)
+    return relax.Call(Op.get(f"relax.inspect.{op_name}"), args)
 
 
 def test_tensor_dtype_code(dtype):

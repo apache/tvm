@@ -536,7 +536,7 @@ def test_free_vars():
     )
     outer = rx.Function(
         [x, y],
-        rx.Call(None, inner, [y]),
+        rx.Call(inner, [y]),
         ret_ty=R.Tensor(ndim=-1),
     )
     assert len(free_vars(outer)) == 0
@@ -572,7 +572,7 @@ def test_all_global_vars():
     gv1 = rx.GlobalVar("gv1")
     gv2 = rx.GlobalVar("gv2")
     gv3 = rx.GlobalVar("gv3")
-    call = rx.Call(None, gv1, [gv2, gv3])
+    call = rx.Call(gv1, [gv2, gv3])
     call_var_names = var_name_set(all_global_vars(call))
     assert call_var_names == {"gv1", "gv2", "gv3"}
 

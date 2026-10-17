@@ -151,9 +151,9 @@ def _odd_even_sort(
 
         T.evaluate(
             tvm_tirx.ir.Call(
-                "void",
                 "tirx.gpu_storage_sync",
                 [tvm_tirx.ir.StringImm("shared")],
+                ty="void",
             )
         )
 
@@ -185,9 +185,9 @@ def _odd_even_sort(
                                 T.tensor_store(tmp_values_swap, [tid + n + 1], temp_values[0])
             T.evaluate(
                 tvm_tirx.ir.Call(
-                    "void",
                     "tirx.gpu_storage_sync",
                     [tvm_tirx.ir.StringImm("shared")],
+                    ty="void",
                 )
             )
 

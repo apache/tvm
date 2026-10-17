@@ -2868,8 +2868,8 @@ class OperatorConverter:
         with if_bb.function(if_name, params=params, private=True):
             result = relax.IfExpr(
                 cond,
-                relax.Call(None, then_func, branch_args),
-                relax.Call(None, else_func, branch_args),
+                relax.Call(then_func, branch_args),
+                relax.Call(else_func, branch_args),
             )
             if_bb.emit_func_output(result)
         if_func = if_bb.get()[if_name]
@@ -2903,10 +2903,10 @@ class OperatorConverter:
 
         loop_bb = relax.BlockBuilder()
         with loop_bb.function(loop_name, params=params, private=True):
-            cond = loop_bb.emit(relax.Call(None, cond_func, params), "while_cond")
-            next_state = relax.Call(None, body_func, params)
+            cond = loop_bb.emit(relax.Call(cond_func, params), "while_cond")
+            next_state = relax.Call(body_func, params)
             next_args = self._bind_call_outputs(next_state, loop_var_count)
-            true_branch = relax.Call(None, loop_gv, next_args)
+            true_branch = relax.Call(loop_gv, next_args)
             false_branch = self._make_tuple_or_single(params)
             result = relax.IfExpr(cond, true_branch, false_branch)
             loop_bb.emit_func_output(result)
@@ -2933,7 +2933,7 @@ class OperatorConverter:
             subgraph_index, f"tflite_call_subgraph_{subgraph_index}", op_name="CALL"
         )
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(None, callee, args)
+        return relax.Call(callee, args)
 
     def convert_if(self, op):
         """Convert TFLite IF to Relax If with private branch functions."""
@@ -2972,7 +2972,7 @@ class OperatorConverter:
             output_count,
         )
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(None, if_func, args)
+        return relax.Call(if_func, args)
 
     def _convert_while_like(
         self, op, op_name, cond_subgraph_index, body_subgraph_index, function_prefix
@@ -3025,7 +3025,7 @@ class OperatorConverter:
         )
 
         args = [self.get_tensor_expr(tensor) for tensor in input_tensors]
-        return relax.Call(None, loop_gv, args)
+        return relax.Call(loop_gv, args)
 
     def convert_while(self, op):
         """Convert TFLite WHILE to a recursive Relax private function."""

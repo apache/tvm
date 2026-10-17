@@ -66,10 +66,10 @@ def alloc_storage(
     if isinstance(virtual_device_index, int):
         virtual_device_index = prim_value(virtual_device_index)
     return _Call(
-        ty,
         "relax.memory.alloc_storage",
         [size, virtual_device_index, storage_scope, dtype],
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -116,10 +116,10 @@ def alloc_tensor(
     if isinstance(runtime_device_ind, int):
         runtime_device_ind = prim_value(runtime_device_ind)
     return _Call(
-        ty,
         "relax.memory.alloc_tensor",
         [storage, offset, shape, dtype, runtime_device_ind],
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -137,10 +137,10 @@ def kill_storage(storage: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call
         A relax Call to kill a storage.
     """
     return _Call(
-        ty,
         "relax.memory.kill_storage",
         [storage],
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -158,8 +158,8 @@ def kill_tensor(tensor: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
         A relax Call to kill a tensor.
     """
     return _Call(
-        ty,
         "relax.memory.kill_tensor",
         [tensor],
         loc=loc,
+        ty=ty,
     )  # type: ignore

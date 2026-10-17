@@ -56,7 +56,7 @@ def test_void_calls_emit_once_and_values_remain_expressions(trace):
                 T.cuda.func_call("side_effect", "__device__ void side_effect() {}")
                 value = T.cuda.elect_sync()
                 assert isinstance(value, ir.Call)
-                raw = ir.Call(None, "tirx.gpu_storage_sync", [ir.StringImm("shared")])
+                raw = ir.Call("tirx.gpu_storage_sync", [ir.StringImm("shared")])
                 assert isinstance(raw, ir.Call)
                 T.evaluate(raw)
     names = [call.op.name for call in _calls(builder.get())]

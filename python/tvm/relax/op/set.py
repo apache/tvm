@@ -84,10 +84,10 @@ def unique(
     if axis is not None and isinstance(axis, int):
         axis = prim_value(axis)
     return _Call(
-        ty,
         "relax.unique",
         [x, sorted, return_index, return_inverse, return_counts, *([] if axis is None else [axis])],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -214,7 +214,7 @@ def nonzero(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
                       [1, 0]]
 
     """
-    return _Call(ty, "relax.nonzero", [x], loc=loc)  # type: ignore
+    return _Call("relax.nonzero", [x], loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_tirx.register_global_func("relax.run.nonzero")

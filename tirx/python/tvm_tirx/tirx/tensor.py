@@ -365,4 +365,4 @@ def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):
     """
     if not is_tensor_var(tensor):
         raise TypeError("tensor_data_ptr expects a Var with TensorType")
-    return Call(ty, "tirx.tensor_data_ptr", [tensor], loc=loc)
+    return Call("tirx.tensor_data_ptr", [tensor], loc=loc, ty=ty)

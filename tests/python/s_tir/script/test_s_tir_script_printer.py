@@ -95,7 +95,6 @@ def test_function_symbolic_alloc_tensor_roundtrip():
                 tvm_tirx.ir.Bind(
                     buf,
                     tvm_tirx.ir.Call(
-                        None,
                         "tirx.alloc_tensor",
                         [],
                         attrs=tvm_tirx.ir.DictAttrs({}),

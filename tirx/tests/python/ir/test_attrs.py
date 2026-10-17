@@ -91,27 +91,27 @@ def test_op_set_signature_metadata_and_counts():
     assert [(info.name, info.doc) for info in op.ty_args_info] == [("T", "Result type")]
     assert (op.var_args_info.name, op.var_args_info.doc) == ("rest", "Other inputs")
     assert op.var_ty_args_info.name == "more_types"
-    tvm_tirx.ir.Call(None, op, [x, x], ty_args=[ty]).validate()
-    tvm_tirx.ir.Call(None, op, [x, x, x], ty_args=[ty, ty]).validate()
+    tvm_tirx.ir.Call(op, [x, x], ty_args=[ty]).validate()
+    tvm_tirx.ir.Call(op, [x, x, x], ty_args=[ty, ty]).validate()
     with pytest.raises(TypeError, match=r"Call.args expected at least 2 arguments, got 1"):
-        tvm_tirx.ir.Call(None, op, [x], ty_args=[ty]).validate()
+        tvm_tirx.ir.Call(op, [x], ty_args=[ty]).validate()
     with pytest.raises(TypeError, match=r"Call.ty_args expected at least 1 type argument, got 0"):
-        tvm_tirx.ir.Call(None, op, [x, x]).validate()
+        tvm_tirx.ir.Call(op, [x, x]).validate()
 
     op.set_signature(["only"])
     assert [info.name for info in op.args_info] == ["only"]
     assert op.var_args_info is None and op.var_ty_args_info is None
-    tvm_tirx.ir.Call(None, op, [x]).validate()
+    tvm_tirx.ir.Call(op, [x]).validate()
     with pytest.raises(TypeError, match=r"Call.args expected 1 argument, got 2"):
-        tvm_tirx.ir.Call(None, op, [x, x]).validate()
+        tvm_tirx.ir.Call(op, [x, x]).validate()
     with pytest.raises(TypeError, match=r"Call.ty_args expected 0 type arguments, got 1"):
-        tvm_tirx.ir.Call(None, op, [x], ty_args=[ty]).validate()
+        tvm_tirx.ir.Call(op, [x], ty_args=[ty]).validate()
     with pytest.raises(TypeError, match=r"args must be a name string or a \(name, doc\) tuple"):
         op.set_signature(["new", ("bad", 7)])
     with pytest.raises(TypeError, match=r"var_ty_args must be a name string"):
         op.set_signature(["new"], var_ty_args=("bad", 7))
     assert [info.name for info in op.args_info] == ["only"]
-    tvm_tirx.ir.Call(None, op, [x]).validate()
+    tvm_tirx.ir.Call(op, [x]).validate()
 
 
 def test_op_set_signature_checks_counts_without_types_or_attrs():
@@ -121,7 +121,6 @@ def test_op_set_signature_checks_counts_without_types_or_attrs():
     op.set_signature(["value"], ty_args=["T"])
 
     call = tvm_tirx.ir.Call(
-        None,
         op,
         [tvm_tirx.ir.Var("x", tvm_tirx.ir.AnyType())],
         attrs={"note": "permitted"},

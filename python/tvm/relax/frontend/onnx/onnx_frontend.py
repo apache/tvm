@@ -3556,7 +3556,6 @@ class Expand(OnnxOpConverter):
         shape_ndim = next(dim.value for dim in shape.ty.shape.values)
         shape_dataflow_var = bb.emit(
             relax.Call(
-                None,
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
                 [shape],
                 ty_args=[relax.ShapeType(ndim=shape_ndim)],

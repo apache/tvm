@@ -247,12 +247,12 @@ def alloc_tensor(
             placement = ir.Tuple([normalize(value) for value in placement])
         args.append(placement)
     return ir.Call(
-        ty,
         "tirx.alloc_tensor",
         args,
         attrs=attrs,
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -353,12 +353,12 @@ def decl_tensor(
 ) -> ir.Call:
     """Declare a pointer-backed tensor with one explicit ``Tensor`` type argument."""
     return ir.Call(
-        ty,
         "tirx.decl_tensor",
         [data],
         attrs=attrs,
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 

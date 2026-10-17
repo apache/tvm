@@ -88,18 +88,18 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
                 if isinstance(declaration, tir.Function):
                     # The Relax-facing signature may erase pointer results to Any.
                     return Call(
-                        declaration.ret_type,
                         func,
                         args,
+                        ty=declaration.ret_type,
                     )
                 break
     if isinstance(func.ty, ir.FuncType):
         return Call(
-            func.ty.ret_type,
             func,
             args,
+            ty=func.ty.ret_type,
         )
-    return Call(None, func, args)
+    return Call(func, args)
 
 
 def cast(value, dtype=None, *, ty=None, loc: Location = UNKNOWN_LOC):
@@ -181,10 +181,10 @@ class WebGPUNamespace:
         if is_tensor_var(var):
             var = var[0]
         return Call(
-            ty,
             "tirx.webgpu.subgroup_shuffle",
             [var, lane],
             loc=loc,
+            ty=ty,
         )
 
     @staticmethod
@@ -193,10 +193,10 @@ class WebGPUNamespace:
         if is_tensor_var(var):
             var = var[0]
         return Call(
-            ty,
             "tirx.webgpu.subgroup_shuffle_up",
             [var, delta],
             loc=loc,
+            ty=ty,
         )
 
     @staticmethod
@@ -205,10 +205,10 @@ class WebGPUNamespace:
         if is_tensor_var(var):
             var = var[0]
         return Call(
-            ty,
             "tirx.webgpu.subgroup_shuffle_down",
             [var, delta],
             loc=loc,
+            ty=ty,
         )
 
 

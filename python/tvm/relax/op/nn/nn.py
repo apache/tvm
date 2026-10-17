@@ -133,7 +133,6 @@ def conv1d(
     if len(dilation) != 1:
         raise RuntimeError("dilation must contain 1 values")
     return _Call(
-        ty,
         "relax.nn.conv1d",
         [data, weight],
         attrs=_make_attrs(
@@ -149,6 +148,7 @@ def conv1d(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -260,7 +260,6 @@ def conv2d(
     if len(dilation) != 2:
         raise RuntimeError("dilation must contain 2 values")
     return _Call(
-        ty,
         "relax.nn.conv2d",
         [data, weight],
         attrs=_make_attrs(
@@ -276,6 +275,7 @@ def conv2d(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -393,7 +393,6 @@ def conv3d(
     if len(dilation) != 3:
         raise RuntimeError("dilation must contain 3 values")
     return _Call(
-        ty,
         "relax.nn.conv3d",
         [data, weight],
         attrs=_make_attrs(
@@ -409,6 +408,7 @@ def conv3d(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -510,7 +510,6 @@ def conv1d_transpose(
     if len(output_padding) != 1:
         raise RuntimeError("output_padding must contain 1 values")
     return _Call(
-        ty,
         "relax.nn.conv1d_transpose",
         [data, weight],
         attrs=_make_attrs(
@@ -527,6 +526,7 @@ def conv1d_transpose(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -645,7 +645,6 @@ def conv2d_transpose(
     if len(output_padding) != 2:
         raise RuntimeError("output_padding must contain 2 values")
     return _Call(
-        ty,
         "relax.nn.conv2d_transpose",
         [data, weight],
         attrs=_make_attrs(
@@ -662,6 +661,7 @@ def conv2d_transpose(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -781,7 +781,6 @@ def conv3d_transpose(
     if len(output_padding) != 3:
         raise RuntimeError("output_padding must contain 3 values")
     return _Call(
-        ty,
         "relax.nn.conv3d_transpose",
         [data, weight],
         attrs=_make_attrs(
@@ -798,6 +797,7 @@ def conv3d_transpose(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -843,13 +843,13 @@ def pad(
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.pad",
         [data],
         attrs=_make_attrs(
             "relax.attrs.PadAttrs", pad_width=pad_width, pad_mode=pad_mode, pad_value=pad_value
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -889,11 +889,11 @@ def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, loc: Location = U
     the resulting tensor will have shape (1, 2, 20, 30).
     """
     return _Call(
-        ty,
         "relax.nn.pixel_shuffle",
         [data],
         attrs=_make_attrs("relax.attrs.PixelShuffleAttrs", upscale_factor=upscale_factor),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -984,7 +984,6 @@ def max_pool1d(
     if len(pool_size) != 1:
         raise RuntimeError("pool_size must contain 1 values")
     return _Call(
-        ty,
         "relax.nn.max_pool1d",
         [data],
         attrs=_make_attrs(
@@ -999,6 +998,7 @@ def max_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1103,7 +1103,6 @@ def max_pool2d(
     if len(pool_size) != 2:
         raise RuntimeError("pool_size must contain 2 values")
     return _Call(
-        ty,
         "relax.nn.max_pool2d",
         [data],
         attrs=_make_attrs(
@@ -1119,6 +1118,7 @@ def max_pool2d(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1216,7 +1216,6 @@ def max_pool3d(
     if len(pool_size) != 3:
         raise RuntimeError("pool_size must contain 3 values")
     return _Call(
-        ty,
         "relax.nn.max_pool3d",
         [data],
         attrs=_make_attrs(
@@ -1231,6 +1230,7 @@ def max_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1315,7 +1315,6 @@ def avg_pool1d(
     if len(pool_size) != 1:
         raise RuntimeError("pool_size must contain 1 values")
     return _Call(
-        ty,
         "relax.nn.avg_pool1d",
         [data],
         attrs=_make_attrs(
@@ -1330,6 +1329,7 @@ def avg_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1428,7 +1428,6 @@ def avg_pool2d(
     if len(pool_size) != 2:
         raise RuntimeError("pool_size must contain 2 values")
     return _Call(
-        ty,
         "relax.nn.avg_pool2d",
         [data],
         attrs=_make_attrs(
@@ -1443,6 +1442,7 @@ def avg_pool2d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1535,7 +1535,6 @@ def avg_pool3d(
     if len(pool_size) != 3:
         raise RuntimeError("pool_size must contain 3 values")
     return _Call(
-        ty,
         "relax.nn.avg_pool3d",
         [data],
         attrs=_make_attrs(
@@ -1550,6 +1549,7 @@ def avg_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1614,7 +1614,6 @@ def adaptive_avg_pool1d(
     if output_size is not None and len(output_size) != 1:
         raise RuntimeError("output_size must contain 1 values")
     return _Call(
-        ty,
         "relax.nn.adaptive_avg_pool1d",
         [data],
         attrs=_make_attrs(
@@ -1624,6 +1623,7 @@ def adaptive_avg_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1692,7 +1692,6 @@ def adaptive_avg_pool2d(
     if output_size is not None and len(output_size) != 2:
         raise RuntimeError("output_size must contain 2 values")
     return _Call(
-        ty,
         "relax.nn.adaptive_avg_pool2d",
         [data],
         attrs=_make_attrs(
@@ -1703,6 +1702,7 @@ def adaptive_avg_pool2d(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1770,7 +1770,6 @@ def adaptive_avg_pool3d(
     if output_size is not None and len(output_size) != 3:
         raise RuntimeError("output_size must contain 3 values")
     return _Call(
-        ty,
         "relax.nn.adaptive_avg_pool3d",
         [data],
         attrs=_make_attrs(
@@ -1780,6 +1779,7 @@ def adaptive_avg_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1799,7 +1799,7 @@ def relu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     result : relax.Expr
         The computed result.
     """
-    return _Call(ty, "relax.nn.relu", [data], ty_args=ty_args, loc=loc)  # type: ignore
+    return _Call("relax.nn.relu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def relu6(data: Expr) -> Expr:
@@ -1849,12 +1849,12 @@ def leakyrelu(
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.leakyrelu",
         [data],
         attrs=_make_attrs("relax.attrs.LeakyReluAttrs", alpha=alpha),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1880,7 +1880,7 @@ def gelu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     ----
     The input tensor is required to have float dtype
     """
-    return _Call(ty, "relax.nn.gelu", [data], ty_args=ty_args, loc=loc)  # type: ignore
+    return _Call("relax.nn.gelu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1903,7 +1903,7 @@ def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC)
     ----
     The input tensor is required to have float dtype
     """
-    return _Call(ty, "relax.nn.gelu_tanh", [data], ty_args=ty_args, loc=loc)  # type: ignore
+    return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def selu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1927,7 +1927,7 @@ def selu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     result : relax.Expr
         The computed result.
     """
-    return _Call(ty, "relax.nn.selu", [data], ty_args=ty_args, loc=loc)
+    return _Call("relax.nn.selu", [data], ty_args=ty_args, loc=loc, ty=ty)
 
 
 def silu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -1950,7 +1950,7 @@ def silu(data: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     ----
     The input tensor is required to have float dtype
     """
-    return _Call(ty, "relax.nn.silu", [data], ty_args=ty_args, loc=loc)  # type: ignore
+    return _Call("relax.nn.silu", [data], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.SoftmaxAttrs")
@@ -1983,11 +1983,11 @@ def softmax(data: Expr, axis: int = -1, *, ty=None, loc: Location = UNKNOWN_LOC)
     The input tensor is required to have float dtype
     """
     return _Call(
-        ty,
         "relax.nn.softmax",
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2027,12 +2027,12 @@ def softplus(
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.softplus",
         [data],
         attrs=_make_attrs("relax.attrs.SoftplusAttrs", beta=beta, threshold=threshold),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2062,11 +2062,11 @@ def log_softmax(data: Expr, axis: int = -1, *, ty=None, loc: Location = UNKNOWN_
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.log_softmax",
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2099,11 +2099,11 @@ def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, loc: Location = UN
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.prelu",
         [data, alpha],
         attrs=_make_attrs("relax.attrs.PReluAttrs", axis=axis),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2226,7 +2226,6 @@ def batch_norm(
         The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.batch_norm",
         [data, gamma, beta, moving_mean, moving_var],
         attrs=_make_attrs(
@@ -2239,6 +2238,7 @@ def batch_norm(
             training=training,
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2309,13 +2309,13 @@ def layer_norm(
     if isinstance(axes, int):
         axes = [axes]
     return _Call(
-        ty,
         "relax.nn.layer_norm",
         [data, gamma, beta],
         attrs=_make_attrs(
             "relax.attrs.LayerNormAttrs", axes=axes, epsilon=epsilon, center=center, scale=scale
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2381,7 +2381,6 @@ def group_norm(
     if isinstance(axes, int):
         axes = [axes]
     return _Call(
-        ty,
         "relax.nn.group_norm",
         [data, gamma, beta],
         attrs=_make_attrs(
@@ -2394,6 +2393,7 @@ def group_norm(
             scale=scale,
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2449,7 +2449,6 @@ def instance_norm(
     if isinstance(axes, int):
         axes = [axes]
     return _Call(
-        ty,
         "relax.nn.instance_norm",
         [data, gamma, beta],
         attrs=_make_attrs(
@@ -2461,6 +2460,7 @@ def instance_norm(
             scale=scale,
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -2510,11 +2510,11 @@ def rms_norm(
     if isinstance(axes, int):
         axes = [axes]
     return _Call(
-        ty,
         "relax.nn.rms_norm",
         [data, weight],
         attrs=_make_attrs("relax.attrs.RMSNormAttrs", axes=axes, epsilon=epsilon),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2546,11 +2546,11 @@ def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc: Location = UNKNOWN_L
         mask tensor (1.0 where element not dropped, 0.0 where dropped)
     """
     return _Call(
-        ty,
         "relax.nn.dropout",
         [data],
         attrs=_make_attrs("relax.attrs.DropoutAttrs", rate=rate),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2581,11 +2581,11 @@ def cross_entropy_with_logits(
       The computed result.
     """
     return _Call(
-        ty,
         "relax.nn.cross_entropy_with_logits",
         [predictions, labels],
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2643,7 +2643,6 @@ def nll_loss(
     if reduction not in ("none", "sum", "mean"):
         raise RuntimeError("reduction must be none, sum, or mean")
     return _Call(
-        ty,
         "relax.nn.nll_loss",
         [predictions, targets, *([] if weights is None else [weights])],
         attrs=_make_attrs(
@@ -2651,6 +2650,7 @@ def nll_loss(
         ),
         ty_args=ty_args,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2751,7 +2751,6 @@ def attention(
         (batch_size, seq_len, num_head, head_dim_v).
     """
     return _Call(
-        ty,
         "relax.nn.attention_bias" if bias is not None else "relax.nn.attention",
         [query, key, value, *([] if bias is None else [bias])],
         attrs=_make_attrs(
@@ -2761,6 +2760,7 @@ def attention(
             window_size=window_size,
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2860,7 +2860,6 @@ def attention_bias(
         (batch_size, seq_len, num_head, head_dim_v).
     """
     return _Call(
-        ty,
         "relax.nn.attention_bias",
         [query, key, value, bias],
         attrs=_make_attrs(
@@ -2870,6 +2869,7 @@ def attention_bias(
             window_size=window_size,
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -2978,7 +2978,6 @@ def attention_var_len(
     if max_seqlen_k is None:
         max_seqlen_k = max_seqlen_q
     return _Call(
-        ty,
         "relax.nn.attention_var_len",
         [queries, keys, values, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k],
         attrs=_make_attrs(
@@ -2988,6 +2987,7 @@ def attention_var_len(
             window_size=window_size,
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -3007,4 +3007,4 @@ def batch_flatten(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The flattened result with shape `(batch_size, flattened_features)`.
     """
-    return _Call(ty, "relax.nn.batch_flatten", [data], loc=loc)  # type: ignore
+    return _Call("relax.nn.batch_flatten", [data], loc=loc, ty=ty)  # type: ignore

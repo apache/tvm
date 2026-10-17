@@ -173,7 +173,7 @@ class GlobalVar(Expr):
         call: Expr
             A call taking the variable as a function.
         """
-        return Call(None, self, args)
+        return Call(self, args)
 
 
 class ExprOperand:
@@ -665,8 +665,8 @@ class CallEffectKind(IntEnum):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    Explicit ``None`` for ``ty`` uses available result inference, or a missing
-    type when no deduction is available. Explicit types, including
+    Omitted or ``None`` keyword-only ``ty`` uses available result inference,
+    or a missing type when no deduction is available. Explicit types, including
     ``Type.missing()``, are preserved exactly. Inference errors propagate.
     Construction permits provisional IR; :meth:`validate` checks the operator
     contract explicitly after inputs are ready.
@@ -680,12 +680,13 @@ class Call(_CallableExprWithOp):
 
     def __init__(
         self,
-        ty: "tvm_tirx.ir.Type | str | None",
         op: Expr | str,
         args: list[Expr] | tuple[Expr, ...],
         attrs: "tvm_tirx.ir.Attrs | dict | None" = None,
         ty_args: list["tvm_tirx.ir.Type"] | tuple["tvm_tirx.ir.Type", ...] | None = None,
         loc: Location = UNKNOWN_LOC,
+        *,
+        ty: "tvm_tirx.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Call, *self._normalize_constructor_args(ty, op, args, attrs, ty_args, loc)

@@ -51,13 +51,13 @@ def annotate_sharding(
       The tensor unmodified.
     """
     return Call(
-        ty,
         "relax.dist.annotate_sharding",
         [input],
         attrs=make_node(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -85,13 +85,13 @@ def redistribute(
       The tensor after redistribution.
     """
     return Call(
-        ty,
         "relax.dist.redistribute",
         [input],
         attrs=make_node(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -124,9 +124,9 @@ def redistribute_replica_to_shard(
       Sliced Tensor kept by each device.
     """
     return Call(
-        ty,
         "relax.dist.redistribute_replica_to_shard",
         [input],
         attrs=make_node("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
         loc=loc,
+        ty=ty,
     )

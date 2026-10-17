@@ -353,7 +353,7 @@ def test_recursive_legalization(custom_op):
             Weight: R.Tensor([64, 128], "float32"),
             Bias: R.Tensor([16, 32, 128], "float32"),
         ):
-            return relax.Call(None, custom_op, [A, Weight, Bias])
+            return relax.Call(custom_op, [A, Weight, Bias])
 
     AfterFirstIter = LegalizeOps()(Before)
     AfterSecondIter = LegalizeOps()(AfterFirstIter)

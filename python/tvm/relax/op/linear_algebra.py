@@ -67,7 +67,6 @@ def matmul(
         The computed result.
     """
     return _Call(
-        ty,
         "relax.matmul",
         [x1, x2],
         attrs=_make_attrs(
@@ -75,6 +74,7 @@ def matmul(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -142,11 +142,11 @@ def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
         operands = RxTuple(operands)
 
     return _Call(
-        ty,
         "relax.einsum",
         [operands],
         attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -174,4 +174,4 @@ def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _Call(ty, "relax.outer", [x1, x2], loc=loc)
+    return _Call("relax.outer", [x1, x2], loc=loc, ty=ty)

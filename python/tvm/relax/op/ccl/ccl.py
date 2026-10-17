@@ -59,11 +59,11 @@ def allreduce(
         f"including {supported_op_types}, but got {op_type}."
     )
     return _Call(
-        ty,
         "relax.ccl.allreduce",
         [x],
         attrs=_make_attrs("relax.attrs.AllReduceAttrs", op_type=op_type, in_group=in_group),
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -92,11 +92,11 @@ def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, loc: Locat
       The result of allgather.
     """
     return _Call(
-        ty,
         "relax.ccl.allgather",
         [x],
         attrs=_make_attrs("relax.attrs.AllGatherAttrs", num_workers=num_workers, in_group=in_group),
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -114,10 +114,10 @@ def broadcast_from_worker0(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> 
       The same tensor, which has been broadcast to all other workers.
     """
     return _Call(
-        ty,
         "relax.ccl.broadcast_from_worker0",
         [x],
         loc=loc,
+        ty=ty,
     )
 
 
@@ -148,9 +148,9 @@ def scatter_from_worker0(
       Chunked Tensor received by different workers.
     """
     return _Call(
-        ty,
         "relax.ccl.scatter_from_worker0",
         [x],
         attrs=_make_attrs("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
         loc=loc,
+        ty=ty,
     )

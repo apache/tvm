@@ -250,7 +250,6 @@ def test_vector_pointer_preserves_packed_offset(monkeypatch):
             tvm_tirx.ir.Bind(
                 tensor,
                 tvm_tirx.ir.Call(
-                    None,
                     "tirx.decl_tensor",
                     [data],
                     ty_args=[tensor.ty],

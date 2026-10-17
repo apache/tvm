@@ -69,7 +69,6 @@ def test_decl_tensor_physical_data_binding():
     decl = tvm_tirx.ir.Bind(
         tensor,
         tvm_tirx.ir.Call(
-            None,
             "tirx.decl_tensor",
             [data],
             ty_args=[tensor.ty],

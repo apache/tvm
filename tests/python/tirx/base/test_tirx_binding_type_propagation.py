@@ -69,9 +69,9 @@ def test_bind_uses_type_identity_after_real_value_mutation(inplace):
     input_var = ir.Var("x", result_ty)
     replacement = ir.Var("replacement", result_ty)
     call = ir.Call(
-        result_ty,
         "relax.exp",
         [input_var],
+        ty=result_ty,
     )
     stmt = tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(var, call), tvm_tirx.ir.Evaluate(var)])
     if inplace:
@@ -112,9 +112,9 @@ def test_unchanged_equal_but_distinct_types_do_not_rebind(inplace):
     stmt = tvm_tirx.ir.Bind(
         var,
         ir.Call(
-            result_ty,
             "relax.exp",
             [x],
+            ty=result_ty,
         ),
     )
     if inplace:
@@ -165,9 +165,9 @@ def test_symbolic_call_type_rewrite_remaps_later_use(inplace):
     x = ir.Var("x", tensor_ty)
     y = ir.Var("y", tensor_ty)
     call = ir.Call(
-        tensor_ty,
         "relax.exp",
         [x],
+        ty=tensor_ty,
     )
     stmt = tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(y, call), tvm_tirx.ir.Evaluate(y)])
     if inplace:

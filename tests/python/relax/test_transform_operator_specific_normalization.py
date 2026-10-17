@@ -50,7 +50,7 @@ def custom_op(define_normalization):
 
     def normalize(context: relax.BlockBuilder, call: relax.Call):
         if len(call.args) == 1:
-            return relax.Call(None, call.op, [call.args[0], relax.Tuple([])])
+            return relax.Call(call.op, [call.args[0], relax.Tuple([])])
         else:
             return call
 
@@ -88,7 +88,7 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
 
     @R.function(check_well_formed=False)
     def func(A: R.Tensor):
-        return relax.Call(None, custom_op, [A])
+        return relax.Call(custom_op, [A])
 
     call_expr = func.body.blocks[0].bindings[0].value
     assert isinstance(call_expr, relax.Call), (
@@ -107,13 +107,13 @@ def test_normalization_applied_during_cpp_mutator(custom_op):
     class Before:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(None, custom_op, [A])
+            return relax.Call(custom_op, [A])
 
     @I.ir_module
     class Expected:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(None, custom_op, [A, R.tuple()])
+            return relax.Call(custom_op, [A, R.tuple()])
 
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
@@ -126,11 +126,11 @@ def test_normalization_applied_during_python_mutator(custom_op):
 
     @R.function(private=True, check_well_formed=False)
     def before(A: R.Tensor):
-        return relax.Call(None, custom_op, [A])
+        return relax.Call(custom_op, [A])
 
     @R.function(private=True)
     def expected(A: R.Tensor):
-        return relax.Call(None, custom_op, [A, R.tuple()])
+        return relax.Call(custom_op, [A, R.tuple()])
 
     @relax.expr_functor.mutator
     class EmptyPyExprMutator(relax.PyExprMutator):
@@ -149,7 +149,7 @@ def test_normalized_call_node_is_well_formed(custom_op):
     class Module:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(None, custom_op, [A, A])
+            return relax.Call(custom_op, [A, A])
 
     relax.analysis.well_formed(Module)
 
@@ -167,7 +167,7 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
     class Module:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(None, custom_op, [A])
+            return relax.Call(custom_op, [A])
 
     if define_normalization:
         assert not relax.analysis.check_well_formed(Module)
@@ -186,7 +186,6 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
                 ty_args=[A.ty],
@@ -204,7 +203,6 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             cls = Expected
             args = (A,)
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([A])],
                 ty_args=[A.ty],
@@ -235,7 +233,6 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
         def main(args: R.Tuple([R.Tensor([16], "float32")])):
             cls = Before
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
                 ty_args=[args[0].ty],
@@ -252,7 +249,6 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
         def main(args: R.Tuple([R.Tensor([16], "float32")])):
             cls = Expected
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([args[0]])],
                 ty_args=[args[0].ty],
@@ -303,7 +299,6 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir_inplace"),
                 [cls.multiply_by_two, args],
                 attrs=inplace_attrs,
@@ -362,7 +357,6 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                None,
                 tvm_tirx.ir.Op.get("relax.call_tir_with_grad"),
                 [cls.multiply_by_two, args],
                 attrs=with_grad_attrs,

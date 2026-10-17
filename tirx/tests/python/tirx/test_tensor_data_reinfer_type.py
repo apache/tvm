@@ -28,15 +28,15 @@ def test_tensor_data_reinfer_type_from_rewritten_argument():
     expected_type = local_tensor.data.ty
 
     call = ir.Call(
-        stale_type,
         "tirx.tensor_data_ptr",
         [local_tensor],
+        ty=stale_type,
     )
     ir.assert_structural_equal(ir.reinfer_type(call), expected_type)
     ir.assert_structural_equal(call.ty, stale_type)
 
     with pytest.raises(TypeError):
-        ir.reinfer_type(ir.Call(None, "tirx.tensor_data_ptr", [ir.Var("not_a_tensor")]))
+        ir.reinfer_type(ir.Call("tirx.tensor_data_ptr", [ir.Var("not_a_tensor")]))
 
 
 if __name__ == "__main__":

@@ -1511,5 +1511,5 @@ def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
         if isinstance(value, relax.Call) and value.op == tvm_tirx.ir.Op.get("relax.call_tir"):
             # Rebuilding the call re-runs the validator, so this passes only when the
             # out_ty agrees with the argument types.
-            relax.Call(None, value.op, value.args, value.attrs, value.ty_args)
+            relax.Call(value.op, value.args, value.attrs, value.ty_args)
     relax.analysis.well_formed(after)

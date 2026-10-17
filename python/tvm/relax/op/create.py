@@ -75,11 +75,11 @@ def full(
     """
     shape = _normalize_shape(shape)
     return _Call(
-        ty,
         "relax.full",
         [shape, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -114,11 +114,11 @@ def full_like(
         The result tensor.
     """
     return _Call(
-        ty,
         "relax.full_like",
         [x, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -146,11 +146,11 @@ def ones(
     """
     shape = _normalize_shape(shape)
     return _Call(
-        ty,
         "relax.ones",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -175,11 +175,11 @@ def ones_like(
         The result tensor.
     """
     return _Call(
-        ty,
         "relax.ones_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -207,11 +207,11 @@ def zeros(
     """
     shape = _normalize_shape(shape)
     return _Call(
-        ty,
         "relax.zeros",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -236,11 +236,11 @@ def zeros_like(
         The result tensor.
     """
     return _Call(
-        ty,
         "relax.zeros_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -281,11 +281,11 @@ def eye(
     m = prim_value(m)
     k = prim_value(k)
     return _Call(
-        ty,
         "relax.eye",
         [n, m, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -322,11 +322,11 @@ def eye_like(
     """
     k = prim_value(k)
     return _Call(
-        ty,
         "relax.eye_like",
         [x, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -381,11 +381,11 @@ def arange(
     end = prim_value(end)
     step = prim_value(step)
     return _Call(
-        ty,
         "relax.arange",
         [start, end, step],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -424,11 +424,11 @@ def hamming_window(
         beta = prim_value(beta)
 
     return _Call(
-        ty,
         "relax.hamming_window",
         [window_size, periodic, alpha, beta],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=dtype),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -460,7 +460,7 @@ def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call(ty, "relax.tril", [x, k], loc=loc)  # type: ignore
+    return _Call("relax.tril", [x, k], loc=loc, ty=ty)  # type: ignore
 
 
 def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -486,4 +486,4 @@ def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call(ty, "relax.triu", [x, k], loc=loc)  # type: ignore
+    return _Call("relax.triu", [x, k], loc=loc, ty=ty)  # type: ignore

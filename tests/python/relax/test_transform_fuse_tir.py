@@ -51,7 +51,7 @@ def test_simple():
         p0 = relax.Var("p0", R.Tensor([], "float32"))
         with bb.function("main", [x, p0]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, fused_add_exp_squeeze, [x, p0]))
+                gv = bb.emit_output(relax.Call(fused_add_exp_squeeze, [x, p0]))
             bb.emit_func_output(gv)
 
         return bb.get().with_attrs({"foo": "bar"})
@@ -129,9 +129,7 @@ def test_conv2d_fuse():
         with bb.function("main", [x, w1, w2, w3]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, dtype))
-                lv1 = bb.emit(
-                    relax.Call(None, fused_conv2d_add1_add2, [lv0, w1, relax.const(1, dtype)])
-                )
+                lv1 = bb.emit(relax.Call(fused_conv2d_add1_add2, [lv0, w1, relax.const(1, dtype)]))
                 lv2 = bb.emit_te(
                     topi.nn.conv2d,
                     lv1,
@@ -140,7 +138,7 @@ def test_conv2d_fuse():
                     padding=1,
                     dilation=1,
                 )
-                gv = bb.emit_output(relax.Call(None, fused_conv2d1_add2, [lv1, w2, lv2]))
+                gv = bb.emit_output(relax.Call(fused_conv2d1_add2, [lv1, w2, lv2]))
             bb.emit_func_output(gv)
 
         return bb.get()
@@ -197,8 +195,8 @@ def test_two_subfunction():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv = bb.emit(relax.Call(None, func_gv, [x]))
-                lv2 = bb.emit(relax.Call(None, func_gv, [lv]))
+                lv = bb.emit(relax.Call(func_gv, [x]))
+                lv2 = bb.emit(relax.Call(func_gv, [lv]))
                 gv = bb.emit_output(lv2)
             bb.emit_func_output(gv)
         return bb.get()
@@ -238,7 +236,7 @@ def test_fuse_same_function():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv = bb.emit(relax.Call(None, func_gv, [x]))
+                lv = bb.emit(relax.Call(func_gv, [x]))
                 gv = bb.emit_output(lv)
             bb.emit_func_output(gv)
         return bb.get()
@@ -279,7 +277,7 @@ def test_fuse_with_tuple_as_param():
         x = relax.Var("x", R.Tuple([R.Tensor([10], "float32"), R.Tensor([10], "float32")]))
         with bb.function("main", [x]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, func_gv, [x]))
+                gv = bb.emit_output(relax.Call(func_gv, [x]))
             bb.emit_func_output(gv)
         return bb.get()
 
@@ -325,7 +323,7 @@ def test_fuse_with_nested_tuple_as_param():
         x = relax.Var("x", tuple_ty)
         with bb.function("main", [x]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, func_gv, [x]))
+                gv = bb.emit_output(relax.Call(func_gv, [x]))
             bb.emit_func_output(gv)
         return bb.get()
 
@@ -365,7 +363,7 @@ def test_fuse_with_call_tir_in_main():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv0 = bb.emit(relax.Call(None, func_gv, [x]))
+                lv0 = bb.emit(relax.Call(func_gv, [x]))
                 lv1 = bb.emit_te(topi.add, lv0, relax.const(1, "float32"))
                 gv = bb.emit_output(lv1)
             bb.emit_func_output(gv)
@@ -407,7 +405,7 @@ def test_fuse_with_const_in_argument():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv = bb.emit(relax.Call(None, func_gv, [x, relax.const(1, "float32")]))
+                lv = bb.emit(relax.Call(func_gv, [x, relax.const(1, "float32")]))
                 gv = bb.emit_output(lv)
             bb.emit_func_output(gv)
         return bb.get()
@@ -448,7 +446,7 @@ def test_fuse_tuple_output():
         p0 = relax.Var("p0", R.Tensor([], "float32"))
         with bb.function("main", [x, p0]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, fused_add_exp, [x, p0]))
+                gv = bb.emit_output(relax.Call(fused_add_exp, [x, p0]))
             bb.emit_func_output(gv)
 
         return bb.get()
@@ -491,7 +489,7 @@ def test_fuse_with_immediate_tuple():
         y = relax.Var("y", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x, y]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, fused_add, [x, y]))
+                gv = bb.emit_output(relax.Call(fused_add, [x, y]))
             bb.emit_func_output(gv)
 
         return bb.get()
@@ -546,7 +544,7 @@ def test_fuse_return_partial_result():
         offset = relax.Var("x", R.Tensor([10], "int32"))
         with bb.function("main", [x, offset]):
             with bb.dataflow():
-                gv = bb.emit_output(relax.Call(None, func_gv, [x, offset]))
+                gv = bb.emit_output(relax.Call(func_gv, [x, offset]))
             bb.emit_func_output(gv)
         return bb.get()
 
@@ -598,7 +596,7 @@ def test_multiple_relax_functions():
         with bb.function("func1", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(
-                    relax.Call(None, fused_add_exp_squeeze, [x, relax.const(1, "float32")])
+                    relax.Call(fused_add_exp_squeeze, [x, relax.const(1, "float32")])
                 )
             bb.emit_func_output(gv)
 
@@ -606,7 +604,7 @@ def test_multiple_relax_functions():
         with bb.function("func2", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(
-                    relax.Call(None, fused_add1_exp1_squeeze1, [x, relax.const(1, "float32")])
+                    relax.Call(fused_add1_exp1_squeeze1, [x, relax.const(1, "float32")])
                 )
             bb.emit_func_output(gv)
 

@@ -83,13 +83,13 @@ def all_class_non_max_suppression(
         the class 1 etc.
     """
     return _Call(
-        ty,
         "relax.vision.all_class_non_max_suppression",
         [boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold],
         attrs=_make_attrs(
             "relax.attrs.AllClassNonMaximumSuppressionAttrs", output_format=output_format
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -133,7 +133,6 @@ def get_valid_counts(
         ``[batch_size, num_anchors]``.
     """
     return _Call(
-        ty,
         "relax.vision.get_valid_counts",
         [data],
         attrs=_make_attrs(
@@ -143,6 +142,7 @@ def get_valid_counts(
             score_index=score_index,
         ),
         loc=loc,
+        ty=ty,
     )
 
 
@@ -239,7 +239,6 @@ def non_max_suppression(
         Otherwise returns the modified data tensor.
     """
     return _Call(
-        ty,
         "relax.vision.non_max_suppression",
         [data, valid_count, indices],
         attrs=_make_attrs(
@@ -257,4 +256,5 @@ def non_max_suppression(
             score_threshold=score_threshold,
         ),
         loc=loc,
+        ty=ty,
     )

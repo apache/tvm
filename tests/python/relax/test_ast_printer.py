@@ -433,7 +433,7 @@ def test_op_attrs():
     # Manually create a Call with attributes to test printer support for Op attributes
     op = tvm_tirx.ir.Op.get("relax.add")
     attrs = tvm_tirx.ir.make_node("ir.DictAttrs", my_attr="my_value")
-    call_node = rx.Call(None, op, [x, x], attrs=attrs)
+    call_node = rx.Call(op, [x, x], attrs=attrs)
 
     call_str = dump_ast(call_node, include_call_attrs=True)
     assert_fields(

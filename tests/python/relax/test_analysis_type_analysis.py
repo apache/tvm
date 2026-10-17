@@ -359,7 +359,7 @@ def _check_derive(ctx, finfo, args_ty, ret):
     for i, ty in enumerate(args_ty):
         arg = rx.Var(f"arg{i}", ty)
         args.append(arg)
-    call = rx.Call(None, gv, args)
+    call = rx.Call(gv, args)
     derived_ret = rx.analysis.derive_call_ret_type(finfo, call, ctx)
     tvm_tirx.ir.assert_structural_equal(ret, derived_ret)
 

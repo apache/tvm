@@ -156,9 +156,9 @@ def test_global_var():
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     globalvar = rx.GlobalVar("GlobalVar0")
     call_node = rx.Call(
-        tvm_tirx.ir.Type.missing(),
         op=tvm_tirx.ir.Op.get("relax.call_tir"),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
+        ty=tvm_tirx.ir.Type.missing(),
     )
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
@@ -170,10 +170,10 @@ def test_global_var():
 def test_provisional_call_constructor():
     op = tvm_tirx.ir.Op.get("relax.add")
     with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
-        tvm_tirx.ir.Call(None, op, [x]).validate()
+        tvm_tirx.ir.Call(op, [x]).validate()
 
     loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("provisional.py"), 1, 0, 1, 1)
-    call = tvm_tirx.ir.Call(None, "relax.add", [x], attrs={"key": 1}, loc=loc)
+    call = tvm_tirx.ir.Call("relax.add", [x], attrs={"key": 1}, loc=loc)
     assert isinstance(call, tvm_tirx.ir.Call)
     assert call.op.same_as(op)
     assert isinstance(call.ty, tvm_tirx.ir.MissingType)
@@ -182,14 +182,14 @@ def test_provisional_call_constructor():
     assert len(call.ty_args) == 0
     assert isinstance(
         tvm_tirx.ir.Call(
-            "handle",
             op,
             [x],
+            ty="handle",
         ).ty,
         tvm_tirx.ir.PtrType,
     )
     with pytest.raises(TypeError, match="skip_validate"):
-        tvm_tirx.ir.Call(None, op, [x], skip_validate=True)
+        tvm_tirx.ir.Call(op, [x], skip_validate=True)
 
 
 def test_symbolic_var():
@@ -258,14 +258,14 @@ def test_recursive():
     x2 = rx.Var("x2", scalar_ty)
     y = rx.Var("y", scalar_ty)
     inner_block = rx.BindingBlock(
-        [rx.VarBinding(x0, rx.const(2, "int32")), rx.VarBinding(y, rx.Call(None, f, [x0]))]
+        [rx.VarBinding(x0, rx.const(2, "int32")), rx.VarBinding(y, rx.Call(f, [x0]))]
     )
     inner_func = rx.Function([ipt], rx.SeqExpr([inner_block], y), scalar_ty)
     outer_block = rx.BindingBlock(
         [
             rx.VarBinding(f, inner_func),
             rx.VarBinding(x1, rx.const(1, "int32")),
-            rx.VarBinding(x2, rx.op.add(x1, rx.Call(None, f, [x1]))),
+            rx.VarBinding(x2, rx.op.add(x1, rx.Call(f, [x1]))),
             rx.VarBinding(gv0, x2),
         ]
     )
@@ -474,13 +474,13 @@ def test_inline_function():
                         rx.VarBinding(
                             var=y,
                             value=rx.Call(
-                                tvm_tirx.ir.Type.missing(),
                                 op=tvm_tirx.ir.Op.get("relax.call_tir"),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
                                     rx.Tuple([x, tirx.Function([], tvm_tirx.ir.Evaluate(0))]),
                                     rx.ShapeExpr([]),
                                 ],
+                                ty=tvm_tirx.ir.Type.missing(),
                             ),
                         ),
                     ]
@@ -541,7 +541,7 @@ def test_nested_dataflow():
         [
             rx.VarBinding(x1, rx.const(1, "int32")),
             rx.VarBinding(f, inner_func),
-            rx.VarBinding(x2, rx.op.add(x1, rx.Call(None, f, []))),
+            rx.VarBinding(x2, rx.op.add(x1, rx.Call(f, []))),
             rx.VarBinding(gv0, x2),
         ]
     )
@@ -1507,7 +1507,7 @@ def test_stop_lift_params_optional_type_arg():
     x = rx.Var("x", rx.TensorType((4,), "float32"))
     out_ty = rx.TensorType((4,), "float32", rx.VDevice("llvm"))
     for ty_args in ([], [out_ty]):
-        call = tvm_tirx.ir.Call(None, "relax.builtin.stop_lift_params", [x], ty_args=ty_args)
+        call = tvm_tirx.ir.Call("relax.builtin.stop_lift_params", [x], ty_args=ty_args)
         func = rx.Function([x], call, ty_args[0] if ty_args else x.ty)
         normalized = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
         rx.analysis.well_formed(normalized)

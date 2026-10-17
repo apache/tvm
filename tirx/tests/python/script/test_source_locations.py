@@ -119,9 +119,9 @@ def calls(located_language):
     M = located_language.M
     M.evaluate = lambda value: value
     M.call_extern = lambda dtype, name: ir.Call(
-        dtype,
         ir.GlobalVar(name),
         [],
+        ty=dtype,
     )
     return M
 
@@ -206,9 +206,9 @@ def gallery(monkeypatch, located_language):
     monkeypatch.setitem(globals(), "__name__", "__main__")
     M = located_language.M
     M.store = lambda value: ir.Call(
-        "int32",
         ir.GlobalVar("store"),
         [tvm_tirx.ir.IntImm("int32", value)],
+        ty="int32",
     )
     return M
 

@@ -97,7 +97,7 @@ class FoldBatchnormToConv2D:
             wt_conv = relax.op.multiply(conv_weight, wt)
             bs_args = relax.op.reshape(bs, shape=(1, bn_bias.ty.shape[0], 1, 1))
 
-            conv_out = relax.Call(None, conv_op.op, (conv_input, wt_conv), conv_attrs)
+            conv_out = relax.Call(conv_op.op, (conv_input, wt_conv), conv_attrs)
             return relax.op.add(conv_out, bs_args)
 
         updated_call = rewrite_call(self.pattern, rewriter, func)

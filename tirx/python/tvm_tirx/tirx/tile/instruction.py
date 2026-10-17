@@ -156,7 +156,7 @@ class Instruction:
         else:
             attrs_values["scope"] = self._thread_scope(attrs_values["scope"])
             attrs = make_node("tirx.tensor." + self.schema, **attrs_values)
-        call = Call(result_ty, self.name, args, attrs=attrs, loc=loc)
+        call = Call(self.name, args, attrs=attrs, loc=loc, ty=result_ty)
         call.validate()
         return call
 
@@ -334,7 +334,7 @@ class TensorCall:
         for name, value in values.items():
             index = next(i for i, arg in enumerate(self.spec.operands) if arg.name == name)
             args[index] = value
-        return Call(self.call.ty, self.op, args, attrs=self.call.attrs, loc=self.call.loc)
+        return Call(self.op, args, attrs=self.call.attrs, loc=self.call.loc, ty=self.call.ty)
 
 
 for _name in (

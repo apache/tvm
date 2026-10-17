@@ -78,9 +78,9 @@ def test_llvm_intrin():
             A_buf = T.decl_tensor(A, ty_args=[T.Tensor((4,), "float32", data=A)])
             T.evaluate(
                 T.Call(
-                    "void",
                     "tirx.prefetch",
                     [T.address_of(A_buf[0]), 0, 3, 1],
+                    ty="void",
                 )
             )
 
@@ -1061,9 +1061,9 @@ def test_call_packed_returning_void():
         @T.function
         def main():
             T.Call(
-                "void",
                 tvm_tirx.ir.Op.get("tirx.call_packed"),
                 ["dummy_function_name"],
+                ty="void",
             )
 
     # Error occurred during build, as part of
@@ -1086,9 +1086,9 @@ def test_call_packed_without_string_arg():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.Call(
-                "int32",
                 tvm_tirx.ir.Op.get("tirx.call_packed"),
                 [A.data],
+                ty="int32",
             )
 
     with pytest.raises(RuntimeError):
@@ -1104,9 +1104,9 @@ def test_call_extern_returning_void():
         @T.function
         def main():
             T.Call(
-                "void",
                 tvm_tirx.ir.Op.get("tirx.call_extern"),
                 ["dummy_function_name"],
+                ty="void",
             )
 
     built = tvm_tirx.tirx.compile(Module, target="llvm")

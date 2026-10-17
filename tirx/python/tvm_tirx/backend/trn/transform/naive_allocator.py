@@ -103,12 +103,12 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
             return Bind(
                 tensor,
                 Call(
-                    op.value.ty,
                     op.value.op,
                     args,
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
                     loc=op.value.loc,
+                    ty=op.value.ty,
                 ),
                 op.loc,
             )

@@ -61,11 +61,11 @@ def sort(
 
     """
     return _Call(
-        ty,
         "relax.sort",
         [x],
         attrs=_make_attrs("relax.attrs.SortAttrs", axis=axis, descending=descending),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -106,13 +106,13 @@ def argsort(
         Tensor with same shape as data.
     """
     return _Call(
-        ty,
         "relax.argsort",
         [data],
         attrs=_make_attrs(
             "relax.attrs.ArgsortAttrs", axis=axis, descending=descending, dtype=dtype
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -168,11 +168,11 @@ def topk(
     if isinstance(k, GenericConst):
         k = k.value.numpy().item()
     return _Call(
-        ty,
         "relax.topk",
         [data],
         attrs=_make_attrs(
             "relax.attrs.TopKAttrs", k=k, axis=axis, ret_type=ret_type, largest=largest, dtype=dtype
         ),
         loc=loc,
+        ty=ty,
     )  # type: ignore

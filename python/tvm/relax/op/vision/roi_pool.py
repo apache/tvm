@@ -70,7 +70,6 @@ def roi_pool(
     if isinstance(pooled_size, int):
         pooled_size = (pooled_size, pooled_size)
     return _Call(
-        ty,
         "relax.vision.roi_pool",
         [data, rois],
         attrs=_make_attrs(
@@ -80,4 +79,5 @@ def roi_pool(
             layout=layout,
         ),
         loc=loc,
+        ty=ty,
     )
