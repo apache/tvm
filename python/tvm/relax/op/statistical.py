@@ -19,7 +19,6 @@
 
 import tvm_ffi
 
-from tvm_tirx import DataType
 from tvm_tirx.ir import Attrs, PrimType
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
@@ -291,7 +290,7 @@ class ScanopAttrs(Attrs):
 def cumprod(
     data: Expr,
     axis: int | None = None,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     exclusive: bool = False,
     *,
     ty=None,
@@ -309,7 +308,7 @@ def cumprod(
         Axis along which the cumulative product is computed. The default (None) is to compute
         the cumprod over the flattened array.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[Union[str, tvm_ffi.dtype]]
         Type of the returned array and of the accumulator in which the elements are computed.
         If dtype is not specified, it defaults to the dtype of data.
 
@@ -364,7 +363,7 @@ def cumprod(
 def cumsum(
     data: Expr,
     axis: int | None = None,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     exclusive: bool = False,
     *,
     ty=None,
@@ -382,7 +381,7 @@ def cumsum(
         Axis along which the cumulative sum is computed. The default (None) is to compute
         the cumsum over the flattened array.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[Union[str, tvm_ffi.dtype]]
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 

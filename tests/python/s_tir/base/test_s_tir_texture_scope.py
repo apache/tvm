@@ -17,6 +17,7 @@
 # ruff: noqa: F401
 
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -72,7 +73,7 @@ def test_texture_scope():
     assert len(device_mods) == 1
     (device_target, _backend_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)
-    source = tvm_tirx.get_global_func("target.build.opencl")(
+    source = tvm_ffi.get_global_func("target.build.opencl")(
         device_mod, device_target
     ).inspect_source()
     assert "__read_only image2d_array_t" in source

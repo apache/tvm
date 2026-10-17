@@ -17,6 +17,7 @@
 # ruff: noqa: E741
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -35,7 +36,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     C = hipblas.matmul(A, B, dtype=out_dtype)
 
     def verify(target="rocm"):
-        if not tvm_tirx.get_global_func("tvm.contrib.hipblas.matmul", True):
+        if not tvm_ffi.get_global_func("tvm.contrib.hipblas.matmul", True):
             print("skip because extern function is not available")
             return
         f = tvm.compile(te.create_function([A, B, C]), target=target)
@@ -100,7 +101,7 @@ def test_matmul_add():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_batch_matmul():
-    if not tvm_tirx.get_global_func("tvm.contrib.hipblas.batch_matmul", True):
+    if not tvm_ffi.get_global_func("tvm.contrib.hipblas.batch_matmul", True):
         print("skip because extern function is not available")
         return
 

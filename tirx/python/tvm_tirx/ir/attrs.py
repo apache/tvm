@@ -19,11 +19,9 @@
 import tvm_ffi
 import tvm_ffi._ffi_api as _tvm_ffi_api
 
-from tvm_tirx.runtime import Object
-
 
 @tvm_ffi.register_object("ir.Attrs")
-class Attrs(Object):
+class Attrs(tvm_ffi.Object):
     """Attribute node, which is mainly use for defining attributes of operators.
 
     Used by function registered in python side, such as compute, schedule and alter_layout.

@@ -17,6 +17,7 @@
 import ctypes
 
 import numpy as np
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.script import ir as I
@@ -24,7 +25,7 @@ from tvm_tirx.script import tirx as T
 
 
 def test_static_init():
-    @tvm_tirx.register_global_func("test_static_callback")
+    @tvm_ffi.register_global_func("test_static_callback")
     def test_cb(sh, A):
         assert isinstance(sh, ctypes.c_void_p)
         return sh

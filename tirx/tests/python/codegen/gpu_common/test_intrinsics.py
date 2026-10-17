@@ -18,6 +18,7 @@ from functools import partial
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -96,7 +97,7 @@ def test_device_module_dump():
         f.export_library(path_dso, fcompile=cc.cross_compiler("g++"))
 
         def run_and_check():
-            dev = tvm_tirx.device(device, 0)
+            dev = tvm_ffi.device(device, 0)
 
             def popen_check():
                 import tvm_tirx
@@ -123,7 +124,7 @@ def test_device_module_dump():
         f = tvm_tirx.tirx.compile(main, target=tvm_tirx.target.Target(device, host="c"))
 
         def run_and_check():
-            dev = tvm_tirx.device(device, 0)
+            dev = tvm_ffi.device(device, 0)
             a = tvm_tirx.runtime.tensor(np.random.uniform(size=1024).astype("float32"), dev)
             b = tvm_tirx.runtime.tensor(np.zeros(1024, dtype="float32"), dev)
             f["main"](a, b)

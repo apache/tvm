@@ -37,7 +37,7 @@ def build_module(mod, target):
 
     Returns
     -------
-    module : runtime.Module
+    module : tvm_ffi.Module
         The corresponding module.
     """
     target = Target(target) if isinstance(target, str) else target

@@ -338,7 +338,7 @@ def test_op_call_inplace_packed():
             )
             return z
 
-    @tvm_tirx.register_global_func("test.inplace.add", override=True)
+    @tvm_ffi.register_global_func("test.inplace.add", override=True)
     def inplace_add(a, b):
         arr_a = a.numpy()
         arr_b = b.numpy()
@@ -370,7 +370,7 @@ def test_op_call_inplace_packed():
     assert result == tvm_arr_a
     assert (result.numpy() == sum).all()
 
-    @tvm_tirx.register_global_func("test.inplace.tuple_add", override=True)
+    @tvm_ffi.register_global_func("test.inplace.tuple_add", override=True)
     def inplace_tuple_add(a, b):
         arr_a = a.numpy()
         arr_b = b.numpy()
@@ -379,7 +379,7 @@ def test_op_call_inplace_packed():
             for j in range(len(arr_a[i])):
                 arr_a[i][j] = arr_a[i][j] + arr_b[i][j]
         a.copyfrom(arr_a)
-        return tvm_tirx.runtime.convert([a, c])
+        return tvm_ffi.convert([a, c])
 
     @tvm_tirx.script.ir_module
     class CallInplaceTuple:
@@ -601,8 +601,8 @@ def test_call_py_func_function_roundtrip(tuple_size):
 
 
 def test_call_py_func_numpy_execution():
-    register = tvm_tirx.get_global_func("vm.builtin.register_py_func")
-    unregister = tvm_tirx.get_global_func("vm.builtin.unregister_py_func")
+    register = tvm_ffi.get_global_func("vm.builtin.register_py_func")
+    unregister = tvm_ffi.get_global_func("vm.builtin.unregister_py_func")
 
     def numpy_pair(x):
         data = x.numpy()
@@ -670,7 +670,7 @@ def test_op_call_py_func():
         result = torch.sigmoid(x_torch)
         return tvm_tirx.runtime.tensor(result.numpy())
 
-    register_func = tvm_tirx.get_global_func("vm.builtin.register_py_func")
+    register_func = tvm_ffi.get_global_func("vm.builtin.register_py_func")
     register_func("torch_relu", torch_relu)
     register_func("torch_sigmoid", torch_sigmoid)
 
@@ -702,7 +702,7 @@ def test_op_call_py_func():
     expected2 = 1.0 / (1.0 + np.exp(-np.maximum(y_data, 0.0)))
     assert (result2.numpy() == expected2).all()
 
-    unregister_func = tvm_tirx.get_global_func("vm.builtin.unregister_py_func")
+    unregister_func = tvm_ffi.get_global_func("vm.builtin.unregister_py_func")
     unregister_func("torch_relu")
     unregister_func("torch_sigmoid")
 
@@ -711,8 +711,8 @@ def test_py_func_registry_is_scoped_to_its_module():
     """A module's finalizer must drop its own registrations and nothing else."""
     from tvm.relax.base_py_module import BasePyModule
 
-    get_func = tvm_tirx.get_global_func("vm.builtin.get_py_func")
-    tvm_tirx.get_global_func("vm.builtin.register_py_func")("registry_probe", lambda x: x)
+    get_func = tvm_ffi.get_global_func("vm.builtin.get_py_func")
+    tvm_ffi.get_global_func("vm.builtin.register_py_func")("registry_probe", lambda x: x)
 
     # __new__ skips __init__'s JIT compilation; only the registration matters here.
     module = BasePyModule.__new__(BasePyModule)
@@ -728,7 +728,7 @@ def test_py_func_registry_is_scoped_to_its_module():
     assert get_func("registry_probe") is not None, "another owner's function was dropped"
     with pytest.raises(RuntimeError, match="not found in registry"):
         get_func("registry_owned")
-    tvm_tirx.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
+    tvm_ffi.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 
 
 def test_op_to_device():

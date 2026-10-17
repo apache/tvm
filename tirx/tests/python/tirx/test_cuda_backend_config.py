@@ -567,7 +567,7 @@ assert 'tvm_tirx' not in sys.modules
 def test_legacy_payloads():
     import struct
 
-    load = tvm_tirx.get_global_func("ffi.Module.load_from_bytes.cuda", allow_missing=True)
+    load = tvm_ffi.get_global_func("ffi.Module.load_from_bytes.cuda", allow_missing=True)
     if load is None:
         pytest.skip("CUDA runtime module loader is not linked")
 

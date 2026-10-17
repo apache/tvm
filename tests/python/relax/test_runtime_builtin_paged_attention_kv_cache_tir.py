@@ -100,7 +100,7 @@ def test_paged_prefill_layer_sliding_window_mask(device_type):
     if not tvm_tirx.testing.device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
 
-    dev = tvm_tirx.device(device_type)
+    dev = tvm_ffi.device(device_type)
     target = tvm_tirx.target.Target.from_device(dev)
     head_dim = 64
     num_kv_heads = 2
@@ -168,7 +168,7 @@ def test_paged_attention_kv_cache_sliding_window_two_sequences(device_type):
 
     def run_and_check():
         global device
-        device = tvm_tirx.device(device_type)
+        device = tvm_ffi.device(device_type)
         set_global_func(head_dim, dtype, tvm_tirx.target.Target.from_device(device))
         try:
             cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, True)
@@ -203,24 +203,24 @@ def set_global_func(head_dim, dtype, target):
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
 
-    fclear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fremove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    ffork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    fenable_sliding_window_for_seq = tvm_tirx.get_global_func(
+    fclear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fenable_sliding_window_for_seq = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_enable_sliding_window_for_seq"
     )
-    fpopn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    fcommit_accepted_token_tree_nodes = tvm_tirx.get_global_func(
+    fpopn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    fcommit_accepted_token_tree_nodes = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes"
     )
-    fattention_with_fuse_qkv = tvm_tirx.get_global_func(
+    fattention_with_fuse_qkv = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
-    fis_empty = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_empty")
-    fdebug_get_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
+    fis_empty = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_empty")
+    fdebug_get_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
     cache_key = (
         str(target),
@@ -292,7 +292,7 @@ def set_global_func(head_dim, dtype, target):
 
 
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
         tvm_ffi.Shape(
             [

@@ -19,6 +19,7 @@ import re
 from functools import partial
 
 import numpy as np
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -694,7 +695,7 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    data_type_imm = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("int32"))
+    data_type_imm = tvm_tirx.ir.DataTypeImm(tvm_ffi.dtype("int32"))
     data_type_str = strip_whitespace(dump_ast(data_type_imm))
     assert data_type_str == strip_whitespace(
         """

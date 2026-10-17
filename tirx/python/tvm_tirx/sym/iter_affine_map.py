@@ -21,7 +21,6 @@ from enum import IntEnum
 import tvm_ffi
 
 from tvm_tirx.ir import Expr
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 
@@ -32,7 +31,7 @@ class IterMapExpr(Expr):
 
 
 @tvm_ffi.register_object("sym.IterMark")
-class IterMark(Object):
+class IterMark(tvm_ffi.Object):
     """Mark the source as an iterator in [0, extent).
 
     Parameters
@@ -95,7 +94,7 @@ class IterSumExpr(IterMapExpr):
 
 
 @tvm_ffi.register_object("sym.IterMapResult")
-class IterMapResult(Object):
+class IterMapResult(tvm_ffi.Object):
     """Result of iter map detection."""
 
 

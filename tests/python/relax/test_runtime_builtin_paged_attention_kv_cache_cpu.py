@@ -113,35 +113,35 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
 
-    fclear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fremove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    ffork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    fenable_sliding_window_for_seq = tvm_tirx.get_global_func(
+    fclear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fenable_sliding_window_for_seq = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_enable_sliding_window_for_seq"
     )
-    fpopn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    fcommit_accepted_token_tree_nodes = tvm_tirx.get_global_func(
+    fpopn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    fcommit_accepted_token_tree_nodes = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes"
     )
-    fattention_with_fuse_qkv = tvm_tirx.get_global_func(
+    fattention_with_fuse_qkv = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
-    fattention_with_shared_kv = tvm_tirx.get_global_func(
+    fattention_with_shared_kv = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_shared_kv"
     )
-    fis_empty = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_empty")
-    fdebug_get_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fis_empty = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_empty")
+    fdebug_get_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
-    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
-    ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fget_sequence_length = tvm_tirx.get_global_func(
+    fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fget_sequence_length = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_sequence_length"
     )
 
@@ -226,7 +226,7 @@ def create_kv_cache(
     layer_sliding_window_size=None,
     attn_kinds=None,
 ):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache_config = [
         reserved_nseq,
         maximum_total_seq_length,

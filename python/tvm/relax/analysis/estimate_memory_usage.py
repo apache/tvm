@@ -17,6 +17,8 @@
 # pylint: disable=abstract-method,unused-argument
 # pylint: disable=missing-function-docstring,missing-module-docstring
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm_tirx.ir import Call, Op
 from tvm_tirx.ir.module import IRModule
@@ -128,7 +130,7 @@ def estimate_memory_usage(mod: IRModule | Function) -> str:
                     self.total_dyn_size_tensor_num += 1
                     return -1
                 size *= dim_len.value
-            dtype = tvm_tirx.DataType(dtype_str)
+            dtype = tvm_ffi.dtype(dtype_str)
             return size * ((dtype.bits + 7) // 8) * dtype.lanes
 
         def accumulate_builtin_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:

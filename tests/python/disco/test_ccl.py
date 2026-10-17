@@ -21,6 +21,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -30,13 +31,12 @@ from tvm.relax import script as R
 from tvm.runtime import disco as di
 from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import dlight as dl
-from tvm_tirx import get_global_func
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
-_compiled_ccl = get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
+_compiled_ccl = tvm_ffi.get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
 if _compiled_ccl is None:
     pytest.skip("Disco CCL is not enabled in this TVM build", allow_module_level=True)
 _ccl = [_compiled_ccl()]

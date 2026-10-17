@@ -33,6 +33,7 @@ from typing import (
 )
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm_tirx.runtime
 from tvm.runtime.vm import VirtualMachine
@@ -40,7 +41,6 @@ from tvm_tirx import tirx
 from tvm_tirx.ir import IRModule
 from tvm_tirx.ir.transform import Pass
 from tvm_tirx.runtime import Device
-from tvm_tirx.runtime import device as as_device
 from tvm_tirx.target import Target
 
 from .... import relax as rx
@@ -564,7 +564,7 @@ class Module(SubroutineMixin):
             params = _param_to_tensor(params, device)
             return spec, vm, params
 
-        device = as_device(device)
+        device = tvm_ffi.device(device)
         spec, vm, params = _compile(spec, device, pipeline, debug)  # pylint: disable=invalid-name
 
         if out_format == "torch":
@@ -849,7 +849,7 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
 
 def _from_dlpack(tensor) -> tvm_tirx.runtime.Tensor:
     try:
-        return tvm_tirx.runtime.from_dlpack(tensor)
+        return tvm_ffi.from_dlpack(tensor)
     except RuntimeError:
         pass
     # special logic for PyTorch

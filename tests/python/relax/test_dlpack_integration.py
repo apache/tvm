@@ -26,6 +26,7 @@ This test verifies:
 
 import pytest
 import torch
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -39,7 +40,7 @@ class TestDLPackIntegration:
     def test_dlpack_pytorch_to_tvm_conversion(self):
         pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
 
-        tvm_tensor = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+        tvm_tensor = tvm_ffi.from_dlpack(pytorch_tensor)
 
         assert isinstance(tvm_tensor, tvm_tirx.runtime.Tensor)
         assert tvm_tensor.shape == pytorch_tensor.shape
@@ -57,7 +58,7 @@ class TestDLPackIntegration:
                     [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
                 )
 
-                tvm_tensor = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+                tvm_tensor = tvm_ffi.from_dlpack(pytorch_tensor)
 
                 assert isinstance(tvm_tensor, tvm_tirx.runtime.Tensor)
                 assert tvm_tensor.shape == pytorch_tensor.shape
@@ -119,7 +120,7 @@ class TestDLPackIntegration:
         original_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
 
         # Convert to TVM
-        tvm_tensor = tvm_tirx.runtime.from_dlpack(original_tensor)
+        tvm_tensor = tvm_ffi.from_dlpack(original_tensor)
 
         # Convert back to PyTorch
         result_tensor = torch.from_dlpack(tvm_tensor)
@@ -143,7 +144,7 @@ class TestDLPackIntegration:
             pytorch_tensor = torch.tensor([1, 2, 3], dtype=torch_dtype)
 
             # Convert to TVM
-            tvm_tensor = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+            tvm_tensor = tvm_ffi.from_dlpack(pytorch_tensor)
 
             # Convert back to PyTorch
             result_tensor = torch.from_dlpack(tvm_tensor)
@@ -166,7 +167,7 @@ class TestDLPackIntegration:
             pytorch_tensor = torch.randn(shape, dtype=torch.float32)
 
             # Convert to TVM
-            tvm_tensor = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+            tvm_tensor = tvm_ffi.from_dlpack(pytorch_tensor)
 
             # Convert back to PyTorch
             result_tensor = torch.from_dlpack(tvm_tensor)
@@ -182,7 +183,7 @@ class TestDLPackIntegration:
         pytorch_tensor = torch.randn(size, dtype=torch.float32)
 
         # Test DLPack conversion
-        tvm_tensor_dlpack = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+        tvm_tensor_dlpack = tvm_ffi.from_dlpack(pytorch_tensor)
 
         # Test numpy conversion
         numpy_array = pytorch_tensor.detach().cpu().numpy()
@@ -235,7 +236,7 @@ class TestDLPackIntegration:
         """Test DLPack conversion maintains device consistency."""
         # Test CPU tensor
         cpu_tensor = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
-        cpu_tvm = tvm_tirx.runtime.from_dlpack(cpu_tensor)
+        cpu_tvm = tvm_ffi.from_dlpack(cpu_tensor)
         cpu_result = torch.from_dlpack(cpu_tvm)
 
         assert cpu_result.device.type == "cpu"
@@ -250,7 +251,7 @@ class TestDLPackIntegration:
         pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
 
         # Convert to TVM
-        tvm_tensor = tvm_tirx.runtime.from_dlpack(pytorch_tensor)
+        tvm_tensor = tvm_ffi.from_dlpack(pytorch_tensor)
 
         # Modify the original tensor
         pytorch_tensor[0] = 10.0
@@ -269,7 +270,7 @@ class TestDLPackIntegration:
         pytorch_tensors = [torch.randn(5, dtype=torch.float32) for _ in range(batch_size)]
 
         # Convert all to TVM
-        tvm_tensors = [tvm_tirx.runtime.from_dlpack(t) for t in pytorch_tensors]
+        tvm_tensors = [tvm_ffi.from_dlpack(t) for t in pytorch_tensors]
 
         # Convert all back to PyTorch
         result_tensors = [torch.from_dlpack(t) for t in tvm_tensors]
@@ -282,7 +283,7 @@ class TestDLPackIntegration:
         """Test DLPack conversion with edge cases."""
         # Empty tensor
         empty_tensor = torch.tensor([], dtype=torch.float32)
-        empty_tvm = tvm_tirx.runtime.from_dlpack(empty_tensor)
+        empty_tvm = tvm_ffi.from_dlpack(empty_tensor)
         empty_result = torch.from_dlpack(empty_tvm)
 
         assert empty_result.shape == empty_tensor.shape
@@ -290,7 +291,7 @@ class TestDLPackIntegration:
 
         # Single element tensor
         single_tensor = torch.tensor([42.0], dtype=torch.float32)
-        single_tvm = tvm_tirx.runtime.from_dlpack(single_tensor)
+        single_tvm = tvm_ffi.from_dlpack(single_tensor)
         single_result = torch.from_dlpack(single_tvm)
 
         assert single_result.shape == single_tensor.shape

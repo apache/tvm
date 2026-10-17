@@ -449,7 +449,7 @@ def make_alloc_arg_and_check(
         ]
 
     def f_with_args_run_evaluator_common(
-        rt_mod: tvm_tirx.runtime.Module,
+        rt_mod: tvm_ffi.Module,
         device: tvm_tirx.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
         repeated_args: list[ms.runner.rpc_runner.T_ARGUMENT_LIST],
@@ -526,7 +526,7 @@ def make_alloc_arg_and_check(
 
     def f_with_args_run_evaluator_rpc(
         rpc_session: ms.runner.rpc_runner.RPCSession,  # pylint: disable=unused-argument
-        rt_mod: tvm_tirx.runtime.Module,
+        rt_mod: tvm_ffi.Module,
         device: tvm_tirx.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
         repeated_args: list[ms.runner.rpc_runner.T_ARGUMENT_LIST],

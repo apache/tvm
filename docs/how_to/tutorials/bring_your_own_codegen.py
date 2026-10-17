@@ -65,7 +65,6 @@ unavailable.
 # Steps 1 and 2 are pure Python and run anywhere; steps 3 and 4 need the
 # backend's codegen and runtime compiled into TVM, which is why the
 # build-and-run cells below are guarded.
-
 ######################################################################
 # Step 1: Import the backends to register their patterns
 # ------------------------------------------------------
@@ -74,11 +73,11 @@ unavailable.
 # Pattern registration is independent of the C++ build -- only codegen and the
 # runtime require the backend to be compiled in -- so we probe each backend and
 # guard the build-and-run cells accordingly.
-
 import os
 import tempfile
 
 import numpy as np
+import tvm_ffi
 
 import tvm.relax.backend.contrib.example_npu  # noqa: F401
 import tvm_tirx
@@ -88,12 +87,12 @@ from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
 from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions, RunCodegen
 
-has_example_npu_codegen = tvm_tirx.get_global_func("relax.ext.example_npu", True)
-has_example_npu_runtime = tvm_tirx.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
+has_example_npu_codegen = tvm_ffi.get_global_func("relax.ext.example_npu", True)
+has_example_npu_runtime = tvm_ffi.get_global_func("runtime.ExampleNPUJSONRuntimeCreate", True)
 has_example_npu = has_example_npu_codegen and has_example_npu_runtime
 
-has_tensorrt_codegen = tvm_tirx.get_global_func("relax.ext.tensorrt", True) is not None
-_is_trt_runtime_enabled = tvm_tirx.get_global_func("relax.is_tensorrt_runtime_enabled", True)
+has_tensorrt_codegen = tvm_ffi.get_global_func("relax.ext.tensorrt", True) is not None
+_is_trt_runtime_enabled = tvm_ffi.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 has_tensorrt = (
     has_tensorrt_codegen and _is_trt_runtime_enabled is not None and _is_trt_runtime_enabled()
 )

@@ -24,7 +24,6 @@ import tvm_ffi
 from tvm_ffi.dataclasses import Enum
 
 import tvm_tirx
-from tvm_tirx.runtime import Object
 from tvm_tirx.tirx.expr import Expr
 
 from . import _ffi_api
@@ -32,7 +31,7 @@ from .thread_scope import ThreadScope
 
 
 @tvm_ffi.register_object("tirx.Layout")
-class Layout(Object):
+class Layout(tvm_ffi.Object):
     def verify_well_formed(self) -> bool:
         """Verify if the layout is well-formed.
 
@@ -504,7 +503,7 @@ def _to_offset_expr(x: _OffsetExprLike) -> _OffsetExpr:
 
 
 @tvm_ffi.register_object("tirx.Iter")
-class Iter(Object):
+class Iter(tvm_ffi.Object):
     """A memory layout that tiles data across devices."""
 
     extent: Expr

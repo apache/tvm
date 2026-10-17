@@ -24,7 +24,6 @@ import tvm_ffi
 from tvm.relax.type import TensorType, Type
 from tvm_tirx.ir import Location
 from tvm_tirx.ir.location import UNKNOWN_LOC
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .global_info import DeviceMesh
@@ -36,7 +35,7 @@ class PlacementSpecKind(enum.IntEnum):
 
 
 @tvm_ffi.register_object("relax.distributed.PlacementSpec")
-class PlacementSpec(Object):
+class PlacementSpec(tvm_ffi.Object):
     """Describes how data is distributed in one dimension of the device mesh
 
     Parameters
@@ -83,7 +82,7 @@ class PlacementSpec(Object):
 
 
 @tvm_ffi.register_object("relax.distributed.Placement")
-class Placement(Object):
+class Placement(tvm_ffi.Object):
     """Describes how data is distributed in each dimension of the device mesh
 
     Parameters

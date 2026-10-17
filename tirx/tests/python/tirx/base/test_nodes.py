@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx import ir
@@ -113,7 +114,7 @@ def test_cast():
 
 
 def test_attr():
-    a = tvm_tirx.runtime.convert(1)
+    a = tvm_ffi.convert(1)
     assert a == 1
     try:
         a.no_field
@@ -400,15 +401,15 @@ def test_tensor_load_rejects_two_scalable_types():
 
 
 def test_intimm_cond():
-    x = tvm_tirx.runtime.convert(1)
-    y = tvm_tirx.runtime.convert(1)
+    x = tvm_ffi.convert(1)
+    y = tvm_ffi.convert(1)
     s = {x}
     assert y in s
     assert x == y
     assert x < 20
     assert not (x >= 20)
     assert x < 10 and y < 10
-    assert not tvm_tirx.runtime.convert(x != 1)
+    assert not tvm_ffi.convert(x != 1)
     assert x == 1
 
 

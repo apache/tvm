@@ -22,12 +22,12 @@ from functools import wraps
 from inspect import signature
 from typing import Any, Generic, ParamSpec, TypeVar
 
+import tvm_ffi
 from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm_tirx import ir
 from tvm_tirx.ir.location import UnknownLoc
-from tvm_tirx.runtime import Object as _Object
 
 from . import _ffi_api
 
@@ -99,7 +99,7 @@ def resolve_global_info_args(
 
 
 @_register_object("script.ir_builder.IRBuilderFrame")
-class IRBuilderFrame(_Object):
+class IRBuilderFrame(tvm_ffi.Object):
     """A stack frame of the IRBuilder used to keep track of the current scope.
 
     A language variant supplies frame subclasses that retain the information
@@ -132,7 +132,7 @@ class IRBuilderFrame(_Object):
 
 
 @_register_object("script.ir_builder.IRBuilder")
-class IRBuilder(_Object):
+class IRBuilder(tvm_ffi.Object):
     """A shared construction context for any language variant's IR.
 
     Examples
@@ -199,7 +199,7 @@ class IRBuilder(_Object):
         """
         return _ffi_api.IRBuilderIsInScope()  # type: ignore[attr-defined] # pylint: disable=no-member
 
-    def get(self) -> _Object:
+    def get(self) -> tvm_ffi.Object:
         """Get the constructed IR."""
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -417,7 +417,7 @@ def at(loc: LocationEntry | ir.Location | None, value: _T) -> _T:
     target = value.value if isinstance(value, AlreadyEmitted) else value
     targets = target if isinstance(target, list | tuple) else (target,)
     for item in targets:
-        if isinstance(item, _Object):
+        if isinstance(item, tvm_ffi.Object):
             IRBuilder.current()._attach_loc(item, loc)
     return value
 

@@ -19,6 +19,7 @@
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.backend.cuda.axis import laneid, warpid
@@ -75,7 +76,7 @@ def test_ewise_composite(operation):
 )
 @pytest.mark.parametrize("opcode,kind", [("add", "binary"), ("mul", "binary"), ("fma", "ternary")])
 def test_native_packed(dtype, suffix, opcode, kind):
-    bits = tvm_tirx.DataType(dtype).bits * 2
+    bits = tvm_ffi.dtype(dtype).bits * 2
     storage = "uint" + str(bits)
     instruction = f"{opcode}.rn.{suffix}"
 

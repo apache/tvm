@@ -23,6 +23,8 @@ import re
 from numbers import Integral
 from typing import TYPE_CHECKING
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm_tirx.runtime import MemoryScope
 
@@ -164,9 +166,9 @@ def view(buf: Var, *args, **kwargs) -> Var:
                 )
         return shape
 
-    if len(args) == 1 and isinstance(args[0], str | tvm_tirx.DataType) and not kwargs:
-        cast_dtype = tvm_tirx.DataType(args[0])
-        cur_dtype = tvm_tirx.DataType(buf.dtype)
+    if len(args) == 1 and isinstance(args[0], str | tvm_ffi.dtype) and not kwargs:
+        cast_dtype = tvm_ffi.dtype(args[0])
+        cur_dtype = tvm_ffi.dtype(buf.dtype)
         storage_axis = "TCol" if _is_tmem_scope(buf.scope()) else "m"
         if cast_dtype.bits > cur_dtype.bits:
             assert cast_dtype.bits % cur_dtype.bits == 0
@@ -425,7 +427,7 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
     if element_offset is None:
         return None
 
-    bits = tvm_tirx.DataType(buf.dtype).bits
+    bits = tvm_ffi.dtype(buf.dtype).bits
     bit_offset = element_offset * bits
     bit_offset_c = _concrete_int(bit_offset)
     if bit_offset_c is not None:

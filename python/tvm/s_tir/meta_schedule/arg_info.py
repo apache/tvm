@@ -18,10 +18,10 @@
 
 from typing import Any
 
+import tvm_ffi
 from tvm_ffi import Shape, register_object
 
 from tvm_tirx.ir import IRModule
-from tvm_tirx.runtime import DataType, Object
 from tvm_tirx.tirx import Function
 
 from . import _ffi_api
@@ -29,7 +29,7 @@ from .utils import _json_de_tvm
 
 
 @register_object("s_tir.meta_schedule.ArgInfo")
-class ArgInfo(Object):
+class ArgInfo(tvm_ffi.Object):
     """Argument information"""
 
     def as_json(self) -> Any:
@@ -93,25 +93,25 @@ class TensorInfo(ArgInfo):
 
     Parameters
     ----------
-    dtype : DataType
+    dtype : tvm_ffi.dtype
         The data type of the tensor.
     shape : Shape
         The shape of the tensor.
     """
 
-    dtype: DataType
+    dtype: tvm_ffi.dtype
     shape: Shape
 
     def __init__(
         self,
-        dtype: DataType,
+        dtype: tvm_ffi.dtype,
         shape: Shape | list[int],
     ) -> None:
         """Constructor
 
         Parameters
         ----------
-        dtype : DataType
+        dtype : tvm_ffi.dtype
             The data type of the tensor.
         shape : Shape
             The shape of the tensor.

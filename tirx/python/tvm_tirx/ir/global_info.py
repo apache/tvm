@@ -18,11 +18,9 @@
 
 import tvm_ffi
 
-from tvm_tirx.runtime import Object
-
 
 @tvm_ffi.register_object("ir.GlobalInfo")
-class GlobalInfo(Object):
+class GlobalInfo(tvm_ffi.Object):
     """Base node for all global info that can appear in the IR"""
 
     def __eq__(self, other):

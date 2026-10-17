@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -26,20 +27,20 @@ from tvm.contrib.dlpack import to_pytorch_func
 def verify_torch_dlpack():
     a = np.random.randn(1337)
     tvm_a = tvm_tirx.runtime.tensor(a)
-    np.testing.assert_equal(tvm_tirx.runtime.from_dlpack(tvm_a).numpy(), a)
+    np.testing.assert_equal(tvm_ffi.from_dlpack(tvm_a).numpy(), a)
 
     try:
         import torch
         import torch.utils.dlpack
 
         x = torch.rand(56, 56)
-        tvm_x = tvm_tirx.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(x))
+        tvm_x = tvm_ffi.from_dlpack(torch.utils.dlpack.to_dlpack(x))
         np.testing.assert_equal(x.numpy(), tvm_x.numpy())
-        y = tvm_tirx.runtime.from_dlpack(tvm_x)
+        y = tvm_ffi.from_dlpack(tvm_x)
         np.testing.assert_equal(y.numpy(), tvm_x.numpy())
         np.testing.assert_equal(torch.utils.dlpack.from_dlpack(y).numpy(), tvm_x.numpy())
 
-        n = tvm_tirx.runtime.convert(137)
+        n = tvm_ffi.convert(137)
         xx = torch.rand(137, 137)
         yy = torch.rand(137, 137)
         zz2 = torch.empty(137, 137)

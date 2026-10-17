@@ -16,9 +16,8 @@
 # under the License.
 # pylint: disable=missing-docstring
 import torch
+import tvm_ffi
 
-import tvm_tirx
-import tvm_tirx.testing
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op, spec
 from tvm_tirx import tirx
@@ -43,7 +42,7 @@ def test_debug_print():
 
 
 def test_debug_func():
-    @tvm_tirx.register_global_func("testing.relax.frontend.nn.test_debug_func")
+    @tvm_ffi.register_global_func("testing.relax.frontend.nn.test_debug_func")
     def _debug(  # pylint: disable=too-many-arguments
         lineno: str,
         tensor: Tensor,

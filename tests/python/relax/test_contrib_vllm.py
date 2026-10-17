@@ -28,7 +28,7 @@ from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
-has_vllm = tvm_tirx.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
+has_vllm = tvm_ffi.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
 
 vllm_enabled = pytest.mark.skipif(
     not has_vllm,
@@ -767,10 +767,8 @@ def test_reconstruct_from_cache():
     num_tokens = 8
     num_blocks = 1
 
-    reshape_and_cache_func = tvm_tirx.get_global_func("tvm.contrib.vllm.reshape_and_cache")
-    reconstruct_from_cache_func = tvm_tirx.get_global_func(
-        "tvm.contrib.vllm.reconstruct_from_cache"
-    )
+    reshape_and_cache_func = tvm_ffi.get_global_func("tvm.contrib.vllm.reshape_and_cache")
+    reconstruct_from_cache_func = tvm_ffi.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
     def run_and_check():
         dev = tvm_tirx.cuda(0)

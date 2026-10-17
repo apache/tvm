@@ -20,10 +20,11 @@
 from functools import reduce
 from operator import mul
 
+import tvm_ffi
+
 from tvm import relax, topi
 from tvm.contrib.thrust import can_use_thrust
 from tvm.relax import expr_functor
-from tvm_tirx import DataType
 from tvm_tirx.ir import GlobalVar, Op
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.ir.transform import PassContext, module_pass
@@ -240,9 +241,9 @@ class SortScanDispatcher(BackendDispatcher):
         Estimate the workspace size for thrust sort/argsort/topk/cumsum
         """
         input_shape = call.args[0].ty.shape
-        input_byte_per_elem = DataType(call.args[0].ty.dtype.dtype).bits // 8
-        int64_byte_per_elem = DataType("int64").bits // 8
-        int32_byte_per_elem = DataType("int32").bits // 8
+        input_byte_per_elem = tvm_ffi.dtype(call.args[0].ty.dtype.dtype).bits // 8
+        int64_byte_per_elem = tvm_ffi.dtype("int64").bits // 8
+        int32_byte_per_elem = tvm_ffi.dtype("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)
         input_size = num_elem * input_byte_per_elem
         # Most GPU algorithms take O(n) space or less, we choose 8N + 8MB as a safe estimation

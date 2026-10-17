@@ -22,7 +22,6 @@ from enum import IntEnum
 import tvm_ffi
 
 import tvm_tirx.runtime
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .attrs import DictAttrs
@@ -52,7 +51,7 @@ class BaseFunc(_CallableExprWithOp):
         attr_key_or_dict : Union[str, dict]
             The attribute key to use or a dict containing multiple key value pairs.
 
-        attr_value : Object
+        attr_value : tvm_ffi.Object
             The new attribute value.
 
         Returns
@@ -70,21 +69,21 @@ class BaseFunc(_CallableExprWithOp):
                 new_value = _ffi_api.BaseFuncWithAttr(
                     new_value if new_value is self else new_value._move(),
                     key,
-                    tvm_tirx.runtime.convert(val),
+                    tvm_ffi.convert(val),
                 )
             return new_value
 
         return _ffi_api.BaseFuncWithAttr(
             new_value if new_value is self else new_value._move(),
             attr_key_or_dict,
-            tvm_tirx.runtime.convert(attr_value),
+            tvm_ffi.convert(attr_value),
         )
 
-    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "BaseFunc":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, tvm_ffi.Object]) -> "BaseFunc":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------
-        attr_map: Union[DictAttrs, Dict[str, Object]]
+        attr_map: Union[DictAttrs, Dict[str, tvm_ffi.Object]]
             The attribute map
         Returns
         -------

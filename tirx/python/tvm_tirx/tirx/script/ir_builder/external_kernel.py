@@ -28,7 +28,6 @@ from tvm_tirx import __version__ as tvm_version
 from tvm_tirx import libinfo, tirx
 from tvm_tirx.backend.config import backend_config_json, merge_backend_configs
 from tvm_tirx.ir import Expr, PtrType, is_prim_expr
-from tvm_tirx.runtime import Module
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -36,7 +35,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
 
     def compile_to_device_module(
         self, launch_args, *args, **kwargs
-    ) -> tuple[str, Module, list[Any]]:
+    ) -> tuple[str, tvm_ffi.Module, list[Any]]:
         """Compile the kernel to a device module."""
         raise NotImplementedError()
 
@@ -92,7 +91,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
 
         Returns
         -------
-        kernel_module : Module
+        kernel_module : tvm_ffi.Module
             The CUDA module.
         """
         tvm_metadata = self._format_tvm_module_metadata(
@@ -124,7 +123,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         grid: list[list[int | tirx.Expr]],
         *args: list[Any],
         **kwargs: dict[str, Any],
-    ) -> tuple[str, Module, list[Any]]:
+    ) -> tuple[str, tvm_ffi.Module, list[Any]]:
         """Compile the kernel to a device module."""
         kernel_name = kwargs["kernel_name"]
         assert len(grid) == 2, (
@@ -234,7 +233,7 @@ def call_kernel(
     )
 
     # Attach the kernel module to the current IRModule
-    external_mods: list[Module] = module_get_attr("external_mods") or []
+    external_mods: list[tvm_ffi.Module] = module_get_attr("external_mods") or []
     kernel_exists = any([mod.implements_function(kernel_name) for mod in external_mods])
     if kernel_exists:
         logging.debug("Kernel %s already exists in the IRModule", kernel_name)

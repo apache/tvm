@@ -331,7 +331,7 @@ def matmul(a: Tensor, b: Tensor, out_dtype: str | None = None, name: str = "matm
     b : Tensor
         The second input tensor.
 
-    out_dtype: Optional[str | DataType]
+    out_dtype: Optional[str | tvm_ffi.dtype]
         The data type of the matmul result.
         When it is not specified, the output dtype will be the same as input dtype.
 
@@ -627,7 +627,7 @@ def conv1d_transpose(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[str | DataType]
+    out_dtype : Optional[str | tvm_ffi.dtype]
         Specifies the output data type for mixed precision conv2d.
 
     Returns
@@ -2182,7 +2182,7 @@ def extern(
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
     TVM runtime using `reflection::GlobalDef().def` (C++), or
-    `tvm_tirx.register_global_func` (Python).
+    `tvm_ffi.register_global_func` (Python).
 
     Parameters
     ----------
@@ -2239,7 +2239,7 @@ def debug_func(
 
     .. code-block:: python
 
-        @tvm_tirx.register_global_func(name_of_debug_func)
+        @tvm_ffi.register_global_func(name_of_debug_func)
         def debug_func(lineno: str, arg_0, arg_1, ...) -> None:
             ...
 

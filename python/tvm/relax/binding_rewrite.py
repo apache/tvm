@@ -20,13 +20,12 @@
 import tvm_ffi
 
 import tvm_tirx
-from tvm_tirx.runtime import Object
 
 from . import Binding, DataflowBlock, Expr, Function, Var, _ffi_api
 
 
 @tvm_ffi.register_object("relax.DataflowBlockRewrite")
-class DataflowBlockRewrite(Object):
+class DataflowBlockRewrite(tvm_ffi.Object):
     """
     A binding/statement-level dataflow block rewriter.
 

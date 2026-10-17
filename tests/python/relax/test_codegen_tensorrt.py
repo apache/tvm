@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -45,8 +46,8 @@ class Conv2dResidualBlock:
         return out
 
 
-has_tensorrt = tvm_tirx.get_global_func("relax.ext.tensorrt", True)
-env_checker_runtime = tvm_tirx.get_global_func("relax.is_tensorrt_runtime_enabled", True)
+has_tensorrt = tvm_ffi.get_global_func("relax.ext.tensorrt", True)
+env_checker_runtime = tvm_ffi.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 
 requires_tensorrt_codegen = pytest.mark.skipif(
     not has_tensorrt,

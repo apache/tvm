@@ -20,9 +20,11 @@ import itertools
 from collections.abc import Callable
 from typing import Any
 
+import tvm_ffi
+
 import tvm_tirx.runtime
 from tvm.runtime import time_evaluator
-from tvm_tirx.runtime import Device, Module
+from tvm_tirx.runtime import Device
 
 from .config import EvaluatorConfig
 
@@ -88,7 +90,7 @@ def alloc_argument_common(
 
 
 def run_evaluator_common(
-    rt_mod: Module,
+    rt_mod: tvm_ffi.Module,
     device: Device,
     evaluator_config: EvaluatorConfig,
     repeated_args: list[T_ARGUMENT_LIST],
@@ -97,7 +99,7 @@ def run_evaluator_common(
 
     Parameters
     ----------
-    rt_mod: Module
+    rt_mod: tvm_ffi.Module
         The runtime module
     device: Device
         The device to run the evaluator

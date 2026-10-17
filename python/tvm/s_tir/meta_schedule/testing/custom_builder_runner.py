@@ -15,25 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 """Customized builder and runner methods"""
-# pylint: disable=import-outside-toplevel
 
+# pylint: disable=import-outside-toplevel
 from collections.abc import Callable
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 from tvm.s_tir.meta_schedule.runner import RPCConfig
 from tvm_tirx.codegen import Executable
-from tvm_tirx.runtime import Module
 
 
 def run_module_via_rpc(
     rpc_config: RPCConfig,
-    lib: Module | Executable,
+    lib: tvm_ffi.Module | Executable,
     dev_type: str,
     args: dict[int, np.ndarray] | dict[str, np.ndarray],
     continuation: Callable,
 ):
-    """Execute a tvm_tirx.runtime.Module on RPC remote"""
+    """Execute a tvm_ffi.Module on RPC remote"""
     # pylint: disable=import-outside-toplevel
     import os
     import tempfile

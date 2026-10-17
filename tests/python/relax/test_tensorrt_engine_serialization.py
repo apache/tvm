@@ -25,6 +25,7 @@ import textwrap
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -36,8 +37,8 @@ from tvm_tirx import tirx
 from tvm_tirx.support import cc
 from tvm_tirx.testing import env
 
-_has_codegen = tvm_tirx.get_global_func("relax.ext.tensorrt", True) is not None
-_runtime_enabled = tvm_tirx.get_global_func("relax.is_tensorrt_runtime_enabled", True)
+_has_codegen = tvm_ffi.get_global_func("relax.ext.tensorrt", True) is not None
+_runtime_enabled = tvm_ffi.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 _has_runtime = _runtime_enabled is not None and _runtime_enabled()
 
 pytestmark = pytest.mark.skipif(not _has_codegen, reason="TensorRT codegen is not enabled")
@@ -81,7 +82,7 @@ def _legacy_bytes(module):
 def _module_bytes(module):
     """Extract a leaf's payload from the same import packer used by export_library."""
     assert not module.imports
-    packed = tvm_tirx.get_global_func("runtime.ModulePackImportsToTensor")(module).numpy().tobytes()
+    packed = tvm_ffi.get_global_func("runtime.ModulePackImportsToTensor")(module).numpy().tobytes()
     assert struct.unpack_from("<Q", packed)[0] == len(packed) - 8
     offset = 8
     # The import tree consists of row pointers followed by child indices.
@@ -99,7 +100,7 @@ def _module_bytes(module):
 
 
 def _load_bytes(payload):
-    return tvm_tirx.get_global_func("ffi.Module.load_from_bytes.tensorrt")(payload)
+    return tvm_ffi.get_global_func("ffi.Module.load_from_bytes.tensorrt")(payload)
 
 
 def _relu_partition(shape=(2, 4)):
@@ -258,7 +259,7 @@ def test_failed_engine_build_can_be_retried():
     kernels[-1]["name"] = "tensorrt.unsupported_test_op"
     names = module["get_const_vars"]()
     assert len(names) == 2
-    failing = tvm_tirx.get_global_func("runtime.tensorrt_runtime_create")(
+    failing = tvm_ffi.get_global_func("runtime.tensorrt_runtime_create")(
         module["get_symbol"](), json.dumps(graph), names
     )
     constants_by_name = dict(offloaded.attrs["const_name_to_constant"])

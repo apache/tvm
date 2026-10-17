@@ -134,14 +134,14 @@ padding_test_case = tvm_tirx.testing.parameter(
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[16],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.runtime.convert(False),
+            padding=lambda i, j: tvm_ffi.convert(False),
         ),
         "right_padding": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
             post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.tirx.And(i == 3, tvm_tirx.runtime.convert(3) == j),
+            padding=lambda i, j: tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
@@ -157,7 +157,7 @@ padding_test_case = tvm_tirx.testing.parameter(
             post_shape=[T.int32(4), T.int32(4)],
             padding=lambda i, j: tvm_tirx.tirx.Or(
                 tvm_tirx.tirx.And(i == 0, j < 1),
-                tvm_tirx.tirx.And(i == 3, tvm_tirx.runtime.convert(3) == j),
+                tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
             ),
         ),
         "dynamic_size": dict(
@@ -186,7 +186,7 @@ padding_test_case = tvm_tirx.testing.parameter(
             padding=lambda i_outer, j_outer, i_inner, j_inner: tvm_tirx.tirx.Or(
                 tvm_tirx.tirx.Or(
                     tvm_tirx.tirx.And(i_outer == 0, i_inner < 1),
-                    tvm_tirx.tirx.And(i_outer == 3, tvm_tirx.runtime.convert(3) == i_inner),
+                    tvm_tirx.tirx.And(i_outer == 3, tvm_ffi.convert(3) == i_inner),
                 ),
                 tvm_tirx.tirx.Or(
                     tvm_tirx.tirx.And(j_outer == 0, j_inner < 5),
@@ -227,7 +227,7 @@ padding_test_case = tvm_tirx.testing.parameter(
             inverse=lambda i, j: [i * 4 + j],
             pre_shape=[3],
             post_shape=[T.int32(1), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.runtime.convert(3) == j,
+            padding=lambda i, j: tvm_ffi.convert(3) == j,
         ),
     }
 )

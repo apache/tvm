@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -42,7 +43,7 @@ class Conv2dReLUx2:
         return conv2
 
 
-has_dnnl = tvm_tirx.get_global_func("relax.ext.dnnl", True)
+has_dnnl = tvm_ffi.get_global_func("relax.ext.dnnl", True)
 
 dnnl_enabled = pytest.mark.skipif(
     not has_dnnl,

@@ -50,7 +50,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
     shape = (n_threads, k)
     r_layout = _r_layout(scope, shape)
     # The caller chooses a native width from this test's fixed row size.
-    words = min(4, k * tvm_tirx.DataType(dtype).bits // 32)
+    words = min(4, k * tvm_ffi.dtype(dtype).bits // 32)
     load = f"ld.{non_r_scope}.v{words}.u32"
     store = f"st.{non_r_scope}.v{words}.u32"
     if non_r_scope == "shared":
@@ -273,7 +273,7 @@ def test_reg_roundtrip_gapped_permuted_storage():
 def test_copy_g2l_l2g_vec_load(task, dtype):
     g_shape, l_shape, g_region, thread_cnt, layoutA, layoutB, layoutLocal = task
 
-    words = 2 if tvm_tirx.DataType(dtype).bits == 8 else 4
+    words = 2 if tvm_ffi.dtype(dtype).bits == 8 else 4
     load, store = f"ld.global.v{words}.b32", f"st.global.v{words}.b32"
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
 

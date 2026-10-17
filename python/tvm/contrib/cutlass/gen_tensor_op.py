@@ -29,7 +29,6 @@ import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.ir import IntImm
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api as ffi
 from .attention_operation import (
@@ -450,7 +449,7 @@ class ProfilerEngine:
         return rt
 
 
-class CodegenResult(Object):
+class CodegenResult(tvm_ffi.Object):
     """The holder for the generated code and required headers."""
 
     def __init__(self, code, headers):

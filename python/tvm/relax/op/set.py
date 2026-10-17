@@ -18,6 +18,7 @@
 """Set operators."""
 
 import numpy as np  # type: ignore
+import tvm_ffi
 
 import tvm_tirx
 from tvm_tirx.ir import Call as _Call
@@ -91,7 +92,7 @@ def unique(
     )
 
 
-@tvm_tirx.register_global_func("relax.run.unique")
+@tvm_ffi.register_global_func("relax.run.unique")
 def numpy_unique(
     x: tvm_tirx.runtime.tensor,
     sorted: int,
@@ -217,7 +218,7 @@ def nonzero(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     return _Call("relax.nonzero", [x], loc=loc, ty=ty)  # type: ignore
 
 
-@tvm_tirx.register_global_func("relax.run.nonzero")
+@tvm_ffi.register_global_func("relax.run.nonzero")
 def numpy_nonzero(x: tvm_tirx.runtime.tensor) -> tvm_tirx.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
     return tvm_tirx.runtime.tensor(np.stack(np_result, axis=0))

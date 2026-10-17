@@ -174,7 +174,7 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
         elif "isa_version" not in n and n not in {"irif"}:
             raise RuntimeError("could not find bitcode " + n)
 
-    return tvm_tirx.runtime.convert(bitcode_files)
+    return tvm_ffi.convert(bitcode_files)
 
 
 def parse_compute_version(compute_version):

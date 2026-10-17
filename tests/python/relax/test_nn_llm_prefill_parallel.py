@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -57,7 +58,7 @@ def rope(values, positions):
 def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
     if not tvm_tirx.testing.device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
-    device = tvm_tirx.device(device_type)
+    device = tvm_ffi.device(device_type)
     target = tvm_tirx.target.Target.from_device(device)
     rng = np.random.default_rng(127)
     lengths = [(7, first_kv_length), (17, 513)]

@@ -25,6 +25,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
@@ -61,7 +62,7 @@ from tvm.s_tir.meta_schedule.utils import (
 )
 from tvm.s_tir.utils import derived_object
 from tvm_tirx.ir import FloatImm
-from tvm_tirx.runtime import Device, Module
+from tvm_tirx.runtime import Device
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 
@@ -643,7 +644,7 @@ def test_meta_schedule_runner_matmul_test():
 
     def test_run_evaluator(
         session: RPCSession,  # pylint: disable=unused-argument
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],
@@ -757,7 +758,7 @@ def test_meta_schedule_runner_add_test():
 
     def test_run_evaluator(
         session: RPCSession,  # pylint: disable=unused-argument
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],
@@ -864,7 +865,7 @@ def test_meta_schedule_local_runner_add_test():
         return repeated_args
 
     def test_run_evaluator(
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],

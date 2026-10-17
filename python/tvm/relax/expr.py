@@ -30,7 +30,6 @@ import tvm
 import tvm.relax
 import tvm_tirx.ir
 import tvm_tirx.runtime
-from tvm_tirx import DataType
 from tvm_tirx.ir import BaseFunc, Location, Node, Scriptable
 from tvm_tirx.ir.expr import _CallableExprWithOp
 from tvm_tirx.ir.location import UNKNOWN_LOC, UnknownLoc
@@ -250,7 +249,7 @@ class DataflowVar(Var):
             raise TypeError("name must be a str")
 
         if ty is not None:
-            ty = tvm_tirx.runtime.convert(ty)
+            ty = tvm_ffi.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError(
                     "ty needs to be an instance of Type. "

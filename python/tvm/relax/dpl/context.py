@@ -17,14 +17,14 @@
 
 """The Graph Matching Context Manager for Dataflow Pattern Language."""
 
-import tvm_tirx
+import tvm_ffi
 
 from ..expr import DataflowBlock, Var
 from . import _ffi as ffi
 from .pattern import DFPattern
 
 
-class PatternContext(tvm_tirx.runtime.Object):
+class PatternContext(tvm_ffi.Object):
     """A context object for doing graph (topogical) pattern matching."""
 
     def __init__(self, incremental=False):

@@ -20,6 +20,7 @@ import tempfile
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -68,7 +69,7 @@ skip_unless_adreno_opencl_vulkan = pytest.mark.skipif(
 
 # CLML Codegen
 skip_unless_adreno_clml = pytest.mark.skipif(
-    tvm_tirx.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is None,
+    tvm_ffi.get_global_func("relax.is_openclml_runtime_enabled", allow_missing=True) is None,
     reason="need adreno openclml",
 )
 

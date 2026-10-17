@@ -25,6 +25,7 @@ import math
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -243,7 +244,7 @@ def _explicit_staging_kernel(g_shape, s_shape, g_layout, s_layout, start, word_d
     rows, cols = s_shape
     lanes = min(rows, 32)
     reg_layout = TileLayout(S[s_shape : (1 @ tx, 1)])
-    bits = tvm_tirx.DataType(word_dtype).bits
+    bits = tvm_ffi.dtype(word_dtype).bits
     suffix = f"v{words}.b{bits}" if words > 1 else f"b{bits}"
     load, store = "ld.global." + suffix, "st.shared." + suffix
     # The raw argument includes gaps in the original global layout.

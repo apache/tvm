@@ -22,13 +22,14 @@ import tempfile
 from collections.abc import Callable
 from typing import Optional, Union
 
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 from tvm.runtime.vm import load_param_dict, save_param_dict
 from tvm.s_tir.utils import derived_object
 from tvm_tirx.codegen import Executable
 from tvm_tirx.ir import IRModule
-from tvm_tirx.runtime import Module, Tensor
+from tvm_tirx.runtime import Tensor
 from tvm_tirx.support.popen_pool import MapResult, PopenPoolExecutor, StatusKind
 from tvm_tirx.target import Target
 
@@ -40,9 +41,9 @@ logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name
-    [IRModule, Target, dict[str, Tensor] | None], Module
+    [IRModule, Target, dict[str, Tensor] | None], tvm_ffi.Module
 ]
-T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
+T_EXPORT = Callable[[tvm_ffi.Module], str]  # pylint: disable=invalid-name
 
 
 def _serialize_params(params: dict[str, Tensor] | None) -> bytearray | None:
@@ -89,7 +90,7 @@ class LocalBuilder(PyBuilder):
             mod: IRModule,
             target: Target,
             params: Optional[Dict[str, Tensor]]
-        ) -> Module:
+        ) -> tvm_ffi.Module:
             ...
 
     T_EXPORT : typing._GenericAlias
@@ -97,7 +98,7 @@ class LocalBuilder(PyBuilder):
 
         .. code-block:: python
 
-        def default_export(mod: Module) -> str:
+        def default_export(mod: tvm_ffi.Module) -> str:
             ...
 
     Note
@@ -235,14 +236,16 @@ def _worker_func(
         default_export,
     )
     # Step 1. Build the IRModule
-    rt_mod: Module = f_build(mod, target, _deserialize_params(params))
+    rt_mod: tvm_ffi.Module = f_build(mod, target, _deserialize_params(params))
     # Step 2. Export the Module
     artifact_path: str = f_export(rt_mod)
     return artifact_path
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_build")
-def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | None) -> Module:
+def default_build(
+    mod: IRModule, target: Target, _params: dict[str, Tensor] | None
+) -> tvm_ffi.Module:
     """Default build function.
 
     Parameters
@@ -256,7 +259,7 @@ def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | No
 
     Returns
     -------
-    rt_mod : Module
+    rt_mod : tvm_ffi.Module
         The built Module.
     """
     # pylint: disable=import-outside-toplevel
@@ -270,12 +273,12 @@ def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | No
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_export")
-def default_export(mod: Module) -> str:
+def default_export(mod: tvm_ffi.Module) -> str:
     """Default export function.
 
     Parameters
     ----------
-    mod : Module
+    mod : tvm_ffi.Module
         The Module to be exported.
 
     Returns

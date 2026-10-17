@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm_ffi
+
 import tvm_tirx
 import tvm_tirx.testing
 from tvm import relax
@@ -68,7 +70,7 @@ def test_ipc_allreduce_rewrite():
         mod,
         (
             Expected
-            if tvm_tirx.get_global_func(
+            if tvm_ffi.get_global_func(
                 "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
             )
             is not None
@@ -126,7 +128,7 @@ def test_ipc_allreduce_spread_along_reshape():
         mod,
         (
             Expected
-            if tvm_tirx.get_global_func(
+            if tvm_ffi.get_global_func(
                 "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
             )
             is not None

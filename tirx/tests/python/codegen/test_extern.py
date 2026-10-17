@@ -17,6 +17,7 @@
 # ruff: noqa: F841
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -84,7 +85,7 @@ def test_pack_buffer_simple():
         def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024,), "float32")):
             T.evaluate(T.call_packed("my_extern_array_func1", A, C))
 
-    @tvm_tirx.register_global_func
+    @tvm_ffi.register_global_func
     def my_extern_array_func1(aa, bb):
         aa.copyto(bb)
 

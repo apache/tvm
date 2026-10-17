@@ -19,7 +19,6 @@
 import tvm_ffi
 
 from tvm import relax
-from tvm_tirx import DataType
 from tvm_tirx.ir import Attrs, FloatImm
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir import PrimType as _PrimType
@@ -44,7 +43,7 @@ def conv1d(
     data_layout: str = "NCW",
     kernel_layout: str = "OIW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -107,7 +106,7 @@ def conv1d(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv1d.
 
     Returns
@@ -167,7 +166,7 @@ def conv2d(
     data_layout: str = "NCHW",
     kernel_layout: str = "OIHW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -230,7 +229,7 @@ def conv2d(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv2d.
 
     Returns
@@ -294,7 +293,7 @@ def conv3d(
     data_layout: str = "NCDHW",
     kernel_layout: str = "OIDHW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -359,7 +358,7 @@ def conv3d(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv2d.
 
     See Also
@@ -428,7 +427,7 @@ def conv1d_transpose(
     data_layout: str = "NCW",
     kernel_layout: str = "IOW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -480,7 +479,7 @@ def conv1d_transpose(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv2d.
 
     Returns
@@ -546,7 +545,7 @@ def conv2d_transpose(
     data_layout: str = "NCHW",
     kernel_layout: str = "IOHW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -608,7 +607,7 @@ def conv2d_transpose(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv2d.
 
     Returns
@@ -681,7 +680,7 @@ def conv3d_transpose(
     data_layout: str = "NCDHW",
     kernel_layout: str = "IODHW",
     out_layout: str | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty_args=None,
     ty=None,
@@ -739,7 +738,7 @@ def conv3d_transpose(
     out_layout : Optional[str]
         Layout of the output. If not specified, it is the same as data_layout
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[Union[str, tvm_ffi.dtype]]
         Specifies the output data type for mixed precision conv3d_transpose.
 
     See Also

@@ -206,7 +206,7 @@ class DynamicShapeModule:
 # Now let's check the runtime dynamic shape inference:
 
 
-def evaluate_dynamic_shape(lib: tvm_tirx.runtime.Module, m: int, n: int, k: int):
+def evaluate_dynamic_shape(lib: tvm_ffi.Module, m: int, n: int, k: int):
     A = tvm_tirx.runtime.tensor(np.random.uniform(size=(m, k)).astype("float32"))
     B = tvm_tirx.runtime.tensor(np.random.uniform(size=(k, n)).astype("float32"))
     C = tvm_tirx.runtime.tensor(np.zeros((m, n), dtype="float32"))

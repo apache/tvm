@@ -24,10 +24,11 @@ from numbers import Integral, Number
 from typing import TYPE_CHECKING, Any
 
 import numpy as np  # type: ignore
+import tvm_ffi
 from tvm_ffi import Function, register_global_func
 
 import tvm_tirx
-from tvm_tirx.runtime import Device, Object
+from tvm_tirx.runtime import Device
 
 from ..benchmark import BenchmarkResult, time_evaluator
 
@@ -46,7 +47,7 @@ class VirtualMachine:
 
     def __init__(
         self,
-        rt_mod: "tvm_tirx.runtime.Module | Executable",
+        rt_mod: "tvm_ffi.Module | Executable",
         device: Device | list[Device],
     ) -> None:
         """
@@ -54,19 +55,19 @@ class VirtualMachine:
 
         Parameters
         ----------
-        rt_mod: Union[tvm_tirx.runtime.Module, tvm_tirx.codegen.Executable]
+        rt_mod: Union[tvm_ffi.Module, tvm_tirx.codegen.Executable]
             Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
             The device to deploy the module.
         """
-        if not isinstance(rt_mod, tvm_tirx.runtime.Module):
+        if not isinstance(rt_mod, tvm_ffi.Module):
             from tvm_tirx.codegen import Executable  # pylint: disable=import-outside-toplevel
 
             if isinstance(rt_mod, Executable):
                 rt_mod = rt_mod.jit()
             else:
-                raise ValueError("Expect the rt_mod to be an runtime.Module")
+                raise ValueError("Expect the rt_mod to be an tvm_ffi.Module")
 
         self.module = rt_mod["vm_load_executable"]()
         self._invoke_closure = self.module["invoke_closure"]
@@ -101,12 +102,12 @@ class VirtualMachine:
     def __getitem__(self, key: str) -> Function:
         return self.module[key]
 
-    def invoke_closure(self, closure: Object, *args: Any) -> Object:
+    def invoke_closure(self, closure: tvm_ffi.Object, *args: Any) -> tvm_ffi.Object:
         """Invoke a closure.
 
         Parameters
         ----------
-        closure : Object
+        closure : tvm_ffi.Object
             The VMClosure Object.
 
         args : list[tvm_tirx.runtime.Tensor] or list[np.ndarray]
@@ -114,7 +115,7 @@ class VirtualMachine:
 
         Returns
         -------
-        result : Object
+        result : tvm_ffi.Object
             The output.
         """
         return self._invoke_closure(closure, *args)
@@ -178,7 +179,7 @@ class VirtualMachine:
             else:
                 return "float32"
 
-        if isinstance(arg, Object):
+        if isinstance(arg, tvm_ffi.Object):
             cargs.append(arg)
         elif isinstance(arg, np.ndarray):
             nd_arr = tvm_tirx.runtime.tensor(arg, device=tvm_tirx.cpu(0))
@@ -269,7 +270,7 @@ class VirtualMachine:
         """
         self._invoke_stateful(func_name)
 
-    def get_outputs(self, func_name: str) -> tvm_tirx.Object | tuple[Any]:
+    def get_outputs(self, func_name: str) -> tvm_ffi.Object | tuple[Any]:
         """
         Get the value output by the function by the given name
         after a call of `invoke_stateful`.
@@ -283,7 +284,7 @@ class VirtualMachine:
 
         Returns
         -------
-        ret: Union[tvm_tirx.Object, Tuple[Any]]
+        ret: Union[tvm_ffi.Object, Tuple[Any]]
             The result of the earlier call to the function via `invoke_stateful`.
             If the result is a tuple, it returns a list of the fields.
             The fields are potentially also tuples, so these can be arbitrily nested.

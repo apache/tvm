@@ -26,16 +26,17 @@ lane dimension also lets CompactTensorAllocation remove the logical 64-lane
 extent without a warp-memory lowering pass.
 """
 
+import tvm_ffi
+
 from tvm.s_tir import script as Ts
 from tvm_tirx.ir import IntImm
-from tvm_tirx.runtime import convert
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.expr import Cast
 
 from .. import TensorIntrin
 from .dot_product_common import get_dp4a_intrin
 
-lift = convert
+lift = tvm_ffi.convert
 
 
 @Ts.function

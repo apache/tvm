@@ -56,8 +56,8 @@ def create_kv_cache(
     prefill_chunk_size_value=prefill_chunk_size,
     rope_ext_factors=None,
 ):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
-    dummy_func = tvm_tirx.runtime.convert(_nop)
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    dummy_func = tvm_ffi.convert(_nop)
     return fcreate(
         tvm_ffi.Shape(
             [
@@ -99,24 +99,24 @@ def create_kv_cache(
 
 
 def append_tokens(kv_cache, seq_id=0, append_length=page_size + 1):
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
     fadd_sequence(kv_cache, seq_id)
     fbegin_forward(kv_cache, Shape([seq_id]), Shape([append_length]), None)
     fend_forward(kv_cache)
 
 
 def test_checkpoint_metadata_reports_layout_pages_and_groups():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
-    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
-    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
-    ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fget_sequence_length = tvm_tirx.get_global_func(
+    fget_layout_hash = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fget_sequence_length = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_sequence_length"
     )
 
@@ -178,7 +178,7 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
 
 
 def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
-    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fget_layout_hash = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
 
     kv_cache = create_kv_cache()
     same_layout = create_kv_cache()
@@ -205,11 +205,11 @@ def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
 
 
 def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fget_layout_hash = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
-    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fget_layout_hash = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_get_layout_hash")
+    fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
 
     sliding_cache = create_kv_cache(support_sliding_window=True)
     append_tokens(sliding_cache)
@@ -240,8 +240,8 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
         fget_layout_hash(rope_ext_cache)
 
     tree_cache = create_kv_cache()
-    tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
-    tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")(
+    tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
+    tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")(
         tree_cache, Shape([0]), Shape([2]), Shape([-1, 0])
     )
     with pytest.raises(RuntimeError, match="committed token-chain state"):
@@ -249,10 +249,10 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
 
 
 def test_checkpoint_export_page_group_validates_group_shape():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -287,10 +287,10 @@ def test_checkpoint_export_page_group_validates_group_shape():
 
 
 def test_checkpoint_prepare_import_validates_metadata():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -336,11 +336,11 @@ def test_checkpoint_prepare_import_validates_metadata():
 
 
 def test_checkpoint_import_page_group_validates_group_shape():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
 
     kv_cache = create_kv_cache()
     append_tokens(kv_cache)
@@ -379,14 +379,14 @@ def test_checkpoint_import_page_group_validates_group_shape():
 
 
 def test_checkpoint_import_requires_all_groups_and_explicit_finish():
-    fget_checkpoint_metadata = tvm_tirx.get_global_func(
+    fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
-    fexport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
-    fprepare_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
-    fimport_page_group = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
-    ffinish_import = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_finish_import")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
+    fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
 
     source_cache = create_kv_cache()
     append_tokens(source_cache)

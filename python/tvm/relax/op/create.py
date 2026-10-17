@@ -18,7 +18,7 @@
 
 import tvm_ffi
 
-from tvm_tirx import DataType, DataTypeCode
+from tvm_tirx import DataTypeCode
 from tvm_tirx.ir import Attrs, PrimType, is_prim_expr
 from tvm_tirx.ir import Call as _Call
 from tvm_tirx.ir.attrs import make_node as _make_attrs
@@ -49,7 +49,7 @@ class InitAttrs(Attrs):
 def full(
     shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -64,7 +64,7 @@ def full(
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of fill_value.
 
@@ -86,7 +86,7 @@ def full(
 def full_like(
     x: Expr,
     fill_value: Expr,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -104,7 +104,7 @@ def full_like(
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -124,7 +124,7 @@ def full_like(
 
 def ones(
     shape: tuple[PrimExprLike] | Expr,
-    dtype: str | DataType,
+    dtype: str | tvm_ffi.dtype,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -136,7 +136,7 @@ def ones(
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -155,7 +155,7 @@ def ones(
 
 
 def ones_like(
-    x: Expr, dtype: str | DataType | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
+    x: Expr, dtype: str | tvm_ffi.dtype | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
@@ -165,7 +165,7 @@ def ones_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -185,7 +185,7 @@ def ones_like(
 
 def zeros(
     shape: tuple[PrimExprLike] | Expr,
-    dtype: str | DataType,
+    dtype: str | tvm_ffi.dtype,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -197,7 +197,7 @@ def zeros(
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -216,7 +216,7 @@ def zeros(
 
 
 def zeros_like(
-    x: Expr, dtype: str | DataType | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
+    x: Expr, dtype: str | tvm_ffi.dtype | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
@@ -226,7 +226,7 @@ def zeros_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -248,7 +248,7 @@ def eye(
     n: PrimExprLike,
     m: PrimExprLike | None = None,
     k: PrimExprLike = 0,
-    dtype: str | DataType = "float32",
+    dtype: str | tvm_ffi.dtype = "float32",
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -268,7 +268,7 @@ def eye(
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -292,7 +292,7 @@ def eye(
 def eye_like(
     x: Expr,
     k: PrimExprLike = 0,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -311,7 +311,7 @@ def eye_like(
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -334,7 +334,7 @@ def arange(
     start: PrimExprLike,
     end: PrimExprLike | None = None,
     step: PrimExprLike = 1,
-    dtype: str | DataType | PrimType | None = None,
+    dtype: str | tvm_ffi.dtype | PrimType | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -353,7 +353,7 @@ def arange(
     step : PrimExprLike
         The step size.
 
-    dtype : Optional[str | DataType | PrimType]
+    dtype : Optional[str | tvm_ffi.dtype | PrimType]
         The data type of the created tensor.
 
     Returns

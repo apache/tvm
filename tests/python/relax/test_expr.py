@@ -348,8 +348,8 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    d0 = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("int32"))
-    d1 = tvm_tirx.ir.DataTypeImm(tvm_tirx.DataType("int32"))
+    d0 = tvm_tirx.ir.DataTypeImm(tvm_ffi.dtype("int32"))
+    d1 = tvm_tirx.ir.DataTypeImm(tvm_ffi.dtype("int32"))
     assert d0.value == "int32"
     _check_equal(d0, d1)
     _check_json_roundtrip(d0)

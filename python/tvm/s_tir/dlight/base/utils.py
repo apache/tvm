@@ -17,18 +17,19 @@
 # pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm import s_tir
-from tvm_tirx import DataType
 from tvm_tirx.ir import PrimType
 from tvm_tirx.target import Target
 
 
-def get_bytes(dtype: DataType | PrimType | str) -> int:
+def get_bytes(dtype: tvm_ffi.dtype | PrimType | str) -> int:
     if isinstance(dtype, PrimType):
         dtype = dtype.dtype
     if isinstance(dtype, str):
-        dtype = DataType(dtype)
+        dtype = tvm_ffi.dtype(dtype)
     return dtype.itemsize
 
 

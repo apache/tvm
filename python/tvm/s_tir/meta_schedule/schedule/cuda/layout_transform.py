@@ -20,6 +20,8 @@
 import math
 from collections import deque
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm.s_tir import meta_schedule
 from tvm.s_tir.schedule import ExprRV, LoopRV, SBlockRV, Schedule
@@ -499,7 +501,7 @@ def get_max_tile_size() -> int:
     return max_tile_size
 
 
-@tvm_tirx.register_global_func("s_tir.meta_schedule.cuda.layout_transform")
+@tvm_ffi.register_global_func("s_tir.meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
     sch: Schedule, block: SBlockRV, testing_tile_sizes: list[int] | None = None
 ) -> list[Schedule]:

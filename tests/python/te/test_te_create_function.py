@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -554,7 +555,7 @@ def te_argmax_idx_val():
         rhs = tvm_tirx.tirx.Select((x[1] >= y[1]), x[1], y[1])
         return lhs, rhs
 
-    def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+    def f_identity(dtype0: tvm_ffi.dtype, dtype1: tvm_ffi.dtype):
         return tvm_tirx.tirx.const(-1, dtype0), tvm.te.min_value(ty=dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
@@ -607,7 +608,7 @@ def te_argmax_val_idx():
         rhs = tvm_tirx.tirx.Select((x[0] >= y[0]), x[1], y[1])
         return lhs, rhs
 
-    def f_identity(dtype0: tvm_tirx.DataType, dtype1: tvm_tirx.DataType):
+    def f_identity(dtype0: tvm_ffi.dtype, dtype1: tvm_ffi.dtype):
         return tvm.te.min_value(ty=dtype0), tvm_tirx.tirx.const(-1, dtype1)
 
     argmax = te.comm_reducer(f_combine, f_identity, name="argmax")

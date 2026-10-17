@@ -25,6 +25,7 @@ import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -213,7 +214,7 @@ def create_mock_packed_function():
         return x
 
     # Register the function globally
-    tvm_tirx.register_global_func("my_softmax", mock_softmax)
+    tvm_ffi.register_global_func("my_softmax", mock_softmax)
 
 
 class TestRelaxToPyFuncConverter:
@@ -972,7 +973,7 @@ class TestDLPackAndTupleSupport:
         def test_packed_func(x, axis):
             return x  # Simple identity function
 
-        tvm_tirx.register_global_func("test_packed_func", test_packed_func)
+        tvm_ffi.register_global_func("test_packed_func", test_packed_func)
 
         @I.ir_module
         class PackedFuncTestModule:

@@ -89,8 +89,8 @@ def test_expr_constructor():
         assert x.a == a
         assert x.b.same_as(b)
 
-    a = tvm_tirx.runtime.convert(tvm_tirx.tirx.Var("x", "int32") > 1)
-    b = tvm_tirx.runtime.convert(tvm_tirx.tirx.Var("x", "int32") == 1)
+    a = tvm_ffi.convert(tvm_tirx.tirx.Var("x", "int32") > 1)
+    b = tvm_ffi.convert(tvm_tirx.tirx.Var("x", "int32") == 1)
 
     for cls in [tvm_tirx.tirx.And, tvm_tirx.tirx.Or]:
         x = cls(a, b)

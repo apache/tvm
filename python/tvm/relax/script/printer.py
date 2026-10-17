@@ -20,7 +20,6 @@ import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 from tvm_tirx.ir.base import register_dialect_script_method
-from tvm_tirx.runtime import Object
 from tvm_tirx.script.printer import PrinterConfig
 
 
@@ -38,8 +37,8 @@ def _relax_script(
     extra_config: dict | None = None,
     path_to_underline: list[AccessPath] | None = None,
     path_to_annotate: dict[AccessPath, str] | None = None,
-    obj_to_underline: list[Object] | None = None,
-    obj_to_annotate: dict[Object, str] | None = None,
+    obj_to_underline: list[tvm_ffi.Object] | None = None,
+    obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
 ) -> str:
     merged_extra = dict(extra_config or {})
     return tvm_ffi.get_global_func("script.printer.ReprPrintRelax")(

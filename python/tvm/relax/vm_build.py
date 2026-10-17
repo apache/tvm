@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
 
+import tvm_ffi
+
 import tvm_tirx
 from tvm import relax
 from tvm_tirx.codegen import Executable
@@ -29,7 +31,7 @@ from . import _ffi_api
 class VMExecutable(Executable):
     """The virtual machine executable object emitted by the VM compiler or the ExecBuilder."""
 
-    def __init__(self, mod: tvm_tirx.runtime.Module):
+    def __init__(self, mod: tvm_ffi.Module):
         super().__init__(mod)
         self._stats = self.mod["stats"]
         self._as_text = self.mod["as_text"]
@@ -90,7 +92,7 @@ def _auto_attach_system_lib_prefix(
     return tir_mod
 
 
-def _is_device_module(mod: tvm_tirx.runtime.Module) -> bool:
+def _is_device_module(mod: tvm_ffi.Module) -> bool:
     return mod.kind in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
 
 
@@ -99,7 +101,7 @@ def _vmlink(
     target: str | tvm_tirx.target.Target | None,
     tir_mod: tvm_tirx.IRModule | None = None,
     tir_pipeline: str | tvm_tirx.ir.transform.Pass | None = "default",
-    ext_libs: list[tvm_tirx.runtime.Module] | None = None,
+    ext_libs: list[tvm_ffi.Module] | None = None,
     params: dict[str, list] | None = None,
     *,
     system_lib: bool | None = None,
@@ -124,7 +126,7 @@ def _vmlink(
     tir_mod: IRModule
         The input TIR IRModule to be linked together.
 
-    ext_libs:  List[tvm_tirx.runtime.Module]
+    ext_libs:  List[tvm_ffi.Module]
         List of compiled external modules.
 
     params: Optional[Dict[str, list]]

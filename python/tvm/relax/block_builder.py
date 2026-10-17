@@ -27,7 +27,6 @@ import tvm_tirx
 from tvm import relax as rx
 from tvm_tirx import tirx
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime import Object
 
 from . import _ffi_api
 from .expr import BaseFunc, Binding, BindingBlock, Expr, GlobalVar, Tuple, Var
@@ -105,7 +104,7 @@ class TestingScope:
 
 
 @tvm_ffi.register_object("relax.BlockBuilder")
-class BlockBuilder(Object):
+class BlockBuilder(tvm_ffi.Object):
     """A builder to build Relax IR for testing and dev.
 
     Examples
@@ -214,7 +213,7 @@ class BlockBuilder(Object):
         self,
         name: str,
         params: Var | Tuple | list[Var] | None = None,
-        attrs: dict[str, Object] | None = None,
+        attrs: dict[str, tvm_ffi.Object] | None = None,
         pure: bool = True,
         private: bool = False,
     ) -> FunctionScope:
@@ -230,7 +229,7 @@ class BlockBuilder(Object):
             If params is None, it means deferring initialization of function parameters
             until emit_func_output.
 
-        attrs : Dict[str, Object], optional
+        attrs : Dict[str, tvm_ffi.Object], optional
             The function attrs
 
         pure : bool, optional
@@ -374,7 +373,7 @@ class BlockBuilder(Object):
         func: Callable,
         *args: Any,
         te_grad_name: str,
-        te_grad_kwargs: dict[str, Object] | None = None,
+        te_grad_kwargs: dict[str, tvm_ffi.Object] | None = None,
         **kwargs: Any,
     ) -> Expr:
         """Generate a call node according to the te function.
@@ -393,7 +392,7 @@ class BlockBuilder(Object):
             The registered name of the te gradient function associated with the call_tir_with_grad
             node. Must be provided as a keyword argument.
 
-        te_grad_kwargs : Dict[str, Object], optional
+        te_grad_kwargs : Dict[str, tvm_ffi.Object], optional
             The keyword arguments passed to the te gradient function.
             Optionally provided as a keyword argument. Default: {}.
 

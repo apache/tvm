@@ -238,7 +238,7 @@ when a device kernel is called.
 Runtime Modules
 ---------------
 
-Each codegen produces a ``runtime.Module`` — the container that holds the generated code and
+Each codegen produces a ``tvm_ffi.Module`` — the container that holds the generated code and
 exposes it as callable ``PackedFunc``\ s.
 
 .. list-table::

@@ -20,12 +20,13 @@ import inspect
 from collections.abc import Callable
 from typing import Literal
 
+import tvm_ffi
 from tvm_ffi import register_error
 from tvm_ffi import register_object as _register_object
 
 from tvm.s_tir import SBlock
 from tvm_tirx.ir import Expr, FloatImm, For, GlobalVar, IntImm, IRModule, is_prim_expr
-from tvm_tirx.runtime import DataTypeCode, MemoryScope, Object
+from tvm_tirx.runtime import DataTypeCode, MemoryScope
 from tvm_tirx.tirx import Function, Var, is_tensor_var
 from tvm_tirx.tirx.index_map import IndexMap
 
@@ -41,7 +42,7 @@ class ScheduleError(RuntimeError):
 
 
 @_register_object("s_tir.LoopRV")
-class LoopRV(Object):
+class LoopRV(tvm_ffi.Object):
     """A random variable that refers to a loop"""
 
     def __init__(self) -> None:
@@ -52,7 +53,7 @@ class LoopRV(Object):
 
 
 @_register_object("s_tir.SBlockRV")
-class SBlockRV(Object):
+class SBlockRV(tvm_ffi.Object):
     """A random variable that refers to a block"""
 
     def __init__(self) -> None:
@@ -112,7 +113,7 @@ def _get_sblock_default_dtype(block: SBlock) -> str:
 
 
 @_register_object("s_tir.Schedule")
-class Schedule(Object):
+class Schedule(tvm_ffi.Object):
     """The user-facing schedule class
 
     A schedule is a set of transformations that change the order of computation but
@@ -3497,7 +3498,7 @@ class Schedule(Object):
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
-            # tensor's type.  If the default `tvm.runtime.convert`
+            # tensor's type.  If the default `tvm_ffi.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the tensor's type.
             if tensor_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(

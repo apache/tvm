@@ -112,7 +112,7 @@ def test_callback():
         temp_dir = pathlib.Path(temp_dir)
 
         # TODO(Lunderberg): Update `disco.Session.load_vm_module` to
-        # allow a `tvm.runtime.Module` argument.  This would avoid the
+        # allow a `tvm_ffi.Module` argument.  This would avoid the
         # need for a temporary file.
         shlib_path = temp_dir.joinpath("libtemp.so")
         built.export_library(shlib_path)

@@ -25,6 +25,7 @@ Use "android" as the key if you wish to avoid modifying this script.
 import os
 
 import numpy as np
+import tvm_ffi
 
 import tvm
 import tvm_tirx
@@ -49,7 +50,7 @@ test_vulkan = False
 
 def test_rpc_module():
     # graph
-    n = tvm_tirx.runtime.convert(1024)
+    n = tvm_ffi.convert(1024)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     a_np = np.random.uniform(size=1024).astype(A.dtype)

@@ -73,7 +73,7 @@ def test_domain_touched():
 
 def test_domain_touched_vector():
     pytest.skip("TensorRegion arithmetic in expressions not supported")
-    m = tvm_tirx.runtime.convert(128)
+    m = tvm_ffi.convert(128)
 
     @Ts.function
     def func(A: T.Tensor((n * m,), "float32"), B: T.Tensor((n * m,), "float32"), n: T.int32):  # noqa: F821

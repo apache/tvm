@@ -36,7 +36,7 @@ def test_script_entry_points(entry):
     config = PrinterConfig(extra_config={"tirx.prefix": "IR"})
     assert render(tvm_tirx.ir.Range(0, 4), config) == "IR.Range(0, 4)"
     fallback_config = PrinterConfig(path_to_underline=[AccessPath.root().attr("missing")])
-    assert render(tvm_tirx.runtime.ShapeTuple([1, 2]), fallback_config) == (
+    assert render(tvm_ffi.Shape([1, 2]), fallback_config) == (
         "Access path: <root>.missing\n"
         "Note: No visible object for this path is rendered in TVMScript.\n\n"
         "Shape(1, 2)"

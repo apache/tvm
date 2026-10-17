@@ -20,6 +20,8 @@
 from collections.abc import Callable
 from typing import Any, Optional, Union
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -29,7 +31,6 @@ from tvm_ffi import register_object
 
 from tvm.s_tir.schedule import Schedule, Trace
 from tvm_tirx.ir.module import IRModule
-from tvm_tirx.runtime import Object
 from tvm_tirx.target import Target
 
 from .. import _ffi_api
@@ -38,7 +39,7 @@ from ..utils import _json_de_tvm
 
 
 @register_object("s_tir.meta_schedule.Workload")
-class Workload(Object):
+class Workload(tvm_ffi.Object):
     """A workload, i.e. an IRModule and its structural hash.
 
     Parameters
@@ -84,7 +85,7 @@ class Workload(Object):
 
 
 @register_object("s_tir.meta_schedule.TuningRecord")
-class TuningRecord(Object):
+class TuningRecord(tvm_ffi.Object):
     """The class of tuning records.
 
     Parameters
@@ -165,7 +166,7 @@ class TuningRecord(Object):
 
 
 @register_object("s_tir.meta_schedule.Database")
-class Database(Object):
+class Database(tvm_ffi.Object):
     """The abstract database interface."""
 
     DatabaseType = Union["Database", Literal["json", "memory"]]

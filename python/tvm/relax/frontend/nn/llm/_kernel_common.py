@@ -31,17 +31,17 @@ Contents:
 - ``_make_prefill_macros`` — the ``@T.macro`` bundle invoked by the prefill kernels
 - Tiling config (``_get_prefill_kernel_config``) and scheduling (``_schedule_prefill_kernel``)
 """
-
 # pylint: disable=too-many-statements,too-many-arguments,invalid-name,line-too-long
 import enum
 import math
 from typing import Any
 
+import tvm_ffi
+
 import tvm
 from tvm import s_tir
 from tvm.s_tir import script as Ts
 from tvm_tirx import tirx
-from tvm_tirx.runtime import DataType
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
 
@@ -439,7 +439,7 @@ def _get_prefill_shared_memory_usage(
     """
     if d_v is None:
         d_v = d
-    dtype_bytes = (DataType(dtype).bits + 7) // 8
+    dtype_bytes = (tvm_ffi.dtype(dtype).bits + 7) // 8
     kv_elements = tile_z * d if merged_kv else tile_z * (d + d_v)
     qkv_bytes = (tile_x * d + kv_elements) * dtype_bytes
     softmax_bytes = (tile_x * tile_z + 3 * tile_x) * 4
@@ -607,7 +607,7 @@ def _get_prefill_kernel_config(
     if d_v is None:
         d_v = d
     NUM_BLKS = 16
-    dtype_bytes = (DataType(dtype).bits + 7) // 8
+    dtype_bytes = (tvm_ffi.dtype(dtype).bits + 7) // 8
     LOAD_VEC = 8 // dtype_bytes  # 8 bytes
     group_size = h_q // h_kv
 
@@ -631,7 +631,7 @@ def _get_prefill_kernel_config(
     # Preserve the established WebGPU config, which targets WebGPU's portable limits.
     if (
         target.kind.name == "webgpu"
-        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
+        and ((d + 127) // 128) * ((tvm_ffi.dtype(dtype).bits + 15) // 16) >= 4
     ):
         tile_z = 8
         num_warps = 2
@@ -662,7 +662,7 @@ def _get_prefill_kernel_config(
     if target.kind.name == "opencl" and (
         ("android" in str(target.host)) or ("adreno" in str(target.attrs))
     ):
-        LOAD_VEC = 16 // ((DataType(dtype).bits + 7) // 8)  # 16 bytes
+        LOAD_VEC = 16 // ((tvm_ffi.dtype(dtype).bits + 7) // 8)  # 16 bytes
         NUM_BLKS = group_size * 8
 
     check_thread_limits(target, bdx=bdx, bdy=num_warps, bdz=1, gdz=1)

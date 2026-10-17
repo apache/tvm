@@ -18,11 +18,11 @@
 
 from typing import NoReturn, TypeVar
 
-from tvm_tirx import DataType
+import tvm_ffi
+
 from tvm_tirx.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC
 from tvm_tirx.ir.type import _init_type_api
-from tvm_tirx.runtime import Object as tvm_Object
 
 from . import _ffi_api
 from .base import IRBuilder, LocationEntry
@@ -31,8 +31,8 @@ from .frame import IRModuleFrame
 T = TypeVar("T")
 
 
-def dtype(value: str | DataType) -> DataTypeImm:
-    """Construct a DataType-valued constant for an ordinary operation argument.
+def dtype(value: str | tvm_ffi.dtype) -> DataTypeImm:
+    """Construct a tvm_ffi.dtype-valued constant for an ordinary operation argument.
 
     Unlike scalar constructors such as ``T.float32``, this constructs a dtype
     value, rather than a scalar value or variable of that dtype.
@@ -117,7 +117,7 @@ def meta_var(value: T) -> T:
     return value
 
 
-def module_attrs(attrs: dict[str, tvm_Object], allow_overwrite=False) -> None:
+def module_attrs(attrs: dict[str, tvm_ffi.Object], allow_overwrite=False) -> None:
     """Specify the attrs of the ir_module frame.
     Parameters
     ----------
@@ -129,7 +129,7 @@ def module_attrs(attrs: dict[str, tvm_Object], allow_overwrite=False) -> None:
     return _ffi_api.ModuleAttrs(attrs, allow_overwrite)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def module_get_attr(attr_key: str) -> tvm_Object | None:
+def module_get_attr(attr_key: str) -> tvm_ffi.Object | None:
     """Get the specified attr of the ir_module frame.
     Parameters
     ----------
@@ -144,7 +144,7 @@ def module_get_attr(attr_key: str) -> tvm_Object | None:
 
 
 def module_set_attr(
-    attr_key: str, attr_value: tvm_Object | None, allow_overwrite: bool = False
+    attr_key: str, attr_value: tvm_ffi.Object | None, allow_overwrite: bool = False
 ) -> None:
     """Set the specified attr of the ir_module frame.
     Parameters

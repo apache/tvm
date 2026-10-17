@@ -387,7 +387,7 @@ def test_call_tir_inplace_e2e_rw():
 
 
 def test_vm_emit_te_extern():
-    if not tvm_tirx.get_global_func("tvm.contrib.cblas.matmul", True):
+    if not tvm_ffi.get_global_func("tvm.contrib.cblas.matmul", True):
         print("skip because extern function is not available")
         return
     bb = relax.BlockBuilder()
@@ -1032,8 +1032,8 @@ def test_multi_systemlib():
         # Load dll, will trigger system library registration
         ctypes.CDLL(path_dso)
         # Load the system wide library
-        vmA = relax.VirtualMachine(tvm_tirx.runtime.system_lib("libA_"), tvm_tirx.cpu())
-        vmB = relax.VirtualMachine(tvm_tirx.runtime.system_lib("libB_"), tvm_tirx.cpu())
+        vmA = relax.VirtualMachine(tvm_ffi.system_lib("libA_"), tvm_tirx.cpu())
+        vmB = relax.VirtualMachine(tvm_ffi.system_lib("libB_"), tvm_tirx.cpu())
 
         retA = vmA["main"](tvm_ffi.Shape([1]))
         retB = vmB["main"](tvm_ffi.Shape([2]))

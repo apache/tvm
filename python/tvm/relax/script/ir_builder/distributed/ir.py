@@ -21,6 +21,7 @@
 from numbers import Number
 
 import numpy as _np  # type: ignore
+import tvm_ffi
 
 import tvm_tirx
 from tvm.relax.distributed import DeviceMesh, DTensorType
@@ -53,7 +54,7 @@ def const(
     Python scalars and NumPy values are converted to the dtype specified by
     ``ty.tensor_ty``. The dtype is not inferred from the Python value.
     """
-    ty = tvm_tirx.runtime.convert(ty)
+    ty = tvm_ffi.convert(ty)
     if not isinstance(ty, DTensorType):
         raise TypeError("ty needs to be an instance of DTensorType. ")
     dtype = str(ty.tensor_ty.dtype)

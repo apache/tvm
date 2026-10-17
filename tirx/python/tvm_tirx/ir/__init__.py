@@ -87,7 +87,5 @@ from .stmt import (
     stmt_list,
 )
 
-from tvm_ffi import Array, Map
-
 # Load passes after the common IR classes used by transformations are registered.
 from . import transform

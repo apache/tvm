@@ -24,6 +24,7 @@ import weakref
 from typing import Any, Optional, Union
 
 import numpy as np
+import tvm_ffi
 from tvm_ffi import Function
 
 import tvm
@@ -84,7 +85,7 @@ class BasePyModule:
             # globals this needs may already be cleared.
             if not owned or sys.is_finalizing():
                 return
-            unregister_py_func = tvm_tirx.get_global_func("vm.builtin.unregister_py_func")
+            unregister_py_func = tvm_ffi.get_global_func("vm.builtin.unregister_py_func")
             for func_name in owned:
                 unregister_py_func(func_name)
         except Exception:  # pylint: disable=broad-except
@@ -224,7 +225,7 @@ class BasePyModule:
             return
 
         try:
-            register_py_func = tvm_tirx.get_global_func("vm.builtin.register_py_func")
+            register_py_func = tvm_ffi.get_global_func("vm.builtin.register_py_func")
         except ValueError:
             return
 
@@ -304,7 +305,7 @@ class BasePyModule:
 
         if func_name not in self.extern_funcs:
             try:
-                self.extern_funcs[func_name] = tvm_tirx.get_global_func(func_name)
+                self.extern_funcs[func_name] = tvm_ffi.get_global_func(func_name)
             except ValueError as error:
                 raise ValueError(
                     f"Function '{func_name}' not found as a global function. "
@@ -424,14 +425,14 @@ class BasePyModule:
             if _FASTER_DLPACK_EXTENSION is not None:
                 try:
                     dlpack = torch.to_dlpack(tensor)
-                    return tvm_tirx.runtime.from_dlpack(dlpack)
+                    return tvm_ffi.from_dlpack(dlpack)
                 except (AttributeError, ValueError):
                     pass  # Fall through to the next method
 
             # 2. Try modern `torch.to_dlpack` (preferred for PyTorch >= 1.7)
             try:
                 dlpack = torch.to_dlpack(tensor)
-                return tvm_tirx.runtime.from_dlpack(dlpack)
+                return tvm_ffi.from_dlpack(dlpack)
             except (AttributeError, ValueError):
                 pass  # Fall through to the next method
 
@@ -439,7 +440,7 @@ class BasePyModule:
             if to_dlpack_legacy:
                 try:
                     dlpack = to_dlpack_legacy(tensor)
-                    return tvm_tirx.runtime.from_dlpack(dlpack)
+                    return tvm_ffi.from_dlpack(dlpack)
                 except (AttributeError, ValueError) as error_legacy:
                     print(
                         f"Warning: Legacy DLPack conversion failed ({error_legacy}), "

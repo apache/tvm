@@ -23,6 +23,8 @@ space for generation of measure candidates.
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Union
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -31,7 +33,6 @@ from tvm_ffi import register_object
 
 from tvm.s_tir.schedule import Schedule
 from tvm_tirx.ir import IRModule
-from tvm_tirx.runtime import Object
 
 from .. import _ffi_api
 
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
 
 
 @register_object("s_tir.meta_schedule.SpaceGenerator")
-class SpaceGenerator(Object):
+class SpaceGenerator(tvm_ffi.Object):
     """The abstract design space generator interface."""
 
     ScheduleFnType = (

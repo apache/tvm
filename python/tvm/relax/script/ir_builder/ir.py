@@ -40,7 +40,6 @@ from tvm_tirx.ir.type import _init_type_api, _normalize_type
 from tvm_tirx.runtime._tensor import (
     cpu,
     cuda,
-    device,
     ext_dev,
     hexagon,
     metal,
@@ -567,7 +566,6 @@ __all__ = [
     "const",
     "cpu",
     "cuda",
-    "device",
     "device_mesh",
     "dtype",
     "dummy_global_info",

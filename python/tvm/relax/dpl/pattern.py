@@ -29,7 +29,6 @@ import tvm_tirx
 from tvm_tirx.ir import make_node
 from tvm_tirx.ir.base import Node
 from tvm_tirx.ir.op import Op
-from tvm_tirx.runtime import Object
 
 from ..expr import Expr, Var
 from . import _ffi as ffi
@@ -106,13 +105,13 @@ class DFPattern(Node):
         """
         return reject(self)
 
-    def has_attr(self, attrs: dict[str, Object]) -> "AttrPattern":
+    def has_attr(self, attrs: dict[str, tvm_ffi.Object]) -> "AttrPattern":
         """
         Add an attribute constraint to this pattern
 
         Parameters
         ----------
-        attrs: Dict[str, Object]
+        attrs: Dict[str, tvm_ffi.Object]
 
         Returns
         -------
@@ -976,7 +975,7 @@ def has_attr(attrs, pattern=None) -> AttrPattern:
 
     Parameters
     ----------
-    attrs: Dict[str, Object]
+    attrs: Dict[str, tvm_ffi.Object]
         The attributes to match
 
     pattern: Optional[tvm.relax.dpl.DFPattern]

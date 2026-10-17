@@ -95,7 +95,7 @@ w_uv = None
 
 
 # Register a dumb function for testing purpose.
-@tvm_tirx.register_global_func("test.dumb_function", override=True)
+@tvm_ffi.register_global_func("test.dumb_function", override=True)
 def _dumb_function():
     raise RuntimeError("Dumb function isn't supposed to be accessed.")
 
@@ -109,21 +109,21 @@ def set_global_func(dtype, target):
     global fattn_prefill_ragged, fattn_prefill_ragged_plan
     global fmerge_state, fmerge_state_additional, fcopy_single_page
 
-    fclear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fremove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    ffork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    fpopn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    fself_attn = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_self_attention")
-    fcross_attn = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_cross_attention")
-    fappend_mla_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_append_mla_kv")
-    fkv_merge_attn_output = tvm_tirx.get_global_func(
+    fclear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fpopn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    fself_attn = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_self_attention")
+    fcross_attn = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_cross_attention")
+    fappend_mla_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_append_mla_kv")
+    fkv_merge_attn_output = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_merge_attn_output_inplace"
     )
-    fis_empty = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_empty")
-    fdebug_get_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
+    fis_empty = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_empty")
+    fdebug_get_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
     flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
         dtype_q=dtype,
@@ -187,8 +187,8 @@ def _initialize_weights():
 
 
 def create_kv_cache(dtype):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
-    fdumb = tvm_tirx.get_global_func("test.dumb_function")
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    fdumb = tvm_ffi.get_global_func("test.dumb_function")
     cache = fcreate(
         tvm_ffi.Shape(
             [

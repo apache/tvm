@@ -127,29 +127,29 @@ def set_global_func(head_dim, dtype, target):
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
     global fnvshmem_get_uid, fnvshmem_init, fdisagg_mark_send, fdisagg_prepare_recv
 
-    fclear = tvm_tirx.get_global_func("vm.builtin.kv_state_clear")
-    fadd_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_add_sequence")
-    fremove_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_remove_sequence")
-    ffork_sequence = tvm_tirx.get_global_func("vm.builtin.kv_state_fork_sequence")
-    fenable_sliding_window_for_seq = tvm_tirx.get_global_func(
+    fclear = tvm_ffi.get_global_func("vm.builtin.kv_state_clear")
+    fadd_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fenable_sliding_window_for_seq = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_enable_sliding_window_for_seq"
     )
-    fpopn = tvm_tirx.get_global_func("vm.builtin.kv_state_popn")
-    fbegin_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_begin_forward")
-    fend_forward = tvm_tirx.get_global_func("vm.builtin.kv_state_end_forward")
-    fcommit_accepted_token_tree_nodes = tvm_tirx.get_global_func(
+    fpopn = tvm_ffi.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+    fcommit_accepted_token_tree_nodes = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes"
     )
-    fattention_with_fuse_qkv = tvm_tirx.get_global_func(
+    fattention_with_fuse_qkv = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
-    fis_empty = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_empty")
-    fdebug_get_kv = tvm_tirx.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
+    fis_empty = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_empty")
+    fdebug_get_kv = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    fnvshmem_get_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
-    fnvshmem_init = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem")
-    fdisagg_mark_send = tvm_tirx.get_global_func("vm.builtin.kv_cache_disagg_mark_send")
-    fdisagg_prepare_recv = tvm_tirx.get_global_func("vm.builtin.kv_cache_disagg_prepare_recv")
+    fnvshmem_get_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    fnvshmem_init = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    fdisagg_mark_send = tvm_ffi.get_global_func("vm.builtin.kv_cache_disagg_mark_send")
+    fdisagg_prepare_recv = tvm_ffi.get_global_func("vm.builtin.kv_cache_disagg_prepare_recv")
 
     builts = []
     for tir_func in [
@@ -199,7 +199,7 @@ def set_global_func(head_dim, dtype, target):
 
 
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
-    fcreate = tvm_tirx.get_global_func("vm.builtin.paged_attention_kv_cache_create")
+    fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
         tvm_ffi.Shape(
             [
@@ -756,12 +756,12 @@ def test_paged_attention_kv_cache_transfer(kv_cache_and_config):
 
 def init_nvshmem(num_workers, pe_offset):
     if rank == 0:
-        f_init_nvshmem_uid = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = f_init_nvshmem_uid()
     else:
         uid = None
     uid = comm.bcast(uid, root=0)
-    init_func = tvm_tirx.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_func = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_func(uid, num_workers, pe_offset)
 
 

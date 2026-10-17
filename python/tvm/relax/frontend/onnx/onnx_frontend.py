@@ -63,7 +63,7 @@ from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
 from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
-from tvm_tirx.runtime import DataType, DataTypeCode
+from tvm_tirx.runtime import DataTypeCode
 
 from ..common import autopad
 
@@ -71,7 +71,7 @@ from ..common import autopad
 def _relax_dtype_is_floating_point(dtype: str) -> bool:
     """Whether a Relax dtype string is a floating point type."""
     try:
-        code = DataType(dtype).type_code
+        code = tvm_ffi.dtype(dtype).type_code
     except (ValueError, TypeError, RuntimeError):
         return False
     return (
@@ -699,8 +699,8 @@ class Div(BinaryBase):
                 if tvm_tirx.ir.is_prim_expr(inputs[1])
                 else inputs[1].ty.dtype.dtype
             )
-            lhs_code = DataType(lhs_dtype).type_code
-            rhs_code = DataType(rhs_dtype).type_code
+            lhs_code = tvm_ffi.dtype(lhs_dtype).type_code
+            rhs_code = tvm_ffi.dtype(rhs_dtype).type_code
         except (AttributeError, ValueError, TypeError, RuntimeError):
             return cls.base_impl(bb, inputs, attr, params)
 
