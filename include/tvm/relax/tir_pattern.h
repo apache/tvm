@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_TIR_PATTERN_H_
 #define TVM_RELAX_TIR_PATTERN_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/function.h>
 

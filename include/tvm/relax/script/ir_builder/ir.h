@@ -19,6 +19,7 @@
 #ifndef TVM_RELAX_SCRIPT_IR_BUILDER_IR_H_
 #define TVM_RELAX_SCRIPT_IR_BUILDER_IR_H_
 
+#include <tvm/base.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/script/ir_builder/frame.h>
 #include <tvm/relax/type.h>

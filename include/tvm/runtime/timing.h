@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/timer.h>
 
 namespace tvm {

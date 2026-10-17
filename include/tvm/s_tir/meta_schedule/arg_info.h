@@ -19,6 +19,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_ARG_INFO_H_
 #define TVM_S_TIR_META_SCHEDULE_ARG_INFO_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>

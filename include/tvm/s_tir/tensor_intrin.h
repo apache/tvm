@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_TENSOR_INTRIN_H_
 #define TVM_S_TIR_TENSOR_INTRIN_H_
 
+#include <tvm/base.h>
 #include <tvm/tirx/function.h>
 
 namespace tvm {

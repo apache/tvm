@@ -38,6 +38,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/tensor_cache_support.h>
 #include <tvm/support/file_utils.h>

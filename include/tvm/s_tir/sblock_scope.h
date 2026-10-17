@@ -25,6 +25,7 @@
 #ifndef TVM_S_TIR_SBLOCK_SCOPE_H_
 #define TVM_S_TIR_SBLOCK_SCOPE_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/module.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>

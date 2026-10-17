@@ -354,7 +354,7 @@ def decl_tensor(
         layout,
         loc,
     )
-    return _ffi_api.TensorVar(name, tensor_type, loc)  # type: ignore
+    return Var(name, tensor_type, loc=loc)
 
 
 def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):

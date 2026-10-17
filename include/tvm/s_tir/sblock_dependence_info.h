@@ -31,6 +31,7 @@
 #ifndef TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_
 #define TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/sblock_scope.h>
 

@@ -21,6 +21,7 @@
 #define TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <vector>

@@ -23,6 +23,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <sstream>

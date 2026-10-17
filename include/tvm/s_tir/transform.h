@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_TRANSFORM_H_
 #define TVM_S_TIR_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/memory_scope.h>

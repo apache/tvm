@@ -25,6 +25,7 @@
 #ifndef TVM_S_TIR_STMT_FUNCTOR_WITH_ANALYZER_H_
 #define TVM_S_TIR_STMT_FUNCTOR_WITH_ANALYZER_H_
 
+#include <tvm/base.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/stmt_functor_with_analyzer.h>
 

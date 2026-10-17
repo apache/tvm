@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>

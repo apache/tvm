@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/module.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>

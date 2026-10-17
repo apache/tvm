@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_TYPE_FUNCTOR_H_
 #define TVM_RELAX_TYPE_FUNCTOR_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/object_functor.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/type.h>
