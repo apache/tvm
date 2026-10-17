@@ -1901,8 +1901,8 @@ class Schedule(tvm_ffi.Object):
             def resize_cache_index(
                 A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
-                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32")
+                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32")
                 for ax0, ax1 in T.grid(80, 80):
                     with Ts.sblock("index_0"):
                         v0 = Ts.axis.spatial(80, ax0)
@@ -3071,13 +3071,13 @@ class Schedule(tvm_ffi.Object):
                     T.evaluate(
                         T.gpu_mma_sync(
                             C.data,
-                            match_shape_stride_pattern(C.ty)[2] // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             A.data,
-                            match_shape_stride_pattern(A.ty)[2] // 256,
+                            A.layout.apply(0, 0)["m"] // 256,
                             B.data,
-                            match_shape_stride_pattern(B.ty)[2] // 256,
+                            B.layout.apply(0, 0)["m"] // 256,
                             C.data,
-                            match_shape_stride_pattern(C.ty)[2] // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             dtype="void",
                         )
                     )
@@ -3136,13 +3136,13 @@ class Schedule(tvm_ffi.Object):
                         T.evaluate(
                             T.gpu_mma_sync(
                                 C_1.data,
-                                match_shape_stride_pattern(C_1.ty)[2] // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 A_1.data,
-                                match_shape_stride_pattern(A_1.ty)[2] // 256,
+                                A_1.layout.apply(0, 0)["m"] // 256,
                                 B_1.data,
-                                match_shape_stride_pattern(B_1.ty)[2] // 256,
+                                B_1.layout.apply(0, 0)["m"] // 256,
                                 C_1.data,
-                                match_shape_stride_pattern(C_1.ty)[2] // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 dtype="void",
                             )
                         )

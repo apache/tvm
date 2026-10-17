@@ -867,7 +867,7 @@ def _recipe_views(kwargs, recipe):
     )
     assert int(sa.min()) * original_bits % bits == 0
     base = int(sa.min()) * original_bits // bits
-    layout = _plain_layout(box)
+    layout = TileLayout(S[box] + base)
     if recipe.enums[1]:
         layout = ComposeLayout(7 - int(math.log2(bits)), recipe.enums[1], 3, layout)
     sv = tvm_tirx.tirx.Var(
@@ -878,7 +878,6 @@ def _recipe_views(kwargs, recipe):
             data=s.data,
             scope="shared.dyn",
             layout=layout,
-            elem_offset=base,
             data_alignment=1024,
         ),
     )
@@ -887,7 +886,7 @@ def _recipe_views(kwargs, recipe):
     coords = np.indices(box, dtype=np.int64).reshape(len(box), -1)
     coords += np.asarray(tuple(reversed(recipe.coordinates)))[:, None]
     new_ga = np.sum(coords * np.asarray(strides)[:, None], axis=0)
-    new_sa = _address_array(layout, box, [(0, x) for x in box], base)
+    new_sa = _address_array(layout, box, [(0, x) for x in box])
 
     def bytes_at(address, width):
         return (address[:, None] * width + np.arange(width)[None, :]).reshape(-1)
@@ -944,17 +943,13 @@ def _direct(
     box=None,
     coords=None,
     s_region=None,
-    g_elem_offset=0,
-    s_elem_offset=0,
     sctx=None,
     **fields,
 ):
     s_shape = s_shape or g_shape
     g = tvm_tirx.tirx.Var(
         "A",
-        tvm_tirx.tirx.TensorType(
-            g_shape, dtype, layout=g_layout or _plain_layout(g_shape), elem_offset=g_elem_offset
-        ),
+        tvm_tirx.tirx.TensorType(g_shape, dtype, layout=g_layout or _plain_layout(g_shape)),
     )
     s = tvm_tirx.tirx.Var(
         "A_smem",
@@ -963,7 +958,6 @@ def _direct(
             dtype,
             scope="shared.dyn",
             layout=s_layout or _plain_layout(s_shape),
-            elem_offset=s_elem_offset,
             data_alignment=1024,
         ),
     )
@@ -1001,7 +995,7 @@ def test_explicit_rejects_unknown_or_nonunit_implicit_inner_stride(stride):
 
 
 def test_explicit_view_base_offset_is_encoded_without_coordinate_rewrite():
-    _, host, _ = _direct(_load(2), g_shape=(64, 64), g_elem_offset=8)
+    _, host, _ = _direct(_load(2), g_shape=(64, 64), g_layout=TileLayout(S[(64, 64)] + 8))
     signature = _encode_signature(_collect_encodes(host)[0])
     assert isinstance(signature["base"], tvm_tirx.ir.Call)
     assert signature["base"].op.name == "tirx.address_of"
@@ -1054,7 +1048,10 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
             ],
         )
         mbar = T.decl_tensor(
-            dyn.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=16, data=dyn.data)]
+            dyn.data,
+            ty_args=[
+                T.Tensor((1,), "uint64", layout=T.TileLayout(T.S[(1,)] + (16)), data=dyn.data)
+            ],
         )
         T.cuda.tile.apply(
             T.ptx[
@@ -1664,27 +1661,27 @@ def _build_sparse_decode_qo_tma_regression():
             ],
         )
         ts = T.decl_tensor(
-            dyn.data,
+            T.ptr_byte_offset(dyn.data, q_elements * 2, ty=T.Ptr("bfloat16", "shared.dyn")),
             ty_args=[
                 T.Tensor(
                     (64, 64),
                     "bfloat16",
                     scope="shared.dyn",
                     layout=tail_layout,
-                    elem_offset=q_elements,
                     align=1024,
                 )
             ],
         )
         os = T.decl_tensor(
-            dyn.data,
+            T.ptr_byte_offset(
+                dyn.data, (q_elements + tail_elements) * 2, ty=T.Ptr("bfloat16", "shared.dyn")
+            ),
             ty_args=[
                 T.Tensor(
                     (64, 512),
                     "bfloat16",
                     scope="shared.dyn",
                     layout=q_layout,
-                    elem_offset=q_elements + tail_elements,
                     align=1024,
                 )
             ],
@@ -1696,8 +1693,7 @@ def _build_sparse_decode_qo_tma_regression():
                     (1,),
                     "uint64",
                     scope="shared.dyn",
-                    layout="default",
-                    elem_offset=shared_bytes // 8,
+                    layout=T.TileLayout(T.S[(1,)] + (shared_bytes // 8)),
                 )
             ],
         )
@@ -2101,7 +2097,7 @@ def test_caller_stages_unaligned_shared_region(warp_offset):
     # Original offset-count regressions wrote at 32 + warp_offset*64 + 2*64
     # halfwords, which is 64 bytes off the native TMA alignment. Preserve the
     # destination through explicit aligned staging, then caller scalar stores.
-    layout = TileLayout(S[(4, 64)] + warp_offset * 64)
+    layout = TileLayout(S[(4, 64)] + warp_offset * 64 + 32)
     with pytest.raises(RuntimeError, match="128-byte aligned"):
         _direct(
             _load(2),
@@ -2109,7 +2105,6 @@ def test_caller_stages_unaligned_shared_region(warp_offset):
             s_shape=(4, 64),
             s_region=((2, 2), (0, 64)),
             s_layout=layout,
-            s_elem_offset=32,
         )
 
     @T.function
@@ -2119,11 +2114,7 @@ def test_caller_stages_unaligned_shared_region(warp_offset):
         backing = T.alloc_shared((512,), "float16", layout="default", align=128)
         target = T.decl_tensor(
             backing.data,
-            ty_args=[
-                T.Tensor(
-                    (4, 64), "float16", scope="shared", layout=layout, elem_offset=32, align=128
-                )
-            ],
+            ty_args=[T.Tensor((4, 64), "float16", scope="shared", layout=layout, align=128)],
         )
         stage = T.alloc_shared((2, 64), "float16", layout="default", align=128)
         mbar = T.alloc_shared((1,), "uint64", layout="default")

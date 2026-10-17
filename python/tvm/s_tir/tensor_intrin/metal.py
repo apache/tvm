@@ -19,11 +19,11 @@
 
 from typing import Literal
 
-from tvm.s_tir import TensorIntrin
+from tvm.s_tir import TensorIntrin, match_shape_stride_pattern
 from tvm.s_tir import script as Ts
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
-from tvm_tirx.tirx import Expr, Function, Var, match_shape_stride_pattern
+from tvm_tirx.tirx import Expr, Function, Var
 
 _SCOPE_GLOBAL = MemoryScope("global")
 _SCOPE_SHARED = MemoryScope("shared")
@@ -36,8 +36,10 @@ def get_simdgroup_index(tensor: Var, stride: Expr, col: int, row: int):
 
     # NOTE: Need further check the usage between `col`` and `row`
     # Currently, Metal only supports 8x8, which means the values of `col` and `row` are the same
-    frag_index_m = match_shape_stride_pattern(tensor.ty)[2] // stride // col
-    frag_index_n = match_shape_stride_pattern(tensor.ty)[2] % stride // row
+    tensor_pattern = match_shape_stride_pattern(tensor.ty)
+    assert tensor_pattern is not None
+    frag_index_m = tensor_pattern.elem_offset // stride // col
+    frag_index_n = tensor_pattern.elem_offset % stride // row
 
     num_fragments_per_row = stride // row
     return frag_index_m * num_fragments_per_row + frag_index_n
@@ -48,7 +50,12 @@ def get_make_filled_simdgroup_matrix_intrin(
 ) -> tuple[Function, Function]:
     @Ts.function
     def desc(
-        A: T.Tensor((col, row), dtype, scope="metal.simdgroup", elem_offset=T.int32()),
+        A: T.Tensor(
+            (col, row),
+            dtype,
+            scope="metal.simdgroup",
+            layout=T.TileLayout(T.S[(col, row)] + (T.int32())),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -67,8 +74,7 @@ def get_make_filled_simdgroup_matrix_intrin(
             (col, row),
             dtype,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]] + (T.int32())),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -96,13 +102,19 @@ def get_simdgroup_load_intrin(
 
     @Ts.function
     def desc(
-        A: T.Tensor((col, row), dtype, align=align, scope=scope, elem_offset=T.int32()),
+        A: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope=scope,
+            layout=T.TileLayout(T.S[(col, row)] + (T.int32())),
+        ),
         C: T.Tensor(
             (col, row),
             dtype,
             align=align,
             scope="metal.simdgroup",
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row)] + (T.int32())),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -129,16 +141,14 @@ def get_simdgroup_load_intrin(
             dtype,
             align=align,
             scope=scope,
-            layout=T.TileLayout(T.S[(col, row) : [s1, s0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row) : [s1, s0]] + (T.int32())),
         ),
         C: T.Tensor(
             (col, row),
             dtype,
             align=align,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]] + (T.int32())),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -173,9 +183,15 @@ def get_simdgroup_store_intrin(
             dtype,
             align=align,
             scope="metal.simdgroup",
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row)] + (T.int32())),
         ),
-        C: T.Tensor((col, row), dtype, align=align, scope=scope, elem_offset=T.int32()),
+        C: T.Tensor(
+            (col, row),
+            dtype,
+            align=align,
+            scope=scope,
+            layout=T.TileLayout(T.S[(col, row)] + (T.int32())),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:col, 0:row])
@@ -200,16 +216,14 @@ def get_simdgroup_store_intrin(
             dtype,
             align=align,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(col, row) : [s1, s0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row) : [s1, s0]] + (T.int32())),
         ),
         C: T.Tensor(
             (col, row),
             dtype,
             align=align,
             scope=scope,
-            layout=T.TileLayout(T.S[(col, row) : [d1, d0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(col, row) : [d1, d0]] + (T.int32())),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -233,9 +247,24 @@ def get_simdgroup_multiply_accumulate_intrin(
 ) -> tuple[Function, Function]:
     @Ts.function
     def desc(
-        A: T.Tensor((m_dim, k_dim), dtype, scope="metal.simdgroup", elem_offset=T.int32()),
-        B: T.Tensor((k_dim, n_dim), dtype, scope="metal.simdgroup", elem_offset=T.int32()),
-        C: T.Tensor((m_dim, n_dim), dtype, scope="metal.simdgroup", elem_offset=T.int32()),
+        A: T.Tensor(
+            (m_dim, k_dim),
+            dtype,
+            scope="metal.simdgroup",
+            layout=T.TileLayout(T.S[(m_dim, k_dim)] + (T.int32())),
+        ),
+        B: T.Tensor(
+            (k_dim, n_dim),
+            dtype,
+            scope="metal.simdgroup",
+            layout=T.TileLayout(T.S[(k_dim, n_dim)] + (T.int32())),
+        ),
+        C: T.Tensor(
+            (m_dim, n_dim),
+            dtype,
+            scope="metal.simdgroup",
+            layout=T.TileLayout(T.S[(m_dim, n_dim)] + (T.int32())),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
@@ -258,22 +287,19 @@ def get_simdgroup_multiply_accumulate_intrin(
             (m_dim, k_dim),
             dtype,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(m_dim, k_dim) : [a1, a0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(m_dim, k_dim) : [a1, a0]] + (T.int32())),
         ),
         B: T.Tensor(
             (k_dim, n_dim),
             dtype,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(k_dim, n_dim) : [b1, b0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(k_dim, n_dim) : [b1, b0]] + (T.int32())),
         ),
         C: T.Tensor(
             (m_dim, n_dim),
             dtype,
             scope="metal.simdgroup",
-            layout=T.TileLayout(T.S[(m_dim, n_dim) : [c1, c0]]),
-            elem_offset=T.int32(),
+            layout=T.TileLayout(T.S[(m_dim, n_dim) : [c1, c0]] + (T.int32())),
         ),
     ) -> None:
         with Ts.sblock("root"):

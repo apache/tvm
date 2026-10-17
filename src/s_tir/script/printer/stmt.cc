@@ -18,10 +18,10 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/support.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace script {

@@ -126,7 +126,7 @@ def test_effective_layout_on_tensor_type(shape, strides):
 
 
 def test_effective_global_layout_preserves_source_and_region():
-    tensor = Var("tensor", TensorType((8, 16), "float32", elem_offset=13))
+    tensor = Var("tensor", TensorType((8, 16), "float32", layout=T.TileLayout(T.S[(8, 16)] + (13))))
     before = save_json(tensor)
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
@@ -151,7 +151,8 @@ def test_none_layout_views_keep_offsets_and_strides():
         with I.function():
             source = I.bind(
                 I.decl_tensor(
-                    I.ptr("float32"), ty_args=[I.Tensor((4, 8), "float32", elem_offset=5)]
+                    I.ptr("float32"),
+                    ty_args=[I.Tensor((4, 8), "float32", layout=T.TileLayout(T.S[(4, 8)] + (5)))],
                 )
             )
             reshaped = source.view(2, 2, 8)
@@ -219,7 +220,10 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
             assert viewed.layout is None
             assert_structural_equal(viewed.shape[0], size // 2)
             misaligned = I.bind(
-                I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((8,), "float32", elem_offset=1)])
+                I.decl_tensor(
+                    I.ptr("float32"),
+                    ty_args=[I.Tensor((8,), "float32", layout=T.TileLayout(T.S[(8,)] + (1)))],
+                )
             )
             with pytest.raises(ValueError, match="align"):
                 misaligned.view("uint64")
@@ -285,7 +289,9 @@ def test_tile_load_infers_full_global_layout_with_offset():
     @T.function
     def kernel(A: T.Tensor((144,), "float32"), D: T.Tensor((2, 4), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
-        source = T.decl_tensor(A.data, ty_args=[T.Tensor((8, 16), "float32", elem_offset=7)])
+        source = T.decl_tensor(
+            A.data, ty_args=[T.Tensor((8, 16), "float32", layout=T.TileLayout(T.S[(8, 16)] + (7)))]
+        )
         registers = T.alloc_local((2, 4), "float32", layout="default")
         source_words = source.sub[2:4, 3:7].view(
             2, 2, 2, layout=TileLayout(S[(2, 2, 2) : (16, 2, 1)])

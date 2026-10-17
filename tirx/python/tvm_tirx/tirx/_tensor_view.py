@@ -28,8 +28,6 @@ import tvm_ffi
 import tvm_tirx
 from tvm_tirx.runtime import MemoryScope
 
-from . import _ffi_api
-
 
 @functools.cache
 def _tmem_scope():
@@ -94,6 +92,23 @@ def _view_layout(buf):
     if buf.layout is not None:
         return buf.layout
     return TileLayout(S[tuple(buf.shape)])
+
+
+def _is_memory_tile(layout, shape):
+    """Whether view surgery can address each memory dimension directly."""
+    from .layout import Axis, TileLayout
+
+    return (
+        isinstance(layout, TileLayout)
+        and not layout.replica
+        and len(layout.shard) == len(shape)
+        and all(it.axis == Axis.m for it in layout.shard)
+        and all(axis == Axis.m for axis in layout.offset)
+        and all(
+            tvm_tirx.ir.prim.expr_deep_equal(it.extent, extent)
+            for it, extent in zip(layout.shard, shape)
+        )
+    )
 
 
 def _reshape_layout(tile, shape):
@@ -171,7 +186,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
     from .layout import Iter, TileLayout
 
     source = _view_layout(buf)
-    regular = _ffi_api.MatchShapeStridePattern(buf.ty) is not None
+    regular = _is_memory_tile(_view_layout(buf), buf.shape)
     if len(args) == 1 and isinstance(args[0], str | tvm_ffi.dtype) and not kwargs:
         cast_dtype = tvm_ffi.dtype(args[0])
         cur_dtype = tvm_ffi.dtype(buf.dtype)
@@ -243,7 +258,7 @@ def permute(buf: Var, *dims) -> Var:
         raise ValueError(f"permute: invalid dimensions {dims}")
     new_shape = [buf.shape[d] for d in dims]
     layout, swizzle = _surgery_parts(buf)
-    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
+    if swizzle is None and _is_memory_tile(_view_layout(buf), buf.shape):
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))
@@ -467,7 +482,7 @@ def _view_drop(buf: Var, dim, index):
             f"of extent {extent_c if extent_c is not None else buf.shape[dim]}"
         )
     layout, swizzle = _surgery_parts(buf)
-    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
+    if swizzle is None and _is_memory_tile(_view_layout(buf), buf.shape):
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))
@@ -504,7 +519,7 @@ def _view_narrow(buf: Var, dim, start, length):
             f"sub: range [{start_c}, {start_c + length_c}) exceeds dim {dim} extent {extent_c}"
         )
     layout, swizzle = _surgery_parts(buf)
-    if swizzle is None and _ffi_api.MatchShapeStridePattern(buf.ty) is not None:
+    if swizzle is None and _is_memory_tile(_view_layout(buf), buf.shape):
         grouped, seps = layout, list(range(len(buf.shape) + 1))
     else:
         grouped, seps = layout.group(list(buf.shape))

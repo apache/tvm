@@ -22,10 +22,10 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 

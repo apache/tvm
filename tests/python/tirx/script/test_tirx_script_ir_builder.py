@@ -287,10 +287,9 @@ def test_flat_tensor_store_preserves_identity_and_emits_once(layout):
         tirx.TensorType(
             (2, 3),
             "float32",
-            elem_offset=2,
-            layout=layout
+            layout=TileLayout.from_iters(layout.shard, offset={"m": 2})
             if layout is not None
-            else (tirx.layout.TileLayout(tirx.layout.S[(2, 3) : (5, 1)])),
+            else TileLayout(S[(2, 3) : (5, 1)] + 2),
         ),
     )
     indices = T.tensor_indices(tensor, 4)
@@ -465,7 +464,9 @@ def test_concrete_mutable_scalar(declare):
         with T.function():
             if declare:
                 owner = T.bind(T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="local")]))
-                scalar = T.decl_scalar("int32", owner.data, "local", elem_offset=2)
+                scalar = T.decl_scalar(
+                    "int32", owner.data, "local", layout=T.TileLayout(T.S[(1,)] + (2))
+                )
             else:
                 scalar = T.alloc_scalar("int32", "local")
             assert type(scalar) is tvm_tirx.ir.TensorLoad
@@ -487,7 +488,7 @@ def test_concrete_mutable_scalar(declare):
         )
         assert declaration.var.same_as(scalar.source)
         tvm_tirx.ir.assert_structural_equal(declaration.value.args[0], owner.data)
-        assert tirx.match_shape_stride_pattern(scalar.source.ty)[2] == 2
+        assert scalar.source.ty.layout.apply(0)["m"] == 2
 
 
 def test_local_scalar_initialization_and_assign():

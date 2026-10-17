@@ -1064,7 +1064,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_->Simplify(combo_size);
           TensorVar buf(
               e->alloc_var->name,
-              TensorType({combo_size}, alloc_type, e->scope, std::nullopt,
+              TensorType({combo_size}, alloc_type, e->scope,
                          first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment));
           e->alloc_var = buf;
           ffi::Map<ffi::String, ffi::Any> annotations;
@@ -1108,8 +1108,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       shape_type = PrimType::Int(64);
     }
     PrimExpr alloc_size = MakeConst(shape_type, alloc_elements);
-    TensorVar buf(e->alloc_var->name, TensorType({alloc_size}, e->elem_type, e->scope, std::nullopt,
-                                                 static_cast<int>(align / 8)));
+    TensorVar buf(e->alloc_var->name,
+                  TensorType({alloc_size}, e->elem_type, e->scope, static_cast<int>(align / 8)));
     e->alloc_var = buf;
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;

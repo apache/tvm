@@ -95,8 +95,6 @@ def match_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     layout: str | Layout | None = MISSING,
@@ -118,8 +116,6 @@ def match_tensor(
         else:
             raise ValueError("Shape must be specified when binding a scalar tensor access")
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is None:
-        strides = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -129,8 +125,6 @@ def match_tensor(
         shape,
         _normalize_type(dtype),
         data,
-        strides,
-        elem_offset,
         scope,
         align,
         _get_layout(layout, shape, scope),
@@ -241,8 +235,6 @@ def sblock_alloc_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
     layout: str | Layout | None = MISSING,
@@ -258,10 +250,6 @@ def sblock_alloc_tensor(
         The data type in the content of the tensor.
     data : Var
         The pointer to the head of the data.
-    strides : List[Expr]
-        The strides of each dimension.
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
     scope : str
         The optional storage scope of tensor data pointer.
     align : int
@@ -281,8 +269,6 @@ def sblock_alloc_tensor(
         The allocated tensor.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is None:
-        strides = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -291,8 +277,6 @@ def sblock_alloc_tensor(
         shape,
         _normalize_type(dtype),
         data,
-        strides,
-        elem_offset,
         scope,
         align,
         _get_layout(layout, shape, scope),

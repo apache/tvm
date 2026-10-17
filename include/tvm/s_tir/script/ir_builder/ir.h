@@ -41,8 +41,6 @@ FunctionFrame Function(bool is_private = false, bool persistent = false,
  * \param shape The type of the tensor prior to flattening.
  * \param dtype The data type in the content of the tensor.
  * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
  * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param layout The tensor layout.
@@ -51,8 +49,6 @@ FunctionFrame Function(bool is_private = false, bool persistent = false,
  */
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
-                      ffi::Array<PrimExpr> strides = {},
-                      ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                       runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
                       int align = -1, ffi::Optional<Layout> layout = std::nullopt,
                       ffi::Array<PrimExpr> allocated_addr = {});
@@ -100,8 +96,6 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param shape The type of the tensor prior to flattening.
  * \param dtype The data type in the content of the tensor.
  * \param data The pointer to the head of the data.
- * \param strides The strides of each dimension.
- * \param elem_offset The offset in terms of number of dtype elements (including lanes).
  * \param storage_scope The optional storage scope of tensor data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param layout The layout of the tensor.
@@ -110,8 +104,6 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                             ffi::Optional<Expr> data = std::nullopt,
-                            ffi::Array<PrimExpr> strides = {},
-                            ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                             runtime::MemoryScope storage_scope = runtime::MemoryScope::Global(),
                             int align = -1, ffi::Optional<Layout> layout = std::nullopt,
                             ffi::Array<PrimExpr> allocated_addr = {});

@@ -27,8 +27,8 @@
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/tirx/type.h>
 
 #include <algorithm>
 #include <optional>

@@ -317,8 +317,10 @@ def extern(
                     tvm_tirx.tirx.TensorType(
                         t.shape,
                         t.dtype,
-                        elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
-                        layout=None,
+                        layout=tvm_tirx.tirx.TileLayout(
+                            tvm_tirx.tirx.layout.S[tuple(t.shape)]
+                            + tvm_tirx.tirx.Var("elem_offset", "int32")
+                        ),
                     ),
                 )
             )
@@ -340,8 +342,10 @@ def extern(
                     tvm_tirx.tirx.TensorType(
                         shp,
                         "float32" if dt is None else dt,
-                        elem_offset=tvm_tirx.tirx.Var("elem_offset", "int32"),
-                        layout=None,
+                        layout=tvm_tirx.tirx.TileLayout(
+                            tvm_tirx.tirx.layout.S[tuple(shp)]
+                            + tvm_tirx.tirx.Var("elem_offset", "int32")
+                        ),
                     ),
                 )
             )

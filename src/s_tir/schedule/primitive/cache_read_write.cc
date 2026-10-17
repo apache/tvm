@@ -25,9 +25,9 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include <unordered_set>
 
@@ -1650,15 +1650,17 @@ TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>
                               const std::unordered_set<Var>& covered) {
   ffi::ObjectPtr<TensorTypeNode> new_tensor = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
   std::vector<PrimExpr> new_shape;
-  std::vector<PrimExpr> new_strides;
   for (const auto& iter : block_iters) {
     if (covered.count(iter->var)) {
       new_shape.push_back(iter->dom.value()->min + iter->dom.value()->extent);
     }
   }
-  new_strides.clear();
   new_tensor->shape = new_shape;
-  new_tensor->layout = s_tir::WithStrides(new_tensor->layout, new_tensor->shape, new_strides);
+  if (new_tensor->layout.has_value()) {
+    auto tile = new_tensor->layout.value().as_or_throw<tirx::TileLayout>();
+    new_tensor->layout =
+        tirx::TileLayout(tirx::TileLayoutNode::DefaultLayout(new_shape)->shard, {}, tile->offset);
+  }
   return TensorVar(tensor->name + "_reindex", TensorType(std::move(new_tensor)), tensor->loc);
 }
 

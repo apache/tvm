@@ -28,7 +28,6 @@
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -36,6 +35,7 @@
 #include <tvm/sym/pattern.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include "../transform/ir_utils.h"
 

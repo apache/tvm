@@ -64,8 +64,12 @@ def loop_split(
 def lowered_loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    normal_reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.serial(0, 128):
         for ki in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B_in_thread_init"):
@@ -120,7 +124,9 @@ def no_normal_reduction(
 def lowered_no_normal_reduction(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B_cross_thread_reduction"):
@@ -167,7 +173,9 @@ def two_bound_loops(
 def lowered_two_bound_loops(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.serial(0, 128):
         for ko in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             for ki in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.y"}):
@@ -226,8 +234,12 @@ def lowered_multiple_blocks_under_reduction_loop(
     A: T.Tensor([16, 16, 16], dtype="float32"), B: T.Tensor([16], dtype="float32")
 ) -> None:
     B_rf_local = Ts.sblock_alloc_tensor([16, 16], dtype="float32", scope="local")
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    normal_reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.parallel(0, 16, annotations={"thread_binding": "blockIdx.x"}):
         for k0o in T.parallel(0, 4, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B_in_thread_init"):
@@ -292,8 +304,12 @@ def with_block_predicate(
 def lowered_with_block_predicate(
     A: T.Tensor([128, 120], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    normal_reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.serial(0, 128):
         for ki in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B_in_thread_init"):
@@ -385,10 +401,18 @@ def lowered_single_reduction_loop_with_block_predicate(
 ) -> None:
     T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
-    cross_thread_0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    in_thread_0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    cross_thread_1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    in_thread_1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    cross_thread_1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i0 in T.serial(256):
         for ax0 in T.serial(1):
             for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):
@@ -587,8 +611,12 @@ def lowered_spatial_reduction_with_shared_prefetch(
     C_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
     A_shared = Ts.sblock_alloc_tensor((128, 150528), scope="shared")
     B_shared = Ts.sblock_alloc_tensor((128, 150528), scope="shared")
-    cross_thread_C_local = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
-    in_thread_C_local = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
+    cross_thread_C_local = Ts.sblock_alloc_tensor(
+        (1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local"
+    )
+    in_thread_C_local = Ts.sblock_alloc_tensor(
+        (1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local"
+    )
     for ax0_0_ax1_0_fused in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
         for ax0_1_ax1_1_fused in T.parallel(64, annotations={"thread_binding": "threadIdx.y"}):
             for ax2_1_1_fused in T.parallel(2, annotations={"thread_binding": "threadIdx.x"}):
@@ -730,8 +758,10 @@ k_0 = T.dynamic("k_0", "int32")
 def lowered_reduction_spatial_loop_predicate(
     A: T.Tensor((2, 32), "float32"), B: T.Tensor((2,), "float32")
 ):
-    cross_thread_B = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
-    in_thread_B = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
+    cross_thread_B = Ts.sblock_alloc_tensor(
+        (1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local"
+    )
+    in_thread_B = Ts.sblock_alloc_tensor((1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local")
     for i_0 in range(1):
         for i_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
             for k_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
@@ -807,16 +837,19 @@ def single_reduction_loop_with_tensorize(
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     [4],
                     dtype="uint8",
-                    elem_offset=T.int32(),
+                    layout=T.TileLayout(T.S[[4]] + (T.int32())),
                 )
                 B = Ts.match_tensor(
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                     [32, 4],
                     dtype="int8",
-                    elem_offset=T.int32(),
+                    layout=T.TileLayout(T.S[[32, 4]] + (T.int32())),
                 )
                 C = Ts.match_tensor(
-                    output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", elem_offset=T.int32()
+                    output[n, oc_chunk, oh, ow, 0:32],
+                    [32],
+                    dtype="int32",
+                    layout=T.TileLayout(T.S[[32]] + (T.int32())),
                 )
                 A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
@@ -861,15 +894,20 @@ def nested_reduction_loop_with_inner_match_tensors(
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            elem_offset=T.int32(),
+                            layout=T.TileLayout(T.S[[4]] + (T.int32())),
                         )
                         B = Ts.match_tensor(
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            elem_offset=T.int32(),
+                            layout=T.TileLayout(T.S[[4]] + (T.int32())),
                         )
-                        C = Ts.match_tensor(out[yi, xr], [1], dtype="int32", elem_offset=T.int32())
+                        C = Ts.match_tensor(
+                            out[yi, xr],
+                            [1],
+                            dtype="int32",
+                            layout=T.TileLayout(T.S[[1]] + (T.int32())),
+                        )
                         A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, ty="int32")
                         B_i8x4: T.int8x4 = B[T.ramp(0, 1, 4)]
@@ -897,7 +935,9 @@ def reducer_max(
 def lowered_reducer_max(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B_cross_thread_reduction"):
@@ -939,7 +979,9 @@ def zero_rank_tensor(A: T.Tensor([128], dtype="float32"), B: T.Tensor([], dtype=
 def lowered_zero_rank_tensor(
     A: T.Tensor([128], dtype="float32"), B: T.Tensor([], dtype="float32")
 ) -> None:
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for k in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
         with Ts.sblock("B_cross_thread_reduction"):
             vk = Ts.axis.reduce(128, k)
@@ -1110,10 +1152,18 @@ def lowered_softmax(
 ) -> None:
     T_softmax_maxelem_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = Ts.sblock_alloc_tensor([256], dtype="float32", scope="shared")
-    reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    reduce_temp1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    normal_reduce_temp0 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    reduce_temp1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    normal_reduce_temp1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i0 in T.parallel(0, 256, annotations={"thread_binding": "blockIdx.x"}):
         for ax0_1 in T.parallel(0, 32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("T_softmax_maxelem_normal_reduction_init"):
@@ -1240,12 +1290,18 @@ def lowered_argmax_split(
     argmax_v0: T.Tensor((128,), "int32"),
     argmax_v1: T.Tensor((128,), "float32"),
 ) -> None:
-    cross_thread_argmax_v0 = Ts.sblock_alloc_tensor([1], dtype="int32", strides=[1], scope="local")
-    cross_thread_argmax_v1 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+    cross_thread_argmax_v0 = Ts.sblock_alloc_tensor(
+        [1], dtype="int32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
-    in_thread_argmax_v0 = Ts.sblock_alloc_tensor([1], dtype="int32", strides=[1], scope="local")
-    in_thread_argmax_v1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_argmax_v1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_argmax_v0 = Ts.sblock_alloc_tensor(
+        [1], dtype="int32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_argmax_v1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i0 in T.serial(128):
         for i1_1 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("argmax_in_thread_init"):
@@ -1329,12 +1385,18 @@ def lowered_argmin_split_init_update_reordered(
     argmin_v0: T.Tensor((128,), "int32"),
     argmin_v1: T.Tensor((128,), "float32"),
 ) -> None:
-    cross_thread_argmin_v0 = Ts.sblock_alloc_tensor([1], dtype="int32", strides=[1], scope="local")
-    cross_thread_argmin_v1 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+    cross_thread_argmin_v0 = Ts.sblock_alloc_tensor(
+        [1], dtype="int32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
-    in_thread_argmin_v0 = Ts.sblock_alloc_tensor([1], dtype="int32", strides=[1], scope="local")
-    in_thread_argmin_v1 = Ts.sblock_alloc_tensor([1], dtype="float32", strides=[1], scope="local")
+    cross_thread_argmin_v1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_argmin_v0 = Ts.sblock_alloc_tensor(
+        [1], dtype="int32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
+    in_thread_argmin_v1 = Ts.sblock_alloc_tensor(
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
+    )
     for i0 in T.serial(128):
         for i1_1 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("argmin_in_thread_init"):
@@ -1445,16 +1507,16 @@ def lowered_layer_norm_tuple_sum(
     data_red_temp_v0 = Ts.sblock_alloc_tensor([128], dtype="float32")
     data_red_temp_v1 = Ts.sblock_alloc_tensor([128], dtype="float32")
     cross_thread_data_red_temp_v0 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
     cross_thread_data_red_temp_v1 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
     in_thread_data_red_temp_v0 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
     in_thread_data_red_temp_v1 = Ts.sblock_alloc_tensor(
-        [1], dtype="float32", strides=[1], scope="local"
+        [1], dtype="float32", layout=T.TileLayout(T.S[[1] : [1]]), scope="local"
     )
     for i0_fused in T.parallel(128, annotations={"thread_binding": "blockIdx.x"}):
         for i1_1 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
@@ -1547,7 +1609,9 @@ def thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "
 @Ts.function(check_well_formed=False)
 def lowered_thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
     temp_local = Ts.sblock_alloc_tensor((256,), scope="local")
-    cross_thread_temp_local = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
+    cross_thread_temp_local = Ts.sblock_alloc_tensor(
+        (1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local"
+    )
     for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
         for k in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("sum_cross_thread"):
@@ -1630,8 +1694,8 @@ def lowered_thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int6
 
     var_NT_matmul_intermediate_local = Ts.sblock_alloc_tensor((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
     var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_tensor((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
-    cross_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_tensor((1,), "float16", strides=(1,), scope="local")
-    in_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_tensor((1,), "float16", strides=(1,), scope="local")
+    cross_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_tensor((1,), "float16", layout=T.TileLayout(T.S[(1,):(1,)]), scope="local")
+    in_thread_var_NT_matmul_intermediate_local = Ts.sblock_alloc_tensor((1,), "float16", layout=T.TileLayout(T.S[(1,):(1,)]), scope="local")
     for ax0_ax1_fused in T.parallel(n * T.int64(32), annotations={"thread_binding": "blockIdx.x"}):
         for ax2_fused_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("NT_matmul_rf_init"):
@@ -1720,7 +1784,9 @@ def lowered_no_thread_broadcast(
 ):
     temp_1_local = Ts.sblock_alloc_tensor((256,), scope="local")
     temp_2_local = Ts.sblock_alloc_tensor((1,), scope="local")
-    cross_thread_temp_1_local = Ts.sblock_alloc_tensor((1,), strides=(1,), scope="local")
+    cross_thread_temp_1_local = Ts.sblock_alloc_tensor(
+        (1,), layout=T.TileLayout(T.S[(1,) : (1,)]), scope="local"
+    )
     for i in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
         for k in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("sum_cross_thread"):

@@ -295,8 +295,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -305,8 +304,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -606,8 +604,7 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -616,8 +613,7 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -961,8 +957,7 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             C0 = Ts.match_tensor(
                 C_global[
@@ -971,8 +966,7 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                elem_offset=T.int32(),
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (T.int32())),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(

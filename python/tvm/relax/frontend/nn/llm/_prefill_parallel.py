@@ -259,12 +259,12 @@ def _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling):
     @Ts.function
     def batch_prefill_ragged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
         k: T.Tensor((klen, h_kv, 512), "float32"),
         v: T.Tensor((klen, h_kv, 512), "float32"),
-        kv_indptr: T.Tensor((batch + 1,), "int32", elem_offset=ki),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
+        kv_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (ki))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -325,13 +325,17 @@ def _attention_prefill_paged_parallel(
     @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
-        pages: T.Tensor((num_pages, 2, h_kv, page_size, 512), "float32", elem_offset=po),
-        page_indptr: T.Tensor((batch + 1,), "int32", elem_offset=pi),
-        page_values: T.Tensor((nnz_pages,), "int32", elem_offset=pv),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
+        pages: T.Tensor(
+            (num_pages, 2, h_kv, page_size, 512),
+            "float32",
+            layout=T.TileLayout(T.S[(num_pages, 2, h_kv, page_size, 512)] + (po)),
+        ),
+        page_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (pi))),
+        page_values: T.Tensor((nnz_pages,), "int32", layout=T.TileLayout(T.S[(nnz_pages,)] + (pv))),
         length_info: _length_info_buffer(batch, sliding_window, li),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -389,13 +393,17 @@ def _attention_prefill_paged_split(
     @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
-        pages: T.Tensor((num_pages, 2, h_kv, page_size, 512), "float32", elem_offset=po),
-        page_indptr: T.Tensor((batch + 1,), "int32", elem_offset=pi),
-        page_values: T.Tensor((nnz_pages,), "int32", elem_offset=pv),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
+        pages: T.Tensor(
+            (num_pages, 2, h_kv, page_size, 512),
+            "float32",
+            layout=T.TileLayout(T.S[(num_pages, 2, h_kv, page_size, 512)] + (po)),
+        ),
+        page_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (pi))),
+        page_values: T.Tensor((nnz_pages,), "int32", layout=T.TileLayout(T.S[(nnz_pages,)] + (pv))),
         length_info: _length_info_buffer(batch, sliding_window, li),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -418,10 +426,12 @@ def _attention_prefill_paged_split(
                 part_output = Ts.match_tensor(
                     temporary[part_idx, 0:qlen, 0:h_q, 0:512],
                     (qlen, h_q, 512),
-                    elem_offset=T.int32(),
+                    layout=T.TileLayout(T.S[(qlen, h_q, 512)] + (T.int32())),
                 )
                 part_lse = Ts.match_tensor(
-                    temporary_lse[part_idx, 0:qlen, 0:h_q], (qlen, h_q), elem_offset=T.int32()
+                    temporary_lse[part_idx, 0:qlen, 0:h_q],
+                    (qlen, h_q),
+                    layout=T.TileLayout(T.S[(qlen, h_q)] + (T.int32())),
                 )
                 body(
                     q,

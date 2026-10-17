@@ -206,7 +206,9 @@ def compacted_strided_tensor_func(
         with Ts.sblock():
             Ts.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             Ts.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
-            B = Ts.sblock_alloc_tensor([4, 16], "float32", strides=[17, 1], scope="global")
+            B = Ts.sblock_alloc_tensor(
+                [4, 16], "float32", layout=T.TileLayout(T.S[[4, 16] : [17, 1]]), scope="global"
+            )
             for i1 in range(0, 4):
                 for j in range(0, 16):
                     with Ts.sblock():
@@ -246,7 +248,9 @@ def compacted_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32")
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         with Ts.sblock(""):
             A_pad_shared_dyn = Ts.sblock_alloc_tensor(
-                (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+                (1, padded_size, 64),
+                layout=T.TileLayout(T.S[(1, padded_size, 64) : (72 * padded_size, 72, 1)]),
+                scope="shared.dyn",
             )
             for ax0, ax1 in T.grid(96, 64):
                 with Ts.sblock("A_pad_shared.dyn"):

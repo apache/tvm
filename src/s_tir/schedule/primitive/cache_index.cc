@@ -19,9 +19,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/int_set.h>
+#include <tvm/tirx/type.h>
 
 #include "../../transform/replace_selected_expr.h"
 #include "../utils.h"
@@ -286,8 +286,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     }
     info->cache_tensor.push_back(
         TensorVar(index_tensor_name,
-                  TensorType(tensor_shape, data_ty, runtime::MemoryScope::Get(storage_scope), {0},
-                             0, s_tir::WithStrides(std::nullopt, tensor_shape, {1}))));
+                  TensorType(tensor_shape, data_ty, runtime::MemoryScope::Get(storage_scope), 0,
+                             tvm::tirx::TileLayoutNode::DefaultLayout(tensor_shape))));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;

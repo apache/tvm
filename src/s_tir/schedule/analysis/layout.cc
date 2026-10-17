@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/s_tir/layout.h>
+#include <tvm/tirx/type.h>
 
 #include "../utils.h"
 

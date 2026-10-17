@@ -29,11 +29,11 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include <map>
 #include <unordered_set>
@@ -569,8 +569,15 @@ class PipelineRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
       PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
       strides.insert(strides.begin(), stride_0);
-      new_tensor->layout =
-          s_tir::WithStrides(new_tensor->layout, new_tensor->shape, std::move(strides));
+      static const auto memory_axis = tvm::tirx::Axis::Get("m");
+      ffi::Array<tvm::tirx::Iter> shard;
+      for (size_t i = 0; i < new_tensor->shape.size(); ++i) {
+        shard.push_back(tvm::tirx::Iter(new_tensor->shape[i], strides[i], memory_axis));
+      }
+      ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+      if (new_tensor->layout.has_value())
+        offset = new_tensor->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+      new_tensor->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
     }
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }

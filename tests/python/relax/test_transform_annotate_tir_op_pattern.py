@@ -375,7 +375,9 @@ def test_multiple_bufer_stores_fallback():
     class CumsumModule:
         @Ts.function
         def cumsum(
-            rxplaceholder: T.Tensor([10, 16], dtype="float32", elem_offset=T.int32()),
+            rxplaceholder: T.Tensor(
+                [10, 16], dtype="float32", layout=T.TileLayout(T.S[[10, 16]] + (T.int32()))
+            ),
             out_buf: T.Tensor(160, "float32"),
         ):
             with Ts.sblock("cumsum_generic"):

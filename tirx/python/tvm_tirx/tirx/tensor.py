@@ -64,22 +64,17 @@ class TensorType(Type):
         shape,
         dtype,
         scope=_SCOPE_GLOBAL,
-        elem_offset=None,
         align=0,
         layout=None,
         *,
         data=None,
-        byte_offset=None,
         loc: Location = UNKNOWN_LOC,
         data_alignment=None,
     ):
         """Construct a tensor access contract.
 
-        An omitted element offset is zero in the configured index dtype,
-        independent of shape. Integer offsets use that dtype;
-        explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
-        when the contract permits a variable starting position. ``align`` remains a
-        compatibility spelling for ``data_alignment``.
+        Strides and element offsets are described by ``layout``.
+        ``align`` is an alias for ``data_alignment``.
         """
         from tvm_tirx.ir.type import _normalize_type
         from tvm_tirx.script.ir_builder.base import MISSING, at
@@ -93,10 +88,6 @@ class TensorType(Type):
         dtype = _normalize_type(dtype)
         if not isinstance(dtype, PrimType):
             raise TypeError("Tensor dtype must be a primitive type")
-        if elem_offset is not None and byte_offset is not None:
-            raise ValueError("elem_offset and byte_offset cannot be set at the same time")
-        if byte_offset is not None:
-            elem_offset = byte_offset * 8 // tvm_ffi.dtype(dtype.dtype).bits
         if data_alignment is None:
             data_alignment = align
         elif align not in (0, data_alignment):
@@ -119,7 +110,6 @@ class TensorType(Type):
             shape,
             dtype,
             scope,
-            elem_offset,
             data_alignment,
             layout,
             loc if isinstance(loc, Location) else UNKNOWN_LOC,
@@ -301,12 +291,3 @@ def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):
     if not is_tensor_var(tensor):
         raise TypeError("tensor_data_ptr expects a Var with TensorType")
     return Call("tirx.tensor_data_ptr", [tensor], loc=loc, ty=ty)
-
-
-def match_shape_stride_pattern(tensor_type):
-    """Return actual (shape, strides, element offset), or None for unmatched layouts.
-
-    Matches absent layouts and shape-aligned memory-only TileLayout objects using
-    expression deep equality, preserving variable identity without symbolic proofs.
-    """
-    return _ffi_api.MatchShapeStridePattern(tensor_type)

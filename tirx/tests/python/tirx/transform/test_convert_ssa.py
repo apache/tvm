@@ -421,7 +421,13 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
             tensor = T.decl_tensor(
                 data,
                 ty_args=[
-                    T.Tensor((128,), "float32", data=data, elem_offset=i * 128, scope="shared.dyn")
+                    T.Tensor(
+                        (128,),
+                        "float32",
+                        data=data,
+                        layout=T.TileLayout(T.S[(128,)] + (i * 128)),
+                        scope="shared.dyn",
+                    )
                 ],
             )
             T.evaluate(tensor[0])
@@ -446,7 +452,11 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
                     data,
                     ty_args=[
                         T.Tensor(
-                            (128,), "float32", data=data, elem_offset=i * 128, scope="shared.dyn"
+                            (128,),
+                            "float32",
+                            data=data,
+                            layout=T.TileLayout(T.S[(128,)] + (i * 128)),
+                            scope="shared.dyn",
                         )
                     ],
                 )
@@ -456,7 +466,11 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
                     data,
                     ty_args=[
                         T.Tensor(
-                            (128,), "float32", data=data, elem_offset=j * 128, scope="shared.dyn"
+                            (128,),
+                            "float32",
+                            data=data,
+                            layout=T.TileLayout(T.S[(128,)] + (j * 128)),
+                            scope="shared.dyn",
                         )
                     ],
                 )
@@ -466,7 +480,11 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
                     data,
                     ty_args=[
                         T.Tensor(
-                            (128,), "float32", data=data, elem_offset=k * 128, scope="shared.dyn"
+                            (128,),
+                            "float32",
+                            data=data,
+                            layout=T.TileLayout(T.S[(128,)] + (k * 128)),
+                            scope="shared.dyn",
                         )
                     ],
                 )

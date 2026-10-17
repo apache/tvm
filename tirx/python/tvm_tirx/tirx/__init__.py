@@ -126,6 +126,3 @@ def __getattr__(name):
 
         return import_module(__name__ + ".tile")
     raise AttributeError(name)
-
-
-from .tensor import match_shape_stride_pattern

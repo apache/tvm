@@ -121,7 +121,6 @@ class TensorType : public Type {
  public:
   TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                           runtime::MemoryScope scope = {},
-                          ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                           int data_alignment = 0, ffi::Optional<Layout> layout = std::nullopt,
                           Location loc = UnknownLoc());
 

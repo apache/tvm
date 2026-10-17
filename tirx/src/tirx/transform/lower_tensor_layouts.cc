@@ -270,8 +270,9 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                 .ValueOrUnchanged(origin)
                 .as_or_throw<PrimExpr>());
         if (!prim::IsZero(origin)) {
+          static const auto memory_axis = Axis::Get("m");
           type->layout =
-              TileLayout({Iter(type->shape[0], 1, Axis::Get("m"))}, {}, {{Axis::Get("m"), origin}});
+              TileLayout({Iter(type->shape[0], 1, memory_axis)}, {}, {{memory_axis, origin}});
         }
       }
     }

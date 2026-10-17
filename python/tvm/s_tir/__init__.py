@@ -27,7 +27,13 @@ tvm_tirx.script.register_dialect(
 
 from .iter_var import IterVar
 from ._tensor_intrin import TensorIntrin
-from .stmt import MatchTensorRegion, SBlock, SBlockRealize
+from .stmt import (
+    MatchTensorRegion,
+    SBlock,
+    SBlockRealize,
+    ShapeStridePattern,
+    match_shape_stride_pattern,
+)
 
 # dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
 # so skip it in runtime-only builds.

@@ -255,7 +255,12 @@ def undefined_elem_offset_in_decl_tensor():
     def func():
         data_ptr = T.handle("float32")
         buf = T.decl_tensor(
-            data_ptr, ty_args=[T.Tensor([1], "float32", elem_offset=elem_offset, data=data_ptr)]
+            data_ptr,
+            ty_args=[
+                T.Tensor(
+                    [1], "float32", layout=T.TileLayout(T.S[[1]] + (elem_offset)), data=data_ptr
+                )
+            ],
         )
         T.evaluate(buf[0])
 

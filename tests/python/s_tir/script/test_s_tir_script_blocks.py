@@ -29,9 +29,6 @@ from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_sym
 from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
 from tvm_tirx.script import tirx as T
 
-# Expected completed types use the configured fixed index dtype, not shape dtype.
-_DEFAULT_ELEM_OFFSET = T.IntImm(tvm_tirx.ir.PrimType("int64").dtype, 0)
-
 
 @Ts.function
 def matmul(
@@ -242,13 +239,13 @@ def func_with_tensorslice_indices(
 
 @Ts.function
 def expected_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], "float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
-    index_buf: T.Tensor([1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
+    data_buf: T.Tensor([16, 16], "float32", align=64),
+    index_buf: T.Tensor([1], dtype="int32", align=64),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        out_buf = Ts.sblock_alloc_tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64)
+        out_buf = Ts.sblock_alloc_tensor([16, 16], align=64)
         for i0, i1 in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -271,13 +268,13 @@ def func_with_recursive_tensorslice_indices(
 
 @Ts.function
 def expected_recursive_tensorslice_indices(
-    data_buf: T.Tensor([16, 16], "float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
-    index_buf: T.Tensor([1], dtype="int32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
+    data_buf: T.Tensor([16, 16], "float32", align=64),
+    index_buf: T.Tensor([1], dtype="int32", align=64),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        out_buf = Ts.sblock_alloc_tensor([16, 16], elem_offset=_DEFAULT_ELEM_OFFSET, align=64)
+        out_buf = Ts.sblock_alloc_tensor([16, 16], align=64)
         for i0, i1 in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i0, i1])
@@ -357,14 +354,16 @@ def alloc_tensor_func(
 
 @Ts.function
 def expect_alloc_tensor_func(
-    A: T.Tensor([2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
-    B: T.Tensor([2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64),
+    A: T.Tensor([2, 2], dtype="float32", align=64),
+    B: T.Tensor([2, 2], dtype="float32", align=64),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
         C = Ts.sblock_alloc_tensor(
-            [2, 2], dtype="float32", elem_offset=_DEFAULT_ELEM_OFFSET, align=64
+            [2, 2],
+            dtype="float32",
+            align=64,
         )
         A[(0, 0)] = T.float32(2)
         C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
@@ -1021,14 +1020,14 @@ def test_roundtrip_blocks(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.function
 def element_wise_storage_align(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64),
+    A: T.Tensor([128, 128], "float32", align=64),
+    C: T.Tensor([128, 128], "float32", align=64),
 ) -> None:
     # body
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
-        B = Ts.sblock_alloc_tensor([128, 128], elem_offset=0, align=64)
+        B = Ts.sblock_alloc_tensor([128, 128], align=64)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with Ts.sblock("B"):

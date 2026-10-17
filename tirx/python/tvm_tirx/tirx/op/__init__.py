@@ -192,16 +192,15 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         loc=loc,
         ty=PtrType(tvm_tirx.ir.PrimType("int64")),
     )
-    pattern = _ffi_api.MatchShapeStridePattern(buf.ty)
-    if pattern is None:
+    from .._tensor_view import _is_memory_tile, _view_layout
+    from ..layout import Axis
+
+    layout = _view_layout(buf)
+    if not _is_memory_tile(layout, buf.ty.shape):
         raise ValueError("DLTensor packing requires a shape-aligned strided memory layout")
-    _, stride_exprs, origin = pattern
-    analyzer = tvm_tirx.sym.Analyzer()
-    expected = 1
-    contiguous = True
-    for extent, stride in reversed(list(zip(buf.ty.shape, stride_exprs))):
-        contiguous &= analyzer.can_prove_equal(stride, expected)
-        expected *= extent
+    stride_exprs = [it.stride for it in layout.shard]
+    origin = layout.offset.get(Axis.m, const(0, "int64"))
+    contiguous = _ffi_api.IsContiguous(buf.ty.layout)
     strides = (
         Call(
             "tirx.stack_make_shape",

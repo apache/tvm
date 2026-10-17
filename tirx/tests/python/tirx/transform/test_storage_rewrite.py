@@ -172,8 +172,7 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
                     (128,),
                     "float32",
                     scope,
-                    layout=T.TileLayout(T.S[(128,) : [stride]]),
-                    elem_offset=offset,
+                    layout=T.TileLayout(T.S[(128,) : [stride]] + (offset)),
                 )
             ]
         )
@@ -196,8 +195,7 @@ def test_allocation_constraints_prevent_lifetime_reuse(property_value, stride, o
                         (128,),
                         T.float32,
                         scope=scope,
-                        layout=T.TileLayout(T.S[(128,) : [stride]]),
-                        elem_offset=offset,
+                        layout=T.TileLayout(T.S[(128,) : [stride]] + (offset)),
                     )
                 ]
             )
@@ -259,7 +257,7 @@ def test_packing_preserves_different_alignment_contracts():
         for i in T.serial(17):
             A[i] = T.float32(i)
         output[0] = A[16]
-        B = T.alloc_tensor(ty_args=[T.Tensor((17,), "float32", scope, elem_offset=0, align=512)])
+        B = T.alloc_tensor(ty_args=[T.Tensor((17,), "float32", scope, align=512)])
         for i in T.serial(17):
             B[i] = T.float32(i + 1)
         output[1] = B[16]

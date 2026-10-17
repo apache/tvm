@@ -498,7 +498,12 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             n[0] = 4
             base = T.alloc_shared([128], "uint64")
             mbar = T.decl_tensor(
-                base.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=n[0], scope="shared")]
+                base.data,
+                ty_args=[
+                    T.Tensor(
+                        (1,), "uint64", layout=T.TileLayout(T.S[(1,)] + (n[0])), scope="shared"
+                    )
+                ],
             )
             mbar[0] = T.uint64(1)
 
@@ -511,9 +516,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             base = T.alloc_shared([128], "uint64", layout=None)
             mbar = T.decl_tensor(
                 base.data,
-                ty_args=[
-                    T.Tensor((1,), "uint64", elem_offset=T.int32(0), scope="shared", layout=None)
-                ],
+                ty_args=[T.Tensor((1,), "uint64", scope="shared", layout=None)],
             )
             mbar[n[0]] = T.uint64(1)
 
@@ -545,16 +548,22 @@ def test_tensor_flatten_offset():
     @I.ir_module
     class Before:
         @T.function(private=True)
-        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
+        def main(
+            m: T.int32,
+            n: T.int32,
+            A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
+        ):
             T.evaluate(A[2, 3])
 
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
-            flat = T.decl_tensor(
-                A.data, ty_args=[T.Tensor((m * n,), "float32", elem_offset=T.int32(0), layout=None)]
-            )
+        def main(
+            m: T.int32,
+            n: T.int32,
+            A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
+        ):
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n,), "float32", layout=None)])
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)

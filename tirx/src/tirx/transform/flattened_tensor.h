@@ -25,7 +25,6 @@
 #define TVM_TIRX_TRANSFORM_FLATTENED_TENSOR_H_
 
 #include <tvm/ir/prim/op.h>
-#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 
@@ -45,18 +44,11 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
     for (const auto& iter : tile->shard) {
       span = span + (iter->extent - 1) * iter->stride;
     }
-    sym::Analyzer analyzer;
-    PrimExpr contiguous = 1;
-    bool is_contiguous = true;
-    for (size_t i = tensor.shape().size(); i > 0; --i) {
-      is_contiguous &= analyzer->CanProveEqual(tile->shard[i - 1]->stride, contiguous);
-      contiguous *= tensor.shape()[i - 1];
-    }
-    if (is_contiguous) {
+    if (IsContiguous(tensor.ty()->layout)) {
       output_shape.Set(0, PrimExpr(1));
       for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
     } else {
-      output_shape.Set(0, prim::Max(tile->shard[0]->stride * tensor.shape()[0], span));
+      output_shape.Set(0, tvm::max(tile->shard[0]->stride * tensor.shape()[0], span));
     }
   } else {
     // Otherwise, the flattened extent is the product of the input extents.
@@ -71,7 +63,7 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
   } else {
     // The original layout describes the old rank; reset it for the flattened shape.
     return TensorVar(tensor->name,
-                     TensorType(output_shape, tensor.dtype(), tensor.scope(), std::nullopt,
+                     TensorType(output_shape, tensor.dtype(), tensor.scope(),
                                 tensor.ty()->data_alignment, std::nullopt),
                      tensor->loc);
   }

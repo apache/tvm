@@ -176,17 +176,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         src_raw = pool.alloc([src_phys], dtype, align=128)
         src_smem = T.decl_tensor(
             src_raw.data,
-            ty_args=[
-                T.Tensor(list(shape), dtype, elem_offset=0, scope="shared.dyn", layout=src_layout)
-            ],
+            ty_args=[T.Tensor(list(shape), dtype, scope="shared.dyn", layout=src_layout)],
         )
         # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
         dst_raw = pool.alloc([dst_phys], dtype, align=128)
         dst_smem = T.decl_tensor(
             dst_raw.data,
-            ty_args=[
-                T.Tensor(list(shape), dtype, elem_offset=0, scope="shared.dyn", layout=dst_layout)
-            ],
+            ty_args=[T.Tensor(list(shape), dtype, scope="shared.dyn", layout=dst_layout)],
         )
         mbar = MBarrier(pool, 1)
         pool.commit()

@@ -69,11 +69,11 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
         pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
-        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', layout=T.TileLayout(T.S[(B + 1,)] + (page_indptr_elem_offset))),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (k_rope_pos_offset_elem_offset))),
+        q_rope_position: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (q_rope_position_elem_offset))),
         output: T.Tensor((B, H_qo, D), qkv_dtype),
         lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
@@ -215,12 +215,12 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     @Ts.function
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
-        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
-        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, layout=T.TileLayout(T.S[(max_num_pages, 2, H_kv, page_size, D)] + (pages_elem_offset))),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', layout=T.TileLayout(T.S[(B + 1,)] + (page_indptr_elem_offset))),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (k_rope_pos_offset_elem_offset))),
+        q_rope_position: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (q_rope_position_elem_offset))),
         output: T.Tensor((B, H_qo, D), qkv_dtype),
         lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,

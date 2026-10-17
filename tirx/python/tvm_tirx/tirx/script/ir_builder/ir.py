@@ -82,17 +82,6 @@ def _normalize_prim_type(dtype) -> ir.PrimType:
     return ir.PrimType(dtype)
 
 
-def _get_elem_offset(elem_offset, byte_offset, dtype: str):
-    assert elem_offset is None or byte_offset is None, (
-        "elem_offset and byte_offset cannot be set at the same time"
-    )
-    if elem_offset is not None:
-        return elem_offset
-    if byte_offset is None:
-        return None
-    return byte_offset * 8 // (tvm_ffi.dtype(_normalize_prim_type(dtype).dtype).bits)
-
-
 _meta_construction_state = threading.local()
 
 _THIS_FILE = __file__
@@ -269,8 +258,6 @@ def _alloc_tensor(
     shape,
     dtype="float32",
     data=None,
-    elem_offset=None,
-    byte_offset=None,
     scope=_SCOPE_GLOBAL,
     align=-1,
     layout=MISSING,
@@ -282,7 +269,7 @@ def _alloc_tensor(
     if allocated_addr is not None:
         if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
             raise ValueError(f"{scope} does not support allocation placement")
-        if data is not None or elem_offset is not None or byte_offset is not None:
+        if data is not None:
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
@@ -290,11 +277,9 @@ def _alloc_tensor(
         shape,
         dtype,
         scope,
-        elem_offset,
         align,
         layout,
         data=data,
-        byte_offset=byte_offset,
     )
     return _bind_tensor(
         alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
@@ -387,7 +372,7 @@ def alloc_scalar(
 
 
 @_register_mutable_decl("tirx.decl_scalar")
-def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.TensorLoad:
+def decl_scalar(dtype, data, scope, layout=None) -> _ir.TensorLoad:
     """Declare a zero-dimensional tensor (scalar) from a pointer."""
     buf = _bind_tensor(
         decl_tensor(
@@ -397,9 +382,8 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.T
                     (1,),
                     dtype,
                     scope=scope,
-                    elem_offset=_get_elem_offset(elem_offset, byte_offset, dtype),
                     align=-1,
-                    layout=None,
+                    layout=layout,
                 )
             ],
         )

@@ -245,7 +245,10 @@ def test_alloc_apis():
             self.inner_pool = inner_pool
             self.Tb = T.shared_scalar("float16")
             self.idx = T.local_scalar("int32")
-            self.inner_pool2 = T.decl_scalar("float16", self.inner_pool.data, "shared.dyn", 5)
+            self.inner_pool2 = T.decl_scalar(
+                "float16", self.inner_pool.data, "shared.dyn",
+                layout=T.TileLayout(T.S[(1,)] + 5),
+            )
 
         @T.inline
         def init(self):
@@ -271,7 +274,7 @@ def test_alloc_apis():
         D: T.float16
         pool = T.alloc_tensor(ty_args=[T.Tensor([10], "uint8", scope="shared.dyn")])
                 # scalar tensor (decl)
-        E = T.decl_scalar("float16", pool.data, "shared.dyn", 0)
+        E = T.decl_scalar("float16", pool.data, "shared.dyn")
                 # normal 1-dim tensor with shape (1,)
         F = T.alloc_local((1,), "float16")
         Ta: T.float16
@@ -754,18 +757,20 @@ def test_tensor_physical_view_printer_preserves_inherited_metadata():
                 T.Tensor(
                     [32, 2],
                     "float32",
-                    elem_offset=8,
+
                     scope="local",
-                    layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)]),
+                    layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + (8)),
                 )
             ]
         )
         B_align = T.decl_tensor(
-            A.data, ty_args=[T.Tensor((2,), "float32", elem_offset=8, scope="local", align=128)]
+            A.data, ty_args=[T.Tensor((2,), "float32",
+                layout=T.TileLayout(T.S[(2,)] + (8)), scope="local", align=128)]
         )
         B_factor = T.decl_tensor(
             A.data,
-            ty_args=[T.Tensor((2,), "float32", elem_offset=8, scope="local")],
+            ty_args=[T.Tensor((2,), "float32",
+                layout=T.TileLayout(T.S[(2,)] + (8)), scope="local")],
         )
         B_align[0] = B_factor[0]
         # fmt: on
@@ -1492,7 +1497,9 @@ def test_memory_scope_canonical_constructor_aliases_and_reflected_scopes():
         @T.function
         def func(
             pointer: T.Ptr(T.float32, scope),
-            tensor: T.Tensor((4,), T.float32, scope, byte_offset=8, align=128, layout="default"),
+            tensor: T.Tensor(
+                (4,), T.float32, scope, align=128, layout=T.TileLayout(T.S[(4,)] + T.int64(2))
+            ),
         ):
             tensor[0] = T.float32(1)
 

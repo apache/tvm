@@ -38,17 +38,16 @@ def test_tensor_pointer_type_derived_from_dtype_and_scope():
 @pytest.mark.parametrize("scope", ["global", "shared", tvm_tirx.runtime.MemoryScope("local")])
 def test_tensor_type_constructor_scope_order(scope):
     direct = tvm_tirx.tirx.TensorType(
-        (4, 8), "float32", scope, 4, 64, T.TileLayout(T.S[(4, 8) : (16, 1)])
+        (4, 8), "float32", scope, 64, T.TileLayout(T.S[(4, 8) : (16, 1)] + 4)
     )
-    scripted = T.Tensor((4, 8), "float32", scope, 4, 64, T.TileLayout(T.S[(4, 8) : (16, 1)]))
+    scripted = T.Tensor((4, 8), "float32", scope, 64, T.TileLayout(T.S[(4, 8) : (16, 1)] + 4))
     declared = tvm_tirx.tirx.Var(
         "tensor",
         tvm_tirx.tirx.TensorType(
             (4, 8),
             "float32",
             scope=scope,
-            layout=tvm_tirx.tirx.layout.TileLayout(tvm_tirx.tirx.layout.S[(4, 8) : (16, 1)]),
-            elem_offset=4,
+            layout=tvm_tirx.tirx.layout.TileLayout(tvm_tirx.tirx.layout.S[(4, 8) : (16, 1)] + (4)),
             data_alignment=64,
         ),
     )
@@ -91,8 +90,9 @@ def test_tensor_ptr_to():
         tvm_tirx.tirx.TensorType(
             (m, n),
             "float32",
-            layout=tvm_tirx.tirx.layout.TileLayout(tvm_tirx.tirx.layout.S[(m, n) : [n + 1, 1]]),
-            elem_offset=7,
+            layout=tvm_tirx.tirx.layout.TileLayout(
+                tvm_tirx.tirx.layout.S[(m, n) : [n + 1, 1]] + (7)
+            ),
         ),
     )
     pointer = tensor.ptr_to([2, 3])
@@ -138,9 +138,7 @@ def test_tensor_type_and_projection(dtype, scope):
 
 
 def test_tensor_type_default_offset():
-    tensor = tvm_tirx.tirx.Var(
-        "tensor", tvm_tirx.tirx.TensorType((8,), "float32", elem_offset=None)
-    )
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((8,), "float32"))
     assert tensor.ty.layout is None
 
 
@@ -266,7 +264,7 @@ def test_tensor_scope_receiver_validation():
 @pytest.mark.parametrize("alignment", [-1, 0, 64])
 def test_tensor_type_construction_offsets_and_alignment(alignment):
     ty = tvm_tirx.tirx.TensorType(
-        (), "float32", data_alignment=alignment, byte_offset=16, layout=None
+        (), "float32", data_alignment=alignment, layout=T.TileLayout(T.S[()] + 4)
     )
     tensor = tvm_tirx.ir.Var("scalar", ty)
     assert list(tensor.shape) == []

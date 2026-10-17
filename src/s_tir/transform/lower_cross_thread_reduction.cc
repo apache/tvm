@@ -28,7 +28,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -38,6 +37,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/type.h>
 
 #include "../schedule/analysis.h"
 #include "../schedule/utils.h"
@@ -157,9 +157,8 @@ ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_ten
     name = name + "_thread_" + tensor->name;
     new_tensors.push_back(
         TensorVar(name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(),
-                                   scope_local, /*elem_offset=*/std::nullopt, /*data_alignment=*/0,
-                                   s_tir::WithStrides(std::nullopt, /*shape=*/{IntImm::Int32(1)},
-                                                      /*strides=*/{IntImm::Int32(1)}))));
+                                   scope_local, /*data_alignment=*/0,
+                                   tvm::tirx::TileLayoutNode::DefaultLayout({IntImm::Int32(1)}))));
   }
   return new_tensors;
 }

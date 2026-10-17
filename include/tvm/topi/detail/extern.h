@@ -25,9 +25,9 @@
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/layout.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/type.h>
 
 #include <string>
 #include <utility>
