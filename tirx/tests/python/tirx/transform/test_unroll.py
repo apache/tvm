@@ -196,6 +196,47 @@ def test_unroll_local_access():
     tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
+def test_unroll_break_continue():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4,), "int32")):
+            for i in T.unroll(4):
+                if A[i] == 0:
+                    break
+                A[i] = 1
+            for i in T.serial(1):
+                if A[i] == 0:
+                    continue
+                A[i] = 2
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4,), "int32")):
+            for i in T.serial(4):
+                if A[i] == 0:
+                    break
+                A[i] = 1
+            for i in T.serial(1):
+                if A[i] == 0:
+                    continue
+                A[i] = 2
+
+    for explicit in (True, False):
+        with tvm_tirx.ir.transform.PassContext(
+            config={
+                "tirx.UnrollLoop": {
+                    "auto_max_step": 16,
+                    "auto_max_extent": 1,
+                    "explicit_unroll": explicit,
+                }
+            }
+        ):
+            after = tvm_tirx.tirx.transform.UnrollLoop()(Before)
+        tvm_tirx.ir.assert_structural_equal(after, Expected)
+
+
 def test_pass_config():
     @I.ir_module
     class Before:
