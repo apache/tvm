@@ -226,7 +226,7 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 }
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const Function& func) {
-  std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+  std::string name = func->GetAttr(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
   return CreateDebugFunction(name, func->params.Map([](const Var& var) { return var->ty; }),
                              func->ret_type);
 }
@@ -236,7 +236,7 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const Function& func) {
   EmitDebugLocation(func->loc);
   CodeGenLLVM::AddFunction(gvar, func);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+    if (auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol)) {
       export_system_symbols_.emplace_back(
           std::make_pair(global_symbol.value().operator std::string(), function_));
     }

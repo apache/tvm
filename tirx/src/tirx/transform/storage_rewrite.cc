@@ -432,7 +432,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
                                                     const CallNode* tensor_call) {
     // reject inplace for volatile buffers
     if ((tensor_call->attrs.has_value() ? tensor_call->attrs.value().as<DictAttrsNode>() : nullptr)
-            ->dict.count(tvm::tirx::attr::kVolatile)) {
+            ->dict.count(tvm::tirx::attr::kVolatile.name)) {
       result_ = false;
       return std::nullopt;
     }
@@ -832,7 +832,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // Rebuilt allocations only preserve volatile metadata.  Other owners may attach
     // constraints that cannot be transferred to merged or resized storage.
     for (const auto& [key, value] : annotations) {
-      if (key != tvm::tirx::attr::kVolatile) return true;
+      if (key != tvm::tirx::attr::kVolatile.name) return true;
     }
     return false;
   }
@@ -976,7 +976,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TensorVar buf = RemapTensor(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(tvm::tirx::attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile.name, true);
           }
           e->alloc_nest.push_back(Bind(buf, Call(buf.ty(), tirx::alloc_tensor_op(), {},
                                                  DictAttrs(annotations), {buf.ty()})));
@@ -1022,7 +1022,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TensorVar buf = RemapTensor(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(tvm::tirx::attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile.name, true);
           }
           e->alloc_nest.push_back(Bind(buf, Call(buf.ty(), tirx::alloc_tensor_op(), {},
                                                  DictAttrs(annotations), {buf.ty()})));
@@ -1077,7 +1077,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           e->alloc_var = buf;
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(tvm::tirx::attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile.name, true);
           }
           e->alloc_nest.push_back(Bind(buf, Call(buf.ty(), tirx::alloc_tensor_op(), {},
                                                  DictAttrs(annotations), {buf.ty()})));
@@ -1128,7 +1128,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (any_volatile) {
-      annotations.Set(tvm::tirx::attr::kVolatile, true);
+      annotations.Set(tvm::tirx::attr::kVolatile.name, true);
     }
     e->alloc_nest.push_back(
         Bind(buf, Call(buf.ty(), tirx::alloc_tensor_op(), {}, DictAttrs(annotations), {buf.ty()})));
@@ -1253,7 +1253,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           dst_entry->allocs.emplace_back(alloc);
           DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
-          if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+          if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
             dst_entry->is_volatile = true;
           }
           alloc_map_[var] = dst_entry;
@@ -2291,7 +2291,7 @@ Pass StorageRewrite() {
       enable_reuse = false;
     }
 
-    ffi::Optional<Target> target = f->GetAttr<Target>(tvm::attr::kTarget);
+    ffi::Optional<Target> target = f->GetAttr(tvm::attr::kTarget);
     if (target.has_value() &&
         (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
       // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU

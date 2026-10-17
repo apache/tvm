@@ -37,10 +37,10 @@ transform::Pass AnnotateEntryFunc() {
     // If only a single function exists, that function must be the entry
     if (mod->functions.size() == 1) {
       auto [gvar, base_func] = *mod->functions.begin();
-      if (!base_func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
+      if (!base_func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name)) {
         if (auto ptr = base_func.as<FunctionNode>()) {
-          mod->Update(gvar,
-                      WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc, true));
+          mod->Update(
+              gvar, WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc.name, true));
         }
       }
       return mod;
@@ -51,11 +51,11 @@ transform::Pass AnnotateEntryFunc() {
     bool has_external_non_functions = false;
     IRModule with_annotations;
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_external = base_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_external = base_func->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       if (is_external) {
         if (auto ptr = base_func.as<FunctionNode>()) {
           with_annotations->Add(
-              gvar, WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc, true));
+              gvar, WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc.name, true));
         } else {
           has_external_non_functions = true;
         }

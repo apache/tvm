@@ -25,7 +25,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
@@ -123,7 +123,7 @@ class ConstantFolder : public ExprMutator {
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
       const auto pf = tvm::ffi::Function::GetGlobalRequired("tirx.compile");
-      func = WithAttr(func, tvm::attr::kGlobalSymbol, ffi::String("tir_function"));
+      func = WithAttr(func, tvm::attr::kGlobalSymbol.name, ffi::String("tir_function"));
       ffi::Module rt_module = pf(func, eval_cpu_target).cast<ffi::Module>();
       build_func = rt_module->GetFunction("tir_function");
     } catch (const tvm::ffi::Error& err) {

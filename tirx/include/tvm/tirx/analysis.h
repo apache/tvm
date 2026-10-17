@@ -29,7 +29,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>
@@ -93,7 +93,7 @@ TVM_TIRX_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true)
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only Function.
+ * `tirx::attr::kIsEntryFunc.name`, whose name is `main` or being the only Function.
  * \param mod The IRModule to find the entry function.
  * \param result_g_var The result GlobalVar of the entry function.
  * \return The entry function.

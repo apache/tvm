@@ -144,7 +144,7 @@ class LayoutFreeTensorCollector : public StmtExprVisitor {
 ffi::Array<TensorVar> CollectLayoutFreeTensors(const FunctionNode* func) {
   // Only rewrite Functions with attr "layout_free_tensors"
   ffi::Array<int64_t> layout_free_tensor_index =
-      func->GetAttr(s_tir::attr::kLayoutFreeTensors, ffi::Array<int64_t>()).value();
+      func->GetAttr(s_tir::attr::kLayoutFreeTensors.name, ffi::Array<int64_t>()).value();
 
   ffi::Array<TensorVar> layout_free_tensors;
   for (int64_t index : layout_free_tensor_index) {
@@ -216,7 +216,7 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int tensor_index) {
     SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, tensor_index, "global");
-    sch->Annotate(rewrite_block_rv, s_tir::attr::kMetaScheduleLayoutRewritePreproc, true);
+    sch->Annotate(rewrite_block_rv, s_tir::attr::kMetaScheduleLayoutRewritePreproc.name, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {

@@ -37,7 +37,7 @@
 #include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/op/nn.h>
 #include <tvm/relax/op/statistical.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/data_layout.h>
 
 #include <array>

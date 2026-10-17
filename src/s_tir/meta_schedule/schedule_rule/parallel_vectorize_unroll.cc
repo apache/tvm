@@ -63,11 +63,12 @@ class ParallelizeVectorizeUnrollObj : public ScheduleRuleObj {
 
     // Parallelization
     if (max_jobs_per_core != -1) {
-      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel, this->max_parallel_extent_);
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel.name,
+                    this->max_parallel_extent_);
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize, max_vectorize_extent);
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize.name, max_vectorize_extent);
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialFunction(sch, root_rv)) {
@@ -76,9 +77,9 @@ class ParallelizeVectorizeUnrollObj : public ScheduleRuleObj {
       ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
-        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name, max_step);
       } else {
-        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name, max_step);
       }
     }
     return {sch};

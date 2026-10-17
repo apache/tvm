@@ -224,7 +224,7 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
         auto func = opt.value();
 
         std::optional<int64_t> limit = std::nullopt;
-        if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+        if (auto func_target = func->GetAttr(tvm::attr::kTarget)) {
           limit = GetVTCMCapacity(func_target.value(), ctx);
         } else if (default_target) {
           limit = GetVTCMCapacity(default_target.value(), ctx);

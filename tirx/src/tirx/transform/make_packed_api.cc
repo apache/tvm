@@ -205,14 +205,14 @@ class SubroutineCallRewriter : public StmtExprMutator {
 ffi::Optional<ffi::String> RequiresPackedAPI(const Function& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
-  if (auto opt = func->GetAttr<CallingConv>(tvm::attr::kCallingConv)) {
+  if (auto opt = func->GetAttr(tvm::attr::kCallingConv)) {
     if (opt.value() != CallingConv::kDefault) {
       return std::nullopt;
     }
   }
 
   // Internal function calls do not need the ffi::Function API
-  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
   if (!global_symbol.has_value()) {
     return std::nullopt;
   }
@@ -229,10 +229,10 @@ Function MakePackedAPI(Function func) {
   std::string name_hint = global_symbol.value();
 
   Target target = [&]() {
-    auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
+    auto opt = func->GetAttr(tvm::attr::kTarget);
     TVM_FFI_ICHECK(opt)
-        << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
-        << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+        << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget.name ("
+        << tvm::attr::kTarget.name << "), but the function only has attributes " << func->attrs;
     return opt.value();
   }();
   int target_device_type = target->GetTargetDeviceType();
@@ -266,9 +266,9 @@ Function MakePackedAPI(Function func) {
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // reset global symbol to attach prefix
-  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, CallingConv::kCPackedFunc},
-                                     {tvm::attr::kTarget, target_host},
-                                     {tvm::attr::kGlobalSymbol,
+  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv.name, CallingConv::kCPackedFunc},
+                                     {tvm::attr::kTarget.name, target_host},
+                                     {tvm::attr::kGlobalSymbol.name,
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ffi::make_object<ReturnRewriter>(v_result)

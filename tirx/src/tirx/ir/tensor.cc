@@ -192,9 +192,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
+  refl::TypeAttrDef<TensorTypeNode>().def(tvm::type_attr::kSubscriptExprRealize.name,
                                           RealizeTensorSubscript);
-  refl::TypeAttrDef<TensorRegionTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
+  refl::TypeAttrDef<TensorRegionTypeNode>().def(tvm::type_attr::kSubscriptExprRealize.name,
                                                 RealizeTensorRegionSubscript);
 }
 

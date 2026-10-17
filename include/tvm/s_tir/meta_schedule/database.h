@@ -550,7 +550,7 @@ class Database : public ffi::ObjectRef {
 };
 
 namespace attr {
-constexpr const char* kTaskName = "task_name";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kTaskName{"task_name"};
 }  // namespace attr
 
 }  // namespace meta_schedule

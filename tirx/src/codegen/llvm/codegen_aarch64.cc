@@ -56,7 +56,7 @@ class CodeGenAArch64 final : public CodeGenCPU {
 
 llvm::Function* CodeGenAArch64::DeclareFunction(const GlobalVar& gvar, const Function& f) {
   llvm::Function* func = CodeGenCPU::DeclareFunction(gvar, f);
-  if (f->GetAttr<CallingConv>(tvm::attr::kCallingConv) != CallingConv::kCPackedFunc) {
+  if (f->GetAttr(tvm::attr::kCallingConv) != CallingConv::kCPackedFunc) {
     SetPStateAttributes(func, f);
   }
   return func;
@@ -65,9 +65,8 @@ llvm::Function* CodeGenAArch64::DeclareFunction(const GlobalVar& gvar, const Fun
 void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const Function& f) {
   llvm::Function* func = DeclareFunction(gvar, f);
   current_function_ = f;
-  packed_function_ = f->GetAttr<CallingConv>(tvm::attr::kCallingConv) == CallingConv::kCPackedFunc
-                         ? func
-                         : nullptr;
+  packed_function_ =
+      f->GetAttr(tvm::attr::kCallingConv) == CallingConv::kCPackedFunc ? func : nullptr;
   CodeGenCPU::AddFunction(gvar, f);
   current_function_ = std::nullopt;
   packed_function_ = nullptr;

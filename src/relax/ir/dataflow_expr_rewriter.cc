@@ -689,7 +689,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   ffi::Map<GlobalVar, BaseFunc> new_subroutines;
   for (const auto& [gvar, func] : mod->functions) {
     if (gvar->name_hint != "pattern" && gvar->name_hint != "replacement") {
-      bool is_public = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_public = func->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       TVM_FFI_CHECK(!is_public, ValueError)
           << "Expected module to have no publicly-exposed functions "
           << "other than 'pattern' and 'replacement'.  "

@@ -139,9 +139,9 @@ void FuncName(const ffi::String& name) {
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
   for (const auto& [key, value] : attrs) {
-    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(false)) {
+    if (key == tvm::attr::kGlobalSymbol.name && frame->is_private.value_or(false)) {
       TVM_FFI_THROW(ValueError) << "A private function may not have the kGlobalSymbol (\""
-                                << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                                << tvm::attr::kGlobalSymbol.name << "\") attribute.  "
                                 << "However, a private function specified the global symbol as "
                                 << value;
     }

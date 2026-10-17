@@ -272,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorTypeMutate>())
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>())
-      .def(tvm::type_attr::kSubscriptExprRealize,
+      .def(tvm::type_attr::kSubscriptExprRealize.name,
            [](Expr value,
               ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                                  ffi::Optional<PrimExpr>>,

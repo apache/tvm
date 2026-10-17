@@ -24,7 +24,7 @@
 #ifndef TVM_RELAX_OP_TENSOR_BINARY_H_
 #define TVM_RELAX_OP_TENSOR_BINARY_H_
 
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include "../op_common.h"
 

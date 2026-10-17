@@ -45,23 +45,23 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
 
 void DispatchContextObj::AddAllocTensor(TensorVar tensor, ffi::Array<PrimExpr> allocated_addr,
                                         ffi::Map<ffi::String, ffi::Any> annotations) {
-  auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
+  auto tensors = getOrSetDefault(callbacks, callback::kPrivateAlloc.name, ffi::Array<Bind>());
   ffi::Array<Expr> args;
   if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
   tensors.push_back(Bind(
       tensor, Call(tensor.ty(), alloc_tensor_op(), args, DictAttrs(annotations), {tensor.ty()})));
-  callbacks.Set(callback::kPrivateAlloc, tensors);
+  callbacks.Set(callback::kPrivateAlloc.name, tensors);
 }
 
 void DispatchContextObj::AddInitStmt(Stmt stmt, bool host) {
-  auto tag = host ? callback::kHostInitStmt : callback::kDeviceInitStmt;
+  auto tag = host ? callback::kHostInitStmt.name : callback::kDeviceInitStmt.name;
   auto stmts = getOrSetDefault(callbacks, tag, ffi::Array<Stmt>());
   stmts.push_back(stmt);
   callbacks.Set(tag, stmts);
 }
 
 void DispatchContextObj::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
-  auto mapping = getOrSetDefault(callbacks, callback::kPostTensorDefStmt,
+  auto mapping = getOrSetDefault(callbacks, callback::kPostTensorDefStmt.name,
                                  ffi::Map<TensorVar, ffi::Array<Stmt>>());
   auto it = mapping.find(tensor);
   ffi::Array<Stmt> stmts;
@@ -70,7 +70,7 @@ void DispatchContextObj::AddPostTensorDefStmt(TensorVar tensor, Stmt stmt) {
   }
   stmts.push_back(stmt);
   mapping.Set(tensor, stmts);
-  callbacks.Set(callback::kPostTensorDefStmt, mapping);
+  callbacks.Set(callback::kPostTensorDefStmt.name, mapping);
 }
 
 void DispatchContextObj::SharedStateSet(ffi::String key, ffi::ObjectRef value) {

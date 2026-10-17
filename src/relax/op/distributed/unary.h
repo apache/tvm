@@ -26,7 +26,7 @@
 #define TVM_RELAX_OP_DISTRIBUTED_UNARY_H_
 
 #include <tvm/ffi/extra/visit_error_context.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include "utils.h"
 

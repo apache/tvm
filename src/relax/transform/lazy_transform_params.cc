@@ -38,13 +38,13 @@ using namespace tvm::prim;
 
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
-  if (auto opt_int_imm = func->GetAttr<IntImm>(tvm::relax::attr::kNumInput)) {
+  if (auto opt_int_imm = func->GetAttr<IntImm>(tvm::relax::attr::kNumInput.name)) {
     int64_t num_input_params = static_cast<int64_t>(opt_int_imm.value()->value);
     TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
-        << "Annotation for tvm::relax::attr::kNumInput (\"" << tvm::relax::attr::kNumInput
+        << "Annotation for tvm::relax::attr::kNumInput.name (\"" << tvm::relax::attr::kNumInput.name
         << "\") must be non-negative, but was " << num_input_params;
     TVM_FFI_CHECK_LE(static_cast<size_t>(num_input_params), func->params.size(), ValueError)
-        << "Annotation for tvm::relax::attr::kNumInput (\"" << tvm::relax::attr::kNumInput
+        << "Annotation for tvm::relax::attr::kNumInput.name (\"" << tvm::relax::attr::kNumInput.name
         << "\") specifies " << num_input_params << " parameters to be provided at runtime, "
         << "but the function only accepts " << func->params.size() << " parameters in total";
     return num_input_params;
@@ -86,7 +86,7 @@ class LazyInputMutator : public ExprMutator {
     auto node = ffi::GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
     node.CopyOnWrite()->ret_ty = new_ret_ty;
-    node = WithAttr(node, tvm::relax::attr::kNumInput, num_input_params + 1);
+    node = WithAttr(node, tvm::relax::attr::kNumInput.name, num_input_params + 1);
 
     plan_ = FunctionPlan{std::move(param_lookup), fget_param};
     auto output = ExprMutator::VisitExpr_(node.get()).as_or_throw<Function>();
@@ -189,7 +189,7 @@ class LazyOutputMutator : public ExprMutator {
       write_ptr->is_pure = false;
     }
     if (num_input_params.has_value()) {
-      node = WithAttr(node, tvm::relax::attr::kNumInput, num_input_params.value() + 1);
+      node = WithAttr(node, tvm::relax::attr::kNumInput.name, num_input_params.value() + 1);
     }
 
     auto output = ExprMutator::VisitExpr_(node.get()).as_or_throw<Function>();
@@ -245,7 +245,7 @@ namespace transform {
 
 Pass LazyGetInput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+    if (!func->GetAttr(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyInputs(func);
@@ -262,7 +262,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass LazySetOutput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+    if (!func->GetAttr(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyOutputs(func);

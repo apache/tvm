@@ -152,14 +152,14 @@ class StorageAlignInvalidAnnotationError : public ScheduleErrorContextObj {
     std::ostringstream os;
     os << "The block annotation for storage align is expected to be an array of 4-integer-tuples "
           "(tensor_index, axis, factor, offset). However, the block annotation with key "
-       << s_tir::attr::kTensorDimAlign << " of the block {0} is "
-       << block_->annotations.at(s_tir::attr::kTensorDimAlign) << ", which is unexpected.";
+       << s_tir::attr::kTensorDimAlign.name << " of the block {0} is "
+       << block_->annotations.at(s_tir::attr::kTensorDimAlign.name) << ", which is unexpected.";
     return os.str();
   }
 
   static StorageAlignAnnotation CheckAndGetAnnotation(const IRModule& mod, const SBlock& block) {
     // Get existing annotation value.
-    auto it = block->annotations.find(s_tir::attr::kTensorDimAlign);
+    auto it = block->annotations.find(s_tir::attr::kTensorDimAlign.name);
     if (it != block->annotations.end()) {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw MakeScheduleError<StorageAlignInvalidAnnotationError>(mod, block);
@@ -261,7 +261,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int tensor_ind
 
   // Step 3: Replace the block with the new annotation
   SBlock new_block =
-      WithAnnotation(block_ptr, s_tir::attr::kTensorDimAlign, storage_align_annotation);
+      WithAnnotation(block_ptr, s_tir::attr::kTensorDimAlign.name, storage_align_annotation);
   self->Replace(block_sref, new_block, {{ffi::GetRef<SBlock>(block_ptr), new_block}});
 }
 

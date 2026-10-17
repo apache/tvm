@@ -25,8 +25,8 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/math.h>
-#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace codegen {

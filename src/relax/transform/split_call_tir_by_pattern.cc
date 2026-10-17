@@ -631,7 +631,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   }
   if (!has_second_func) {
     // No need to split the function.
-    return {WithAttr(func, tvm::relax::attr::kLibraryKernel, library_code), std::nullopt};
+    return {WithAttr(func, tvm::relax::attr::kLibraryKernel.name, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
   Stmt body1 = BlockRemover::RemoveBlockByPartition(
@@ -656,7 +656,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   arg_partition->push_back(arg_partition1);
   new_params1.push_back(partitioner->intermediate_tensor.value());
   tirx::Function func1 = tirx::Function(new_params1, SeqStmt(body1), func->ret_type, func->attrs);
-  func1 = WithAttr(func1, tvm::relax::attr::kLibraryKernel, library_code);
+  func1 = WithAttr(func1, tvm::relax::attr::kLibraryKernel.name, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
@@ -687,19 +687,19 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
 
 tvm::BaseFunc CodegenWithLibrary(const tirx::FunctionNode* pf, ffi::String global_symbol) {
   using namespace tvm::tirx;
-  ffi::Optional<ffi::String> library_code =
-      pf->attrs.GetAttr<ffi::String>(tvm::relax::attr::kLibraryKernel);
+  ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr(tvm::relax::attr::kLibraryKernel);
   if (!library_code.has_value()) {
     return ffi::GetRef<tirx::Function>(pf);
   }
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
   ExternFunc ret(global_symbol);
-  ret = WithAttrs(std::move(ret),
-                  ffi::Map<ffi::String, ffi::Any>{
-                      {ffi::String(tvm::relax::attr::kCSource), ffi::String(source)},
-                      {ffi::String(tvm::relax::attr::kCSourceFmt), ffi::String(kCSourceFmtCuda)},
-                  });
+  ret =
+      WithAttrs(std::move(ret),
+                ffi::Map<ffi::String, ffi::Any>{
+                    {ffi::String(tvm::relax::attr::kCSource.name), ffi::String(source)},
+                    {ffi::String(tvm::relax::attr::kCSourceFmt.name), ffi::String(kCSourceFmtCuda)},
+                });
   return ret;
 }
 
@@ -785,7 +785,7 @@ class SplitMutator : public ExprMutator {
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
     Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
-    builder_->UpdateFunction(gv, WithoutAttr(func, tvm::attr::kGlobalSymbol));
+    builder_->UpdateFunction(gv, WithoutAttr(func, tvm::attr::kGlobalSymbol.name));
     return call2;
   }
 

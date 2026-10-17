@@ -46,7 +46,7 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
   // A nested function must not inherit the enclosing module member's binding.
   d->WithExtraStateScope<ffi::Optional<ffi::String>>("ir.function_name", std::nullopt, [&]() {
     auto completed = d->WithVarScope([&]() {
-      auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+      auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
       ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
       FunctionDoc doc(ffi::UnsafeInit{});
       {
@@ -84,11 +84,11 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
         for (const Var& var : func->params) signature_candidates.erase(var);
         ffi::Array<ffi::String> decorator_keys;
         ffi::Array<ExprDoc> decorator_values;
-        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+        if (!func->GetAttr(tvm::attr::kGlobalSymbol)) {
           decorator_keys.push_back("private");
           decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
         }
-        if (func->attrs->dict.count(tvm::tirx::attr::kPersistentKernel)) {
+        if (func->attrs->dict.count(tvm::tirx::attr::kPersistentKernel.name)) {
           decorator_keys.push_back("persistent");
           decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
         }
@@ -99,7 +99,8 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
           body = ToStmtDocArray(d->WithDocScope([&]() { d->Translate(func->body.value()); }));
         std::vector<std::pair<ffi::String, ffi::Any>> attrs;
         for (const auto& [key, value] : func->attrs->dict) {
-          if (key != tvm::attr::kGlobalSymbol && key != tvm::tirx::attr::kPersistentKernel)
+          if (key != tvm::attr::kGlobalSymbol.name &&
+              key != tvm::tirx::attr::kPersistentKernel.name)
             attrs.emplace_back(key, value);
         }
         if (!attrs.empty()) {
@@ -119,11 +120,11 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
         if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
           body.insert(
               body.begin(),
-              ExprStmtDoc(
-                  NamespaceDoc("tirx")
-                      ->Attr("func_attr")
-                      ->Call({DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
-                                      {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+              ExprStmtDoc(NamespaceDoc("tirx")
+                              ->Attr("func_attr")
+                              ->Call({DictDoc(
+                                  {LiteralDoc::Str(tvm::attr::kGlobalSymbol.name, std::nullopt)},
+                                  {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
         }
         ffi::Optional<ExprDoc> ret_type = std::nullopt;
         if (!func->ret_type.as<MissingType>().has_value() && !IsVoidType(func->ret_type)) {
@@ -157,8 +158,7 @@ ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  auto construction_namespace =
-      func->GetAttr<ffi::String>(tvm::attr::kScriptNamespace).value_or("tirx");
+  auto construction_namespace = func->GetAttr(tvm::attr::kScriptNamespace).value_or("tirx");
   PrintFunction(d, func, NamespaceDoc(construction_namespace)->Attr("function"));
   return std::nullopt;
 }
@@ -166,7 +166,7 @@ ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("tirx.prefix", "T");
   ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
 }
 

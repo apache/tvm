@@ -58,12 +58,13 @@ class IrregularLoopAnnotator : public StmtExprMutator {
       TVM_FFI_ICHECK(op->kind == ForKind::kDefault)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
-           {tvm::tirx::attr::kAutoUnrollMaxStep, tvm::tirx::attr::kUnrollExplicit,
-            tvm::s_tir::attr::kLoopPartitionHint, tvm::s_tir::attr::kSoftwarePipelineStage}) {
+           {tvm::tirx::attr::kAutoUnrollMaxStep.name, tvm::tirx::attr::kUnrollExplicit.name,
+            tvm::s_tir::attr::kLoopPartitionHint.name,
+            tvm::s_tir::attr::kSoftwarePipelineStage.name}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;
       }
-      res.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kIrregularLoopMark, 1);
+      res.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kIrregularLoopMark.name, 1);
     }
     std::swap(cur_has_jump, has_jump_);
     return res;

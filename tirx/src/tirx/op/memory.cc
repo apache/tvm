@@ -24,8 +24,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/memory.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {

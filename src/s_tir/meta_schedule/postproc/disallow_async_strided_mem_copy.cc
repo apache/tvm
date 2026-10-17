@@ -123,7 +123,7 @@ class DisallowAsyncStridedMemCopyObj : public PostprocObj {
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(tirx::transform::StorageRewrite());
           tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function),
-                                      tvm::attr::kGlobalSymbol, ffi::String(g_var->name_hint));
+                                      tvm::attr::kGlobalSymbol.name, ffi::String(g_var->name_hint));
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));

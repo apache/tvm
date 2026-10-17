@@ -28,8 +28,8 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/op/attr.h>
 #include <tvm/tirx/op/memory.h>
-#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace s_tir {

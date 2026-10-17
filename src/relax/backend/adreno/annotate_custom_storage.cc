@@ -244,7 +244,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/tirx/index_map.h>
 
 #include <tuple>
@@ -383,8 +383,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   template <typename T>
   ffi::Array<Attrs> ExtractAttrs(const T& func) {
     ffi::Array<Attrs> op_attrs;
-    ffi::Optional<ffi::ObjectRef> attrs =
-        func->template GetAttr<ffi::ObjectRef>(tvm::relax::attr::kOpAttrs);
+    ffi::Optional<ffi::ObjectRef> attrs = func->template GetAttr(tvm::relax::attr::kOpAttrs);
     if (attrs) {
       if (auto val = attrs.value().as<Attrs>()) {
         op_attrs.push_back(val.value());
@@ -397,7 +396,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   template <typename T>
   ffi::Optional<int64_t> ExtractPattern(const T& func) {
-    ffi::Optional<int64_t> op_pat = func->template GetAttr<int64_t>(tvm::relax::attr::kOpPattern);
+    ffi::Optional<int64_t> op_pat = func->template GetAttr(tvm::relax::attr::kOpPattern);
     return op_pat;
   }
 
@@ -600,7 +599,7 @@ class DefineVDevice : ExprMutator {
       if (func->IsInstance<relax::FunctionNode>()) {
         const auto& base_func = mod_->Lookup(gv);
         // Only non primitive relax functions
-        if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive)) {
+        if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name)) {
           continue;
         }
         auto info =

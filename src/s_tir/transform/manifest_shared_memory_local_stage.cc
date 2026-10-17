@@ -217,7 +217,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    if (op->annotations.count(s_tir::attr::kManifestSharedMemoryLocalStage)) {
+    if (op->annotations.count(s_tir::attr::kManifestSharedMemoryLocalStage.name)) {
       // Rewrite the shared memory access to load from the intermediate tensor.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
       // visit its body recursively.
@@ -226,7 +226,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
       auto [target_tensor, new_tensor, new_block, local_stage] = rewriter.Rewrite(op);
       tensor_remap_.Set(target_tensor, new_tensor);
 
-      new_block.CopyOnWrite()->annotations.erase(s_tir::attr::kManifestSharedMemoryLocalStage);
+      new_block.CopyOnWrite()->annotations.erase(s_tir::attr::kManifestSharedMemoryLocalStage.name);
       tensor_local_stage_.Set(target_tensor, local_stage);
       target_tensors_.push_back(target_tensor);
 

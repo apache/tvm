@@ -28,7 +28,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
@@ -212,7 +212,7 @@ class LegalizeMutator : public ExprMutator {
     }
     auto function = opt_function.value();
 
-    auto func_target = function->GetAttr<Target>(tvm::attr::kTarget);
+    auto func_target = function->GetAttr(tvm::attr::kTarget);
     if (func_target && func_target.value()->kind == vdevice_target.value()->kind) {
       // The function already has compatible annotations for the
       // target, so no modifications are required.
@@ -225,7 +225,7 @@ class LegalizeMutator : public ExprMutator {
     // `tirx::Function` with the appropriate target annotation.  In the
     // future, this may be treated as a bug in the FLegalize
     // implementation, rather than expected output from it.
-    auto new_function = WithAttr(function, tvm::attr::kTarget, vdevice_target.value());
+    auto new_function = WithAttr(function, tvm::attr::kTarget.name, vdevice_target.value());
     auto new_gvar_name = [&]() -> std::string {
       std::stringstream ss;
       ss << gvar.value()->name_hint;

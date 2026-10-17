@@ -162,20 +162,20 @@ bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
       s_tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
-      if (s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize)
+      if (s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name)
               .has_value()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
-        sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize);
+        sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name);
         ffi::Optional<ffi::String> tensorize_init = s_tir::GetAnn<ffi::String>(
-            block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
+            block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
         // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.
-        sch->Annotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
+        sch->Annotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name,
                       tensorize_init.value_or(""));
         if (tensorize_init.has_value()) {
-          sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
-          sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
+          sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
+          sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
         }
       }
       ++rewritten;

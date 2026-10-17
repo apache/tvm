@@ -73,7 +73,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
@@ -179,7 +179,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     // to check again
 
     // check name in global var and gsymbol
-    ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    ffi::Optional<ffi::String> gsymbol = func->GetAttr(tvm::attr::kGlobalSymbol);
     if (gsymbol.has_value() && gsymbol != var->name_hint) {
       TVM_FFI_VISIT_THROW(ValueError, func->loc)
           << "Name in GlobalVar is not equal to name in gsymbol: " << var
@@ -281,11 +281,11 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     is_dataflow_ = false;
 
     // ensure the purity attributes are valid
-    if (op->GetAttr<bool>(tvm::relax::attr::kForcePure).value_or(false) && !op->is_pure) {
+    if (op->GetAttr(tvm::relax::attr::kForcePure).value_or(false) && !op->is_pure) {
       TVM_FFI_VISIT_THROW(ValueError, op->loc)
           << "Function " << ffi::GetRef<Expr>(op) << " has true for "
-          << tvm::relax::attr::kForcePure << " but false for is_pure; "
-          << tvm::relax::attr::kForcePure << " should be true only if is_pure is also true.";
+          << tvm::relax::attr::kForcePure.name << " but false for is_pure; "
+          << tvm::relax::attr::kForcePure.name << " should be true only if is_pure is also true.";
     }
 
     // Bare symbolic occurrences in parameter types are signature definitions,
@@ -338,12 +338,11 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_ty && !op->GetAttr<bool>(tvm::relax::attr::kForcePure).value_or(false) &&
-        op->is_pure) {
+    if (check_ty && !op->GetAttr(tvm::relax::attr::kForcePure).value_or(false) && op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
             << "Function " << op << " is annotated as pure but contains an impure call: " << impure
-            << ".  Please set " << tvm::relax::attr::kForcePure << " to true "
+            << ".  Please set " << tvm::relax::attr::kForcePure.name << " to true "
             << "or use a pure operator variant (e.g., call_pure_packed) "
             << "if it is necessary to override this judgment.";
       }

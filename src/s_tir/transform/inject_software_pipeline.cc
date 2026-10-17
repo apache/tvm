@@ -1078,7 +1078,7 @@ class PipelineInjector : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   static Stmt Inject(const Function& func) {
-    auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
     auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -1194,9 +1194,9 @@ class PipelineInjector : public StmtExprMutator {
       }
     }
 
-    auto pipeline_stages = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineStage)
+    auto pipeline_stages = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineStage.name)
                                .as_or_throw<ffi::Array<int64_t>>();
-    auto pipeline_orders = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineOrder)
+    auto pipeline_orders = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineOrder.name)
                                .as_or_throw<ffi::Array<int64_t>>();
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "Function " << global_symbol_ << " has original order "
@@ -1208,7 +1208,7 @@ class PipelineInjector : public StmtExprMutator {
         << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
     std::unordered_set<int> pipeline_async_stages;
-    if (auto annot = op->annotations.Get(tvm::s_tir::attr::kSoftwarePipelineAsyncStages)) {
+    if (auto annot = op->annotations.Get(tvm::s_tir::attr::kSoftwarePipelineAsyncStages.name)) {
       for (int64_t s : annot.value().as_or_throw<ffi::Array<int64_t>>()) {
         pipeline_async_stages.insert(static_cast<int>(s));
       }
@@ -1217,9 +1217,9 @@ class PipelineInjector : public StmtExprMutator {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     for (const auto& kv : op->annotations) {
       const ffi::String& key = kv.first;
-      if (kv.first != tvm::s_tir::attr::kSoftwarePipelineStage &&
-          kv.first != tvm::s_tir::attr::kSoftwarePipelineOrder &&
-          kv.first != tvm::s_tir::attr::kSoftwarePipelineAsyncStages) {
+      if (kv.first != tvm::s_tir::attr::kSoftwarePipelineStage.name &&
+          kv.first != tvm::s_tir::attr::kSoftwarePipelineOrder.name &&
+          kv.first != tvm::s_tir::attr::kSoftwarePipelineAsyncStages.name) {
         preserved_annotations.Set(key, kv.second);
       }
     }
@@ -1271,7 +1271,7 @@ class PipelineInjector : public StmtExprMutator {
       tensor_data_to_tensor_.Set(tensor, tensor);
     }
 
-    auto it = op->annotations.find(tvm::s_tir::attr::kDoubleBufferScope);
+    auto it = op->annotations.find(tvm::s_tir::attr::kDoubleBufferScope.name);
     if (it != op->annotations.end()) {
       int tensor_index = (*it).second.cast<IntImm>()->value.as<int>().value();
       TVM_FFI_CHECK(tensor_index >= 0 && static_cast<size_t>(tensor_index) < op->writes.size(),
@@ -1291,8 +1291,8 @@ class PipelineInjector : public StmtExprMutator {
   }
 
   bool HasPipelineAnnotation(const ForNode* op) const {
-    auto it1 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineStage);
-    auto it2 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineOrder);
+    auto it1 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineStage.name);
+    auto it2 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineOrder.name);
     bool has_stage = it1 != op->annotations.end();
     bool has_order = it2 != op->annotations.end();
     if (has_stage && has_order) {

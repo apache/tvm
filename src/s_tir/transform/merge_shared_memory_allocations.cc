@@ -539,7 +539,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 7. Wrap with the merged-buffer AllocTensor.
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (scope.has_volatile_alloc) {
-        annotations.Set(tvm::tirx::attr::kVolatile, true);
+        annotations.Set(tvm::tirx::attr::kVolatile.name, true);
       }
       Stmt alloc_stmt = Bind(scope.merged_tensor.value(),
                              Call(scope.merged_tensor.value().ty(), tirx::alloc_tensor_op(), {},
@@ -566,7 +566,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
         if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {
-          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
+          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile.name)) {
             scope.has_volatile_alloc = true;
           }
           return Evaluate(0);

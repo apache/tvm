@@ -25,7 +25,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tirx/index_map.h>
 
@@ -55,7 +55,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       if (func->IsInstance<relax::FunctionNode>()) {
         const auto& base_func = mod->Lookup(gv);
         // Only non primitive relax functions
-        if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive)) {
+        if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name)) {
           continue;
         }
         relax::Function update_func = VisitExpr(func).as_or_throw<Function>();
@@ -144,7 +144,8 @@ class SpecializeTIRCallArgs : ExprMutator {
     }
 
     auto new_pfunc = Specialize(pfunc, param_map);
-    auto new_function = WithAttr(new_pfunc, tvm::relax::attr::kScoped, static_cast<int64_t>(1));
+    auto new_function =
+        WithAttr(new_pfunc, tvm::relax::attr::kScoped.name, static_cast<int64_t>(1));
     updates_->Add(gv, new_function);
     return call;
   }

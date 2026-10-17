@@ -315,8 +315,8 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       }
     };
 
-    record_explicit_region(s_tir::attr::kExplicitReadRegion, TensorIndexType::kRead);
-    record_explicit_region(s_tir::attr::kExplicitWriteRegion, TensorIndexType::kWrite);
+    record_explicit_region(s_tir::attr::kExplicitReadRegion.name, TensorIndexType::kRead);
+    record_explicit_region(s_tir::attr::kExplicitWriteRegion.name, TensorIndexType::kWrite);
 
     // Step 3. Record relax position of ancestor_loops_
     for (const TensorVar& tensor : op->alloc_tensors) {

@@ -124,7 +124,7 @@ void CodeGenC::PrintFunctionParameters(const Function& func, std::ostream& os) {
       PrintType(v->ty, os);
     }
 
-    bool no_alias = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias);
+    bool no_alias = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias.name);
     bool is_handle = v->ty.as<PtrTypeNode>();
     auto* ptr = v->ty.as<PtrTypeNode>();
     if (ptr && ptr->element_type.as<tirx::TensorMapTypeNode>()) {
@@ -154,7 +154,7 @@ bool CodeGenC::RegisterFunctionName(const GlobalVar& gvar, const Function& func)
   if (internal_functions_.count(gvar)) return false;
 
   auto function_name = [&]() -> ffi::String {
-    if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+    if (auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol)) {
       auto name = global_symbol.value();
       TVM_FFI_ICHECK(!func_name_supply_->ContainsName(name))
           << "Function " << gvar << " must use global symbol " << name
@@ -1307,7 +1307,7 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile.name)) {
     MarkVolatile(buffer.get());
   }
 }

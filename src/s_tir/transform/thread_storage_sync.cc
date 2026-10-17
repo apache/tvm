@@ -411,7 +411,7 @@ Pass ThreadSync(runtime::MemoryScope storage_scope) {
 Pass LowerSynchronization() {
   auto pass_func = [](Function f, IRModule, PassContext) {
     if (!f->body.has_value()) return f;
-    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    auto target = f->GetAttr(tvm::attr::kTarget);
     bool is_cuda = target && target.value()->kind->name == "cuda";
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<SynchronizationLowerer>(is_cuda)

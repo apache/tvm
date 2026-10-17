@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/backend/cuda/op_attr_types.h
+ * \file tvm/backend/cuda/op_attr.h
  * \brief CUDA backend operator attribute keys.
  */
-#ifndef TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
-#define TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
+#ifndef TVM_BACKEND_CUDA_OP_ATTR_H_
+#define TVM_BACKEND_CUDA_OP_ATTR_H_
 
 #include <tvm/ffi/reflection/accessor.h>
 
@@ -35,4 +35,4 @@ inline constexpr ffi::reflection::AttrKey<bool> kNeedWarpShuffle{"cuda.need_warp
 }  // namespace backend
 }  // namespace tvm
 
-#endif  // TVM_BACKEND_CUDA_OP_ATTR_TYPES_H_
+#endif  // TVM_BACKEND_CUDA_OP_ATTR_H_

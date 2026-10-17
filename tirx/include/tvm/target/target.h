@@ -35,6 +35,12 @@
 
 namespace tvm {
 
+namespace backend::attr {
+/*! \brief Optional backend configuration on a Target, distinct from serialized IR/runtime JSON. */
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Any>> kBackendConfig{
+    "backend_config"};
+}  // namespace backend::attr
+
 class TargetInternal;
 class Target;
 
@@ -117,6 +123,21 @@ class TargetObj : public ffi::Object {
   template <typename TObjectRef>
   ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
+  }
+
+  /*! \brief Get an optional Target attribute using the value type declared by its key. */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           ffi::Optional<typename ffi::reflection::AttrKey<T>::ValueType>
+                               default_value = std::nullopt) const {
+    return GetAttr<T>(key.name, std::move(default_value));
+  }
+
+  /*! \brief Use a default value when the typed Target attribute is absent. */
+  template <typename T>
+  ffi::Optional<T> GetAttr(ffi::reflection::AttrKey<T> key,
+                           typename ffi::reflection::AttrKey<T>::ValueType default_value) const {
+    return GetAttr(key, ffi::Optional<T>(std::move(default_value)));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

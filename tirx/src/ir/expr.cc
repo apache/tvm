@@ -701,7 +701,7 @@ TensorLoad::TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc)
   TVM_FFI_CHECK(source.defined() && source->ty.defined(), TypeError)
       << "TensorLoad requires a source with a defined type";
   namespace refl = ffi::reflection;
-  static const refl::TypeAttrColumn infer_column(type_attr::kTensorLoadInferType);
+  static const refl::TypeAttrColumn infer_column(type_attr::kTensorLoadInferType.name);
   auto infer = infer_column[source->ty->type_index()];
   TVM_FFI_CHECK(infer != nullptr, TypeError)
       << "Type " << source->ty->GetTypeKey() << " does not support TensorLoad";
@@ -729,7 +729,7 @@ TensorLoad TensorLoad::Unchecked(PrimType ty, Expr source, ffi::Array<PrimExpr> 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::EnsureTypeAttrColumn(type_attr::kTensorLoadInferType);
+  refl::EnsureTypeAttrColumn(type_attr::kTensorLoadInferType.name);
   refl::GlobalDef().def("ir.TensorLoad",
                         [](Expr source, ffi::Array<PrimExpr> indices, Location loc) {
                           return TensorLoad(source, indices, loc);

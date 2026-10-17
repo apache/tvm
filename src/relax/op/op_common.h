@@ -28,7 +28,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/relax/distributed/type.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/sym/analyzer.h>
 
