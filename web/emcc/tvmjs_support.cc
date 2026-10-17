@@ -45,13 +45,13 @@ extern "C" {
  * \param size The size of the space.
  * \return The allocated space.
  */
-TVM_DLL void* TVMWasmAllocSpace(int size);
+TVM_FFI_DLL void* TVMWasmAllocSpace(int size);
 
 /*!
  * \brief Free the space allocated by TVMWasmAllocSpace.
  * \param data The data pointer.
  */
-TVM_DLL void TVMWasmFreeSpace(void* data);
+TVM_FFI_DLL void TVMWasmFreeSpace(void* data);
 
 /*!
  * \brief Create ffi::Function from a resource handle.
@@ -60,13 +60,13 @@ TVM_DLL void TVMWasmFreeSpace(void* data);
  * \sa TVMWasmPackedCFunc, TVMWasmPackedCFuncFinalizer
 3A * \return 0 if success.
  */
-TVM_DLL int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFFIObjectHandle* out);
 
 /*!
  * \brief Get the last error message.
  * \return The last error message.
  */
-TVM_DLL const char* TVMFFIWasmGetLastError();
+TVM_FFI_DLL const char* TVMFFIWasmGetLastError();
 
 // --- APIs to be implemented by the frontend. ---
 
