@@ -110,7 +110,7 @@ def test_expr_constructor():
 
     tensor_var = tvm_tirx.tirx.Var("buf", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("float32")))
     tensor = tvm_tirx.tirx.decl_tensor([16], "float32", data=tensor_var)
-    x = tvm_tirx.tirx.TensorLoad(tensor, [1])
+    x = tvm_tirx.ir.TensorLoad(tensor, [1])
     assert isinstance(x, tvm_tirx.ir.TensorLoad)
     assert x.ty == tvm_tirx.ir.PrimType("float32")
     assert x.source == tensor
@@ -287,7 +287,7 @@ def test_operator_base_categories_have_primitive_type():
         ),
         tvm_tirx.tirx.Cast("float32", var),
         tvm_tirx.tirx.Select(var < 1, var, 1),
-        tvm_tirx.tirx.TensorLoad(tensor, [0]),
+        tvm_tirx.ir.TensorLoad(tensor, [0]),
         tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
         tvm_tirx.ir.prim.vector_expr.Broadcast(var, 4),
         tvm_tirx.ir.prim.vector_expr.Shuffle([tvm_tirx.ir.prim.vector_expr.Broadcast(var, 2)], [0]),

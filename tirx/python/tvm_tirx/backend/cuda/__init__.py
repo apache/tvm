@@ -40,7 +40,7 @@ _LAZY_SUBMODULES = {
     "script",
     "target_tags",
     "tile",
-    "transforms",
+    "transform",
 }
 
 
@@ -140,5 +140,5 @@ __all__ = [
     "target_tags",
     "thread_scope",
     "tile",
-    "transforms",
+    "transform",
 ]

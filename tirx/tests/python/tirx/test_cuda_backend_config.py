@@ -36,7 +36,7 @@ from tvm_tirx.backend.config import (
 )
 from tvm_tirx.backend.cuda import BackendConfig
 from tvm_tirx.backend.cuda.backend_config import compiler_options, resolve_backend_config
-from tvm_tirx.backend.cuda.transforms import BindBackendConfig
+from tvm_tirx.backend.cuda.transform import BindBackendConfig
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -407,7 +407,7 @@ np.testing.assert_array_equal(b.numpy(), x * np.float32(0.5))
 
 def test_device_helpers_are_cloned_per_configuration():
     _require_compiler("nvrtc")
-    from tvm_tirx.backend.cuda.transforms import SpecializeDeviceHelpers
+    from tvm_tirx.backend.cuda.transform import SpecializeDeviceHelpers
     from tvm_tirx.script import ir as I
 
     @I.ir_module
@@ -609,7 +609,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.backend.cuda import BackendConfig
 from tvm_tirx.backend.config import prepare_target
-from tvm_tirx.backend.cuda.transforms import BindBackendConfig
+from tvm_tirx.backend.cuda.transform import BindBackendConfig
 from tvm_tirx.script import tirx as T
 
 target = tvm_tirx.target.Target("cuda", host="llvm")

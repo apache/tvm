@@ -29,7 +29,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 
 from tvm_tirx import ir
-from tvm_tirx.ir import Expr
+from tvm_tirx.ir import Expr as Expr
 from tvm_tirx.ir import const as const
 from tvm_tirx.ir._prim_expr_overload import (  # noqa: F401
     EqualOp,
@@ -37,7 +37,6 @@ from tvm_tirx.ir._prim_expr_overload import (  # noqa: F401
     NotEqualOp,
     div_ambiguity_error,
 )
-from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import convert as convert
 
 # Retain historical imports as aliases of the canonical shared definitions.
@@ -75,22 +74,3 @@ from tvm_tirx.ir.prim.expr import (  # noqa: F401
 )
 
 Var = ir.Var
-
-
-def TensorLoad(tensor: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) -> ir.TensorLoad:
-    """Construct a validated tensor load.
-
-    Parameters
-    ----------
-    tensor : Var
-        The tensor to be loaded.
-
-    indices : List[Expr]
-        The tensor indices to load values from.
-
-    loc : Location, optional
-        The location of this expression in the source code.
-
-    """
-
-    return ir.TensorLoad(tensor, indices, loc)
