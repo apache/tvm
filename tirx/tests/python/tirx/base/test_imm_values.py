@@ -160,19 +160,23 @@ def test_tir_too_large_literal_f64():
         (256, "int32"),
         (2147483647, "int32"),
         (-2147483648, "int32"),
-        (2147483648, "int64"),
-        (-2147483649, "int64"),
+        (2147483648, None),
+        (-2147483649, None),
         (3.14159, "float32"),
         (np.finfo("float32").min, "float32"),
         (np.finfo("float32").max, "float32"),
-        (-3.402e39, "float64"),
-        (3.402e39, "float64"),
+        (-3.402e39, None),
+        (3.402e39, None),
     ],
 )
 def test_tir_const_auto_dtype(literal, expect_dtype):
-    x = tirx.const(literal, dtype=None)
-    assert x.ty.dtype == expect_dtype
-    assert x.value == literal
+    if expect_dtype is None:
+        with pytest.raises(ValueError):
+            tirx.const(literal, dtype=None)
+    else:
+        x = tirx.const(literal, dtype=None)
+        assert x.ty.dtype == expect_dtype
+        assert x.value == literal
 
 
 def check_tir_const_fold(

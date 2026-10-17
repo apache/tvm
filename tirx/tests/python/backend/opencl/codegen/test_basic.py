@@ -39,9 +39,9 @@ def test_opencl_ternary_expression():
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.max(
-                        T.Cast(2, dtype),
+                        T.Cast(dtype, 2),
                         T.if_then_else(
-                            0 < T.Cast(A[0], "int32"), T.Cast(1, dtype), T.Cast(3, dtype)
+                            0 < T.Cast("int32", A[0]), T.Cast(dtype, 1), T.Cast(dtype, 3)
                         ),
                     )
 
@@ -63,8 +63,8 @@ def test_opencl_ternary_expression():
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", 1) as i:
                     C[i] = T.max(
-                        T.Cast(2, dtype),
-                        T.Select(0 < T.Cast(A[0], "int32"), T.Cast(1, dtype), T.Cast(3, dtype)),
+                        T.Cast(dtype, 2),
+                        T.Select(0 < T.Cast("int32", A[0]), T.Cast(dtype, 1), T.Cast(dtype, 3)),
                     )
 
         fun = tvm_tirx.tirx.compile(Module, target=target).mod
@@ -97,7 +97,7 @@ def test_opencl_inf_nan():
             def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", 1) as i:
-                    C[i] = T.Cast(value, dtype)
+                    C[i] = T.Cast(dtype, value)
 
         fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
@@ -127,7 +127,7 @@ def test_opencl_max():
             def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", 1) as i:
-                    C[i] = T.max(A[0] + T.Cast(1, dtype), T.Cast(0, dtype))
+                    C[i] = T.max(A[0] + T.Cast(dtype, 1), T.Cast(dtype, 0))
 
         fun = tvm_tirx.tirx.compile(Module, target=target).mod
 
@@ -228,7 +228,7 @@ def test_opencl_ceil_log2(target):
             def main(C: T.Tensor((n,), "int32")):
                 T.func_attr({"tirx.noalias": True})
                 with T.launch_thread("threadIdx.x", n) as i:
-                    C[i] = T.Cast(T.ceil(T.log2(T.Cast(i, inter_dtype))), "int32")
+                    C[i] = T.Cast("int32", T.ceil(T.log2(T.Cast(inter_dtype, i))))
 
         fun = tvm_tirx.tirx.compile(Module, target=target).mod
         assembly = fun.imports[0].inspect_source()

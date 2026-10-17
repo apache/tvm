@@ -48,7 +48,7 @@ def test_fp16_to_fp32():
                 T.func_attr({"tirx.noalias": True})
                 for i0 in range(elements):
                     for i1 in T.vectorized(width):
-                        B[i0, i1] = T.Cast(A[i0, i1], "float32")
+                        B[i0, i1] = T.Cast("float32", A[i0, i1])
 
         f = tvm_tirx.tirx.compile(Module, target=target).mod
 

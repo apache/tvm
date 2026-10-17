@@ -316,21 +316,21 @@ def test_simplify_cast():
     # cast(i + j + 1, i64) - cast(i, i64)
     i = tvm_tirx.tirx.Var("i", "int32")
     j = tvm_tirx.tirx.Var("j", "int32")
-    res = tcast(i + j + 1, "int64") - tcast(i, "int64")
-    ck.verify(res, tcast(j, "int64") + tvm_tirx.tirx.const(1, "int64"))
+    res = tcast("int64", i + j + 1) - tcast("int64", i)
+    ck.verify(res, tcast("int64", j) + tvm_tirx.tirx.const(1, "int64"))
     # cast(i + j + 1, i32) - cast(i, i32)
     i = tvm_tirx.tirx.Var("i", "int64")
     j = tvm_tirx.tirx.Var("j", "int64")
     ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 10))
     ck.analyzer.update(j, tvm_tirx.sym.ConstIntBound(0, 10))
-    res = tcast(i + j + 1, "int32") - tcast(i, "int32")
-    ck.verify(res, tcast(j, "int32") + 1)
+    res = tcast("int32", i + j + 1) - tcast("int32", i)
+    ck.verify(res, tcast("int32", j) + 1)
     # cast(i + j - 100, i32)
     i = tvm_tirx.tirx.Var("i", "int64")
     j = tvm_tirx.tirx.Var("j", "int64")
     ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 2**31 - 1))
     ck.analyzer.update(j, tvm_tirx.sym.ConstIntBound(0, 10))
-    res = tcast(i + j - 100, "int32")
+    res = tcast("int32", i + j - 100)
     ck.verify(res, res)
     # cast(flm(axis, 7i64) * 2i64 + 1i64, i32) + 1i32
     # - cast(flm(axis, 7i64) * 2i64, i32)
@@ -338,13 +338,13 @@ def test_simplify_cast():
     ck.analyzer.update(axis, tvm_tirx.sym.ConstIntBound(0, 42))
     res = (
         tcast(
+            "int32",
             flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64")
             + tvm_tirx.tirx.const(1, "int64"),
-            "int32",
         )
         + tvm_tirx.tirx.const(1, "int32")
         - tcast(
-            flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64"), "int32"
+            "int32", flm(axis, tvm_tirx.tirx.const(7, "int64")) * tvm_tirx.tirx.const(2, "int64")
         )
     )
     ck.verify(res, 2)
@@ -357,19 +357,19 @@ def test_simplify_normalize_min_value_expr():
     ck.verify(
         tvm_tirx.tirx.min_value(ty="int32") - x == 0, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(tvm_tirx.tirx.min_value(ty="int32") + x == 0, tirx.const(False))
+    ck.verify(tvm_tirx.tirx.min_value(ty="int32") + x == 0, tirx.const(False, "bool"))
     ck.verify(
         0 == tvm_tirx.tirx.min_value(ty="int32") - x, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(0 == tvm_tirx.tirx.min_value(ty="int32") + x, tirx.const(False))
+    ck.verify(0 == tvm_tirx.tirx.min_value(ty="int32") + x, tirx.const(False, "bool"))
     ck.verify(
         -x + tvm_tirx.tirx.min_value(ty="int32") == 0, x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(x + tvm_tirx.tirx.min_value(ty="int32") == 0, tirx.const(False))
+    ck.verify(x + tvm_tirx.tirx.min_value(ty="int32") == 0, tirx.const(False, "bool"))
     ck.verify(
         0 == -x + tvm_tirx.tirx.min_value(ty="int32"), x == tvm_tirx.tirx.min_value(ty="int32")
     )
-    ck.verify(0 == x + tvm_tirx.tirx.min_value(ty="int32"), tirx.const(False))
+    ck.verify(0 == x + tvm_tirx.tirx.min_value(ty="int32"), tirx.const(False, "bool"))
 
 
 def test_proddiv_simplify():

@@ -33,8 +33,8 @@ def make_filled_simdgroup_matrix(
     return Call(
         "tirx.metal.make_filled_simdgroup_matrix",
         [d, index, value, col, row],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -55,8 +55,8 @@ def simdgroup_load(
     return Call(
         "tirx.metal.simdgroup_load",
         [d, index, ptr, stride, col, row, transpose_matrix],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -77,8 +77,8 @@ def simdgroup_store(
     return Call(
         "tirx.metal.simdgroup_store",
         [d, index, ptr, stride, col, row, transpose_matrix],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -90,8 +90,8 @@ def simdgroup_multiply_accumulate(
     return Call(
         "tirx.metal.simdgroup_multiply_accumulate",
         [d, index_d, a, index_a, b, index_b, c, index_c],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 

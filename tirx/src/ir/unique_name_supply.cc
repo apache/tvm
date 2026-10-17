@@ -106,9 +106,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   UniqueNameSupplyObj::RegisterReflection();
   refl::GlobalDef()
       .def("ir.UniqueNameSupply", [](ffi::String prefix) { return UniqueNameSupply(prefix); })
-      .def_method("ir.UniqueNameSupply_FreshName", &UniqueNameSupplyObj::FreshName)
-      .def_method("ir.UniqueNameSupply_ReserveName", &UniqueNameSupplyObj::ReserveName)
-      .def_method("ir.UniqueNameSupply_ContainsName", &UniqueNameSupplyObj::ContainsName);
+      .def_method("ir.UniqueNameSupplyFreshName", &UniqueNameSupplyObj::FreshName)
+      .def_method("ir.UniqueNameSupplyReserveName", &UniqueNameSupplyObj::ReserveName)
+      .def_method("ir.UniqueNameSupplyContainsName", &UniqueNameSupplyObj::ContainsName);
 }
 
 }  // namespace tvm

@@ -123,18 +123,18 @@ class TestVector(BaseCompare):
         # int64 lanes
         TestCase(
             tvm_tirx.ir.prim.vector_expr.Broadcast(x, 4)
-            + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, tvm_tirx.ir.IntImm(dtype="int64", value=4)),
+            + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, tvm_tirx.ir.IntImm(ty="int64", value=4)),
             tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         TestCase(
-            tvm_tirx.ir.prim.vector_expr.Broadcast(x, tvm_tirx.ir.IntImm(dtype="int64", value=4))
+            tvm_tirx.ir.prim.vector_expr.Broadcast(x, tvm_tirx.ir.IntImm(ty="int64", value=4))
             + tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4),
             tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4),
         ),
         # int64 iterators with int32 lanes
         TestCase(
             tvm_tirx.ir.prim.vector_expr.Broadcast(x64, 4)
-            + tvm_tirx.ir.prim.vector_expr.Ramp(tvm_tirx.ir.IntImm(dtype="int64", value=0), 1, 4),
+            + tvm_tirx.ir.prim.vector_expr.Ramp(tvm_tirx.ir.IntImm(ty="int64", value=0), 1, 4),
             tvm_tirx.ir.prim.vector_expr.Ramp(x64, 1, 4),
         ),
         TestCase(
@@ -1542,13 +1542,13 @@ class TestCast(BaseCompare):
         x = tvm_tirx.tirx.Var("x", "int32")
         dtypes = ["float32", "float16", "int32", "int8", "bool"]
         for dtype1 in dtypes:
-            yield TestCase(tvm_tirx.tirx.Cast(x - x, dtype1), tvm_tirx.tirx.const(0, dtype1))
-            yield TestCase(tvm_tirx.tirx.Cast(x == x, dtype1), tvm_tirx.tirx.const(1, dtype1))
+            yield TestCase(tvm_tirx.tirx.Cast(dtype1, x - x), tvm_tirx.tirx.const(0, dtype1))
+            yield TestCase(tvm_tirx.tirx.Cast(dtype1, x == x), tvm_tirx.tirx.const(1, dtype1))
             for dtype2 in dtypes:
                 for i in [0, 1, 2, 3]:
                     if i <= 1 or (dtype1 != "bool" and dtype2 != "bool"):
                         yield TestCase(
-                            tvm_tirx.tirx.Cast(tvm_tirx.tirx.const(i, dtype2), dtype1),
+                            tvm_tirx.tirx.Cast(dtype1, tvm_tirx.tirx.const(i, dtype2)),
                             tvm_tirx.tirx.const(i, dtype1),
                         )
 
@@ -1570,12 +1570,14 @@ class TestBitwiseConstants(BaseCompare):
             (tvm_tirx.tirx.BitwiseXor, 6),
         ):
             yield TestCase(
-                op(tvm_tirx.tirx.const(10), tvm_tirx.tirx.const(12)), tvm_tirx.tirx.const(expected)
+                op(tvm_tirx.tirx.const(10, "int32"), tvm_tirx.tirx.const(12, "int32")),
+                tvm_tirx.tirx.const(expected, "int32"),
             )
         x = tvm_tirx.tirx.Var("x", "int32")
         # Children must simplify before folding the enclosing bitwise node.
         yield TestCase(
-            tvm_tirx.tirx.BitwiseXor(x - x + 5, tvm_tirx.tirx.const(7)), tvm_tirx.tirx.const(2)
+            tvm_tirx.tirx.BitwiseXor(x - x + 5, tvm_tirx.tirx.const(7, "int32")),
+            tvm_tirx.tirx.const(2, "int32"),
         )
 
     test_case = tvm_tirx.testing.parameter(*_generate_tests())

@@ -30,45 +30,6 @@ class Attrs(Object):
     Attrs is passed as the first argument to these functions.
     """
 
-    def get_int_tuple(self, key):
-        """Get a python int tuple of a key
-
-        Parameters
-        ----------
-        key: str
-
-        Returns
-        -------
-        value: Tuple of int
-        """
-        return tuple(x if isinstance(x, int) else x.value for x in getattr(self, key))
-
-    def get_int(self, key):
-        """Get a python int value of a key
-
-        Parameters
-        ----------
-        key: str
-
-        Returns
-        -------
-        value: int
-        """
-        return getattr(self, key)
-
-    def get_str(self, key):
-        """Get a python int value of a key
-
-        Parameters
-        ----------
-        key: str
-
-        Returns
-        -------
-        value: int
-        """
-        return getattr(self, key)
-
     def __getitem__(self, item):
         return getattr(self, item)
 

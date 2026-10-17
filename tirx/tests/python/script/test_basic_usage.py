@@ -30,7 +30,7 @@ from minilang import Value
 import tvm_tirx
 from tvm_tirx import DataType, ir
 from tvm_tirx.ir import prim
-from tvm_tirx.ir._overload_prim_expr import EqualOp
+from tvm_tirx.ir._prim_expr_overload import EqualOp
 from tvm_tirx.script import ir as I
 from tvm_tirx.script.parser import entry
 
@@ -411,7 +411,7 @@ def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
     def main():
         x < y
 
-    expected = prim.LT(prim.Broadcast(prim.Cast(x, "int64"), 4), y)
+    expected = prim.LT(prim.Broadcast(prim.Cast("int64", x), 4), y)
     ir.assert_structural_equal(main.body[0][1], expected)
 
 

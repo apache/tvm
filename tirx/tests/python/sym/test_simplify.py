@@ -133,7 +133,7 @@ def test_simplify_uint_floormod_const_scale_divisible():
     """uint32 floormod(x * c1, c2) -> 0 when c1 % c2 == 0 (overflow-free)."""
     ana = tvm_tirx.sym.Analyzer()
     q = tirx.Var("q_stage_idx", "uint32")
-    expr = q * tirx.Cast(128, "uint32")
+    expr = q * tirx.Cast("uint32", 128)
     mod = expr % tirx.const(4, "uint32")
     assert ana.can_prove_equal(mod, tirx.const(0, "uint32"))
     tvm_tirx.ir.assert_structural_equal(ana.rewrite_simplify(mod), tirx.const(0, "uint32"))

@@ -49,7 +49,7 @@ class UniqueNameSupply(Object):
         add_underscore: bool
             If set to True, adds '_' between prefix and digit.
         """
-        return _ffi_api.UniqueNameSupply_FreshName(self, name, add_prefix, add_underscore)
+        return _ffi_api.UniqueNameSupplyFreshName(self, name, add_prefix, add_underscore)
 
     def reserve_name(self, name, add_prefix=True):
         """Reserves an existing name with this UniqueNameSupply.
@@ -63,7 +63,7 @@ class UniqueNameSupply(Object):
             If set to true, then the prefix of this UniqueNameSupply will be prepended to the name
             before reserving it.
         """
-        return _ffi_api.UniqueNameSupply_ReserveName(self, name, add_prefix)
+        return _ffi_api.UniqueNameSupplyReserveName(self, name, add_prefix)
 
     def contains_name(self, name, add_prefix=True):
         """Checks if this UniqueNameSupply already generated a name.
@@ -77,4 +77,4 @@ class UniqueNameSupply(Object):
             If set to true, then the prefix of this UniqueNameSupply will be prepended to the name
             before checking for it.
         """
-        return _ffi_api.UniqueNameSupply_ContainsName(self, name, add_prefix)
+        return _ffi_api.UniqueNameSupplyContainsName(self, name, add_prefix)

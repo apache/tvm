@@ -319,8 +319,8 @@ ffi::Optional<ExprDoc> CastDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   const auto* cast =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::CastNode>(input);
   return NamespaceDoc("tirx")->Attr("Cast")->Call(
-      {d->Translate(cast->value).value(),
-       LiteralDoc::DataType(cast->ty.as_or_throw<PrimType>()->dtype, std::nullopt)});
+      {LiteralDoc::DataType(cast->ty.as_or_throw<PrimType>()->dtype, std::nullopt),
+       d->Translate(cast->value).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

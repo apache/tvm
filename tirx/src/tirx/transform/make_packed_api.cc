@@ -105,14 +105,14 @@ class ReturnRewriter : public StmtExprMutator {
     PrimType dtype = prim_val.ty();
     if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       info.type_index = ffi::TypeIndex::kTVMFFIBool;
-      info.expr = prim::Cast(prim_val, PrimType::Int(64));
+      info.expr = prim::Cast(PrimType::Int(64), prim_val);
 
     } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       info.type_index = ffi::TypeIndex::kTVMFFIInt;
-      info.expr = prim::Cast(prim_val, PrimType::Int(64));
+      info.expr = prim::Cast(PrimType::Int(64), prim_val);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat) {
       info.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      info.expr = prim::Cast(prim_val, PrimType::Float(64));
+      info.expr = prim::Cast(PrimType::Float(64), prim_val);
     } else if (dtype.IsVoid()) {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
       info.expr = prim_val;
