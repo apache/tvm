@@ -901,23 +901,74 @@ def test_float_parameter():
     tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
+@pytest.mark.parametrize(
+    "factor,offset,dtype", [(4, 3, "int32"), (4, 0, "int64"), (1, 3, "int64"), (-4, 23, "int64")]
+)
+def test_linear_shape_binding(factor, offset, dtype):
+    n = T.dynamic("n", dtype)
+
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((factor * n + offset,), "float32")):
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            T.evaluate(n)
+
+    after = tvm_tirx.tirx.transform.MakePackedAPI()(Before)
+    statements = []
+    tvm_ffi.structural_walk(
+        after["main"].body,
+        lambda node: statements.append(node)
+        if isinstance(node, tvm_tirx.ir.Bind | tvm_tirx.ir.AssertStmt)
+        else None,
+    )
+    shape = next(
+        stmt
+        for stmt in statements
+        if isinstance(stmt, tvm_tirx.ir.Bind) and stmt.var.name == "shape_value"
+    )
+    binding = next(
+        stmt for stmt in statements if isinstance(stmt, tvm_tirx.ir.Bind) and stmt.var.same_as(n)
+    )
+    delta = shape.var - offset
+    tvm_tirx.ir.assert_structural_equal(binding.value, tvm_tirx.ir.prim.truncdiv(delta, factor))
+    assert statements.index(shape) < statements.index(binding)
+    if factor != 1:
+        check = next(
+            stmt
+            for stmt in statements
+            if isinstance(stmt, tvm_tirx.ir.AssertStmt)
+            and any("divisible" in str(part) for part in stmt.message_parts)
+        )
+        tvm_tirx.ir.assert_structural_equal(
+            check.condition, tvm_tirx.ir.prim.truncmod(delta, factor) == 0
+        )
+        assert statements.index(shape) < statements.index(check) < statements.index(binding)
+
+
 def test_forward_reference_symbolic_variable():
     """MakePackedAPI succeeds when a symbolic variable is used before it is defined.
 
-    When tensor A has shape (batch_size+1,) and tensor B has shape (batch_size,),
+    When tensor A has shape (batch_size*batch_size+1,) and tensor B has shape (batch_size,),
     batch_size is referenced (in A's shape check) before it is defined (from B's
     shape). The three-sequence separation (init_nest, asserts, decl_tensors)
     ensures all variable definitions precede all assertions.
     """
 
-    signature = "main(A: Tensor([batch_size + T.int64(1)], int32), B: Tensor([batch_size], int32))"
+    signature = (
+        "main(A: Tensor([batch_size * batch_size + T.int64(1)], int32), "
+        "B: Tensor([batch_size], int32))"
+    )
 
     batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Before:
         @T.function
-        def main(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
+        def main(
+            A: T.Tensor((batch_size * batch_size + 1,), "int32"),
+            B: T.Tensor((batch_size,), "int32"),
+        ):
             T.func_attr({"target": T.target("llvm", host="llvm")})
 
             for i in range(batch_size):
@@ -1117,9 +1168,9 @@ def test_forward_reference_symbolic_variable():
             )
             with T.device_context(1, dev_id):
                 if not T.isnullptr(main_A_strides):
-                    assert batch_size + T.int64(1) == T.int64(1) or T.int64(1) == T.abi_field_get(
-                        main_A_strides, 0, 17, ty="int64"
-                    ), (
+                    assert batch_size * batch_size + T.int64(1) == T.int64(1) or T.int64(
+                        1
+                    ) == T.abi_field_get(main_A_strides, 0, 17, ty="int64"), (
                         "ValueError",
                         [
                             "Mismatched ",
@@ -1131,7 +1182,7 @@ def test_forward_reference_symbolic_variable():
                             "`,\n  expected to be compact array",
                         ],
                     )
-                assert batch_size + T.int64(1) == T.int64(0) or not T.isnullptr(
+                assert batch_size * batch_size + T.int64(1) == T.int64(0) or not T.isnullptr(
                     T.reinterpret(
                         T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
@@ -1147,7 +1198,7 @@ def test_forward_reference_symbolic_variable():
                         "`,\n  expected non-NULL data pointer",
                     ],
                 )
-                assert batch_size + T.int64(1) == T.int64(0) or T.truncmod(
+                assert batch_size * batch_size + T.int64(1) == T.int64(0) or T.truncmod(
                     T.reinterpret(
                         T.reinterpret(
                             T.reinterpret(
@@ -1239,7 +1290,7 @@ def test_forward_reference_symbolic_variable():
                         " bytes",
                     ],
                 )
-                assert batch_size + T.int64(1) == T.abi_field_get(
+                assert batch_size * batch_size + T.int64(1) == T.abi_field_get(
                     main_A_shape, 0, 17, ty="int64"
                 ), (
                     "ValueError",
@@ -1251,7 +1302,7 @@ def test_forward_reference_symbolic_variable():
                         " when calling:\n  `",
                         signature,
                         "`,\n  expected ",
-                        "B.shape[0] + 1",
+                        "B.shape[0] * B.shape[0] + 1",
                     ],
                 )
                 assert T.uint64(0) == T.abi_field_get(A_handle, 0, 8, ty="uint64"), (
@@ -1285,9 +1336,9 @@ def test_forward_reference_symbolic_variable():
                         T.abi_field_get(A_handle, 0, 1, ty=T.Ptr(T.void)),
                         ty=T.Ptr(T.PrimType("int32")),
                     ),
-                    ty_args=[T.Tensor((batch_size + T.int64(1),), T.int32)],
+                    ty_args=[T.Tensor((batch_size * batch_size + T.int64(1),), T.int32)],
                 )
-                if batch_size != T.int64(-1):
+                if batch_size * batch_size != T.int64(-1):
                     T.assume_aligned(A, 64)
                 B = T.decl_tensor(
                     T.reinterpret(

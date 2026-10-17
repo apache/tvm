@@ -383,9 +383,8 @@ def test_forward_reference_symbolic_shape(codegen_target):
     """Buffers sharing a symbolic var with forward reference compile and run correctly.
 
     When buffer A has shape (batch_size+1,) and buffer B has shape (batch_size,),
-    batch_size is referenced in A's shape assertion before it is defined from B.
-    The three-sequence separation ensures this works. Also verifies the error
-    message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
+    batch_size is inferred from A before checking B. The error message describes
+    the decoded value rather than equating batch_size with A's raw dimension.
     """
 
     batch_size = T.dynamic("batch_size", "int64")
@@ -402,16 +401,16 @@ def test_forward_reference_symbolic_shape(codegen_target):
     lib(a, b)
     np.testing.assert_array_equal(b.numpy(), [3, 5, 7, 9])
 
-    # Wrong shape: A has shape (10,) but B has shape (4,), so batch_size=4 but A needs 5
+    # A's shape (10,) infers batch_size=9, which disagrees with B's shape (4,).
     a_wrong = tvm_tirx.runtime.tensor(np.zeros(10, dtype="int32"))
     b_ok = tvm_tirx.runtime.tensor(np.zeros(4, dtype="int32"))
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "Invalid A.shape[0] on argument #0 when calling:\n"
+            "Mismatched B.shape[0] on argument #1 when calling:\n"
             "  `func(A: Tensor([batch_size + T.int64(1)], int32),"
             " B: Tensor([batch_size], int32))`,\n"
-            "  expected B.shape[0] + 1"
+            "  expected (A.shape[0] - 1)"
         ),
     ):
         lib(a_wrong, b_ok)

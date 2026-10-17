@@ -55,7 +55,7 @@ namespace tirx {
  *
  * Statements are separated into three sequences to ensure correct variable
  * scoping.  Symbolic shape variables (e.g. batch_size) may appear in an
- * earlier tensor's shape expression (batch_size + 1) before being defined
+ * earlier tensor's nonlinear shape expression (batch_size * batch_size) before being defined
  * by a later tensor's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
@@ -226,6 +226,10 @@ class TVMFFIABIBuilder {
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
+  /*! \brief Infer an unbound variable from a linear shape, or check an existing shape. */
+  void BindShape(const PrimExpr& arg, const PrimExpr& value,
+                 const ffi::reflection::AccessPath& path);
+
   /*!
    * \brief Internal scalar bind with ffi::reflection::AccessPath tracking and rich error messages.
    *
@@ -385,6 +389,8 @@ class TVMFFIABIBuilder {
 
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
+  /*! \brief Decoded shape expressions for diagnostics of inferred variables. */
+  std::unordered_map<const VarNode*, std::string> shape_var_exprs_;
   /*! \brief Variable definitions: Binds, shape/strides DeclTensors. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */

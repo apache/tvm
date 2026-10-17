@@ -32,6 +32,7 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 
+#include "../../sym/pattern_match.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -207,7 +208,11 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
         }
         parts.push_back(when_calling_imm_);
         parts.push_back(sig_imm_);
-        if (!first_path_str.empty() && first_path_str != current_path_str) {
+        if (auto inferred = shape_var_exprs_.find(v_arg.get());
+            inferred != shape_var_exprs_.end()) {
+          parts.push_back(StringImm("`,\n  expected "));
+          parts.push_back(StringImm(inferred->second));
+        } else if (!first_path_str.empty() && first_path_str != current_path_str) {
           parts.push_back(StringImm("`,\n  expected to match "));
           parts.push_back(StringImm(first_path_str));
         } else {
@@ -229,6 +234,54 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
     }
   }
   return false;
+}
+
+void TVMFFIABIBuilder::BindShape(const PrimExpr& arg, const PrimExpr& value,
+                                 const ffi::reflection::AccessPath& path) {
+  // Peel off the constant offset and factor, allowing either operand order.
+  sym::PVar<PrimExpr> x;
+  sym::PVar<IntImm> c;
+  PrimExpr linear = arg;
+  PrimExpr offset = IntImm(arg.ty(), 0);
+  PrimExpr factor = IntImm(arg.ty(), 1);
+  if ((x + c).Match(linear) || (c + x).Match(linear)) {
+    offset = c.Eval();
+    linear = x.Eval();
+  } else if ((x - c).Match(linear)) {
+    offset = -c.Eval();
+    linear = x.Eval();
+  }
+  if ((x * c).Match(linear) || (c * x).Match(linear)) {
+    factor = c.Eval();
+    linear = x.Eval();
+  }
+  const auto* var = linear.as<VarNode>();
+  if (!var || arg.same_as(linear) || var_defs_.count(var) || IsZero(factor)) {
+    BindScalar(arg, value, path, true);
+    return;
+  }
+
+  // Check divisibility before binding the inferred variable.  Loading once also
+  // keeps the check and the quotient tied to the same dimension.
+  Var shape_value("shape_value", arg.ty());
+  init_nest_.emplace_back(Bind(shape_value, value));
+  PrimExpr delta = shape_value.as_or_throw<PrimExpr>() - offset;
+  std::string display = RenderAccessPath(path);
+  if (!IsZero(offset)) {
+    std::ostringstream os;
+    os << "(" << display << " - " << offset.as_or_throw<IntImm>()->value << ")";
+    display = os.str();
+  }
+  if (!IsOne(factor)) {
+    std::ostringstream os;
+    os << factor.as_or_throw<IntImm>()->value;
+    EmitAssert(truncmod(delta, factor) == 0, "ValueError", "Invalid ", RenderAccessPath(path),
+               " on argument #", std::to_string(GetParamIndex(path)), when_calling_imm_, sig_imm_,
+               "`,\n  expected ", display, " to be divisible by ", os.str());
+    display += " // " + os.str();
+  }
+  BindScalar(linear, truncdiv(delta, factor), path, true);
+  shape_var_exprs_.emplace(var, std::move(display));
 }
 
 bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
@@ -335,6 +388,9 @@ void TVMFFIABIBuilder::RenderPendingAsserts() {
   if (pending_const_asserts_.empty()) return;
 
   ExprPathRenderer renderer([this](const VarNode* v) -> std::string {
+    if (auto inferred = shape_var_exprs_.find(v); inferred != shape_var_exprs_.end()) {
+      return "(" + inferred->second + ")";
+    }
     auto it = var_defs_.find(v);
     if (it != var_defs_.end()) {
       ffi::String path = RenderAccessPath(it->second.first_def_path);
@@ -772,8 +828,8 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& tensor, const PrimEx
       break;
     }
     ffi::reflection::AccessPath shape_k_path = param_path->Attr(ffi::String("shape"))->ArrayItem(k);
-    BindScalar(tensor.shape()[k], cast(LoadInt64ArrayElem(shape_ptr, k), tensor.shape()[k].ty()),
-               shape_k_path, true);
+    BindShape(tensor.shape()[k], cast(LoadInt64ArrayElem(shape_ptr, k), tensor.shape()[k].ty()),
+              shape_k_path);
   }
 
   // ── Section: strides ─────────────────────────────────────────
