@@ -70,6 +70,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
                      ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
                      : std::nullopt;
   }
+  copy->ty = copy->func_type_annotation();
   return ffi::Any(std::move(copy));
 }
 
@@ -100,6 +101,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
                      ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
                      : std::nullopt;
   }
+  // A nested signature node may change in place without replacing params or ret_type.
+  self->ty = self->func_type_annotation();
   return ffi::Unchanged();
 }
 
@@ -143,10 +146,6 @@ Function RenewDef(Function func) {
                Var fresh(var->name, var->ty, var->loc);
                remap.Set(var, fresh);
                return fresh;
-             },
-             [](const Function& mapped) {
-               return Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
-                               mapped->loc);
              })
       .as_or_throw<Function>();
 }

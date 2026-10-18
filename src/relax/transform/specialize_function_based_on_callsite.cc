@@ -21,6 +21,7 @@
  * \brief Update tirx::Function tensors based on updated scope (or structure) info.
  */
 
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -28,6 +29,7 @@
 #include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tirx/index_map.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <tuple>
 
@@ -82,7 +84,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::Function>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tvm::Var, ffi::Variant<TensorVar, Expr>> param_map;
+    ffi::Map<tvm::Var, TensorVar> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
@@ -131,6 +133,7 @@ class SpecializeTIRCallArgs : ExprMutator {
                "output structinfo, but got "
             << si;
         auto ty = si.as_or_throw<TensorType>();
+        scope = runtime::MemoryScope();
         if (ty->vdevice.has_value()) {
           scope = ty->vdevice.value()->memory_scope;
         }
@@ -143,7 +146,62 @@ class SpecializeTIRCallArgs : ExprMutator {
       }
     }
 
-    auto new_pfunc = Specialize(pfunc, param_map);
+    // call_tir supplies dense tensor descriptors. Bind their symbolic dimensions
+    // explicitly, retaining each parameter's access contract and storage scope.
+    sym::Analyzer analyzer;
+    ffi::Map<tvm::Var, Expr> replacements;
+    auto bind = [&](const PrimExpr& symbolic, const PrimExpr& concrete) {
+      if (analyzer->CanProveEqual(symbolic, concrete)) return;
+      auto var = symbolic.as<PrimVar>();
+      TVM_FFI_CHECK(var.has_value() && !replacements.count(var.value()), ValueError)
+          << "Inconsistent call_tir tensor dimension: " << symbolic << " vs. " << concrete;
+      replacements.Set(var.value(), concrete);
+      analyzer->Bind(var.value(), concrete);
+    };
+    for (const auto& param : pfunc->params) {
+      auto descriptor = param_map.Get(param);
+      if (!descriptor) continue;
+      auto tensor = param.as_or_throw<TensorVar>();
+      auto actual = descriptor.value();
+      TVM_FFI_CHECK_EQ(tensor.shape().size(), actual.shape().size(), ValueError);
+      TVM_FFI_CHECK(tensor.ty()->dtype == actual.ty()->dtype, ValueError);
+      for (size_t i = 0; i < tensor.shape().size(); ++i) {
+        bind(tensor.shape()[i], actual.shape()[i]);
+      }
+      auto source = tirx::MatchShapeStridePattern(tensor.ty());
+      auto target = tirx::MatchShapeStridePattern(actual.ty());
+      TVM_FFI_CHECK(source.has_value() && target.has_value(), ValueError)
+          << "call_tir requires shape-aligned strided tensor layouts";
+      for (size_t i = 0; i < source.value().get<1>().size(); ++i) {
+        bind(source.value().get<1>()[i], target.value().get<1>()[i]);
+      }
+      bind(source.value().get<2>(), target.value().get<2>());
+      // Preserve layout and alignment; the Relax descriptor only chooses scope.
+      auto ty = tensor.ty();
+      replacements.Set(param, TensorVar(param->name,
+                                        tirx::TensorType(ty->shape, ty->dtype, actual.scope(),
+                                                         ty->data_alignment, ty->layout, ty->loc),
+                                        param->loc));
+    }
+    ffi::Array<tvm::Var> params;
+    for (const auto& param : pfunc->params) {
+      if (!param.as<PrimVar>() || !replacements.count(param)) params.push_back(param);
+    }
+    auto signature = tirx::Function(params, pfunc->body, pfunc->ret_type, pfunc->attrs, pfunc->loc);
+    auto mapped = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+        signature,
+        [&](const tvm::Var& var) -> Expr { return replacements.Get(var).value_or(var); });
+    auto new_pfunc = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+                         mapped,
+                         [](const tvm::Call& call) {
+                           if (!call->op.same_as(tirx::tensor_data_ptr_op())) return call;
+                           // Pointer projections inherit the newly bound tensor storage scope.
+                           auto copy = ffi::make_object<tvm::CallNode>(*call.get());
+                           copy->ty = tvm::Call::ReinferType(copy.get());
+                           return tvm::Call(std::move(copy));
+                         },
+                         [&](const PrimExpr& expr) { return analyzer->Simplify(expr); })
+                         .as_or_throw<tirx::Function>();
     auto new_function =
         WithAttr(new_pfunc, tvm::relax::attr::kScoped.name, static_cast<int64_t>(1));
     updates_->Add(gv, new_function);
