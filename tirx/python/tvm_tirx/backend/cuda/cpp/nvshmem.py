@@ -26,11 +26,11 @@ _NVSHMEM = ("nvshmem",)
 # No-arg helpers: PE queries, quiet, fence, barrier_all.
 # =============================================================================
 for _op, _call, _ret, _tvm_ret in [
-    ("nvshmem_my_pe", "nvshmem_my_pe", "int32_t", "int32"),
-    ("nvshmem_n_pes", "nvshmem_n_pes", "int32_t", "int32"),
-    ("nvshmem_quiet", "nvshmem_quiet", "void", None),
-    ("nvshmem_fence", "nvshmem_fence", "void", None),
-    ("nvshmem_barrier_all", "nvshmem_barrier_all", "void", None),
+    ("nvshmem.my_pe", "nvshmem_my_pe", "int32_t", "int32"),
+    ("nvshmem.n_pes", "nvshmem_n_pes", "int32_t", "int32"),
+    ("nvshmem.quiet", "nvshmem_quiet", "void", None),
+    ("nvshmem.fence", "nvshmem_fence", "void", None),
+    ("nvshmem.barrier_all", "nvshmem_barrier_all", "void", None),
 ]:
     device_intrinsic(
         _op,
@@ -47,12 +47,12 @@ del _op, _call, _ret, _tvm_ret
 # =============================================================================
 _RMA_SIG = "(void *dest, const void *source, size_t nelems, int pe)"
 for _op, _backend_call in [
-    ("nvshmem_getmem_nbi", "nvshmem_getmem_nbi"),
-    ("nvshmem_putmem_nbi", "nvshmem_putmem_nbi"),
-    ("nvshmem_getmem_nbi_warp", "nvshmemx_getmem_nbi_warp"),
-    ("nvshmem_putmem_nbi_warp", "nvshmemx_putmem_nbi_warp"),
-    ("nvshmem_getmem_nbi_block", "nvshmemx_getmem_nbi_block"),
-    ("nvshmem_putmem_nbi_block", "nvshmemx_putmem_nbi_block"),
+    ("nvshmem.getmem_nbi", "nvshmem_getmem_nbi"),
+    ("nvshmem.putmem_nbi", "nvshmem_putmem_nbi"),
+    ("nvshmem.getmem_nbi_warp", "nvshmemx_getmem_nbi_warp"),
+    ("nvshmem.putmem_nbi_warp", "nvshmemx_putmem_nbi_warp"),
+    ("nvshmem.getmem_nbi_block", "nvshmemx_getmem_nbi_block"),
+    ("nvshmem.putmem_nbi_block", "nvshmemx_putmem_nbi_block"),
 ]:
     device_intrinsic(
         _op,

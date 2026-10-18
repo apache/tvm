@@ -22,14 +22,13 @@ import pytest
 import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
-import tvm  # noqa: F401  # Register the parent Relax printer.
 import tvm_tirx
 from tvm_tirx.script.printer.scriptable import PrinterConfig, _script
 
 
 @pytest.mark.parametrize(
     "entry",
-    ["node.TVMScriptPrinterScript", "script.printer.Script", "script.printer.ReprPrintRelax"],
+    ["node.TVMScriptPrinterScript", "script.printer.Script"],
 )
 def test_script_entry_points(entry):
     render = tvm_ffi.get_global_func(entry)

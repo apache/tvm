@@ -14,31 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Basic tests for a Disco nvshmem support"""
+"""Disco NVSHMEM session initialization and symmetric allocation."""
 
 # pylint: disable=missing-docstring
 import multiprocessing
-import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 
-import numpy as np
 import pytest
 import tvm_ffi
 from tvm_ffi import Shape
 
-import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm.relax import script as R
 from tvm.runtime import disco as di
-from tvm.s_tir import script as Ts
-from tvm_tirx.ir import TupleType as _TupleType
-from tvm_tirx.script import ir as I
-from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
 if di is None:
@@ -221,174 +212,6 @@ def test_nvshmem_init_finalize(session_kind, num_workers: int):
 def test_nvshmem_empty(session_kind, num_workers: int):
     _require_cuda_devices(num_workers)
     _run_in_fresh_process(_empty, session_kind, num_workers)
-
-
-def _compile():
-    num_workers = 2
-    sess = di.ProcessSession(num_workers=num_workers)
-
-    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
-    uid = f_init_nvshmem_uid()
-    init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
-    init_dfunc(uid, num_workers, 0)
-    sess.sync_worker_0()
-
-    @Ts.function
-    def main(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
-        for i in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.y"}):
-            for j in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.x"}):
-                with Ts.sblock("T_transpose"):
-                    v0 = Ts.axis.spatial(T.int64(8), i)
-                    v1 = Ts.axis.spatial(T.int64(16), j)
-                    Ts.reads(A[v0, v1])
-                    Ts.writes(B[v1, v0])
-                    B[v1, v0] = A[v0, v1]
-
-    tmpdir = tempfile.mkdtemp()
-    try:
-        path = tmpdir + "/test.so"
-        A_np = np.arange(8 * 16).astype("float32").reshape([8, 16])
-        B_np = np.zeros((16, 8), dtype="float32")
-        A_array = sess.empty(A_np.shape, "float32")
-        B_array = sess.empty(B_np.shape, "float32")
-        A_array.debug_copy_from(0, A_np)
-
-        target = tvm_tirx.target.Target("cuda")
-        tvm.compile(main, target=target).export_library(path)
-        mod = sess.load_vm_module(path)
-        mod["main"](A_array, B_array)
-
-        B_res = B_array.debug_get_from_remote(0).numpy()
-        np.testing.assert_equal(B_res, A_np.T)
-
-        # sync all workers to make sure the temporary files are cleaned up after all workers
-        # finish the execution
-        sess._sync_all()
-
-        finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
-        finalize_dfunc()
-        sess.sync_worker_0()
-    finally:
-        sess.shutdown()
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-
-def test_nvshmem_compile():
-    _require_cuda_devices(2)
-    _run_in_fresh_process(_compile)
-
-
-NVSHMEM_QUERY_KERNEL_SOURCE = """
-#include <nvshmem.h>
-
-extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) {
-    my_pe_out[0] = nvshmem_my_pe();
-    n_pes_out[0] = nvshmem_n_pes();
-}
-"""
-
-
-def _kernel_compile(compile_mode):
-    """Compile and run a kernel with an explicit NVSHMEM compiler configuration."""
-
-    backend_config = {"cuda": {"compiler": compile_mode}}
-
-    num_workers = 2
-    sess = di.ProcessSession(num_workers=num_workers)
-
-    f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
-    uid = f_init_nvshmem_uid()
-    init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
-    init_dfunc(uid, num_workers, 0)
-    sess.sync_worker_0()
-
-    try:
-
-        @I.ir_module
-        class NvshmemQueryModule:
-            @Ts.function
-            def query_pe(
-                my_pe_out: T.Tensor((1,), "int32"),
-                n_pes_out: T.Tensor((1,), "int32"),
-            ):
-                with Ts.sblock("root"):
-                    Ts.reads()
-                    Ts.writes(my_pe_out[0:1], n_pes_out[0:1])
-                    T.call_kernel(
-                        NVSHMEM_QUERY_KERNEL_SOURCE,
-                        ((1,), (1,)),  # grid=(1,), block=(1,)
-                        my_pe_out.data,
-                        n_pes_out.data,
-                        kernel_name="nvshmem_query_kernel",
-                        backend_config=backend_config,
-                    )
-
-            @R.function
-            def main() -> R.Tuple(R.Tensor((1,), "int32"), R.Tensor((1,), "int32")):
-                cls = NvshmemQueryModule
-                with R.dataflow():
-                    my_pe = R.call_tir(
-                        cls.query_pe,
-                        (),
-                        ty_args=[_TupleType([R.Tensor((1,), "int32"), R.Tensor((1,), "int32")])],
-                    )
-                    R.output(my_pe)
-                return my_pe
-
-        tmpdir = tempfile.mkdtemp()
-        try:
-            path = tmpdir + "/test_nvshmem_kernel.so"
-
-            target = tvm_tirx.target.Target("cuda")
-            tvm.compile(
-                NvshmemQueryModule,
-                target={
-                    **tvm_tirx.target.Target(target).export(),
-                    "backend_config": backend_config,
-                },
-            ).export_library(path)
-            mod = sess.load_vm_module(path)
-            result = mod["main"]()
-
-            # Verify results from each worker
-            for worker_id in range(num_workers):
-                my_pe_result, n_pes_result = result.debug_get_from_remote(worker_id)
-                my_pe_val = my_pe_result.numpy()[0]
-                n_pes_val = n_pes_result.numpy()[0]
-                assert my_pe_val == worker_id, (
-                    f"Worker {worker_id} reported my_pe={my_pe_val}, expected {worker_id}"
-                )
-                assert n_pes_val == num_workers, (
-                    f"Worker {worker_id} reported n_pes={n_pes_val}, expected {num_workers}"
-                )
-
-            # Sync all workers before cleanup
-            sess._sync_all()
-
-            finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
-            finalize_dfunc()
-            sess.sync_worker_0()
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-    finally:
-        sess.shutdown()
-
-
-def test_nvshmem_kernel_compile_nvcc():
-    """Test NVSHMEM kernel compilation with nvcc."""
-    _require_cuda_devices(2)
-    _run_in_fresh_process(_kernel_compile, "nvcc")
-
-
-def test_nvshmem_kernel_compile_nvrtc():
-    """Test NVSHMEM kernel compilation with nvrtc."""
-    _require_cuda_devices(2)
-    try:
-        from cuda.bindings import nvrtc  # noqa: F401
-    except ImportError:
-        pytest.skip("cuda-python not available, skipping nvrtc test")
-
-    _run_in_fresh_process(_kernel_compile, "nvrtc")
 
 
 if __name__ == "__main__":

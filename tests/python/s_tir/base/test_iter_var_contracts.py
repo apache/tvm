@@ -14,28 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""S-TIR script source locations."""
 
+"""S-TIR iteration variables reject non-arithmetic tensor regions."""
+
+import pytest
+
+import tvm
 import tvm_tirx
-import tvm_tirx.testing
-from tvm.s_tir import script as Ts
-from tvm_tirx.script import tirx as T
 
 
-def test_nesting_parsing():
-    class dummy:
-        pass
-
-    for i in range(1):
-
-        @tvm_tirx.script.ir_module
-        class Module:
-            @Ts.function
-            def impl(
-                A: T.Tensor((12, 196, 64), "float32"),
-            ) -> None:
-                T.evaluate(0)
-
-
-if __name__ == "__main__":
-    tvm_tirx.testing.main()
+def test_tensor_region_is_not_arithmetic_operand():
+    int_region = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([4], "int32"))[0:4]
+    with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
+        tvm.s_tir.IterVar((0, 4), "i", tvm.s_tir.IterVar.DataPar) + int_region

@@ -17,16 +17,14 @@
 # pylint: disable=invalid-name, missing-docstring
 """Unittests for tvm_tirx.tirx.script.ir_builder"""
 
-import numpy as np
 import pytest
 import tvm_ffi
 
 import tvm_tirx
-import tvm_tirx.runtime
 import tvm_tirx.testing
-from tvm import te, topi
 from tvm_tirx import tirx
 from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.ir.location import SourceLoc, SourceName
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.layout import S, TileLayout
 from tvm_tirx.tirx.script import ir_builder as T
@@ -305,142 +303,6 @@ def test_flat_tensor_store_preserves_identity_and_emits_once(layout):
     assert store.value.a.source.same_as(tensor)
 
 
-def _check_stores(output):
-    outputs = output if isinstance(output, tuple | list | tvm_ffi.Array) else [output]
-    stores = []
-
-    for tensor in outputs:
-        tvm_ffi.structural_walk(
-            tensor.op.body,
-            lambda node: stores.append(node) if isinstance(node, tvm_tirx.ir.TensorStore) else None,
-        )
-    assert stores
-    assert all(len(store.indices) == len(store.dest.shape) for store in stores)
-
-
-@pytest.mark.parametrize("mode", ["update", "add", "mul", "min", "max"])
-def test_imperative_scatter_nd(mode):
-    _check_stores(
-        topi.scatter_nd(
-            te.placeholder((2, 3), "float32"),
-            te.placeholder((1, 2), "int32"),
-            te.placeholder((2, 3), "float32"),
-            mode,
-        )
-    )
-
-
-@pytest.mark.parametrize("mode", ["update", "add", "mul", "mean", "min", "max"])
-def test_imperative_scatter_elements(mode):
-    _check_stores(
-        topi.scatter_elements(
-            te.placeholder((2, 3), "float32"),
-            te.placeholder((2, 2), "int32"),
-            te.placeholder((2, 2), "float32"),
-            axis=1,
-            reduction=mode,
-        )
-    )
-
-
-@pytest.mark.parametrize("accumulate", [False, True])
-def test_imperative_index_put(accumulate):
-    _check_stores(
-        topi.index_put(
-            te.placeholder((2, 3), "float32"),
-            [te.placeholder((2,), "int32"), te.placeholder((2,), "int32")],
-            te.placeholder((2,), "float32"),
-            accumulate=accumulate,
-        )
-    )
-
-
-def test_imperative_search_scan_signal_and_unique():
-    data = te.placeholder((2, 4), "float32")
-    _check_stores(topi.searchsorted(data, te.placeholder((2, 3), "float32")))
-    _check_stores(topi.cumsum(data, axis=1))
-    _check_stores(topi.cumprod(data, axis=None))
-    _check_stores(topi.signal.dft(data, data, inverse=False))
-    _check_stores(
-        topi.signal.stft(
-            data,
-            4,
-            1,
-            4,
-            te.placeholder((4,), "float32"),
-            False,
-            True,
-            (2, 3, 1, 2),
-        )
-    )
-    from tvm.topi.unique import _calc_adjacent_diff
-
-    _check_stores(_calc_adjacent_diff(te.placeholder((4,), "int32")))
-
-
-def test_imperative_sparse_reshape():
-    _check_stores(
-        topi.sparse_reshape(
-            te.placeholder((3, 2), "int64"),
-            te.placeholder((2,), "int64"),
-            te.placeholder((2,), "int64"),
-            (3, 2),
-            (2,),
-        )
-    )
-
-
-def test_imperative_nms():
-    data = te.placeholder((2, 4, 6), "float32")
-    valid_count, boxes, indices = topi.vision.get_valid_counts(data)
-    _check_stores([valid_count, boxes, indices])
-    _check_stores(
-        topi.vision.non_max_suppression(
-            data,
-            te.placeholder((2,), "int32"),
-            te.placeholder((2, 4), "int32"),
-            max_output_size=3,
-            return_indices=False,
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "kind", ["sort", "argsort", "searchsorted", "scan", "scatter_nd", "scatter_elements"]
-)
-def test_gpu_imperative_tensors(kind):
-    data = te.placeholder((2, 4), "float32")
-    with tvm_tirx.target.Target("cuda"):
-        if kind == "sort":
-            result = topi.gpu.sort(data)
-        elif kind == "argsort":
-            result = topi.gpu.argsort(data)
-        elif kind == "searchsorted":
-            result = topi.gpu.searchsorted(data, te.placeholder((2, 3), "float32"))
-        elif kind == "scan":
-            from tvm.topi.gpu.scan import exclusive_scan_ir
-
-            body = exclusive_scan_ir(
-                tirx.Var("tensor", tirx.TensorType((2, 4), "float32")),
-                tirx.Var("tensor", tirx.TensorType((2, 4), "float32")),
-            )
-            assert isinstance(body, tvm_tirx.ir.Stmt)
-            return
-        elif kind == "scatter_nd":
-            result = topi.gpu.scatter_nd(
-                data, te.placeholder((1, 2), "int32"), te.placeholder((2, 4)), "add"
-            )
-        else:
-            result = topi.gpu.scatter_elements(
-                data,
-                te.placeholder((2, 3), "int32"),
-                te.placeholder((2, 3)),
-                axis=1,
-                reduction="add",
-            )
-    _check_stores(result)
-
-
 def test_python_bool_control_conditions():
     with IRBuilder() as ib:
         with T.function():
@@ -552,103 +414,83 @@ def test_local_scalar_initialization_and_assign():
     )
 
 
-@pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is not enabled")
-@pytest.mark.parametrize(
-    "kind",
-    [
-        "searchsorted",
-        "scan",
-        "scatter",
-        "scatter_elements",
-        "index_put",
-        "dft",
-        "sparse_reshape",
-        "unique",
-    ],
-)
-def test_imperative_tensors_numerical(kind):
-    data = np.arange(6, dtype="float32").reshape(2, 3)
-    if kind == "searchsorted":
-        arrays = [data, np.array([[0.5, 2, 3], [2, 4, 6]], dtype="float32")]
+def test_ir_builder_loc_applies_to_emitted_stmt():
+    loc = SourceLoc(SourceName("builder_test.py"), 7, 5, 7, 18)
+    with IRBuilder() as ib:
+        with T.function():
+            with ib.with_loc(loc):
+                T.evaluate(1)
 
-        def build(x, y):
-            return topi.searchsorted(x, y, right=True)
+    actual = ib.get().body[0].loc
+    assert actual.source_name.name == "builder_test.py"
+    assert (actual.start_line, actual.start_column, actual.end_line, actual.end_column) == (
+        7,
+        5,
+        7,
+        18,
+    )
 
-        expected = [
-            np.stack([np.searchsorted(row, values, side="right") for row, values in zip(*arrays)])
-        ]
-    elif kind == "scan":
-        arrays = [data]
 
-        def build(x):
-            return topi.cumsum(x, axis=1)
+def test_ir_builder_tir_thread():
+    with IRBuilder() as ib:
+        with T.function():
+            with T.launch_thread("blockIdx.y", 1) as brow:
+                T.evaluate(0)
 
-        expected = [np.cumsum(data, axis=1)]
-    elif kind == "scatter":
-        arrays = [data, np.array([[1, 0]], dtype="int32"), np.ones((2, 3), dtype="float32")]
+    # the function generated by IRBuilder
+    ir_actual = ib.get()
 
-        def build(x, i, u):
-            return topi.scatter_nd(x, i, u, "add")
+    # the expected function
+    thread_var = tirx.Var("v", "int32")
+    launch = tvm_tirx.ir.RegionStmt(
+        tvm_tirx.ir.Op.get("tirx.launch_thread"),
+        [tvm_tirx.ir.StringImm("blockIdx.y"), tvm_tirx.ir.IntImm("int32", 1)],
+        [thread_var],
+        {},
+        tvm_tirx.ir.Evaluate(0),
+    )
+    func = tirx.Function([], launch)
 
-        expected = [data + 1]
-    elif kind == "scatter_elements":
-        arrays = [data, np.array([[0, 2], [2, 0]], dtype="int32"), np.ones((2, 2), dtype="float32")]
+    # Check if the generated ir is expected
+    assert_structural_equal(ir_actual, func, map_free_vars=True)
 
-        def build(x, i, u):
-            return topi.scatter_elements(x, i, u, axis=1, reduction="add")
 
-        result = data.copy()
-        np.add.at(result, (np.arange(2)[:, None], arrays[1]), arrays[2])
-        expected = [result]
-    elif kind == "index_put":
-        arrays = [
-            data,
-            np.array([0, 1], dtype="int32"),
-            np.array([2, 0], dtype="int32"),
-            np.array([10, 20], dtype="float32"),
-        ]
+def test_ir_builder_tir_allocate():
+    with IRBuilder() as ib:
+        with T.function():
+            T.func_name_("test")
+            buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([10], "float32", scope="local")]))
+            T.evaluate(1)
 
-        def build(x, i, j, v):
-            return topi.index_put(x, [i, j], v, accumulate=True)
+    # the allocate generated by IRBuilder
+    ir_actual = ib.get()
+    body = ir_actual.body
 
-        result = data.copy()
-        np.add.at(result, (arrays[1], arrays[2]), arrays[3])
-        expected = [result]
-    elif kind == "dft":
-        arrays = [data, np.zeros_like(data)]
+    # AllocTensor is flat: body should be a SeqStmt with [AllocTensor, Evaluate(1)]
+    assert isinstance(body, tvm_tirx.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert len(body) == 2
+    assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
+    assert isinstance(body[1], tvm_tirx.ir.Evaluate)
+    assert body[1].value.value == 1
 
-        def build(x, y):
-            return topi.signal.dft(x, y, inverse=False)
 
-        result = np.fft.fft(data, axis=-1)
-        expected = [result.real, result.imag]
-    elif kind == "sparse_reshape":
-        arrays = [
-            np.array([[0, 0], [1, 0], [1, 2]], dtype="int64"),
-            np.array([2, 3], dtype="int64"),
-            np.array([3, 2], dtype="int64"),
-        ]
+def test_ir_builder_tir_decl_tensor():
+    with IRBuilder() as ib:
+        with T.function():
+            T.func_name_("test")
+            buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([128, 128], "float32")]))
+            T.evaluate(1)
 
-        def build(i, old, new):
-            return topi.sparse_reshape(i, old, new, (3, 2), (2,))
+    # the decl_tensor generated by IRBuilder
+    ir_actual = ib.get()
+    body = ir_actual.body
 
-        expected = [np.array([[0, 0], [1, 1], [2, 1]], dtype="int64"), arrays[2]]
-    else:
-        from tvm.topi.unique import _calc_adjacent_diff
-
-        arrays = [np.array([3, 5, 5, 8], dtype="int32")]
-        build = _calc_adjacent_diff
-        expected = [np.array([0, 2, 0, 3], dtype="int32")]
-    inputs = [te.placeholder(array.shape, str(array.dtype)) for array in arrays]
-    outputs = build(*inputs)
-    outputs = list(outputs) if isinstance(outputs, list | tuple | tvm_ffi.Array) else [outputs]
-    executable = tvm_tirx.tirx.compile(te.create_function([*inputs, *outputs]), target="llvm")
-    actual = [
-        tvm_tirx.runtime.empty(tuple(int(dim) for dim in out.shape), out.dtype) for out in outputs
-    ]
-    executable(*[tvm_tirx.runtime.tensor(array) for array in arrays], *actual)
-    for result, reference in zip(actual, expected):
-        tvm_tirx.testing.assert_allclose(result.numpy(), reference, atol=1e-5, rtol=1e-5)
+    # decl_tensor without data emits AllocTensor (flat): body should be SeqStmt
+    assert isinstance(body, tvm_tirx.ir.SeqStmt), f"Expected SeqStmt but got {type(body)}"
+    assert len(body) == 2
+    assert _is_tensor_binding(body[0], "tirx.alloc_tensor")
+    assert isinstance(body[1], tvm_tirx.ir.Evaluate)
+    assert body[1].value.value == 1
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm import te
 
 
 def test_cast():
@@ -56,7 +55,7 @@ def test_mul():
 
 def test_shift_left():
     analyzer = tvm_tirx.sym.Analyzer()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     m = analyzer.modular_set((x * 4 + 2) << 2)
     assert m.coeff == 16
     assert m.base == 8

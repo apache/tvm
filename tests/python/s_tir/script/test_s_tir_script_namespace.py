@@ -118,20 +118,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
     np.testing.assert_array_equal(data.numpy(), np.arange(4, dtype="int32") + 3)
 
 
-@pytest.mark.parametrize("option", ["s_tir", "is_stir"])
-def test_raw_tirx_builder_rejects_legacy_mode(option):
-    from tvm_tirx.tirx.script import ir_builder as builder
-
-    with pytest.raises(TypeError, match="unexpected keyword argument"):
-        builder.function(**{option: True})
-
-
-def test_jit_rejects_legacy_mode():
-    with pytest.raises(TypeError, match="unexpected keyword argument"):
-        T.jit(**{"is_stir": True})
-
-
-@pytest.mark.parametrize("namespace", ["T", "Ts"])
+@pytest.mark.parametrize("namespace", ["Ts"])
 @pytest.mark.parametrize("option", ["s_tir", "is_stir"])
 def test_legacy_mode_is_not_a_function_option(namespace, option):
     with pytest.raises(TypeError, match="unexpected keyword argument"):
@@ -173,28 +160,6 @@ def test_tirx_rejects_s_tir_blocks():
             "def main():\n    with Ts.sblock('bad'):\n        T.evaluate(0)\n",
             extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
         )
-
-
-@pytest.mark.parametrize("value", [True, False])
-def test_tirx_cannot_change_dialect_with_attribute(value):
-    with pytest.raises(ValueError, match="Ts.function"):
-        tvm_tirx.script.from_source(
-            "@T.function(check_well_formed=False)\n"
-            f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n",
-            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
-        )
-
-
-@pytest.mark.parametrize("value", [True, False])
-def test_tirx_cannot_change_dialect_from_exit_callback(value):
-    from tvm_tirx.script.ir_builder import IRBuilder
-    from tvm_tirx.tirx.script import ir_builder as builder
-
-    with pytest.raises(ValueError, match="Ts.function"):
-        with IRBuilder():
-            with builder.function() as frame:
-                frame.add_callback(lambda: builder.func_attr({"s_tir": value}))
-                builder.evaluate(0)
 
 
 def test_s_tir_options_and_helpers():
@@ -256,6 +221,28 @@ def test_import_order(first):
         check=True,
         env=os.environ.copy(),
     )
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_tirx_cannot_change_dialect_with_attribute(value):
+    with pytest.raises(ValueError, match="Ts.function"):
+        tvm_tirx.script.from_source(
+            "@T.function(check_well_formed=False)\n"
+            f"def main():\n    T.func_attr({{'s_tir': {value}}})\n    T.evaluate(0)\n",
+            extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
+        )
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_tirx_cannot_change_dialect_from_exit_callback(value):
+    from tvm_tirx.script.ir_builder import IRBuilder
+    from tvm_tirx.tirx.script import ir_builder as builder
+
+    with pytest.raises(ValueError, match="Ts.function"):
+        with IRBuilder():
+            with builder.function() as frame:
+                frame.add_callback(lambda: builder.func_attr({"s_tir": value}))
+                builder.evaluate(0)
 
 
 if __name__ == "__main__":

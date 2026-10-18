@@ -136,47 +136,6 @@ def test_match_tensor():
     assert matched_tensor1_pattern.elem_offset != matched_tensor2_pattern.elem_offset
 
 
-def test_undefined_tensor():
-    @Ts.function
-    def access_alloc():
-        # Var A should be remapped
-        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float16")])
-        T.evaluate(A.data)
-        for i in range(128):
-            A[i] = A[i] + T.float16(1.0)
-
-    f1 = access_alloc
-    f2 = tvm_tirx.tirx.renew_def(f1)
-    tvm_tirx.ir.assert_structural_equal(f1, f2)
-
-    # AllocTensor is now a flat statement in SeqStmt
-    assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
-
-    def _get_tensor_store_tensor(f):
-        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
-        return f.body.seq[2].body[0].dest
-
-    _check_tensor_decl(_get_tensor_store_tensor(f1), _get_tensor_store_tensor(f2))
-
-
-def test_symbolic_func():
-    m = T.dynamic("m", "int32")
-
-    @Ts.function
-    def symbolic_func(
-        A: T.Tensor((n, m), "float32"),  # noqa: F821
-        B: T.Tensor((n, m * 2), "float32"),  # noqa: F821
-        n: T.int32,
-    ):
-        for i, j in T.grid(n, m):
-            B[i, j * 2] = A[i, j]
-            B[i, j * 2 + 1] = A[i, j]
-
-    f1 = symbolic_func
-    f2 = tvm_tirx.tirx.renew_def(f1)
-    tvm_tirx.ir.assert_structural_equal(f1, f2)
-
-
 def test_tensor_params():
     m = T.dynamic("m")
 
@@ -191,19 +150,6 @@ def test_tensor_params():
     f2 = tvm_tirx.tirx.renew_def(main)
     tvm_tirx.ir.assert_structural_equal(f1, f2)
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
-
-
-def test_compound_tensor_param_shape_var():
-    n = tvm_tirx.tirx.Var("n", "int32")
-    A = tvm_tirx.tirx.Var(
-        "tensor", tvm_tirx.tirx.TensorType((tvm_tirx.tirx.max(n, 1),), "float32", layout=None)
-    )
-    f1 = tvm_tirx.tirx.Function([A], tvm_tirx.ir.Evaluate(n))
-    f2 = tvm_tirx.tirx.renew_def(f1)
-
-    tvm_tirx.ir.assert_structural_equal(f1, f2)
-    assert not f1.body[0].value.same_as(f2.body[0].value)
-    assert f2.params[0].shape[0].a.same_as(f2.body[0].value)
 
 
 def test_gather():

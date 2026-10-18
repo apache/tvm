@@ -67,6 +67,24 @@ def test_ptx_cp_async():
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
+def test_cp_async_raw_dtype_round_trips():
+    # The raw cp.async form emitted by InjectPTXAsyncCopy carries the element
+    # dtype in Call.dtype and must survive a TVMScript print -> parse round-trip
+    # via T.s_tir.cp_async_raw with ty=. Guards the regression
+    # where the element dtype was dropped after the flat op was phased out.
+    @T.function
+    def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
+        T.func_attr({"global_symbol": "f"})
+        for i in T.serial(8):
+            T.s_tir.cp_async_raw(B.data, i * 16, A.data, i * 16, 16, ty="float16")
+
+    reparsed = tvm_tirx.script.from_source(
+        f.script(),
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx},
+    )
+    tvm_tirx.ir.assert_structural_equal(f, reparsed)
+
+
 # Note: tests for the indexed barrier API (`create_barriers`,
 # `ptx_init_barrier_thread_count`, `ptx_arrive_barrier`, `ptx_wait_barrier`,
 # `ptx_cp_async_barrier`, `ptx_arrive_barrier_expect_tx`) were removed —

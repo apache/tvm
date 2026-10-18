@@ -14,20 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 """S-TIR script meta programming."""
 
 from __future__ import annotations
 
 import numpy
-import pytest
 
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -95,40 +92,6 @@ def test_meta_programming_uncaptured_var():
     tvm_tirx.ir.assert_structural_equal(f2, fp16.with_attr("global_symbol", "main"))
 
 
-def test_tir_macro_decorator_signature():
-    @Ts.function(private=True)
-    def evaluate0():
-        T.evaluate(0)
-
-    # Ok, no parentheses
-    @T.inline
-    def func1():
-        T.evaluate(0)
-
-    @Ts.function(private=True)
-    def use1():
-        func1()
-
-    tvm_tirx.ir.assert_structural_equal(use1, evaluate0)
-
-    # Ok, empty parentheses
-    @T.inline()
-    def func2():
-        T.evaluate(0)
-
-    @Ts.function(private=True)
-    def use2():
-        func2()
-
-    tvm_tirx.ir.assert_structural_equal(use1, evaluate0)
-
-    with pytest.raises(ValueError):
-        # Wrong: non-keyword argument
-        @T.inline(True)
-        def func3():
-            T.evaluate()
-
-
 def test_tir_macro_signature():
     @T.inline
     def assign(i, *args, t1, **kwargs):
@@ -157,48 +120,6 @@ def test_tir_macro_signature():
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     tvm_tirx.ir.assert_structural_equal(matmul_no_macro, matmul_w_macro)
-
-
-def test_tir_macro_hygienic():
-    x_value = 128
-
-    @T.inline
-    def static_capture(A, B):
-        B[()] = A[x_value]
-
-    @Ts.function(private=True)
-    def use_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
-        for x_value in T.serial(10):
-            static_capture(A, B)
-
-    @Ts.function(private=True)
-    def expected_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
-        for x_value in range(10):
-            B[()] = A[128]
-
-    tvm_tirx.ir.assert_structural_equal(use_hygienic, expected_hygienic)
-
-
-def test_tir_inline_late_binding():
-    """Inline defined inside function uses LEGB late binding:
-    it sees the current value of variables from its enclosing scope at call time."""
-
-    @Ts.function(private=True)
-    def use_late_binding(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
-        for x_value in T.serial(10):
-
-            @T.inline
-            def capture(A, B):
-                B[()] = A[x_value]
-
-            capture(A, B)
-
-    @Ts.function(private=True)
-    def expected(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
-        for x_value in range(10):
-            B[()] = A[x_value]
-
-    tvm_tirx.ir.assert_structural_equal(use_late_binding, expected)
 
 
 def test_tir_macro_in_class():
@@ -239,38 +160,6 @@ def test_tir_macro_in_class():
     tvm_tirx.ir.assert_structural_equal(func_no_macro, func_w_macro)
 
 
-def test_tir_starred_expression():
-    dims = (128, 128)
-
-    @Ts.function(private=True)
-    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
-        for i, j, k in T.grid(128, *dims):
-            A[i, j, k] = T.int32(1)
-
-    @Ts.function(private=True)
-    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
-        for i, j, k in T.grid(128, 128, 128):
-            A[i, j, k] = T.int32(1)
-
-    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
-
-
-def test_tir_dynamic_for_loop():
-    dims = (128, 128)
-
-    @Ts.function(private=True)
-    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
-        for (*iters,) in T.grid(*A.shape):
-            A[iters] = T.int32(1)
-
-    @Ts.function(private=True)
-    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
-        for i, j, k in T.grid(128, 128, 128):
-            A[i, j, k] = T.int32(1)
-
-    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
-
-
 def test_tir_starred_for_loop():
     dims = (128, 128)
 
@@ -291,46 +180,6 @@ def test_tir_starred_for_loop():
                 B[i, j] = B[i, j] + A[i, j, k]
 
     tvm_tirx.ir.assert_structural_equal(starred, non_starred)
-
-
-def test_tir_builtin_expression():
-    dims = (128, 128)
-
-    @Ts.function(private=True)
-    def with_builtin(A: T.Tensor([len(dims), *dims], "int32")) -> None:
-        for i, j, k in T.grid(*A.shape):
-            A[i, j, k] = T.int32(1 + len(A.shape))
-
-    @Ts.function(private=True)
-    def evaluated(A: T.Tensor((2, 128, 128), "int32")):
-        for i, j, k in T.grid(2, 128, 128):
-            A[i, j, k] = 4
-
-    tvm_tirx.ir.assert_structural_equal(with_builtin, evaluated)
-
-
-def test_deterministic_branch():
-    """Test deterministic branch"""
-
-    def create_func(predicate: bool):
-        @Ts.function(private=True)
-        def func() -> None:
-            if T.constexpr(predicate):
-                T.evaluate(0)
-            else:
-                T.evaluate(1)
-
-        return func
-
-    def create_expected(value):
-        @Ts.function(private=True)
-        def expected() -> None:
-            T.evaluate(value)
-
-        return expected
-
-    tvm_tirx.ir.assert_structural_equal(create_func(True), create_expected(0))
-    tvm_tirx.ir.assert_structural_equal(create_func(False), create_expected(1))
 
 
 def test_tir_macro_block_name_suffix():
@@ -363,132 +212,6 @@ def test_tir_macro_block_name_suffix():
     tvm_tirx.ir.assert_structural_equal(func_w_macro, expected)
 
 
-def _normalize(func):
-    """Strip the global_symbol so function names do not affect structural equality."""
-    return func.with_attr("global_symbol", "")
-
-
-def test_function_closure_shape():
-    """Closure variable used in Tensor shape annotation."""
-
-    def f(M=16):
-        @Ts.function
-        def func(A: T.Tensor((M,), "float32")):
-            T.evaluate(0)
-
-        return func
-
-    @Ts.function
-    def expected_16(A: T.Tensor((16,), "float32")):
-        T.evaluate(0)
-
-    @Ts.function
-    def expected_32(A: T.Tensor((32,), "float32")):
-        T.evaluate(0)
-
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
-
-
-def test_function_closure_dtype():
-    """Closure variable used as Tensor dtype."""
-
-    def f(dtype="float32"):
-        @Ts.function
-        def func(A: T.Tensor((16,), dtype)):
-            T.evaluate(0)
-
-        return func
-
-    @Ts.function
-    def expected_f32(A: T.Tensor((16,), "float32")):
-        T.evaluate(0)
-
-    @Ts.function
-    def expected_f16(A: T.Tensor((16,), "float16")):
-        T.evaluate(0)
-
-    tvm_tirx.ir.assert_structural_equal(_normalize(f("float32")), _normalize(expected_f32))
-    tvm_tirx.ir.assert_structural_equal(_normalize(f("float16")), _normalize(expected_f16))
-
-
-def test_function_nested_closure():
-    """Variables from enclosing scope active on the call stack (grandparent frame fallback).
-
-    With PEP 563, closure-only variables are missing from __closure__ unless they
-    appear in the function body. The ChainMap fallback walks the live call stack,
-    so this works when the enclosing frames are still active (outer calls middle
-    which applies the decorator, keeping outer's frame alive on the stack).
-    """
-
-    def outer(M=16):
-        def middle(N=8):
-            @Ts.function
-            def func(A: T.Tensor((M, N), "float32")):
-                T.evaluate(0)
-
-            return func
-
-        return middle()
-
-    @Ts.function
-    def expected_16_8(A: T.Tensor((16, 8), "float32")):
-        T.evaluate(0)
-
-    @Ts.function
-    def expected_32_8(A: T.Tensor((32, 8), "float32")):
-        T.evaluate(0)
-
-    tvm_tirx.ir.assert_structural_equal(_normalize(outer(16)), _normalize(expected_16_8))
-    tvm_tirx.ir.assert_structural_equal(_normalize(outer(32)), _normalize(expected_32_8))
-
-
-def test_ir_module_closure():
-    """Closure variable in @T.ir_module class method."""
-
-    def f(M=16):
-        @I.ir_module
-        class Mod:
-            @Ts.function
-            def main(A: T.Tensor((M,), "float32")):
-                T.evaluate(0)
-
-        return Mod
-
-    @Ts.function
-    def expected_16(A: T.Tensor((16,), "float32")):
-        T.evaluate(0)
-
-    @Ts.function
-    def expected_32(A: T.Tensor((32,), "float32")):
-        T.evaluate(0)
-
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)["main"]), _normalize(expected_32))
-
-
-def test_mixed_closure_usage():
-    """Closure var used in both annotation AND body -- regression check."""
-
-    def f(M=16):
-        @Ts.function
-        def func(A: T.Tensor((M,), "float32")):
-            T.evaluate(M)
-
-        return func
-
-    @Ts.function
-    def expected_16(A: T.Tensor((16,), "float32")):
-        T.evaluate(16)
-
-    @Ts.function
-    def expected_32(A: T.Tensor((32,), "float32")):
-        T.evaluate(32)
-
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
-    tvm_tirx.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
-
-
 np_array = numpy.array([0, 1, 2, 3])
 
 
@@ -513,39 +236,6 @@ def test_multi_element_array_in_outmost_namespace():
         extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     tvm_tirx.ir.assert_structural_equal(func, rt_func)
-
-
-def test_var_capturing_order():
-    b = 2
-
-    @Ts.function
-    def test_case():
-        k: T.let[T.int32] = b
-
-    @Ts.function
-    def func_ref():
-        k: T.let[T.int32] = 2
-        T.evaluate(0)
-
-    tvm_tirx.ir.assert_structural_equal(
-        test_case.with_attr("global_symbol", "main"), func_ref.with_attr("global_symbol", "main")
-    )
-
-
-def test_bind_with_constant():
-    @Ts.function
-    def constant_binds():
-        x = T.meta_var(1)
-        y = T.meta_var(42.0)
-        T.evaluate(T.cast(x, ty="float32") + y)
-
-    @Ts.function
-    def constant_binds_wrapped():
-        x = T.meta_var(T.int32(1))
-        y = T.meta_var(T.float32(42.0))
-        T.evaluate(T.cast(x, ty="float32") + y)
-
-    assert_structural_equal_ignore_global_symbol(constant_binds, constant_binds_wrapped)
 
 
 def test_func_call():

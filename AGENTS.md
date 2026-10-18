@@ -73,8 +73,8 @@ one worktree silently import another worktree's code.
 Run the smallest relevant test first, then broaden as needed. Common examples:
 
 ```bash
-python -m pytest tests/python/all-platform-minimal-test/ -xvs
-python -m pytest tests/python/tir-base/test_tir_base.py -xvs
+python -m pytest tirx/tests/python/codegen/llvm/test_minimal.py -xvs
+python -m pytest tirx/tests/python/tirx/test_base.py -xvs
 ./build/cpptest
 ```
 

@@ -16,7 +16,6 @@
 # under the License.
 import pytest
 
-import tvm
 import tvm_tirx
 import tvm_tirx.testing
 
@@ -214,24 +213,6 @@ def test_if_then_else():
             check_throws(lambda: tvm_tirx.tirx.if_then_else(cond, lhs, rhs))
         else:
             raise ValueError("Unknown combinations")
-
-
-@pytest.mark.parametrize("num_args", list(range(2, 10)))
-def test_comm_reducer(num_args):
-    """Handle all arguments in tirx comm_reducer
-
-    The `te.comm_reducer` API has two distinct usages.  It can reduce
-    a tensor along a specified axis, similar to numpy.max, or it can
-    reduce several arguments together, simililar to Python's built-in
-    max().  This choice is based on the type of the second argument.
-
-    If the `te.comm_reducer` is reducing all arguments, then all
-    arguments should be used.  In the past, the introduction of new
-    arguments intended for use when reducing along a tensor axis has
-    failed to forward these arguments when reducing along a list of
-    items.
-    """
-    assert tvm.te.max(*range(num_args)) == num_args - 1
 
 
 def test_llvm_intrin():

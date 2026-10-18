@@ -19,7 +19,6 @@ import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm import te
 from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
 
@@ -120,9 +119,9 @@ def test_split_index_simplify():
 
     # floordiv(floormod(sum, m*n), n) => floormod(floordiv(sum, n), m)
     # when sum has parts divisible by n
-    d_tile = te.var("d_tile")
-    i = te.var("i")
-    v = te.var("v")
+    d_tile = tvm_tirx.tirx.Var("d_tile", "int32")
+    i = tvm_tirx.tirx.Var("i", "int32")
+    v = tvm_tirx.tirx.Var("v", "int32")
     ck.analyzer.update(d_tile, tvm_tirx.sym.ConstIntBound(0, 7), True)
     ck.analyzer.update(i, tvm_tirx.sym.ConstIntBound(0, 1), True)
     ck.analyzer.update(v, tvm_tirx.sym.ConstIntBound(0, 7), True)
