@@ -706,11 +706,11 @@ def test_split_layout_physical_storage_extent():
     layout = T.TileLayout(T.S[(3, 4) : (16, 2)])
 
     @T.function(private=True)
-    def main():
-        B = T.alloc_tensor(ty_args=[T.Tensor((12,), "float32", layout=layout)])
+    def main(data: T.handle):
+        B = T.decl_tensor(data, ty_args=[T.Tensor((12,), "float32", layout=layout)])
         B[11] = T.float32(7)
 
-    # Standalone flattening must allocate the physical footprint, including gaps.
+    # A borrowed view's flattened extent must cover the physical gaps.
     after = FlattenTensor()(tvm_tirx.IRModule({"main": main}))
     body = after["main"].body
     flat = body[0].var
