@@ -22,26 +22,28 @@ import pytest
 
 import tvm
 import tvm.s_tir.testing
-import tvm.testing
-from tvm import te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
 def _check_error(func):
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     with pytest.raises(ValueError):
         tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
 
@@ -1177,7 +1179,7 @@ def test_error_missing_annotation():
 
 
 def test_simple_compute_async():
-    mod = tvm.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1220,9 +1222,9 @@ def test_simple_compute_async():
                     Ts.async_wait(0, 0)
                     C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
-    mod = tvm.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1275,7 +1277,7 @@ def test_simple_compute_async():
                             Ts.async_wait(0, 2 - i)
                             C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_async_producer_interleaving():
@@ -1305,7 +1307,7 @@ def test_async_producer_interleaving():
                         Ts.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
-    mod = tvm.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1379,11 +1381,11 @@ def test_async_producer_interleaving():
                                 + B_shared[(i - 3 + 16) % 4, tx, 0]
                             )
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_three_stage_compute_two_stage_async():
-    mod = tvm.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1464,7 +1466,7 @@ def test_three_stage_compute_two_stage_async():
                             Ts.async_wait(1, T.if_then_else(i + 16 - 1 < 16, 1, 0))
                             D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_less_loop_than_num_stage():
@@ -1644,4 +1646,4 @@ def test_less_loop_than_num_stage_dynamic():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

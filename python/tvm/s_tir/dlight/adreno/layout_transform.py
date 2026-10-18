@@ -37,8 +37,9 @@
 
 "Schedules for Texture Based Layout Transforms"
 
-from tvm import s_tir, tirx
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule

@@ -19,20 +19,21 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, topi
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check(mod_actual, mod_expected):
     mod_actual = relax.transform.AnnotateTIROpPattern()(mod_actual)
     mod_actual = relax.transform.FuseOps()(mod_actual)
     mod_expected = relax.transform.AnnotateTIROpPattern()(mod_expected)
-    tvm.ir.assert_structural_equal(mod_actual, mod_expected)
+    tvm_tirx.ir.assert_structural_equal(mod_actual, mod_expected)
 
 
 def test_fuse_simple():
@@ -1146,7 +1147,7 @@ def test_multiple_paths():
     mod = relax.transform.LegalizeOps()(Module)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dead_group():
@@ -1337,7 +1338,7 @@ def test_symbolic_shape_aware_fuse_2():
         def main(s: R.Shape([n])):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
@@ -1361,7 +1362,7 @@ def test_symbolic_shape_aware_fuse_2():
                     "float32",
                     0,
                 )
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(
                     topi.broadcast_to,
                     lv1,
@@ -1447,7 +1448,7 @@ def test_symbolic_prim_arg_after_tensor_arg():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert not isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert not isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
@@ -1524,7 +1525,7 @@ def test_symbolic_prim_arg_before_tensor_arg():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert not isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert not isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
@@ -1606,7 +1607,7 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
     )
     assert len(fused.params) == 2
     assert isinstance(fused.params[1].ty, relax.ShapeType)
-    assert all(not isinstance(param.ty, tvm.ir.PrimType) for param in fused.params)
+    assert all(not isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params)
 
     mod = relax.transform.FuseTIR()(mod)
     fused_tir = next(
@@ -1685,7 +1686,7 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
     )
     assert len(fused.params) == 3
     assert sum(isinstance(param.ty, relax.ShapeType) for param in fused.params) == 1
-    assert sum(isinstance(param.ty, tvm.ir.PrimType) for param in fused.params) == 1
+    assert sum(isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params) == 1
 
 
 def test_primitive_call_arg_not_inlined():
@@ -1717,7 +1718,9 @@ def test_primitive_call_arg_not_inlined():
         def main(x: R.Tensor((4,), dtype="int64")):
             cls = Before
             with R.dataflow():
-                value: T.int64 = R.call_pure_packed("get_scalar", ty_args=tvm.ir.PrimType("int64"))
+                value: T.int64 = R.call_pure_packed(
+                    "get_scalar", ty_args=tvm_tirx.ir.PrimType("int64")
+                )
                 lv = R.call_tir(
                     cls.add_scalar,
                     (x, value),
@@ -1741,7 +1744,7 @@ def test_primitive_call_arg_not_inlined():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 2
-    assert sum(isinstance(param.ty, tvm.ir.PrimType) for param in fused.params) == 1
+    assert sum(isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params) == 1
 
     mod = relax.transform.FuseTIR()(mod)
     assert relax.analysis.check_well_formed(mod)
@@ -1777,7 +1780,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
         @R.function(pure=False)
         def main():
             cls = Before
-            n: T.int64 = R.call_packed("get_extent", ty_args=tvm.ir.PrimType("int64"))
+            n: T.int64 = R.call_packed("get_extent", ty_args=tvm_tirx.ir.PrimType("int64"))
             with R.dataflow():
                 lv = R.call_tir(
                     cls.make,
@@ -1802,7 +1805,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
 
     packed_calls = []
 
@@ -1905,7 +1908,7 @@ def test_shape_expr_arg():
         def main(s: R.Shape([n]), kv_cache: R.Any):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
@@ -1935,7 +1938,7 @@ def test_shape_expr_arg():
                     "float32",
                     0,
                 )
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(
                     topi.broadcast_to,
                     lv1,
@@ -2221,7 +2224,7 @@ def test_packed_params():
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(lv[v_i0, v_i1])
                     Ts.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.Cast(lv[v_i0, v_i1], "float32")
+                    compute[v_i0, v_i1] = T.Cast("float32", lv[v_i0, v_i1])
 
         @Ts.function(private=True)
         def matmul(x: T.Tensor((T.int64(16), T.int64(16)), "float32"), lv2: T.Tensor((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Tensor((T.int64(16), T.int64(16)), "float32")):
@@ -2257,4 +2260,4 @@ def test_packed_params():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

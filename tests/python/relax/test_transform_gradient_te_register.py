@@ -20,16 +20,18 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import relax, tirx
-from tvm.ir import TupleType as _TupleType
-from tvm.ir.base import assert_structural_equal
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax.training.utils import register_te_gradient
 from tvm.relax.transform import Gradient
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 # Only run once in the whole test session
@@ -381,4 +383,4 @@ def test_tir_var(register_te_grads):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

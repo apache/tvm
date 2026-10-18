@@ -24,7 +24,7 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>

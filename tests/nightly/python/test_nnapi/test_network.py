@@ -24,20 +24,21 @@ pytest.importorskip("onnx")
 import onnx
 
 import tvm
+import tvm_tirx
 from test_nnapi.conftest import remote
 from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 from tvm.contrib.download import download_testdata
 from tvm.relax.frontend.onnx import from_onnx
-from tvm.testing import env
+from tvm_tirx.testing import env
 
 
 def _build_and_run_network(remote_obj, tracker, mod, input_data):
     """Helper function to build and run a network."""
 
     def execute_on_host(mod, inputs):
-        with tvm.ir.transform.PassContext(opt_level=3):
+        with tvm_tirx.ir.transform.PassContext(opt_level=3):
             ex = tvm.compile(mod, target="llvm")
-        dev = tvm.cpu(0)
+        dev = tvm_tirx.cpu(0)
         vm = tvm.relax.VirtualMachine(ex, device=dev)
         output = vm["main"](*inputs)
         return output.numpy()
@@ -127,12 +128,14 @@ def test_network(name, dtype):
     for _name, (shape, _dtype) in inputs.items():
         input_data[_name] = np.random.uniform(-1.0, 1.0, shape).astype(_dtype)
 
-    inputs_tvm: list[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for k, v in input_data.items()]
+    inputs_tvm: list[tvm_tirx.runtime.Tensor] = [
+        tvm_tirx.runtime.tensor(v) for k, v in input_data.items()
+    ]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]
-    tvm.testing.assert_allclose(nnapi_out, expected_out, rtol=1e-4, atol=1e-5)
+    tvm_tirx.testing.assert_allclose(nnapi_out, expected_out, rtol=1e-4, atol=1e-5)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

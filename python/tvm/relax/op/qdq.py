@@ -18,11 +18,11 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir import PrimType as _PrimType
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -79,8 +79,8 @@ def quantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -131,6 +131,6 @@ def dequantize(
             axis=axis,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

@@ -19,11 +19,10 @@
 
 import tvm_ffi
 
-from tvm import DataType
-from tvm.ir import Attrs, PrimType
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs, PrimType
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -73,8 +72,8 @@ def max(
         "relax.max",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -114,8 +113,8 @@ def mean(
         "relax.mean",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -155,8 +154,8 @@ def min(
         "relax.min",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -196,8 +195,8 @@ def prod(
         "relax.prod",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -237,8 +236,8 @@ def std(
         "relax.std",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -278,8 +277,8 @@ def sum(
         "relax.sum",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -291,7 +290,7 @@ class ScanopAttrs(Attrs):
 def cumprod(
     data: Expr,
     axis: int | None = None,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     exclusive: bool = False,
     *,
     ty=None,
@@ -309,7 +308,7 @@ def cumprod(
         Axis along which the cumulative product is computed. The default (None) is to compute
         the cumprod over the flattened array.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[Union[str, tvm_ffi.dtype]]
         Type of the returned array and of the accumulator in which the elements are computed.
         If dtype is not specified, it defaults to the dtype of data.
 
@@ -356,15 +355,15 @@ def cumprod(
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def cumsum(
     data: Expr,
     axis: int | None = None,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     exclusive: bool = False,
     *,
     ty=None,
@@ -382,7 +381,7 @@ def cumsum(
         Axis along which the cumulative sum is computed. The default (None) is to compute
         the cumsum over the flattened array.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[Union[str, tvm_ffi.dtype]]
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 
@@ -429,8 +428,8 @@ def cumsum(
         attrs=_make_attrs(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -470,8 +469,8 @@ def variance(
         "relax.variance",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -510,6 +509,6 @@ def median(
         "relax.median",
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

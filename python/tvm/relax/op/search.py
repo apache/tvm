@@ -19,10 +19,10 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -54,7 +54,7 @@ def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNO
     result : relax.Expr
         The result tensor.
     """
-    return _Call("relax.where", [condition, x1, x2], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.where", [condition, x1, x2], loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
@@ -96,8 +96,8 @@ def argmax(
         "relax.argmax",
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -135,8 +135,8 @@ def argmin(
         "relax.argmin",
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -174,6 +174,6 @@ def bucketize(
         "relax.bucketize",
         [input_tensor, boundaries],
         attrs=_make_attrs("relax.attrs.BucketizeAttrs", out_int32=out_int32, right=right),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

@@ -28,6 +28,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/tirx/type.h>
 
 #include <algorithm>
 #include <optional>
@@ -362,13 +363,21 @@ class WellFormednessVerifier : public StmtExprVisitor {
       };
       ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor.shape()[i], walk);
     }
-    for (size_t i = 0; i < tensor.strides().size(); ++i) {
-      if (auto var = tensor.strides()[i].as<Var>()) {
-        define_if_needed(var.value(), field->Attr("strides")->ArrayItem(i));
+    if (const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
+        tile && MatchShapeStridePattern(tensor.ty()).has_value()) {
+      auto site = field->Attr("layout");
+      for (size_t i = 0; i < tile->shard.size(); ++i) {
+        if (auto var = tile->shard[i]->stride.as<Var>()) {
+          define_if_needed(var.value(), site->Attr("shard")->ArrayItem(i)->Attr("stride"));
+        }
       }
-    }
-    if (auto var = tensor.elem_offset().as<Var>()) {
-      define_if_needed(var.value(), field->Attr("elem_offset"));
+      for (const auto& [axis, offset] : tile->offset) {
+        auto walk = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          define_if_needed(var, site->Attr("offset"));
+          return ffi::WalkResult::Advance();
+        };
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(offset, walk);
+      }
     }
   }
 
@@ -376,8 +385,8 @@ class WellFormednessVerifier : public StmtExprVisitor {
     std::vector<GlobalVar> globals;
     for (const auto& [global, function] : op->functions) globals.push_back(global);
     std::sort(globals.begin(), globals.end(), [&](const GlobalVar& a, const GlobalVar& b) {
-      bool a_public = op->functions[a]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
-      bool b_public = op->functions[b]->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool a_public = op->functions[a]->GetAttr(tvm::attr::kGlobalSymbol).has_value();
+      bool b_public = op->functions[b]->GetAttr(tvm::attr::kGlobalSymbol).has_value();
       return a_public != b_public ? a_public > b_public : a->name_hint < b->name_hint;
     });
     for (const auto& global : globals) {
@@ -464,7 +473,7 @@ class WellFormednessVerifier : public StmtExprVisitor {
 
   Result Visit_(const ForNode* op) override {
     if (check_ == Check::kThreadBinding) {
-      if (auto tag = op->annotations.Get(attr::kThreadBinding)) {
+      if (auto tag = op->annotations.Get(attr::kThreadBinding.name)) {
         Verify(op->kind == ForKind::kParallel)
             << "ValueError: thread_binding requires a parallel loop at <current location>";
         Verify(tag->as<ffi::String>().has_value())

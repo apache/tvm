@@ -42,7 +42,7 @@ ffi::Optional<s_tir::SBlockRV> TileForIntrin(s_tir::Schedule sch, s_tir::SBlockR
   }
   TVM_FFI_ICHECK(tiled_loop_rv.has_value());
   s_tir::SBlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
-  sch->Annotate(outer_block, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
+  sch->Annotate(outer_block, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name,
                 ffi::String(intrin_name));
   return outer_block;
 }

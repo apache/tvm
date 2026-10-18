@@ -1,0 +1,103 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file codegen_trn.h
+ * \brief Generate Metal device code.
+ */
+#ifndef TVM_TARGET_SOURCE_CODEGEN_TRN_H_
+#define TVM_TARGET_SOURCE_CODEGEN_TRN_H_
+
+#include <tvm/codegen/codegen.h>
+#include <tvm/runtime/memory_scope.h>
+
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+
+#include "../../../codegen/c/codegen_c.h"
+
+namespace tvm {
+namespace codegen {
+
+struct NKIInstructionCtx {
+  std::unordered_set<const VarNode*> tensorized_loop_vars;
+  std::unordered_map<const VarNode*, ffi::String> loopvar2dim;
+  bool is_matmul_input = false;
+  int buffer_index = -1;
+  int used_var_cnt = 0;
+  PrimType dst_dtype = PrimType::Void();
+  ffi::Optional<PrimExpr> mask;
+  bool tensorizing = false;
+};
+
+class CodeGenTrainium final : public CodeGenC {
+ public:
+  explicit CodeGenTrainium(Target target);
+  using CodeGenC::Dispatch_;
+  using CodeGenC::PrintType;
+  // override print thread tag.
+  void PrintArgUnionDecl();
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& f) final;
+  std::string GetStorageScopeStr(const runtime::MemoryScope& scope);  // NOLINT(*)
+  void Dispatch_(const VarNode* op, std::ostream& os) final;          // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;          // NOLINT(*)
+  void Dispatch_(const BindNode* op) final;
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
+  void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
+  void Dispatch_(const TensorStoreNode* op) final;                       // NOLINT(*)=
+  void Dispatch_(const EvaluateNode* op) final;                          // NOLINT(*)
+  std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
+  void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;            // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;        // NOLINT(*)
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) final;      // NOLINT(*)
+  void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const IfNode* op) final;                           // NOLINT(*)
+  void Dispatch_(const prim::AndNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const prim::OrNode* op, std::ostream& os) final;   // NOLINT(*)
+
+ private:
+  Target target_;
+  NKIInstructionCtx ctx_;
+  std::unordered_map<std::string, std::string> opcode_map_;
+  std::unordered_map<TensorVar, std::string, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_idmap_;
+  std::unordered_map<TensorVar, const VarNode*, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_data_varmap_;
+  std::unordered_map<const VarNode*, std::string> data_buffer_idmap_;
+  std::unordered_map<const VarNode*, TensorVar> data_decl_buffer_map_;
+  bool is_outermost_loop_ = true;
+};
+}  // namespace codegen
+namespace backend {
+namespace trn {
+namespace attr {
+
+inline constexpr ffi::reflection::AttrKey<ffi::String> kNkiDim{"nki_dim"};
+}  // namespace attr
+}  // namespace trn
+}  // namespace backend
+
+}  // namespace tvm
+
+#endif  // TVM_TARGET_SOURCE_CODEGEN_TRN_H_

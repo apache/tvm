@@ -75,9 +75,9 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
 
  private:
   /*! \brief Iteration range for loop_vars */
-  std::unordered_map<const VarNode*, sym::IntSet> dom_map_;
+  ffi::Map<Var, sym::IntSet> dom_map_;
   /*! \brief Extra iteration range hint for free vars */
-  std::unordered_map<const VarNode*, sym::IntSet> hint_map_;
+  ffi::Map<Var, sym::IntSet> hint_map_;
   /*! \brief Unresolved conditions within current scope. */
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The tensors that the current block reads */
@@ -210,9 +210,9 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
   Range range = Range::FromMinExtent(op->min, op->extent);
-  dom_map_.insert_or_assign(op->loop_var.get(), sym::IntSet::FromRange(range));
+  dom_map_.Set(op->loop_var, sym::IntSet::FromRange(range));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
-  dom_map_.erase(op->loop_var.get());
+  dom_map_.erase(op->loop_var);
   return std::nullopt;
 }
 

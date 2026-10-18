@@ -121,8 +121,7 @@ IRModule BindParam(IRModule m, ffi::String func_name, ffi::Map<Any, ffi::ObjectR
     if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
       if (relax_f->GetLinkageType() == LinkageType::kExternal) {
         // Use global_symbol if it's external linkage
-        ffi::Optional<ffi::String> gsymbol =
-            relax_f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+        ffi::Optional<ffi::String> gsymbol = relax_f->GetAttr(tvm::attr::kGlobalSymbol);
         if (gsymbol.has_value() && gsymbol.value() == func_name) {
           Function f_after_bind = FunctionBindParams(ffi::GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);

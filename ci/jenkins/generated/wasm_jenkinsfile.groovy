@@ -16,19 +16,36 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'wasm/pr-head will fail for these changes; check wasm/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('CPU', 'BUILD: WASM', 'tvm/build-wasm', images.ci_wasm, 'wasm') {
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
-    label: 'Create WASM CMake config',
-  )
-  ci.cmake_build(images.ci_wasm, 'build')
-  ci.make_cpp_tests(images.ci_wasm, 'build')
-  ci.cpp_unittest(images.ci_wasm)
-  sh(
-    script: "${docker_run} ${images.ci_wasm} ./tests/scripts/task_web_wasm.sh",
-    label: 'Run WASM lint and tests',
-  )
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: WASM', folder: 'tvm/build-wasm', variables: ['PLATFORM=wasm']) {
+    ci.docker_init(images.ci_wasm)
+    withEnv(ci.build_environment()) {
+      sh(
+        script: """${docker_run} ${images.ci_wasm} bash -euo pipefail -c '
+          source ./tests/scripts/task_install_build_dependencies.sh
+          ./tests/scripts/task_build_wasm.sh
+        '""",
+        label: 'Build wasm wheels and C++ tests',
+      )
+    }
+    sh(
+      script: """${docker_run} ${images.ci_wasm} bash -euo pipefail -c '
+            source ./tests/scripts/test_task_install_dist_wheels.sh
+            ./tests/scripts/task_web_wasm.sh
+          '""",
+      label: 'Run WASM lint and tests',
+    )
+  }
 }

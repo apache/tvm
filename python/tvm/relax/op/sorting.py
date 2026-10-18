@@ -18,10 +18,10 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs, GenericConst
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs, GenericConst
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -64,8 +64,8 @@ def sort(
         "relax.sort",
         [x],
         attrs=_make_attrs("relax.attrs.SortAttrs", axis=axis, descending=descending),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -111,8 +111,8 @@ def argsort(
         attrs=_make_attrs(
             "relax.attrs.ArgsortAttrs", axis=axis, descending=descending, dtype=dtype
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -173,6 +173,6 @@ def topk(
         attrs=_make_attrs(
             "relax.attrs.TopKAttrs", k=k, axis=axis, ret_type=ret_type, largest=largest, dtype=dtype
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

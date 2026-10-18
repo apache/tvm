@@ -35,6 +35,7 @@
 #include <tvm/sym/int_set.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/type.h>
 
 #include <numeric>
 #include <stack>
@@ -54,12 +55,10 @@ using support::NDIntSet;
 
 /*! \brief a more constrained bound estimate for n-dimentional int set */
 NDIntSet NDIntSetEval(ffi::Array<Range> region, PrimExpr predicate,
-                      const std::unordered_map<const VarNode*, sym::IntSet>& dom_map,
-                      sym::AnalyzerObj* analyzer) {
+                      const ffi::Map<Var, sym::IntSet>& dom_map, sym::AnalyzerObj* analyzer) {
   std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
-    var_dom.insert_or_assign(ffi::GetRef<Var>(it.first),
-                             it.second.CoverRange(Range::FromMinExtent(0, 0)).value());
+    var_dom.insert_or_assign(it.first, it.second.CoverRange(Range::FromMinExtent(0, 0)).value());
   }
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   ffi::Optional<ffi::Array<sym::IntSet>> eval_res =
@@ -201,12 +200,12 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
                        : IterVar(std::nullopt, op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
-    dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
+    dom_map_.Set(op->loop_var, sym::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_tensors_.size();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Compact flat AllocTensors defined inside this For scope
     CompactPendingFlatAllocTensors(n_pending_before);
-    dom_map_.erase(op->loop_var.get());
+    dom_map_.erase(op->loop_var);
     ancestor_iters_.pop_back();
     return std::nullopt;
   }
@@ -222,7 +221,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (auto value = op->value.as<PrimExpr>(); value && IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
-      dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(value.value()));
+      dom_map_.Set(op->var, sym::IntSet::SinglePoint(value.value()));
     }
     return std::nullopt;
   }
@@ -231,11 +230,11 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (IsIndexTypedExpr(op->value)) {
       dom_analyzer_->Bind(op->var, op->value);
-      dom_map_.emplace(op->var.get(), sym::IntSet::SinglePoint(op->value));
+      dom_map_.Set(op->var, sym::IntSet::SinglePoint(op->value));
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->body));
     if (IsIndexTypedExpr(op->value)) {
-      dom_map_.erase(op->var.get());
+      dom_map_.erase(op->var);
     }
     return std::nullopt;
   }
@@ -317,8 +316,8 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       }
     };
 
-    record_explicit_region(s_tir::attr::kExplicitReadRegion, TensorIndexType::kRead);
-    record_explicit_region(s_tir::attr::kExplicitWriteRegion, TensorIndexType::kWrite);
+    record_explicit_region(s_tir::attr::kExplicitReadRegion.name, TensorIndexType::kRead);
+    record_explicit_region(s_tir::attr::kExplicitWriteRegion.name, TensorIndexType::kWrite);
 
     // Step 3. Record relax position of ancestor_loops_
     for (const TensorVar& tensor : op->alloc_tensors) {
@@ -370,11 +369,11 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
                    op->args[0].as_or_throw<StringImm>()->value);
       ancestor_iters_.push_back(iter);
       dom_analyzer_->Bind(iter->var, dom);
-      dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));
+      dom_map_.Set(iter->var, sym::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_tensors_.size();
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       CompactPendingFlatAllocTensors(n_pending_before);
-      dom_map_.erase(iter->var.get());
+      dom_map_.erase(iter->var);
       ancestor_iters_.pop_back();
       return std::nullopt;
     }
@@ -403,15 +402,15 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       std::vector<ffi::Optional<sym::IntSet>> non_relaxed(n_ancestor_loops);
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const IterVar& iter = ancestor_iters_[i];
-        const VarNode* v = iter->var.get();
+        const Var& v = iter->var;
         if (NeedRelaxThread(iter, tensor.scope())) {
           continue;
         }
         auto dom_it = dom_map_.find(v);
         TVM_FFI_ICHECK(dom_it != dom_map_.end())
             << "Could not find domain for loop variable " << v->name;
-        non_relaxed[i] = dom_it->second;
-        dom_map_.erase(dom_it);
+        non_relaxed[i] = (*dom_it).second;
+        dom_map_.erase(v);
       }
       // Step 2. Relax the access region
       auto normalize_pred = [](const PrimExpr& pred) {
@@ -429,8 +428,8 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
 
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
-        const VarNode* v = ancestor_iters_[i]->var.get();
-        if (non_relaxed[i].has_value()) dom_map_.emplace(v, non_relaxed[i].value());
+        const Var& v = ancestor_iters_[i]->var;
+        if (non_relaxed[i].has_value()) dom_map_.Set(v, non_relaxed[i].value());
       }
       // Step 4. Update relaxed_accesses_ dict
       auto access_it = relaxed_accesses_.find(tensor);
@@ -571,9 +570,9 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       var2tensor_;
 
   /*! \brief The map from loop vars to their iter range. */
-  std::unordered_map<const VarNode*, sym::IntSet> dom_map_;
+  ffi::Map<Var, sym::IntSet> dom_map_;
   /*! \brief Extra map from free vars to their iter range hints. */
-  std::unordered_map<const VarNode*, sym::IntSet> hint_map_;
+  ffi::Map<Var, sym::IntSet> hint_map_;
   /*! \brief Unresolved conditions within current scope. */
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The analyzer aware of loop domains. */
@@ -824,7 +823,23 @@ Stmt TensorCompactorCompact(
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);
-    n->strides = std::move(strides);
+    if (strides.empty()) {
+      if (n->layout.has_value()) {
+        auto tile = n->layout.value().as_or_throw<tvm::tirx::TileLayout>();
+        n->layout = tvm::tirx::TileLayout(tvm::tirx::TileLayoutNode::DefaultLayout(n->shape)->shard,
+                                          {}, tile->offset);
+      }
+    } else {
+      static const auto memory_axis = tvm::tirx::Axis::Get("m");
+      ffi::Array<tvm::tirx::Iter> shard;
+      for (size_t i = 0; i < n->shape.size(); ++i) {
+        shard.push_back(tvm::tirx::Iter(n->shape[i], strides[i], memory_axis));
+      }
+      ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+      if (n->layout.has_value())
+        offset = n->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+      n->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
+    }
     alloc_info.new_tensor = TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     alloc_info.region = region;
     tensor_info.emplace(tensor, std::move(alloc_info));

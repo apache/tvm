@@ -1,297 +1,216 @@
-cmake_minimum_required(VERSION 3.18)
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+cmake_minimum_required(VERSION 3.24)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compilation commands")
+endif()
 project(tvm C CXX)
+include(GNUInstallDirs)
 
-# --- TVM version (no dependency on version.py) ---
-# When built via scikit-build-core the version is resolved by setuptools_scm and
-# passed in as SKBUILD_PROJECT_VERSION_FULL; bake it into the C++ TVM_VERSION macro.
-# A bare `cmake` build (no scikit-build-core) leaves the checked-in default in
-# include/tvm/runtime/base.h untouched. An explicit -DTVM_VERSION always wins.
-if(NOT DEFINED TVM_VERSION AND DEFINED SKBUILD_PROJECT_VERSION_FULL)
-  set(TVM_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
-endif()
-if(DEFINED TVM_VERSION)
-  message(STATUS "TVM_VERSION=${TVM_VERSION}")
-  add_compile_definitions(TVM_VERSION="${TVM_VERSION}")
-endif()
+# Declare native boolean switches and typed cache settings uniformly.
+function(tvm_option variable type default description)
+  if(type STREQUAL "BOOL")
+    option(${variable} "${description}" "${default}")
+  else()
+    set(${variable} "${default}" CACHE ${type} "${description}")
+  endif()
+endfunction()
 
-# Utility functions
+# ######### Common options ##########
+
+tvm_option(TVM_USE_RPC BOOL ON "Build with RPC")
+tvm_option(TVM_USE_CPP_RPC BOOL OFF "Build CPP RPC")
+tvm_option(TVM_USE_IOS_RPC BOOL OFF "Build iOS RPC")
+tvm_option(TVM_LOG_BEFORE_THROW BOOL OFF "Whether log before throw, for debugging purposes")
+tvm_option(TVM_USE_MSVC_MT BOOL OFF "Build with MT")
+tvm_option(TVM_HIDE_PRIVATE_SYMBOLS BOOL ON "Compile with -fvisibility=hidden.")
+tvm_option(TVM_USE_GTEST STRING AUTO "Use GoogleTest for C++ sanity tests (OFF, ON, AUTO)")
+tvm_option(TVM_USE_CCACHE STRING AUTO "Use ccache (OFF, ON, AUTO, or executable path)")
+tvm_option(TVM_USE_ALTERNATIVE_LINKER STRING AUTO "Use 'mold' or 'lld' if found when invoking compiler to link artifact")
+
+# ######### CPU libraries ##########
+
+tvm_option(TVM_USE_BLAS STRING none "The blas library to be linked")
+tvm_option(TVM_USE_MKL STRING OFF "Build with MKL (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_DNNL STRING OFF "Build with DNNL (OFF, ON, JSON, C_SRC, or SDK path)")
+tvm_option(TVM_USE_AMX BOOL OFF "Enable Intel AMX")
+tvm_option(TVM_USE_SORT BOOL ON "Build with sort support")
+tvm_option(TVM_USE_RANDOM BOOL ON "Build with random support")
+
+# ######### GPU libraries ##########
+
+tvm_option(TVM_USE_NCCL STRING OFF "Build with NCCL (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_RCCL STRING OFF "Build with RCCL (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_NVSHMEM STRING OFF "Build with NVSHMEM (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_CUDNN STRING OFF "Build with cuDNN (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_CUDNN_FRONTEND STRING OFF "Build with cuDNN frontend (OFF, ON, or include root)")
+tvm_option(TVM_USE_CUBLAS BOOL OFF "Build with cuBLAS")
+tvm_option(TVM_USE_NVTX BOOL OFF "Build with NVTX")
+tvm_option(TVM_USE_CUTLASS BOOL OFF "Build with CUTLASS")
+tvm_option(TVM_USE_THRUST STRING OFF "Build with Thrust (OFF, ON, or CCCL path)")
+tvm_option(TVM_USE_CURAND BOOL OFF "Build with cuRAND")
+tvm_option(TVM_USE_HIPBLAS BOOL OFF "Build with ROCM:HIPBLAS")
+tvm_option(TVM_USE_VLLM BOOL OFF "Build with vLLM support")
+
+# ######### External code generators and runtimes ##########
+
+tvm_option(TVM_USE_COREML BOOL OFF "Build with coreml support")
+tvm_option(TVM_USE_TENSORRT_CODEGEN BOOL OFF "Build with TensorRT Codegen support")
+tvm_option(TVM_USE_TENSORRT_RUNTIME STRING OFF "Build with TensorRT runtime (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_NNAPI_CODEGEN BOOL OFF "Build with NNAPI Codegen support")
+tvm_option(TVM_USE_NNAPI_RUNTIME BOOL OFF "Build with NNAPI runtime")
+tvm_option(TVM_USE_EXAMPLE_NPU_CODEGEN BOOL OFF "Build with Example NPU Codegen support")
+tvm_option(TVM_USE_EXAMPLE_NPU_RUNTIME BOOL OFF "Build with Example NPU runtime")
+tvm_option(TVM_USE_CLML STRING OFF "Build with CLML codegen (OFF, ON, or SDK path)")
+tvm_option(TVM_USE_CLML_GRAPH_EXECUTOR STRING OFF "Build with CLML graph runtime (OFF, ON, or SDK path)")
+
+set_property(CACHE TVM_USE_BLAS PROPERTY STRINGS none openblas atlas blas apple)
+set_property(CACHE TVM_USE_GTEST PROPERTY STRINGS AUTO ON OFF)
+
+# ######### Core dependencies ##########
+
+set(_installed_tirx ON)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tirx/CMakeLists.txt")
+  set(_installed_tirx OFF)
+endif()
+option(TVM_USE_INSTALLED_TIRX "Build against an installed apache-tvm-tirx package" ${_installed_tirx})
+option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" OFF)
+if(TVM_BUILD_PYTHON_MODULE)
+  set(CMAKE_INSTALL_LIBDIR lib)
+endif()
+if(TVM_USE_CLML_GRAPH_EXECUTOR)
+  if(TVM_USE_CLML_GRAPH_EXECUTOR STREQUAL "ON")
+    set(TVM_TIRX_USE_OPENCL "${CMAKE_CURRENT_SOURCE_DIR}/clml")
+  else()
+    set(TVM_TIRX_USE_OPENCL "${TVM_USE_CLML_GRAPH_EXECUTOR}")
+  endif()
+endif()
+if(TVM_USE_INSTALLED_TIRX)
+  find_package(Python COMPONENTS Interpreter REQUIRED)
+  if(NOT tvm_tirx_DIR)
+    execute_process(COMMAND "${Python_EXECUTABLE}" -m tvm_tirx.config --cmakedir
+      OUTPUT_VARIABLE tvm_tirx_DIR OUTPUT_STRIP_TRAILING_WHITESPACE
+      COMMAND_ERROR_IS_FATAL ANY)
+  endif()
+  find_package(tvm_tirx CONFIG REQUIRED)
+  if(NOT TARGET tvm_ffi::shared)
+    if(NOT tvm_ffi_DIR)
+      execute_process(COMMAND "${Python_EXECUTABLE}" -m tvm_ffi.config --cmakedir
+        OUTPUT_VARIABLE tvm_ffi_DIR OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY)
+    endif()
+    find_package(tvm_ffi CONFIG REQUIRED)
+  endif()
+  # Parent extensions use installed sidecars privately. They are not part of
+  # the public TIRx package target interface.
+  get_target_property(_tirx_runtime_location tvm_runtime::shared IMPORTED_LOCATION)
+  get_filename_component(_tirx_libdir "${_tirx_runtime_location}" DIRECTORY)
+  foreach(_backend cuda rocm opencl vulkan metal)
+    find_library(_tirx_backend_library NAMES tvm_runtime_${_backend}
+      PATHS "${_tirx_libdir}" NO_DEFAULT_PATH NO_CACHE)
+    if(_tirx_backend_library AND NOT TARGET tvm_runtime_${_backend})
+      add_library(tvm_runtime_${_backend} UNKNOWN IMPORTED)
+      set_target_properties(tvm_runtime_${_backend} PROPERTIES
+        IMPORTED_LOCATION "${_tirx_backend_library}")
+      target_link_libraries(tvm_runtime_${_backend} INTERFACE tvm_runtime::shared tvm_ffi::shared)
+    endif()
+    unset(_tirx_backend_library)
+  endforeach()
+  foreach(_backend CUDA ROCM)
+    # Installed packages expose libraries, not cached build-option state.
+    if(NOT DEFINED TVM_TIRX_USE_${_backend} OR "${TVM_TIRX_USE_${_backend}}" MATCHES "^[Aa][Uu][Tt][Oo]$")
+      string(TOLOWER "${_backend}" _backend_lower)
+      set(TVM_TIRX_USE_${_backend} OFF)
+      if(TARGET tvm_runtime_${_backend_lower})
+        set(TVM_TIRX_USE_${_backend} ON)
+      endif()
+    endif()
+  endforeach()
+  if(TARGET tvm_runtime_opencl)
+    if(WIN32)
+      target_compile_definitions(tvm_runtime_opencl INTERFACE "TVM_OPENCL_DLL=__declspec(dllimport)")
+    else()
+      target_compile_definitions(tvm_runtime_opencl INTERFACE
+        "TVM_OPENCL_DLL=__attribute__((visibility(\"default\")))")
+    endif()
+  endif()
+  if(NOT TVM_TIRX_VERSION STREQUAL "0.1.0a0")
+    message(FATAL_ERROR "TVM requires apache-tvm-tirx 0.1.0a0")
+  endif()
+else()
+  # Keep source-built core libraries beside the parent libraries.
+  set(_tirx_output_defaults "")
+  foreach(_kind ARCHIVE LIBRARY RUNTIME)
+    if(NOT DEFINED CMAKE_${_kind}_OUTPUT_DIRECTORY)
+      set(CMAKE_${_kind}_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+      list(APPEND _tirx_output_defaults ${_kind})
+    endif()
+  endforeach()
+  add_subdirectory(tirx)
+  if(TARGET tirx_cpptest)
+    set_target_properties(tirx_cpptest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+      string(TOUPPER "${_config}" _config_upper)
+      set_target_properties(tirx_cpptest PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_config_upper} "${CMAKE_BINARY_DIR}")
+    endforeach()
+  endif()
+  foreach(_kind IN LISTS _tirx_output_defaults)
+    unset(CMAKE_${_kind}_OUTPUT_DIRECTORY)
+  endforeach()
+endif()
+# ######### Parent build settings ##########
+
 include(cmake/utils/Utils.cmake)
-include(cmake/utils/Summary.cmake)
 include(cmake/utils/Linker.cmake)
 include(cmake/utils/Library.cmake)
-include(cmake/utils/FindCUDA.cmake)
+include(cmake/utils/CCache.cmake)
+include("${TVM_TIRX_CMAKE_DIR}/utils/FindCUDA.cmake")
+include("${TVM_TIRX_CMAKE_DIR}/utils/FindROCM.cmake")
+include("${TVM_TIRX_CMAKE_DIR}/utils/FindOpenCL.cmake")
 include(cmake/utils/FindNCCL.cmake)
-include(cmake/utils/FindOpenCL.cmake)
-include(cmake/utils/FindVulkan.cmake)
-include(cmake/utils/FindLLVM.cmake)
-include(cmake/utils/FindROCM.cmake)
 include(cmake/utils/FindRCCL.cmake)
 include(cmake/utils/FindNVSHMEM.cmake)
-
-if(EXISTS ${CMAKE_BINARY_DIR}/config.cmake)
-  include(${CMAKE_BINARY_DIR}/config.cmake)
-else()
-  if(EXISTS ${CMAKE_SOURCE_DIR}/config.cmake)
-    include(${CMAKE_SOURCE_DIR}/config.cmake)
-  endif()
+if(NOT TARGET tvm_ffi_header)
+  add_library(tvm_ffi_header ALIAS tvm_ffi::header)
 endif()
+# Existing parent integration modules use the unqualified runtime target.
+if(NOT TARGET tvm_runtime)
+  add_library(tvm_runtime ALIAS tvm_runtime::shared)
+endif()
+set(BUILD_FOR_ANDROID "${ANDROID}")
+if(DEFINED SKBUILD_PROJECT_VERSION_FULL AND NOT DEFINED TVM_VERSION)
+  set(TVM_VERSION "${SKBUILD_PROJECT_VERSION_FULL}")
+elseif(NOT DEFINED TVM_VERSION)
+  set(TVM_VERSION "0.28.dev0")
+endif()
+find_and_set_linker("${TVM_USE_ALTERNATIVE_LINKER}")
 
-# NOTE: do not modify this file to change option values.
-# You can create a config.cmake at build folder
-# and add set(OPTION VALUE) to override these build options.
-# Alernatively, use cmake -DOPTION=VALUE through command-line.
-tvm_option(USE_CUDA "Build with CUDA" OFF)
-tvm_option(USE_NCCL "Build with NCCL" OFF)
-tvm_option(USE_OPENCL "Build with OpenCL" OFF)
-tvm_option(USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
-tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
-tvm_option(USE_VULKAN "Build with Vulkan" OFF)
+# ######### Compiler and runtime extensions ##########
 
-
-# Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
-#
-# Possible values:
-# - OFF: not to use
-# - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
-#
-tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab" OFF)
-tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
-tvm_option(USE_METAL "Build with Metal" OFF)
-tvm_option(USE_ROCM "Build with ROCM" OFF)
-tvm_option(USE_RCCL "Build with RCCL" OFF)
-tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
-tvm_option(USE_HEXAGON_QHL "Enable Hexagon QHL compiler lowering (requires external runtime wrappers)" OFF)
-
-tvm_option(USE_RPC "Build with RPC" ON)
-tvm_option(USE_THREADS "Build with thread support" ON)
-tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
-tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
-tvm_option(TVM_LOG_BEFORE_THROW "Whether log before throw, for debugging purposes" OFF)
-tvm_option(USE_RTTI "Build with RTTI" ON)
-tvm_option(USE_MSVC_MT "Build with MT" OFF)
-tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
-tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." ON)
-tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
-tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
-tvm_option(USE_CUSTOM_LOGGING "Use user-defined custom logging, tvm::runtime::detail::LogFatalImpl and tvm::runtime::detail::LogMessageImpl must be implemented" OFF)
-tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking compiler to link artifact" AUTO)
-tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
-
-# 3rdparty libraries
-tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
-# Contrib library options
-tvm_option(USE_BLAS "The blas library to be linked" none)
-tvm_option(USE_AMX "Enable Intel AMX" OFF)
-tvm_option(USE_Z3 "Build with Z3 SMT solver support" AUTO)
-tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
-tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
-tvm_option(USE_CUDNN "Build with cuDNN" OFF)
-tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
-tvm_option(USE_NVTX "Build with NVTX" OFF)
-tvm_option(USE_CUTLASS "Build with CUTLASS" OFF)
-tvm_option(USE_THRUST "Build with Thrust" OFF)
-tvm_option(USE_CURAND "Build with cuRAND" OFF)
-tvm_option(USE_HIPBLAS "Build with ROCM:HIPBLAS" OFF)
-tvm_option(USE_SORT "Build with sort support" ON)
-tvm_option(USE_RANDOM "Build with random support" ON)
-tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
-tvm_option(USE_IOS_RPC "Build iOS RPC" OFF)
-tvm_option(USE_COREML "Build with coreml support" OFF)
-tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
-tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
-tvm_option(USE_NNAPI_CODEGEN "Build with NNAPI Codegen support" OFF)
-tvm_option(USE_NNAPI_RUNTIME "Build with NNAPI runtime" OFF)
-tvm_option(USE_EXAMPLE_NPU_CODEGEN "Build with Example NPU Codegen support" OFF)
-tvm_option(USE_EXAMPLE_NPU_RUNTIME "Build with Example NPU runtime" OFF)
-tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
-tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
-tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
-tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
-
-# Python package options
-tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" OFF)
-
-# include directories
-include_directories(${CMAKE_INCLUDE_PATH})
-include_directories("include")
-include_directories(SYSTEM ${COMPILER_RT_PATH})
-
-# initial variables
-set(TVM_LINKER_LIBS "")
-set(TVM_RUNTIME_LINKER_LIBS "")
+add_library(tvm_compiler SHARED)
+tvm_configure_target(tvm_compiler)
 set(TVM_RUNTIME_BACKEND_LIBS "")
-# Early target creation so contrib cmake files can call
-# target_link_libraries(tvm_runtime_extra PRIVATE <object_lib>) directly.
-add_library(tvm_runtime_extra SHARED)
-list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_extra)
-set_target_properties(tvm_runtime_extra PROPERTIES LINKER_LANGUAGE CXX)
-# INTERFACE target carrying compile definitions for OBJECT libs that build
-# into tvm_runtime_extra. On MSVC, TVM_RUNTIME_EXTRA_EXPORTS exports extra-owned
-# APIs while core-runtime APIs remain imports from tvm_runtime.dll.
-add_library(tvm_runtime_extra_defs INTERFACE)
-target_link_libraries(tvm_runtime_extra_defs INTERFACE tvm_ffi_header)
-target_compile_definitions(tvm_runtime_extra_defs
-  INTERFACE TVM_RUNTIME_EXTRA_EXPORTS TVM_FFI_EXPORTS)
-
-
-# Check if this is being run on its own or as a subdirectory for another project
-# If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
-get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
-
-if(NOT IS_SUBPROJECT AND NOT DEFINED "${CMAKE_EXPORT_COMPILE_COMMANDS}")
-  # If not set manually, change the default to ON
-  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-endif()
-
-if(TVM_LOG_BEFORE_THROW)
-  # log error before throw as
-  # when system have issues with stack trace
-  add_definitions(-DTVM_LOG_BEFORE_THROW=1)
-endif()
-
-# Generic compilation options
-if(MSVC)
-  add_definitions(-DWIN32_LEAN_AND_MEAN)
-  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-  add_definitions(-D_SCL_SECURE_NO_WARNINGS)
-  add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
-  add_definitions(-DNOMINMAX)
-  # regeneration does not work well with msbuild custom rules.
-  set(CMAKE_SUPPRESS_REGENERATION ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-  add_compile_options(/bigobj)
-
-  # Use standard-conforming two-phase name resolution for templates.
-  # This minimizes the differences between g++/clang builds on Linux,
-  # and MSVC builds on Windows.
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive-")
-
-  # MSVC already errors on undefined symbols, no additional flag needed.
-  set(TVM_NO_UNDEFINED_SYMBOLS "")
-
-  if(USE_MSVC_MT)
-    foreach(flag_var
-        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-      if(${flag_var} MATCHES "/MD")
-        string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-      endif(${flag_var} MATCHES "/MD")
-    endforeach(flag_var)
-    # Static linking. CMake behavior changed in 3.15 making this necessary.
-    add_compile_options(/MT)
-  endif()
-  # Disable common MSVC warnings
-  # Integer conversion warnings(e.g. int64 to int)
-  add_compile_options(/wd4244)
-  add_compile_options(/wd4267)
-  # Signed unsigned constant comparison
-  add_compile_options(/wd4018)
-  # Aligned alloc may not met(need c++17)
-  add_compile_options(/wd4316)
-  # unreferenced local variables(usually in exception catch)
-  add_compile_options(/wd4101)
-  # always inline keyword not necessary
-  add_compile_options(/wd4180)
-  # DLL interface warning in c++
-  add_compile_options(/wd4251)
-  # destructor was implicitly defined as deleted
-  add_compile_options(/wd4624)
-  # unary minus operator applied to unsigned type, result still unsigned
-  add_compile_options(/wd4146)
-  # 'inline': used more than once
-  add_compile_options(/wd4141)
-  # unknown pragma
-  add_compile_options(/wd4068)
-else(MSVC)
-  set(WARNING_FLAG -Wall)
-  if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message(STATUS "Build in Debug mode")
-    set(CMAKE_C_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
-    set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
-  else()
-    set(CMAKE_C_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
-    set(CMAKE_CUDA_FLAGS "-O2 -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
-    set(TVM_VISIBILITY_FLAG "")
-    if (HIDE_PRIVATE_SYMBOLS)
-      message(STATUS "Hide private symbols...")
-      set(TVM_VISIBILITY_FLAG "-fvisibility=hidden")
-    endif(HIDE_PRIVATE_SYMBOLS)
-  endif ()
-  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND
-      CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
-    set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
-  endif()
-
-  # ld option to warn if symbols are undefined (e.g. libtvm_runtime.so
-  # using symbols only present in libtvm.so).  Not needed for MSVC,
-  # since this is already the default there.
-  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin" OR ${CMAKE_SYSTEM_NAME} MATCHES "iOS")
-    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,-undefined,error")
-  else()
-    set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,--no-undefined")
-  endif()
-  message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
-
-  # Detect if we're compiling for Android.
-  set(TEST_FOR_ANDROID_CXX
-      "#ifndef __ANDROID__"
-      "#error"
-      "#endif"
-      "int main() {}")
-  set(TEST_FOR_ANDROID_DIR
-      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
-  set(TEST_FOR_ANDROID_FILE "${TEST_FOR_ANDROID_DIR}/test_for_android.cc")
-  string(REPLACE ";" "\n" TEST_FOR_ANDROID_CXX_TEXT "${TEST_FOR_ANDROID_CXX}")
-  file(WRITE "${TEST_FOR_ANDROID_FILE}" "${TEST_FOR_ANDROID_CXX_TEXT}")
-  try_compile(BUILD_FOR_ANDROID "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
-              "${TEST_FOR_ANDROID_FILE}")
-  file(REMOVE "${TEST_FOR_ANDROID_FILE}")
-  if(BUILD_FOR_ANDROID)
-    message(STATUS "Building for Android")
-  endif()
-endif(MSVC)
-
-list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
-
-# add source group
-tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
-tvm_file_glob(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
-assign_source_group("Source" ${GROUP_SOURCE})
-assign_source_group("Include" ${GROUP_INCLUDE})
-
-# Source file lists
-# Core compiler sources, extended by the backend modules.
-tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
-    src/ir/*.cc
-    src/sym/*.cc
+file(GLOB_RECURSE COMPILER_SRCS CONFIGURE_DEPENDS
     src/te/*.cc
-    src/tirx/*.cc
     src/s_tir/*.cc
     src/topi/*.cc
     src/driver/*.cc
-    src/support/*.cc
-    # Shared printer and TVMScript IR builder. Per-dialect printer/builder pieces
-    # live under src/<dialect>/script/. List shared files explicitly so a dialect
-    # implementation cannot be silently included through a recursive glob.
-    src/script/ir_builder/base.cc
-    src/script/ir_builder/ir.cc
-    src/script/ir_builder/frame.cc
-    src/script/printer/config.cc
-    src/script/printer/doc.cc
-    src/script/printer/doc_translator.cc
-    src/script/printer/ir/call.cc
-    src/script/printer/ir/utils.cc
-    src/script/printer/ir/ir.cc
-    src/script/printer/ir/misc.cc
-    src/script/printer/ir/prim_type.cc
-    src/script/printer/ir/prim_expr.cc
-    src/script/printer/ir/stmt.cc
-    src/script/printer/printer.cc
-    src/script/printer/doc_printer.cc
-    src/script/printer/script_printer.cc
     src/relax/ir/*.cc
     src/relax/op/*.cc
     src/relax/analysis/*.cc
@@ -306,431 +225,184 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/relax/op/distributed/*.cc
     src/relax/script/*.cc
     src/relax/testing/*.cc
-    )
-
-tvm_file_glob(GLOB CODEGEN_SRCS
-  src/target/*.cc
-  src/codegen/c/*.cc
-  src/codegen/*.cc
-  src/codegen/canonicalizer/*.cc
-  src/codegen/llvm/target_kind.cc
-  src/codegen/llvm/canonicalizer/*.cc
-  src/backend/cuda/codegen/*.cc
-  src/backend/cuda/op/*.cc
-  src/backend/cuda/transforms/*.cc
-  src/backend/cuda/tile/*.cc
-  src/backend/cuda/layout/*.cc
-  src/backend/hexagon/codegen/*.cc
-  src/backend/metal/codegen/*.cc
-  src/backend/metal/op/*.cc
-  src/backend/opencl/codegen/*.cc
-  src/backend/opencl/op/*.cc
-  src/backend/rocm/codegen/*.cc
-  src/backend/trn/codegen/*.cc
-  src/backend/trn/op/*.cc
-  src/backend/trn/transform/*.cc
-  src/backend/trn/layout/*.cc
-  src/backend/vulkan/codegen/target_kind.cc
-  src/backend/vulkan/codegen/vulkan_fallback_module.cc
-  src/backend/webgpu/codegen/*.cc
-    )
-
-list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
-# Core runtime sources, extended by the backend modules.
-tvm_file_glob(GLOB RUNTIME_SRCS
-  src/runtime/*.cc
-  src/runtime/rpc/minrpc/*.cc
 )
-# VM-owned runtime implementations, including external-module constant loading.
-tvm_file_glob(GLOB RUNTIME_VM_SRCS src/runtime/vm/*.cc)
-list(APPEND RUNTIME_SRCS ${RUNTIME_VM_SRCS})
-# Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
-# Note: src/backend/*/runtime sources move to per-backend DSOs.
-set(TVM_RUNTIME_EXT_OBJS "")
 
-if(USE_RPC)
-  message(STATUS "Build with RPC support...")
-  tvm_file_glob(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
-endif(USE_RPC)
-
-# Package runtime rules
-if(NOT USE_RTTI)
+# Timing, VM, RPC, Disco and optional integrations remain parent runtime extensions.
+add_library(tvm_runtime_extra SHARED)
+tvm_configure_target(tvm_runtime_extra)
+add_library(tvm_runtime_extra_defs INTERFACE)
+target_link_libraries(tvm_runtime_extra_defs INTERFACE
+  tvm_runtime::shared tvm_ffi::shared)
+target_include_directories(tvm_runtime_extra_defs SYSTEM INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
+target_compile_definitions(tvm_runtime_extra_defs INTERFACE TVM_RUNTIME_EXTRA_EXPORTS TVM_FFI_EXPORTS)
+target_compile_features(tvm_runtime_extra_defs INTERFACE cxx_std_20)
+target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_extra_defs)
+file(GLOB _vm_sources CONFIGURE_DEPENDS src/runtime/vm/*.cc src/runtime/rpc/minrpc/*.cc)
+target_sources(tvm_runtime_extra PRIVATE src/runtime/timer.cc ${_vm_sources})
+if(TVM_USE_RPC)
+  file(GLOB _rpc_sources CONFIGURE_DEPENDS src/runtime/rpc/*.cc)
+  target_sources(tvm_runtime_extra PRIVATE ${_rpc_sources})
+  if(WIN32)
+    target_link_libraries(tvm_runtime_extra PRIVATE ws2_32)
+  endif()
 endif()
-
-if(INDEX_DEFAULT_I64)
-  add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
+if(TVM_TIRX_USE_CUDA)
+  if(NOT TARGET tvm_runtime_cuda)
+    message(FATAL_ERROR "Parent CUDA support requires a CUDA-enabled core")
+  endif()
+  # The frontend also compiles and links against the cuDNN library.
+  if(TVM_USE_CUDNN_FRONTEND AND NOT TVM_USE_CUDNN)
+    find_cuda(${TVM_TIRX_USE_CUDA} ON)
+  else()
+    find_cuda(${TVM_TIRX_USE_CUDA} ${TVM_USE_CUDNN})
+  endif()
+  enable_language(CUDA)
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES native)
+  endif()
+  target_include_directories(tvm_runtime_extra_defs SYSTEM INTERFACE ${CUDA_INCLUDE_DIRS})
+  target_include_directories(tvm_compiler SYSTEM PRIVATE ${CUDA_INCLUDE_DIRS})
+  file(GLOB _vm_cuda_sources CONFIGURE_DEPENDS src/runtime/vm/cuda/*.cc)
+  target_sources(tvm_runtime_extra PRIVATE ${_vm_cuda_sources})
 endif()
-
-if(USE_KALLOC_ALIGNMENT)
-  message(STATUS "Build Alloc alignment set to ${USE_KALLOC_ALIGNMENT}")
-  add_definitions(-DTVM_KALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
-endif(USE_KALLOC_ALIGNMENT)
-
-# Caches the build.
-# Note that ccache-3.x doesn't support nvcc well, so CUDA kernels may never hit the cache and still
-# need to be re-compiled every time. Using ccache 4.0+ can resolve this issue.
-include(cmake/utils/CCache.cmake)
-
-include(CheckCXXCompilerFlag)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 20)
-
-# Module rules
-include(cmake/modules/CUDA.cmake)
-include(cmake/modules/contrib/CLML.cmake) # Must be before OpenCL.cmake
-include(cmake/modules/OpenCL.cmake)
-include(cmake/modules/OpenMP.cmake)
-include(cmake/modules/Vulkan.cmake)
-include(cmake/modules/Metal.cmake)
-include(cmake/modules/ROCM.cmake)
-include(cmake/modules/LLVM.cmake)
+if(TVM_TIRX_USE_ROCM)
+  if(NOT TARGET tvm_runtime_rocm)
+    message(FATAL_ERROR "Parent ROCm support requires a ROCm-enabled core")
+  endif()
+  if("${TVM_TIRX_USE_ROCM}" MATCHES ${IS_TRUE_PATTERN} AND IS_DIRECTORY "${TVM_TIRX_ROCM_PATH}")
+    find_rocm("${TVM_TIRX_ROCM_PATH}")
+  else()
+    find_rocm(${TVM_TIRX_USE_ROCM})
+  endif()
+  target_include_directories(tvm_runtime_extra_defs SYSTEM INTERFACE ${ROCM_INCLUDE_DIRS})
+  target_compile_definitions(tvm_runtime_extra_defs INTERFACE __HIP_PLATFORM_HCC__=1 __HIP_PLATFORM_AMD__=1)
+  target_include_directories(tvm_compiler SYSTEM PRIVATE ${ROCM_INCLUDE_DIRS})
+  target_compile_definitions(tvm_compiler PRIVATE __HIP_PLATFORM_HCC__=1 __HIP_PLATFORM_AMD__=1)
+endif()
+if(TVM_USE_NVTX)
+  target_compile_definitions(tvm_runtime_extra_defs INTERFACE TVM_NVTX_ENABLED=1)
+endif()
+include(cmake/modules/contrib/CUDA.cmake)
+include(cmake/modules/contrib/ROCM.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/AMX.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
+include(cmake/modules/contrib/CLML.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Sort.cmake)
-include(cmake/modules/contrib/Z3.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/NNAPI.cmake)
 include(cmake/modules/contrib/ExampleNPU.cmake)
 include(cmake/modules/contrib/vllm.cmake)
-include(cmake/modules/Git.cmake)
-
+if(TVM_USE_CLML_GRAPH_EXECUTOR)
+  target_link_libraries(tvm_clml_objs PRIVATE tvm_runtime_opencl)
+  target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_opencl)
+endif()
+if(TARGET tvm_clml_objs)
+  # CLML shares OpenCL implementation types; these are source inputs, not an
+  # installed core interface. The parent sdist carries their bounded closure.
+  target_include_directories(tvm_clml_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tirx/src")
+endif()
+# Retain the upstream runtime-extra assembly module and its target composition.
 include(cmake/modules/RuntimeExtra.cmake)
-add_subdirectory(3rdparty/tvm-ffi)
-include(GNUInstallDirs)
-
-if(USE_THREADS)
-  message(STATUS "Build with thread support...")
-  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-  set(THREADS_PREFER_PTHREAD_FLAG TRUE)
-  find_package(Threads REQUIRED)
-endif()
-
-set(TVM_IS_DEBUG_BUILD OFF)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_CXX_FLAGS MATCHES "-g")
-  set(TVM_IS_DEBUG_BUILD ON)
-  set(FILE_PREFIX_MAP_FLAG "-ffile-prefix-map=..=${CMAKE_CURRENT_SOURCE_DIR}")
-  CHECK_CXX_COMPILER_FLAG("${FILE_PREFIX_MAP_FLAG}" FILE_PREFIX_MAP_SUPPORTED)
-endif()
-
-# Core runtime objects are shared by the dynamic and static libraries.
-add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
-target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
-if(TVM_VISIBILITY_FLAG)
-  target_compile_options(tvm_runtime_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-endif()
-if(MSVC)
-  # Runtime objects export only runtime/FFI symbols, never compiler symbols.
-  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_RUNTIME_EXPORTS TVM_FFI_EXPORTS)
-endif()
-
-# Loaded with RTLD_GLOBAL so downstream runtime modules can resolve its symbols.
-add_library(tvm_runtime SHARED
-  $<TARGET_OBJECTS:tvm_runtime_objs>
-  ${TVM_RUNTIME_EXT_OBJS}
-)
-target_link_libraries(tvm_runtime PUBLIC tvm_ffi_shared)
-set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
-set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-
-# Static consumers must retain registration objects from both archives, with
-# tvm_ffi_static before tvm_runtime_static so FFI type attributes initialize first:
-#   -Wl,--whole-archive tvm_ffi_static tvm_runtime_static -Wl,--no-whole-archive
-# Use the corresponding archive-retention flags on other platforms.
-add_library(tvm_runtime_static STATIC
-  $<TARGET_OBJECTS:tvm_runtime_objs>
-  ${TVM_RUNTIME_EXT_OBJS}
-)
-target_link_libraries(tvm_runtime_static PUBLIC tvm_ffi_static)
-if(MSVC)
-  # Static consumers reference ordinary symbols rather than DLL import stubs.
-  target_compile_definitions(tvm_runtime_static INTERFACE
-    TVM_RUNTIME_DLL= TVM_RUNTIME_DLL_EXPORT= TVM_FFI_DLL= TVM_FFI_DLL_EXPORT=)
-endif()
-
-foreach(runtime_target tvm_runtime tvm_runtime_static)
-  target_include_directories(${runtime_target} PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-  target_link_libraries(${runtime_target} PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
-  if(USE_THREADS)
-    target_link_libraries(${runtime_target} PUBLIC Threads::Threads)
+target_link_libraries(tvm_runtime_extra PRIVATE ${CMAKE_DL_LIBS})
+target_sources(tvm_compiler PRIVATE ${COMPILER_SRCS})
+target_compile_definitions(tvm_compiler PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
+target_link_libraries(tvm_compiler PUBLIC tvm_tirx_compiler::shared tvm_ffi::shared tvm_runtime_extra)
+target_include_directories(tvm_compiler SYSTEM PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
+foreach(_target tvm_compiler tvm_runtime_extra)
+  target_include_directories(${_target} PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+  if(APPLE)
+    target_link_options(${_target} PRIVATE "LINKER:-undefined,error")
+  elseif(NOT MSVC)
+    target_link_options(${_target} PRIVATE "LINKER:--no-undefined")
   endif()
+  set_target_properties(${_target} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+  if(MSVC)
+    foreach(_config RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+      set_target_properties(${_target} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY_${_config} "${CMAKE_BINARY_DIR}/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_${_config} "${CMAKE_BINARY_DIR}/lib"
+        RUNTIME_OUTPUT_DIRECTORY_${_config} "${CMAKE_BINARY_DIR}/lib")
+    endforeach()
+  endif()
+  tvm_configure_target_library(${_target})
+  if(APPLE)
+    set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "@loader_path/../../tvm_tirx/lib")
+  elseif(UNIX)
+    set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../tvm_tirx/lib")
+  endif()
+  if(TVM_BUILD_PYTHON_MODULE)
+    if(APPLE)
+      set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "@loader_path/../../tvm_ffi/lib")
+    elseif(UNIX)
+      set_property(TARGET ${_target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../tvm_ffi/lib")
+    endif()
+  endif()
+  tvm_ffi_add_apple_dsymutil(${_target})
 endforeach()
-
-set_target_properties(tvm_runtime tvm_runtime_static PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-if(MSVC)
-  foreach(config_type Release RELEASE Debug DEBUG RelWithDebInfo RELWITHDEBINFO MinSizeRel MINSIZEREL)
-    set_target_properties(tvm_runtime tvm_runtime_static PROPERTIES
-      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-    )
-  endforeach()
-endif()
-
-if(TVM_IS_DEBUG_BUILD AND FILE_PREFIX_MAP_SUPPORTED)
-  target_compile_options(tvm_runtime PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
-  target_compile_options(tvm_runtime_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
-endif()
-
-tvm_ffi_add_apple_dsymutil(tvm_runtime)
-tvm_configure_target_library(tvm_runtime)
-add_custom_target(runtime DEPENDS tvm_runtime tvm_runtime_static)
-install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
-# Keep wheel contents unchanged; the archive is available to native consumers.
-if(NOT TVM_BUILD_PYTHON_MODULE)
-  install(TARGETS tvm_runtime_static DESTINATION lib${LIB_SUFFIX})
-endif()
-add_library(tvm_objs OBJECT ${COMPILER_SRCS})
-target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
-if(TARGET tvm_llvm_header)
-  target_link_libraries(tvm_objs PUBLIC tvm_llvm_header)
-endif()
-if(TVM_VISIBILITY_FLAG)
-  target_compile_options(tvm_objs PRIVATE "${TVM_VISIBILITY_FLAG}")
-endif()
-if(MSVC)
-  # Compiler objects import runtime symbols from the separate runtime DLL.
-  target_compile_definitions(tvm_objs PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
-endif()
-
-# Compiler library: built from compiler-only sources.
-# Links against tvm_runtime (and tvm_ffi_shared transitively). Loaded with
-# RTLD_LOCAL so compiler-internal symbols don't leak into the global namespace.
-add_library(tvm_compiler SHARED
-  $<TARGET_OBJECTS:tvm_objs>
-)
-target_link_libraries(tvm_compiler PUBLIC tvm_runtime tvm_ffi_shared)
-target_include_directories(tvm_compiler PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
-set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-
-# Work around a GNU ld (binutils) relaxation bug that miscompiles
-# R_X86_64_GOTPCRELX relocations inside very large statically-linked archives.
-# When the full LLVM static libraries are linked into libtvm_compiler.so, the
-# library is large enough that ld can relax an indirect GOT call (LLVM built
-# with -fno-plt emits these) into a direct call with an incorrect displacement.
-# The call then targets read-only data instead of the intended function and
-# crashes at runtime with a SIGSEGV inside llvm::X86Subtarget during code
-# generation. Disabling linker relaxation keeps the GOT-indirect sequences and
-# avoids the miscompilation; it is harmless when LLVM is linked dynamically.
-# See binutils bug ld/25754.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${USE_LLVM}" MATCHES ${IS_FALSE_PATTERN})
-  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--no-relax")
-  # LLVM's --system-libs reports -lxml2, but TVM calls no libxml2 symbols. The
-  # manylinux toolchain does not default to --as-needed, so set it explicitly:
-  # the unused libxml2 is then not recorded as a NEEDED dependency, so auditwheel
-  # does not vendor it (and its deps) into the wheel.
-  set_property(TARGET tvm_compiler APPEND PROPERTY LINK_OPTIONS "-Wl,--as-needed")
-endif()
-
-set_target_properties(tvm_compiler PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-if(MSVC)
-  foreach(config_type Release RELEASE Debug DEBUG RelWithDebInfo RELWITHDEBINFO MinSizeRel MINSIZEREL)
-    set_target_properties(tvm_compiler PROPERTIES
-      ARCHIVE_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-      LIBRARY_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-      RUNTIME_OUTPUT_DIRECTORY_${config_type} "${CMAKE_BINARY_DIR}/lib"
-    )
-  endforeach()
-endif()
-
-if(USE_THREADS)
-  target_link_libraries(tvm_compiler PUBLIC Threads::Threads)
-endif()
-target_link_libraries(tvm_compiler PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-
-if(TVM_IS_DEBUG_BUILD)
-  target_compile_options(tvm_compiler PRIVATE "${FILE_PREFIX_MAP_FLAG}")
-  if(FILE_PREFIX_MAP_SUPPORTED)
-    target_compile_options(tvm_compiler PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
-    target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
-  endif()
-endif()
-
-tvm_ffi_add_apple_dsymutil(tvm_compiler)
-tvm_configure_target_library(tvm_compiler)
-install(TARGETS tvm_compiler DESTINATION lib${LIB_SUFFIX})
-
-# logging option for libbacktrace
-include(cmake/modules/Logging.cmake)
-
-if(USE_CPP_RPC)
-  add_subdirectory("apps/cpp_rpc")
-endif()
-
-if(USE_CPP_RTVM)
-  add_subdirectory("apps/cpp_rtvm")
-endif()
-
-if(USE_IOS_RPC)
-  add_subdirectory("apps/ios_rpc")
-endif()
-
-# Set flags for clang
-include(cmake/modules/ClangFlags.cmake)
-# Installation rules
-if (INSTALL_DEV)
-  install(
-    DIRECTORY "include/" DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
-else(INSTALL_DEV)
-  install(
-    DIRECTORY "include/tvm/runtime" "include/tvm/support" DESTINATION "include/tvm"
-    FILES_MATCHING
-    PATTERN "*.h"
-    )
-endif(INSTALL_DEV)
-
-include(CMakePackageConfigHelpers)
-set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
-string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
-string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
-string(APPEND PROJECT_CONFIG_CONTENT
-       "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
-
-# install(EXPORT ${PROJECT_NAME}Targets
-#   NAMESPACE ${PROJECT_NAME}::
-#   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
-
-# Create config for find_package()
-configure_package_config_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
-
-install(
-  FILES
-  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
-
-find_and_set_linker(${USE_ALTERNATIVE_LINKER})
-
-if(${SUMMARIZE})
-  print_summary()
-endif()
-
-dump_options_to_file("${TVM_ALL_OPTIONS}")
-
-if(USE_CUDA AND USE_CUTLASS)
-  install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-  # fpA_intB_gemm, fpA_intB_gemm_tvm, and flash_attn are linked by
-  # tvm_runtime_extra (see RuntimeExtra.cmake); no link needed here.
-endif()
-
-if(USE_CUDA AND USE_NVTX)
-  add_compile_definitions(TVM_NVTX_ENABLED=1)
-endif()
-
-# Tests inherit the final project linker flags and compile definitions.
 add_subdirectory(tests/cpp)
 if(GTEST_FOUND)
-  # CTest must also be enabled at the project root for subdirectory discovery.
   enable_testing()
   include(CTest)
 endif()
-
-# Python package installation configuration
-# This section ensures that all necessary files are installed for the Python wheel
-if(TVM_BUILD_PYTHON_MODULE)
-  message(STATUS "Configuring Python package installation")
-
-  # Install compiled shared libraries into <project>/lib so that
-  # tvm_ffi.libinfo.load_lib_ctypes(package="tvm", target_name=...) can find
-  # them via the package RECORD or the project's lib/ fallback dir.
-  install(TARGETS tvm_compiler DESTINATION "lib")
-  install(TARGETS tvm_runtime DESTINATION "lib")
-
-  # Install third-party compiled dependencies into the same lib/ dir.
-  if(TARGET fpA_intB_gemm)
-    tvm_configure_target_library(fpA_intB_gemm)
-    install(TARGETS fpA_intB_gemm DESTINATION "lib")
+if(TARGET cpptest AND TARGET tirx_cpptest)
+  add_dependencies(cpptest tirx_cpptest)
+endif()
+add_custom_target(runtime DEPENDS tvm_runtime_extra)
+add_dependencies(runtime tvm_runtime::shared)
+set(TVM_RUNTIME_BACKEND_LIBS tvm_runtime_extra)
+foreach(_backend cuda opencl vulkan metal rocm)
+  if(TARGET tvm_runtime_${_backend})
+    list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_${_backend})
   endif()
-  if(TARGET flash_attn)
-    tvm_configure_target_library(flash_attn)
-    install(TARGETS flash_attn DESTINATION "lib")
-  endif()
+endforeach()
+if(TVM_USE_CPP_RPC)
+  add_subdirectory(apps/cpp_rpc)
+endif()
+if(TVM_USE_IOS_RPC)
+  add_subdirectory(apps/ios_rpc)
+endif()
 
-  # Install prebuilt extra runtime libraries into the same lib/ dir. This is how
-  # the separately-built CUDA runtime (libtvm_runtime_cuda.so) is bundled: the
-  # publishing flow builds it in a CUDA-enabled environment and passes its path
-  # via TVM_PACKAGE_EXTRA_LIBS, so it ships through the normal CMake install
-  # rather than a post-build wheel rewrite.
-  foreach(_extra_lib IN LISTS TVM_PACKAGE_EXTRA_LIBS)
-    if(NOT EXISTS "${_extra_lib}")
-      message(FATAL_ERROR "TVM_PACKAGE_EXTRA_LIBS entry does not exist: ${_extra_lib}")
-    endif()
-    install(FILES "${_extra_lib}" DESTINATION "lib")
+# ######### Installation (parent package only) ##########
+
+install(TARGETS tvm_compiler tvm_runtime_extra
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+  RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm)
+if(TVM_TIRX_USE_CUDA AND TVM_USE_CUTLASS)
+  foreach(_target fpA_intB_gemm flash_attn)
+    tvm_configure_target_library(${_target})
   endforeach()
-
-  # Install minimal header files needed by Python extensions
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/runtime/"
-    DESTINATION "include/tvm/runtime/"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
-
-  # Install minimal CMake configuration
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils/"
-    DESTINATION "cmake/utils/"
-    FILES_MATCHING
-    PATTERN "*.cmake"
-  )
-
-  # Install CUTLASS headers only if available
+  install(TARGETS fpA_intB_gemm flash_attn
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm
+    RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT tvm)
+endif()
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h")
+# Parent minRPC compilation retains its own source and private header closure.
+install(DIRECTORY src/runtime/rpc/ DESTINATION src/runtime/rpc
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.cc")
+install(DIRECTORY src/support/ DESTINATION src/support
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h")
+install(DIRECTORY src/runtime/extra/ DESTINATION src/runtime/extra
+  COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.cuh")
+if(TVM_BUILD_PYTHON_MODULE)
+  install(DIRECTORY web/ DESTINATION web COMPONENT tvm)
+  install(DIRECTORY licenses/ DESTINATION licenses COMPONENT tvm)
+  install(FILES LICENSE NOTICE DESTINATION . COMPONENT tvm)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
-    install(
-      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include/"
-      DESTINATION "3rdparty/cutlass/include/"
-      FILES_MATCHING
-      PATTERN "*.h"
-      PATTERN "*.hpp"
-    )
+    install(DIRECTORY 3rdparty/cutlass/include/ DESTINATION 3rdparty/cutlass/include
+      COMPONENT tvm FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
   endif()
-
-  # Install minimal source files
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/"
-    DESTINATION "src/runtime/"
-    FILES_MATCHING
-    PATTERN "*.cc"
-    PATTERN "*.h"
-  )
-
-  # Install web package
-  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/web/" DESTINATION "web/")
-
-  # Install licenses (required for distribution)
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
-    DESTINATION "licenses/"
-  )
-
-  # Install essential metadata files
-  install(FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
-    "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE"
-    DESTINATION "."
-  )
-
-  message(STATUS "Python package installation configured")
 endif()

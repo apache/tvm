@@ -21,6 +21,7 @@
  * \file relax/ir/transform.cc
  * \brief Relax specific transformation passes.
  */
+#include <tvm/base.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>

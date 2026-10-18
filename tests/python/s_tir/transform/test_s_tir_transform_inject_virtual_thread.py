@@ -18,17 +18,18 @@
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
@@ -87,8 +88,8 @@ def test_vthread_extern():
                 A = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 B = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
                 C = T.alloc_tensor(ty_args=[T.Tensor((m,), "float32", scope="shared")])
-                A[vt_x] = T.Cast(vt_x, "float32") + T.float32(1)
-                B[vt_y] = T.Cast(vt_y, "float32") + T.float32(1)
+                A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
+                B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
                     T.call_extern(
                         "Run",
@@ -145,7 +146,7 @@ def test_vthread_if_then_else():
     if_nodes = []
 
     def find_ifs(node):
-        if isinstance(node, tvm.ir.If):
+        if isinstance(node, tvm_tirx.ir.If):
             if_nodes.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_ifs)
@@ -179,11 +180,13 @@ def test_vthread_simplified():
         B[T.ramp(T.Mul(2, 4), 1, 4)] = T.broadcast(2, 4)
         B[T.ramp(T.Mul(3, 4), 1, 4)] = T.broadcast(3, 4)
 
-    before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+    before_mod = tvm_tirx.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
     after_func = after_mod["main"]
 
-    tvm.ir.assert_structural_equal(after_func, expected_func.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        after_func, expected_func.with_attr("global_symbol", "main")
+    )
 
 
 def test_vthread_vectorized():
@@ -195,9 +198,9 @@ def test_vthread_vectorized():
         B = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="shared")])
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
-    before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+    before_mod = tvm_tirx.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
-    after_mod = tvm.tirx.transform.StorageRewrite()(intermediate_mod)
+    after_mod = tvm_tirx.tirx.transform.StorageRewrite()(intermediate_mod)
     after_func = after_mod["main"]
 
     # Verify the vectorized allocation has the expected shape and dtype
@@ -221,16 +224,16 @@ def test_vthread_rewrites_masked_accesses():
         B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared")])
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         loaded = T.meta_var(T.masked_load(B, T.Ramp(0, 1, 4), mask, ty="float32x4"))
-        value = T.meta_var(loaded + T.Broadcast(T.Cast(vthread, "float32"), 4))
+        value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
         T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
 
     after = tvm.s_tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
+        tvm_tirx.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     )["main"]
     masked_calls = []
 
     def visitor(node):
-        if isinstance(node, tvm.ir.Call) and node.op.name in {
+        if isinstance(node, tvm_tirx.ir.Call) and node.op.name in {
             "tirx.masked_load",
             "tirx.masked_store",
         }:
@@ -239,7 +242,7 @@ def test_vthread_rewrites_masked_accesses():
     tvm_ffi.structural_walk(after.body, visitor)
     assert len(masked_calls) == 4
     assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
-    analyzer = tvm.sym.Analyzer()
+    analyzer = tvm_tirx.sym.Analyzer()
     assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
         0,
         0,
@@ -249,4 +252,4 @@ def test_vthread_rewrites_masked_accesses():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

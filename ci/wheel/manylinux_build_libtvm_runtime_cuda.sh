@@ -39,6 +39,7 @@ dnf -y install cuda-driver-devel-13-1
 # generator (no Ninja), so no build tools are installed here. Put the bundled
 # CPython and CUDA toolchain on PATH for the CMake configure and nvcc.
 export PATH="/opt/python/cp310-cp310/bin:/usr/local/cuda/bin:${PATH}"
+python -m pip install "apache-tvm-ffi>=0.1.15rc0"
 nvcc --version
 
 rm -rf "${build_dir}"
@@ -48,13 +49,12 @@ rm -rf "${build_dir}"
 # intentionally not set: it would be a no-op here for the same reason (verified --
 # the .so is byte-identical across arch values and carries no device code), and
 # modern CMake fills in a default so configure does not fail without it.
-cmake -S "${repo_root}" -B "${build_dir}" \
+cmake -S "${repo_root}/tirx" -B "${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=OFF \
-  -DTVM_BUILD_PYTHON_MODULE=ON \
-  -DUSE_CUDA=/usr/local/cuda \
-  -DUSE_LLVM=OFF \
-  -DUSE_CUBLAS=OFF -DUSE_CUDNN=OFF -DUSE_CUTLASS=OFF -DUSE_NCCL=OFF -DUSE_NVTX=OFF \
+  -DTVM_TIRX_BUILD_TESTS=OFF \
+  -DTVM_TIRX_BUILD_PYTHON_MODULE=ON \
+  -DTVM_TIRX_USE_CUDA=/usr/local/cuda \
+  -DTVM_TIRX_USE_LLVM=OFF \
   -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc
 cmake --build "${build_dir}" --target tvm_runtime tvm_runtime_cuda --parallel "${parallel}"
 

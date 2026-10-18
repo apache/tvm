@@ -21,8 +21,8 @@ import pytest
 import torch
 
 import tvm
-from tvm import relax, testing
-from tvm.ir import TupleType as _TupleType
+import tvm_tirx
+from tvm import relax
 from tvm.relax.testing.transform import (
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
@@ -30,10 +30,12 @@ from tvm.relax.testing.transform import (
     dataflow_single_inplace_call,
 )
 from tvm.relax.transform import DataflowUseInplaceCalls
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import testing
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_liveness_analysis():
@@ -395,7 +397,7 @@ def test_inplace_single_call():
                 Ts.writes(A[v_ax0, v_ax1])
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-    tvm.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
+    tvm_tirx.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
     assert new_add.op.name == "relax.call_tir_inplace"
     assert new_add.args[0].name_hint == "add_inplace"
     for i, arg in enumerate(new_add.args[1].fields):
@@ -422,7 +424,7 @@ def test_inplace_single_call():
     silu_call = TestModule["main"].body.blocks[0].bindings[1].value
     new_silu, new_mod = dataflow_single_inplace_call(TestModule, silu_call, [0])
 
-    tvm.ir.assert_structural_equal(new_mod["silu_inplace"], expected_silu)
+    tvm_tirx.ir.assert_structural_equal(new_mod["silu_inplace"], expected_silu)
     assert new_silu.op.name == "relax.call_tir_inplace"
     assert new_silu.args[0].name_hint == "silu_inplace"
     for i, arg in enumerate(new_silu.args[1].fields):
@@ -526,15 +528,15 @@ def test_insert_inplace_calls():
 
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(EndToEndTest)
-    tvm.ir.assert_structural_equal(new_mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(new_mod, Expected)
 
-    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
-    y = tvm.runtime.tensor(np.random.rand(1, 3).astype("float32"))
+    x = tvm_tirx.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm_tirx.runtime.tensor(np.random.rand(1, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
-    target = tvm.target.Target("llvm")
+    target = tvm_tirx.target.Target("llvm")
     ex = tvm.compile(new_mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = vm["main"](x, y)
     assert (expected == res.numpy()).all()
 
@@ -621,14 +623,14 @@ def test_dynamic():
                 R.output(s)
             return s
 
-    tvm.ir.assert_structural_equal(new_mod, Expected, map_free_vars=True)
-    x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
-    y = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    tvm_tirx.ir.assert_structural_equal(new_mod, Expected, map_free_vars=True)
+    x = tvm_tirx.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+    y = tvm_tirx.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     expected = np.zeros((2, 3), dtype="float32")
 
-    target = tvm.target.Target("llvm")
+    target = tvm_tirx.target.Target("llvm")
     ex = tvm.compile(new_mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = vm["main"](x, y)
     assert (expected == res.numpy()).all()
 
@@ -653,7 +655,7 @@ def test_dynamic_mismatch():
 
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(DynamicMistmatchTestCase)
-    tvm.ir.assert_structural_equal(new_mod, DynamicMistmatchTestCase)
+    tvm_tirx.ir.assert_structural_equal(new_mod, DynamicMistmatchTestCase)
 
 
 class TestViewOpSharedStorageAndNoInplace:
@@ -798,7 +800,7 @@ class TestViewOpSharedStorageAndNoInplace:
             for binding in block.bindings
             if (
                 isinstance(binding.value, relax.Call)
-                and isinstance(binding.value.op, tvm.ir.Op)
+                and isinstance(binding.value.op, tvm_tirx.ir.Op)
                 and binding.value.op.name == view_op
             )
         ]
@@ -813,11 +815,11 @@ class TestViewOpSharedStorageAndNoInplace:
 
         x_np = self._input_for_view_op(view_op).copy()
         mod_inplace = DataflowUseInplaceCalls()(mod)
-        tvm.ir.assert_structural_equal(mod_inplace, mod)
+        tvm_tirx.ir.assert_structural_equal(mod_inplace, mod)
 
-        ex = relax.build(mod_inplace, tvm.target.Target("llvm"))
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        out = vm["main"](tvm.runtime.tensor(x_np, tvm.cpu()))
+        ex = relax.build(mod_inplace, tvm_tirx.target.Target("llvm"))
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+        out = vm["main"](tvm_tirx.runtime.tensor(x_np, tvm_tirx.cpu()))
         np.testing.assert_allclose(out.numpy(), self._expected_for_view_op(view_op))
 
 

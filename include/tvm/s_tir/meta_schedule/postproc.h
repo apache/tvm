@@ -20,6 +20,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_POSTPROC_H_
 #define TVM_S_TIR_META_SCHEDULE_POSTPROC_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>

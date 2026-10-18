@@ -18,9 +18,11 @@
 import pytest
 
 import tvm
-from tvm import s_tir, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm import s_tir
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def test_canonicalize_loop():
@@ -36,9 +38,9 @@ def test_canonicalize_loop():
         for i in T.serial(0, 26):
             B[i * 5 + 1] = A[i * 5 + 1] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     mod = s_tir.transform.CanonicalizeLoop()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_canonicalize_nested_loop():
@@ -56,9 +58,9 @@ def test_canonicalize_nested_loop():
             for j in T.serial(0, 42):
                 B[i * 5 + 1, j * 3 + 2] = A[i * 5 + 1, j * 3 + 2] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm_tirx.IRModule.from_expr(before)
     mod = s_tir.transform.CanonicalizeLoop()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_canonicalize_negative_step():
@@ -68,8 +70,8 @@ def test_canonicalize_negative_step():
         for i in T.serial(0, 127, step=-3):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
-    with pytest.raises(tvm.error.InternalError):
+    mod = tvm_tirx.IRModule.from_expr(before)
+    with pytest.raises(RuntimeError):
         mod = s_tir.transform.CanonicalizeLoop()(mod)
 
 
@@ -82,10 +84,10 @@ def test_canonicalize_dynamic_step():
         for i in T.serial(0, 128, step=step):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
-    with pytest.raises(tvm.error.InternalError):
+    mod = tvm_tirx.IRModule.from_expr(before)
+    with pytest.raises(RuntimeError):
         mod = s_tir.transform.CanonicalizeLoop()(mod)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

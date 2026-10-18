@@ -359,7 +359,7 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   /*! \brief SBlock: resolve each annotation's tensor index through the write regions. */
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    auto it = op->annotations.find(attr::kTensorDimAlign);
+    auto it = op->annotations.find(attr::kTensorDimAlign.name);
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
@@ -380,7 +380,7 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
-    auto it = annotations->dict.find(attr::kTensorDimAlign);
+    auto it = annotations->dict.find(attr::kTensorDimAlign.name);
     if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {

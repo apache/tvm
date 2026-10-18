@@ -17,11 +17,12 @@
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.ir import Range, TensorRegion, TensorRegionType
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType
+from tvm_tirx.script import tirx as T
 
 
 @Ts.function
@@ -237,10 +238,10 @@ def test_block_access_region_detector():
     tensor_var_map = {buf: buf for buf in alloc_tensors}
     ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
 
-    tvm.ir.assert_structural_equal(block.reads, ret[0])
-    tvm.ir.assert_structural_equal(block.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
     D = alloc_tensors[-1]
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         [TensorRegion(D, [Range(0, 128), Range(0, 128)], ty=TensorRegionType())], ret[2]
     )
 
@@ -250,13 +251,13 @@ def test_masked_access_is_not_opaque():
     block = root.body[0].block
     A, B = root.alloc_tensors
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, {A: A, B: B})
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         reads, [TensorRegion(A, [Range.from_min_extent(4, 4)], ty=TensorRegionType())]
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         writes, [TensorRegion(B, [Range.from_min_extent(8, 4)], ty=TensorRegionType())]
     )
-    tvm.ir.assert_structural_equal(opaque, [])
+    tvm_tirx.ir.assert_structural_equal(opaque, [])
 
 
 def test_opaque_block():
@@ -265,13 +266,13 @@ def test_opaque_block():
 
     block0 = opaque_block_func.body[0].block.body[0].body[0].block
     ret = s_tir.analysis.get_sblock_access_region(block0, tensor_var_map)
-    tvm.ir.assert_structural_equal(block0.reads, ret[0])
-    tvm.ir.assert_structural_equal(block0.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block0.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block0.writes, ret[1])
 
     block1 = block0.body[0].body[0].block
     ret = s_tir.analysis.get_sblock_access_region(block1, tensor_var_map)
-    tvm.ir.assert_structural_equal(block1.reads, ret[0])
-    tvm.ir.assert_structural_equal(block1.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block1.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block1.writes, ret[1])
 
 
 def test_opaque_access():
@@ -282,9 +283,9 @@ def test_opaque_access():
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
     with pytest.raises(ValueError):
-        tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+        tvm_tirx.ir.assert_structural_equal(ret0[0], ret1[0])
     with pytest.raises(ValueError):
-        tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+        tvm_tirx.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
 def test_opaque_access_with_pointer():
@@ -299,20 +300,20 @@ def test_opaque_access_with_pointer():
     assert not direct_reads
     assert not direct_writes
     assert len(opaque) == 3
-    tvm.ir.assert_structural_equal(reads, opaque)
-    tvm.ir.assert_structural_equal(writes, opaque)
+    tvm_tirx.ir.assert_structural_equal(reads, opaque)
+    tvm_tirx.ir.assert_structural_equal(writes, opaque)
 
 
 def test_decl_tensor_alias_is_not_an_opaque_access():
     block = decl_tensor_alias_func.body[0].block
     tensor_var_map = {
-        buf: buf for buf in decl_tensor_alias_func.params if tvm.tirx.is_tensor_var(buf)
+        buf: buf for buf in decl_tensor_alias_func.params if tvm_tirx.tirx.is_tensor_var(buf)
     }
 
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(block.reads, reads)
-    tvm.ir.assert_structural_equal(block.writes, writes)
-    tvm.ir.assert_structural_equal([], opaque)
+    tvm_tirx.ir.assert_structural_equal(block.reads, reads)
+    tvm_tirx.ir.assert_structural_equal(block.writes, writes)
+    tvm_tirx.ir.assert_structural_equal([], opaque)
 
 
 def test_match_tensor():
@@ -324,14 +325,14 @@ def test_match_tensor():
 
     # Check block
     ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(block.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
     # B is opaque access
-    tvm.ir.assert_structural_equal(block.reads, ret[2])
+    tvm_tirx.ir.assert_structural_equal(block.reads, ret[2])
 
     # Check inner block AAA without updating tensor_var_map
     ret = s_tir.analysis.get_sblock_access_region(block_inner, tensor_var_map)
     # Since AA is not in the tensor_var_map, region of AA will not be collected.
-    tvm.ir.assert_structural_equal([], ret[1])
+    tvm_tirx.ir.assert_structural_equal([], ret[1])
 
     # Check inner block AAA
     for match_tensor in block.match_tensors:
@@ -339,8 +340,8 @@ def test_match_tensor():
         tensor_var_map[target_tensor] = target_tensor
 
     ret = s_tir.analysis.get_sblock_access_region(block_inner, tensor_var_map)
-    tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
-    tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block_inner.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block_inner.writes, ret[1])
 
 
 def test_access_in_if_then_else_func():
@@ -349,8 +350,8 @@ def test_access_in_if_then_else_func():
     tensor_var_map = {buf: buf for buf in alloc_tensors}
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(ret0[0], ret1[0])
-    tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+    tvm_tirx.ir.assert_structural_equal(ret0[0], ret1[0])
+    tvm_tirx.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
 def test_access_in_branch_func():
@@ -359,8 +360,8 @@ def test_access_in_branch_func():
     tensor_var_map = {buf: buf for buf in alloc_tensors}
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, tensor_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(ret0[0], ret1[0])
-    tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+    tvm_tirx.ir.assert_structural_equal(ret0[0], ret1[0])
+    tvm_tirx.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
 def test_access_of_padding_pattern():
@@ -370,7 +371,7 @@ def test_access_of_padding_pattern():
 
     def do_compare_tensor_region(region, expect):
         assert region.source == expect.source
-        analyzer = tvm.sym.Analyzer()
+        analyzer = tvm_tirx.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.min, expected_range.min)
             analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
@@ -394,8 +395,8 @@ def test_access_of_reduction():
     alloc_tensors = gemm.body[0].block.alloc_tensors
     tensor_var_map = {buf: buf for buf in alloc_tensors}
     ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(block.reads, ret[0])
-    tvm.ir.assert_structural_equal(block.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
 
 
 def test_access_of_decompose_reduction():
@@ -405,8 +406,8 @@ def test_access_of_decompose_reduction():
     tensor_var_map = {buf: buf for buf in alloc_tensors}
     for block in [init, update]:
         ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-        tvm.ir.assert_structural_equal(block.reads, ret[0])
-        tvm.ir.assert_structural_equal(block.writes, ret[1])
+        tvm_tirx.ir.assert_structural_equal(block.reads, ret[0])
+        tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
 
 
 def test_tensor_access_with_let_binding():
@@ -431,10 +432,10 @@ def test_tensor_access_with_let_binding():
                 output[vi, vs] = storage[seq_id, history_id, vs]
 
     block = func.body[0].block.body[0].body[0].body[0].block
-    tensor_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
+    tensor_var_map = {buf: buf for buf in func.params if tvm_tirx.tirx.is_tensor_var(buf)}
     ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(block.reads, ret[0])
-    tvm.ir.assert_structural_equal(block.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
 
 
 def test_tensor_access_with_nested_let_binding():
@@ -457,20 +458,20 @@ def test_tensor_access_with_nested_let_binding():
                 C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
 
     block = func.body[0].block.body[0].body[0].body[0].block
-    tensor_var_map = {buf: buf for buf in func.params if tvm.tirx.is_tensor_var(buf)}
+    tensor_var_map = {buf: buf for buf in func.params if tvm_tirx.tirx.is_tensor_var(buf)}
     ret = s_tir.analysis.get_sblock_access_region(block, tensor_var_map)
-    tvm.ir.assert_structural_equal(block.reads, ret[0])
-    tvm.ir.assert_structural_equal(block.writes, ret[1])
+    tvm_tirx.ir.assert_structural_equal(block.reads, ret[0])
+    tvm_tirx.ir.assert_structural_equal(block.writes, ret[1])
 
 
 @pytest.mark.parametrize("case", ["coupled", "equal", "nonlinear", "empty", "unbounded", "rounded"])
 def test_conditional_inequality_access_regions(case):
     # Retain the live cases from the former sym inequality solver tests through
     # the block-access consumer, including its conservative unresolved fallback.
-    tirx = tvm.tirx
+    tirx = tvm_tirx.tirx
     x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]
     free_var = tirx.Var("free_var", "int32")
-    unbounded_extent = tirx.Cast(1 + tirx.log(free_var), "int32")
+    unbounded_extent = tirx.Cast("int32", 1 + tirx.log(free_var))
     cases = {
         "coupled": (
             [x, y],
@@ -500,23 +501,23 @@ def test_conditional_inequality_access_regions(case):
         "rounded": ([x], [(-20, 41)], tirx.all(x * 3 >= -7, x * 2 <= 9), [(-2, 7)]),
     }
     variables, domains, condition, expected = cases[case]
-    inside = tirx.decl_tensor([256] * len(variables), name="inside")
-    outside = tirx.decl_tensor([256] * len(variables), name="outside")
-    body = tvm.ir.SeqStmt(
+    inside = tirx.Var("inside", tirx.TensorType([256] * len(variables), "float32"))
+    outside = tirx.Var("outside", tirx.TensorType([256] * len(variables), "float32"))
+    body = tvm_tirx.ir.SeqStmt(
         [
-            tvm.ir.If(condition, tvm.ir.Evaluate(inside[tuple(variables)]), None),
-            tvm.ir.Evaluate(outside[tuple(variables)]),
+            tvm_tirx.ir.If(condition, tvm_tirx.ir.Evaluate(inside[tuple(variables)]), None),
+            tvm_tirx.ir.Evaluate(outside[tuple(variables)]),
         ]
     )
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
-        body = tvm.ir.For(var, minimum, extent, tvm.ir.ForKind.DEFAULT, body)
+        body = tvm_tirx.ir.For(var, minimum, extent, tvm_tirx.ir.ForKind.DEFAULT, body)
     block = s_tir.SBlock([], [], [], "conditional", body)
     # Unbounded access sets conservatively cover the whole tensor.
     outside_expected = [(0, 256)] if case == "unbounded" else domains
     reads, writes, opaque = s_tir.analysis.get_sblock_access_region(
         block, {inside: inside, outside: outside}
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         reads,
         [
             TensorRegion(
@@ -537,4 +538,4 @@ def test_conditional_inequality_access_regions(case):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -133,7 +133,8 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
                                                        /*body=*/tuned_function->body,
                                                        /*ret_type=*/tuned_function->ret_type,
                                                        /*attrs=*/function->attrs);
-          new_function = WithAttr(std::move(new_function), tvm::s_tir::attr::kIsScheduled, true);
+          new_function =
+              WithAttr(std::move(new_function), tvm::s_tir::attr::kIsScheduled.name, true);
           result.Set(gv, new_function);
           continue;
         } else if (enable_warning) {
@@ -143,7 +144,6 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
       result.Set(gv, base_func);
     }
     return IRModule(result,       // functions
-                    {},           // map
                     mod->attrs);  // attrs);
   };
   return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase");

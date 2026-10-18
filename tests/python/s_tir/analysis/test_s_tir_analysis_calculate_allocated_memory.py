@@ -19,14 +19,15 @@
 import pytest
 
 import tvm
-from tvm import tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Module:
     @Ts.function
     def scale_by_two(a: T.Tensor((128,), "int8"), c: T.Tensor((128,), "int8")):
@@ -53,7 +54,7 @@ class Module:
 )
 def test_scale_by(function, size):
     """Test calculate allocated bytes per scope"""
-    mod = tvm.IRModule.from_expr(function.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(function.with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     block_c = sch.get_sblock("C")
     (flat,) = sch.get_loops(block_c)
@@ -103,7 +104,7 @@ def matmul_mix_scope(
 )
 def test_matmul_mix_scope(scope, size):
     """Test calculate allocated bytes per scope"""
-    mod = tvm.IRModule({"main": matmul_mix_scope})
+    mod = tvm_tirx.IRModule({"main": matmul_mix_scope})
     mod = tvm.s_tir.transform.LowerInitBlock()(mod)
     mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
@@ -139,4 +140,4 @@ def test_full_mod_calculator():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

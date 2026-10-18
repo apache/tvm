@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "../module_equality.h"
@@ -46,7 +47,7 @@ ffi::ObjectRef WorkloadObj::AsJSON() const {
   std::string json_mod = ffi::json::Stringify(
       ffi::ToJSONGraph(this->mod, ffi::json::Object{{"tvm_version", TVM_VERSION}}), /*indent=*/2);
   // Dump the JSON string to base64
-  std::string b64_mod = Base64Encode(json_mod);
+  std::string b64_mod = ffi::Base64Encode(ffi::Bytes(json_mod));
   // Output
   return ffi::Array<ffi::Any>{SHash2Str(this->shash), ffi::String(b64_mod)};
 }
@@ -62,7 +63,7 @@ Workload Workload::FromJSON(const ffi::ObjectRef& json_obj) {
     // Load json[1] => mod
     {
       ffi::String b64_mod = json_array->at(1).cast<ffi::String>();
-      std::string json_mod = Base64Decode(b64_mod);
+      std::string json_mod = ffi::Base64Decode(b64_mod);
       mod = ffi::FromJSONGraph(ffi::json::Parse(json_mod)).cast<IRModule>();
       std::stringstream(str_shash) >> shash;
     }

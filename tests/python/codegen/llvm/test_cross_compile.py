@@ -22,14 +22,16 @@ import struct
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import rpc
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.support import cc, utils
-from tvm.testing import env
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.support import cc, utils
+from tvm_tirx.testing import env
 
 
 @I.ir_module
@@ -60,11 +62,11 @@ def test_llvm_add_pipeline():
 
     def build_arm():
         target = {"kind": "llvm", "mtriple": "armv7-none-linux-gnueabihf"}
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm_tirx.runtime.enabled("llvm"):
             print(f"Skip because {target} is not enabled..")
             return
         temp = utils.tempdir()
-        f = tvm.tirx.compile(AddModule, target=target).mod
+        f = tvm_tirx.tirx.compile(AddModule, target=target).mod
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x28)
@@ -89,14 +91,14 @@ def test_llvm_add_pipeline():
             b = dev.tensor(np.random.uniform(size=n).astype("float32"))
             c = dev.tensor(np.zeros(n, dtype="float32"))
             farm(a, b, c)
-            tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+            tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")
 
     build_arm()
 
 
 @pytest.mark.skipif(
-    tvm.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
+    tvm_ffi.get_global_func("rpc.LocalSession", allow_missing=True) is None, reason="need rpc"
 )
 def test_bigendian_rpc():
     """Test big endian rpc when there is a PowerPC RPC server available"""
@@ -109,9 +111,9 @@ def test_bigendian_rpc():
         @T.function
         def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
             for i in range(shape[0]):
-                B[i] = A[i] + tvm.tirx.const(1, dtype)
+                B[i] = A[i] + tvm_tirx.tirx.const(1, dtype)
 
-        f = tvm.tirx.compile(main, target=target).mod
+        f = tvm_tirx.tirx.compile(main, target=target).mod
 
         dev = remote.cpu(0)
         a = dev.tensor(np.random.randint(0, 256, size=shape).astype(dtype))
@@ -122,7 +124,7 @@ def test_bigendian_rpc():
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)
-        tvm.testing.assert_allclose(a.numpy() + 1, b.numpy())
+        tvm_tirx.testing.assert_allclose(a.numpy() + 1, b.numpy())
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)

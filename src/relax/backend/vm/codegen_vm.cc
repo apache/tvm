@@ -27,7 +27,7 @@
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
@@ -85,7 +85,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void Codegen(const Function& func) {
-    ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    ffi::Optional<ffi::String> gsymbol = func->GetAttr(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(gsymbol.has_value())
         << "there should be no local functions in Relax VM codegen phase. "
            "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
@@ -334,10 +334,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const ExternFuncNode* op) final {
-    if (ffi::Optional<ffi::String> opt_code =
-            op->attrs.GetAttr<ffi::String>(tvm::relax::attr::kCSource)) {
+    if (ffi::Optional<ffi::String> opt_code = op->attrs.GetAttr(tvm::relax::attr::kCSource)) {
       ffi::String sym = op->global_symbol;
-      ffi::String fmt = op->attrs.GetAttr<ffi::String>(tvm::relax::attr::kCSourceFmt).value_or("c");
+      ffi::String fmt = op->attrs.GetAttr(tvm::relax::attr::kCSourceFmt).value_or("c");
       ffi::String code = opt_code.value();
       // Grep hint: grep -rn 'runtime.CSourceModuleCreate' src/
       static const auto create_source =

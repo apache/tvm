@@ -95,7 +95,7 @@ std::vector<int64_t> GetTensorShape(const TensorVar& tensor, sym::AnalyzerObj* a
  */
 int64_t GetAutoUnrollMaxStep(const ForNode* loop) {
   if (ffi::Optional<IntImm> auto_unroll =
-          GetAnn<IntImm>(loop, tvm::tirx::attr::kAutoUnrollMaxStep)) {
+          GetAnn<IntImm>(loop, tvm::tirx::attr::kAutoUnrollMaxStep.name)) {
     return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
@@ -340,7 +340,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
                                  .ValueOrUnchanged(loop->annotations);
           Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
           VarRemapSet(loop->loop_var, previous_remap);
-          annotations.erase(tvm::s_tir::attr::kThreadBinding);
+          annotations.erase(tvm::s_tir::attr::kThreadBinding.name);
           if (!annotations.empty()) {
             PrimType ty = loop->loop_var.ty();
             body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
@@ -1295,7 +1295,7 @@ namespace group5 {
 struct Feature {
   int64_t outer_prod;        // The product of lengths of outer loops
   int num_loops;             // The number of outer loops
-  int auto_unroll_max_step;  // The value of annotation "auto_unroll_max_step"
+  int auto_unroll_max_step;  // The value of annotation "tirx.auto_unroll_max_step"
 
   static constexpr int64_t kCount = 3;
 

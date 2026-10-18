@@ -19,19 +19,19 @@
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.fixture(autouse=True)
 def enable_cuda_graph():
     """Enable cuda graph transform for all tests in this file"""
-    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm_tirx.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         yield
 
 
@@ -142,7 +142,7 @@ def test_rewrite_cuda_graph():
     # fmt: on
 
     after = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_tuple():
@@ -249,7 +249,7 @@ def test_tuple():
     # fmt: on
 
     after = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_vm_builtin():
@@ -346,11 +346,11 @@ def test_vm_builtin():
     # fmt: on
 
     after = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_capture_fixed_inputs():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2dx3:
         @R.function
         def main(
@@ -475,11 +475,11 @@ def test_capture_fixed_inputs():
                         A_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.float32(0)
                         A_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.float32(0)
                     v_A_red_temp_v0: T.let[T.float32] = A_red_temp_v0[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
                     )
                     v_A_red_temp_v1: T.let[T.float32] = A_red_temp_v1[v_ax0, v_ax1, v_ax2] + T.Cast(
-                        A[v_ax0, v_ax1, v_ax2, v_k3], "float32"
-                    ) * T.Cast(A[v_ax0, v_ax1, v_ax2, v_k3], "float32")
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
+                    ) * T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_k3])
                     A_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v0
                     A_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v1
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
@@ -495,8 +495,9 @@ def test_capture_fixed_inputs():
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
                         T.Cast(
+                            "float16",
                             (
-                                T.Cast(A[v_ax0, v_ax1, v_ax2, v_ax3], "float32")
+                                T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
                                 - A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625)
                             )
                             * T.rsqrt(
@@ -506,7 +507,6 @@ def test_capture_fixed_inputs():
                                 * (A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625))
                                 + T.float32(1.0000000000000001e-05)
                             ),
-                            "float16",
                         )
                         * B[v_ax3]
                         + C[v_ax3]
@@ -657,7 +657,7 @@ def test_capture_fixed_inputs():
             _4: R.Tuple = R.memory.kill_storage(storage1)
             return gv_1
 
-    mod = tvm.ir.transform.Sequential(
+    mod = tvm_tirx.ir.transform.Sequential(
         [
             relax.pipeline.get_pipeline(),
             relax.transform.LiftTransformParams(),
@@ -670,7 +670,7 @@ def test_capture_fixed_inputs():
 
     mod["main"] = mod["main"].with_attr({"num_input": 1})
     after = relax.transform.RewriteCUDAGraph()(mod)
-    tvm.ir.assert_structural_equal(after, after)
+    tvm_tirx.ir.assert_structural_equal(after, after)
 
 
 def test_null_value():
@@ -686,7 +686,7 @@ def test_null_value():
     Expected = Before
 
     After = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_transform_is_no_op_when_disabled():
@@ -698,13 +698,13 @@ def test_transform_is_no_op_when_disabled():
             alloc3 = R.memory.alloc_tensor(storage, 0, R.shape([8]), "float32")
             return ()
 
-    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+    with tvm_tirx.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         AfterWhenEnabled = relax.transform.RewriteCUDAGraph()(Before)
-    with tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
+    with tvm_tirx.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
         AfterWhenDisabled = relax.transform.RewriteCUDAGraph()(Before)
 
     assert not tvm_ffi.structural_equal(Before, AfterWhenEnabled)
-    tvm.ir.assert_structural_equal(Before, AfterWhenDisabled)
+    tvm_tirx.ir.assert_structural_equal(Before, AfterWhenDisabled)
 
 
 def test_static_args():
@@ -755,7 +755,7 @@ def test_static_args():
             return ()
 
     mod = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dynamic_capture():
@@ -873,7 +873,7 @@ def test_dynamic_capture():
             return alloc3
 
     mod = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_merge_alloc_funcs():
@@ -1014,7 +1014,7 @@ def test_merge_alloc_funcs():
             return ()
 
     After = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_disable_capture_output():
@@ -1092,7 +1092,7 @@ def test_disable_capture_output():
             return gv
 
     After = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_static_input_with_symbolic_shape():
@@ -1185,11 +1185,11 @@ def test_static_input_with_symbolic_shape():
             return gv_1
 
     After = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
 
 
 def test_match_cast_of_captured_value():
@@ -1276,4 +1276,4 @@ def test_match_cast_of_captured_value():
             return gv_1
 
     after = relax.transform.RewriteCUDAGraph()(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)

@@ -997,7 +997,7 @@ StmtSRef GetSRefLowestCommonAncestor(const ffi::Array<StmtSRef>& srefs) {
 }
 
 bool HasBeenMultiLevelTiled(const StmtSRef& block_sref) {
-  return GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleTilingStructure)
+  return GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleTilingStructure.name)
       .has_value();
 }
 

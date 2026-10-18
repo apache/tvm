@@ -22,15 +22,16 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -85,8 +86,8 @@ def matmul_decompose0(
 
 @Ts.function
 def matmul_decompose1(
-    A: T.Tensor([32, 4, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([32, 4], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([32, 4, 128], "float32", align=64),
+    B: T.Tensor([32, 4], "float32", align=64),
 ) -> None:
     for i0 in T.serial(0, 32):
         with Ts.sblock("blockized_B_init"):
@@ -107,9 +108,9 @@ def matmul_decompose1(
 
 @Ts.function
 def matmul_decompose2(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", align=64),
+    B: T.Tensor([128, 128], "float32", align=64),
+    C: T.Tensor([128, 128], "float32", align=64),
 ) -> None:
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("update_init"):
@@ -137,9 +138,9 @@ def matmul_decompose_fail3(
 
 @Ts.function
 def matmul_decompose4(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", align=64),
+    B: T.Tensor([128, 128], "float32", align=64),
+    C: T.Tensor([128, 128], "float32", align=64),
 ) -> None:
     # body
     with Ts.sblock("root"):
@@ -224,7 +225,7 @@ def colsum_decompose_with_vectorization(
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_reduction_decompose0(use_block_name):
@@ -294,7 +295,7 @@ def test_reduction_decompose_with_different_for_kind():
 
 
 def test_decompose_reduction_ref_hash_check():
-    mod = tvm.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
     mod_bak = mod
     hash_before = tvm_ffi.structural_hash(mod_bak)
     s = tvm.s_tir.Schedule(mod["main"], debug_mask="all")
@@ -390,7 +391,7 @@ def test_decompose_reduction_with_thread_binding():
     t, _ = sch.get_loops("B")
     sch.decompose_reduction("B", t)
     After = sch.mod
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_decompose_reduction_preserves_general_spatial_predicates():
@@ -426,7 +427,7 @@ def test_decompose_reduction_preserves_general_spatial_predicates():
     sch = tvm.s_tir.Schedule(Before)
     i, _ = sch.get_loops("B")
     sch.decompose_reduction("B", i)
-    tvm.ir.assert_structural_equal(sch.mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Expected)
 
 
 def test_decompose_reduction_drops_mixed_rfactor_bound():
@@ -445,7 +446,7 @@ def test_decompose_reduction_drops_mixed_rfactor_bound():
     class Expected:
         @Ts.function
         def main(A: T.Tensor((20,), "float32"), B: T.Tensor((), "float32")):
-            B_rf = Ts.sblock_alloc_tensor((16,), elem_offset=T.int64(0))
+            B_rf = Ts.sblock_alloc_tensor((16,))
             for k_1_init in range(16):
                 with Ts.sblock("B_rf_init"):
                     vk_1 = Ts.axis.spatial(16, k_1_init)
@@ -468,8 +469,8 @@ def test_decompose_reduction_drops_mixed_rfactor_bound():
     rf = sch.rfactor(k_1, 0)
     k_0, _ = sch.get_loops(rf)
     sch.decompose_reduction(rf, k_0)
-    tvm.ir.assert_structural_equal(sch.mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

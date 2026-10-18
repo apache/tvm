@@ -60,8 +60,8 @@ class ThreadBindingLowerer : public StmtExprMutator {
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(tvm::s_tir::GetThreadBinding(op).has_value());
-    TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint) ||
-                   op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint) == nullptr)
+    TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name) ||
+                   op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint.name) == nullptr)
         << "Run LoopPartition before LowerThreadBinding";
     PrimVar launch_var(op->loop_var->name, extent.ty());
     auto previous_remap = VarRemapGet(op->loop_var);
@@ -71,7 +71,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
                            .ValueOrUnchanged(op->annotations);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     VarRemapSet(op->loop_var, previous_remap);
-    annotations.erase(tvm::s_tir::attr::kThreadBinding);
+    annotations.erase(tvm::s_tir::attr::kThreadBinding.name);
     if (!annotations.empty()) {
       PrimType ty = op->loop_var.ty();
       body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,

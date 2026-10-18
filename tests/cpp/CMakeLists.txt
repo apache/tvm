@@ -16,16 +16,16 @@
 # under the License.
 
 # Enable ctest if gtest is available
-if(USE_GTEST)
+if(TVM_USE_GTEST AND NOT BUILD_TESTING STREQUAL "OFF")
   # Check env var for backward compatibility. A better way to specify package
   # locations is to use CMAKE_PREFIX_PATH or other standard CMake mechanism
   # (see CMake documentation for `find_package`).
   set(GTEST_ROOT "$ENV{GTEST_LIB}")
-  if("${USE_GTEST}" STREQUAL "AUTO")
-    # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
+  if("${TVM_USE_GTEST}" STREQUAL "AUTO")
+    # If TVM_USE_GTEST is AUTO, treat GTest as optional: enable if found.
     find_package(GTest)
-  elseif("${USE_GTEST}" MATCHES ${IS_TRUE_PATTERN})
-    # USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
+  elseif("${TVM_USE_GTEST}" MATCHES ${IS_TRUE_PATTERN})
+    # TVM_USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
     find_package(GTest REQUIRED)
   endif()
   if(GTEST_FOUND)
@@ -56,8 +56,9 @@ endif()
 
 # Create the `cpptest` target when GTest is available.
 if(GTEST_FOUND)
-  tvm_file_glob(GLOB_RECURSE TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
+  file(GLOB_RECURSE TEST_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
   add_executable(cpptest ${TEST_SRCS})
+  tvm_configure_target(cpptest)
   # Preserve the executable location used before this became a subdirectory.
   set_target_properties(cpptest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")
   # include runtime files for unit testing
@@ -77,7 +78,7 @@ if(GTEST_FOUND)
         break()
       endif()
     endforeach()
-    if(DEFINED LLVM_SO OR HIDE_PRIVATE_SYMBOLS)
+    if(DEFINED LLVM_SO OR TVM_HIDE_PRIVATE_SYMBOLS)
       target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
     endif()
   endif()

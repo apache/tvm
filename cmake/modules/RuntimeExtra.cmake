@@ -17,39 +17,41 @@
 
 # Assemble the runtime-extra target declared before the backend modules.
 # Disco core sources.
-tvm_file_glob(GLOB _disco_core_srcs src/runtime/extra/disco/*.cc)
+file(GLOB _disco_core_srcs CONFIGURE_DEPENDS src/runtime/extra/disco/*.cc)
 add_library(tvm_disco_objs OBJECT ${_disco_core_srcs})
+tvm_configure_target(tvm_disco_objs)
 target_link_libraries(tvm_disco_objs PRIVATE tvm_runtime_extra_defs)
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_objs)
 
 # Distributed disco.
-tvm_file_glob(GLOB _disco_dist_srcs src/runtime/extra/disco/distributed/*.cc)
+file(GLOB _disco_dist_srcs CONFIGURE_DEPENDS src/runtime/extra/disco/distributed/*.cc)
 add_library(tvm_disco_distributed_objs OBJECT ${_disco_dist_srcs})
+tvm_configure_target(tvm_disco_distributed_objs)
 target_link_libraries(tvm_disco_distributed_objs PRIVATE tvm_runtime_extra_defs)
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_disco_distributed_objs)
 
 # NCCL / cuda_ipc — requires CUDA + NCCL.
-if(USE_CUDA AND USE_NCCL)
-  find_nccl(${USE_NCCL})
-  include_directories(SYSTEM ${NCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB _nccl_srcs src/runtime/extra/disco/nccl/*.cc src/runtime/extra/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
-  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
+if(TVM_TIRX_USE_CUDA AND TVM_USE_NCCL)
+  find_nccl(${TVM_USE_NCCL})
+  file(GLOB _nccl_srcs CONFIGURE_DEPENDS src/runtime/extra/disco/nccl/*.cc src/runtime/extra/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
   add_library(tvm_nccl_objs OBJECT ${_nccl_srcs})
-  target_link_libraries(tvm_nccl_objs PRIVATE tvm_runtime_extra_defs)
+  tvm_configure_target(tvm_nccl_objs)
+  target_compile_definitions(tvm_nccl_objs PRIVATE TVM_NCCL_RCCL_SWITCH=0)
+  target_link_libraries(tvm_nccl_objs PRIVATE tvm_runtime_extra_defs nccl)
   find_library(LIBRT rt)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_nccl_objs nccl ${LIBRT})
 endif()
 
 # NVSHMEM.
-if(USE_CUDA AND USE_NVSHMEM)
-  find_nvshmem(${USE_NVSHMEM})
+if(TVM_TIRX_USE_CUDA AND TVM_USE_NVSHMEM)
+  find_nvshmem(${TVM_USE_NVSHMEM})
   if(NOT NVSHMEM_FOUND)
-    message(FATAL_ERROR "Cannot find NVSHMEM, USE_NVSHMEM=" ${USE_NVSHMEM})
+    message(FATAL_ERROR "Cannot find NVSHMEM, TVM_USE_NVSHMEM=" ${TVM_USE_NVSHMEM})
   endif()
-  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  tvm_file_glob(GLOB _nvshmem_srcs src/runtime/extra/contrib/nvshmem/*.cc src/runtime/extra/contrib/nvshmem/*.cu)
+  file(GLOB _nvshmem_srcs CONFIGURE_DEPENDS src/runtime/extra/contrib/nvshmem/*.cc src/runtime/extra/contrib/nvshmem/*.cu)
   add_library(tvm_nvshmem_objs OBJECT ${_nvshmem_srcs})
+  tvm_configure_target(tvm_nvshmem_objs)
+  set_target_properties(tvm_nvshmem_objs PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   target_link_libraries(tvm_nvshmem_objs PRIVATE tvm_runtime_extra_defs)
   target_include_directories(tvm_nvshmem_objs PUBLIC ${NVSHMEM_INCLUDE_DIR})
   # CUDA 13 moved libcu++ under include/cccl. NVSHMEM's headers include
@@ -66,36 +68,30 @@ if(USE_CUDA AND USE_NVSHMEM)
 endif()
 
 # RCCL.
-if(USE_ROCM AND USE_RCCL)
-  find_rccl(${USE_RCCL})
-  include_directories(SYSTEM ${RCCL_INCLUDE_DIR})
-  tvm_file_glob(GLOB _rccl_srcs src/runtime/extra/disco/nccl/*.cc)
-  set_source_files_properties(src/runtime/extra/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
+if(TVM_TIRX_USE_ROCM AND TVM_USE_RCCL)
+  find_rccl(${TVM_USE_RCCL})
+  file(GLOB _rccl_srcs CONFIGURE_DEPENDS src/runtime/extra/disco/nccl/*.cc)
   add_library(tvm_rccl_objs OBJECT ${_rccl_srcs})
-  target_link_libraries(tvm_rccl_objs PRIVATE tvm_runtime_extra_defs)
+  tvm_configure_target(tvm_rccl_objs)
+  target_compile_definitions(tvm_rccl_objs PRIVATE TVM_NCCL_RCCL_SWITCH=1)
+  target_link_libraries(tvm_rccl_objs PRIVATE tvm_runtime_extra_defs rccl)
   target_link_libraries(tvm_runtime_extra PRIVATE tvm_rccl_objs rccl)
 endif()
 
 target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime)
 
 # If disco/cuda_ipc is included, link the CUDA DSO.
-if(USE_CUDA)
+if(TVM_TIRX_USE_CUDA)
   target_link_libraries(tvm_runtime_extra PUBLIC tvm_runtime_cuda)
   target_link_libraries(tvm_runtime_extra PRIVATE ${CUDA_CUDART_LIBRARY} ${CUDA_CUDA_LIBRARY})
 endif()
 
-if(USE_ROCM)
+if(TVM_TIRX_USE_ROCM)
   target_link_libraries(tvm_runtime_extra PRIVATE ${ROCM_HIPHCC_LIBRARY})
 endif()
 
 # CUTLASS fpA_intB_gemm and flash_attn are separate shared libs.
-if(USE_CUDA AND USE_CUTLASS)
+if(TVM_TIRX_USE_CUDA AND TVM_USE_CUTLASS)
   target_link_libraries(tvm_runtime_extra PRIVATE fpA_intB_gemm fpA_intB_gemm_tvm)
   target_link_libraries(tvm_runtime_extra PRIVATE -Wl,--no-as-needed flash_attn)
 endif()
-
-if(TVM_VISIBILITY_FLAG)
-  set_property(TARGET tvm_runtime_extra APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-endif()
-
-tvm_configure_target_library(tvm_runtime_extra RUNTIME_MODULE)

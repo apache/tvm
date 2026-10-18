@@ -22,9 +22,10 @@ import pytest
 import tvm_ffi
 
 import tvm
-from tvm import tirx
-from tvm.ir.transform import PassContext
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm_tirx import tirx
+from tvm_tirx.ir.transform import PassContext
+from tvm_tirx.script import tirx as T
 
 
 def build_tir_func(func):
@@ -32,8 +33,8 @@ def build_tir_func(func):
     pass_ctx = PassContext.current()
     if pass_ctx.config.get("tirx.noalias", True):
         func = func.with_attr("tirx.noalias", True)
-    mod = tvm.IRModule({"main": func})
-    func = tvm.tirx.compile(mod)
+    mod = tvm_tirx.IRModule({"main": func})
+    func = tvm_tirx.tirx.compile(mod)
     return func
 
 
@@ -48,10 +49,10 @@ def test_scalar_add():
         # Input vars should be float32, we will cast to test for upcasting between them
         lhs_input = tirx.Var("lhs", "float32")
         rhs_input = tirx.Var("rhs", "float32")
-        lhs = tirx.Cast(lhs_input, lhs_type)
-        rhs = tirx.Cast(rhs_input, rhs_type)
+        lhs = tirx.Cast(lhs_type, lhs_input)
+        rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
-        output = tvm.ir.Return(output)
+        output = tvm_tirx.ir.Return(output)
         func = tirx.Function([lhs_input, rhs_input], output)
         func = build_tir_func(func)
         out = func(1.0, 2.0)
@@ -93,8 +94,8 @@ def test_cast_between_types():
 
 
 def test_return_const():
-    a = tirx.const(0)
-    b = tvm.ir.Return(a)
+    a = tirx.const(0, "int32")
+    b = tvm_tirx.ir.Return(a)
     func = tirx.Function([], b)
     func = build_tir_func(func)
     out = func()
@@ -103,26 +104,26 @@ def test_return_const():
 
 def test_return_accepts_expr_and_roundtrips():
     value = tvm.relax.ShapeExpr([2, 3])
-    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tvm.ir.Return(value, loc)
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm_tirx.ir.Return(value, loc)
 
     assert stmt.value.same_as(value)
     assert stmt.loc.same_as(loc)
-    assert not tvm.ir.is_prim_expr(stmt.value)
+    assert not tvm_tirx.ir.is_prim_expr(stmt.value)
 
-    restored = tvm.ir.load_json(tvm.ir.save_json(stmt))
-    tvm.ir.assert_structural_equal(restored, stmt)
+    restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(stmt))
+    tvm_tirx.ir.assert_structural_equal(restored, stmt)
     assert tvm_ffi.structural_hash(restored) == tvm_ffi.structural_hash(stmt)
 
     with pytest.raises(TypeError):
-        tvm.ir.Return(None)
+        tvm_tirx.ir.Return(None)
 
 
 def test_stmt_loc_not_structural():
-    loc_a = tvm.ir.SourceLoc(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
-    loc_b = tvm.ir.SourceLoc(tvm.ir.SourceName("b.py"), 10, 3, 10, 4)
-    stmt_a = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_a)
-    stmt_b = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_b)
+    loc_a = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("a.py"), 1, 1, 1, 2)
+    loc_b = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("b.py"), 10, 3, 10, 4)
+    stmt_a = tvm_tirx.ir.Evaluate(tvm_tirx.ir.IntImm("int32", 0), loc_a)
+    stmt_b = tvm_tirx.ir.Evaluate(tvm_tirx.ir.IntImm("int32", 0), loc_b)
 
     assert tvm_ffi.structural_equal(stmt_a, stmt_b)
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
@@ -130,21 +131,23 @@ def test_stmt_loc_not_structural():
 
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
-    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tvm.ir.Return(x + 1, loc)
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm_tirx.ir.Return(x + 1, loc)
     visited = []
 
     tvm_ffi.structural_walk(stmt, visited.append)
     assert any(node.same_as(x) for node in visited)
-    assert any(isinstance(node, tvm.ir.Return) for node in visited)
+    assert any(isinstance(node, tvm_tirx.ir.Return) for node in visited)
 
     rewritten = tvm_ffi.structural_map(
         stmt,
-        (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
+        (tirx.Var, lambda var: tvm_tirx.ir.IntImm("int32", 4) if var.same_as(x) else var),
         order="post",
     )
-    expected = tvm.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), loc)
-    tvm.ir.assert_structural_equal(rewritten, expected)
+    expected = tvm_tirx.ir.Return(
+        tirx.Add(tvm_tirx.ir.IntImm("int32", 4), tvm_tirx.ir.IntImm("int32", 1)), loc
+    )
+    tvm_tirx.ir.assert_structural_equal(rewritten, expected)
     assert rewritten.loc.same_as(loc)
 
 
@@ -225,12 +228,12 @@ def test_eq_ops():
     # rewritten as `is None` / `is not None`. This test exercises the overloaded
     # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
     # bypass those overloads and would defeat the test.
-    a = tirx.IntImm("int8", 1)
+    a = tvm_tirx.ir.IntImm("int8", 1)
     with pytest.raises(TypeError):
         assert a != None
     with pytest.raises(TypeError):
         assert not a == None
-    b = tvm.ir.StringImm("abc")
+    b = tvm_tirx.ir.StringImm("abc")
     assert b != None
     assert not b == None
 

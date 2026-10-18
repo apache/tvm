@@ -21,10 +21,10 @@ import pytest
 from tvm_ffi import structural_walk
 
 import tvm
-import tvm.testing
-from tvm.ir import Evaluate, For, ForKind
-from tvm.ir.prim import expr_deep_equal
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import Schedule, TensorIntrin
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
     TensorizeInfo,
@@ -34,10 +34,11 @@ from tvm.s_tir.schedule.analysis import (
     suggest_index_map,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
 from tvm.te import create_function
-from tvm.tirx import IndexMap, Var, decl_tensor, floordiv, floormod
+from tvm_tirx.ir import Evaluate, For, ForKind
+from tvm_tirx.ir.prim import expr_deep_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import IndexMap, TensorType, Var, floordiv, floormod
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -61,7 +62,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        tensor=decl_tensor(shape=[8, 256]),
+        tensor=Var("tensor", TensorType([8, 256], "float32")),
         indices=[
             floordiv(i, 16) * 4 + floordiv(j, 16),
             floormod(i, 16) * 16 + floormod(j, 16),
@@ -86,7 +87,7 @@ def test_suggest_index_map_simple():
 def test_suggest_index_map_bijective():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        tensor=decl_tensor(shape=[8]),
+        tensor=Var("tensor", TensorType([8], "float32")),
         indices=[floormod(j, 4) * 2 + i],
         loops=_make_loops(
             loop_vars=[i, j],
@@ -110,7 +111,7 @@ def test_suggest_index_map_winograd():
     nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
     co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
-    tensor = decl_tensor(shape=[6, 6, 128, 128])
+    tensor = Var("tensor", TensorType([6, 6, 128, 128], "float32"))
     index_map = suggest_index_map(
         tensor=tensor,
         indices=[eps, nu, co, ci],
@@ -144,7 +145,7 @@ def test_suggest_index_map_winograd():
     assert inverse_index_map.is_equivalent_to(expected_inverse_index_map)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseTIRModule:
     @Ts.function
     def main(
@@ -163,12 +164,12 @@ class DenseTIRModule:
                     Ts.writes(compute[i, j])
                     with Ts.init():
                         compute[i, j] = 0
-                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
-                        placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
+                    compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], ty="int32") * T.cast(
+                        placeholder_1[j // 16, k // 4, j % 16, k % 4], ty="int32"
                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcTIRModule:
     @Ts.function
     def main(
@@ -202,16 +203,16 @@ class Conv2dNCHWcTIRModule:
                     n, oc_chunk, oh, ow, oc_block
                 ] + T.cast(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                    "int32",
+                    ty="int32",
                 ) * T.cast(
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
-                    "int32",
+                    ty="int32",
                 )
 
 
 def collect_loops(function):
     loops = []
-    structural_walk(function.body, (tvm.ir.For, loops.append), order="pre")
+    structural_walk(function.body, (tvm_tirx.ir.For, loops.append), order="pre")
 
     return loops
 
@@ -254,11 +255,36 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 
 
 def test_get_tensorize_loop_mapping_matmul_mma():
+    matmul_16x16x16xf16f16f16_desc_a_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_a_offset", "int32"
+    )
+    matmul_16x16x16xf16f16f16_desc_b_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_b_offset", "int32"
+    )
+    matmul_16x16x16xf16f16f16_desc_c_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_c_offset", "int32"
+    )
+
     @Ts.function
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((16, 16), "float16", align=64, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor(
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_a_offset)),
+        ),
+        B: T.Tensor(
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_b_offset)),
+        ),
+        C: T.Tensor(
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_c_offset)),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
@@ -299,11 +325,15 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
 
 def matmul_16x8x8_desc(out_dtype):
+    desc_a_offset = T.dynamic("desc_a_offset", "int32")
+    desc_b_offset = T.dynamic("desc_b_offset", "int32")
+    desc_c_offset = T.dynamic("desc_c_offset", "int32")
+
     @Ts.function
     def desc(
-        A: T.Tensor((16, 8), "float16", offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor((8, 8), "float16", offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor((16, 8), out_dtype, offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor((16, 8), "float16", layout=T.TileLayout(T.S[(16, 8)] + (desc_a_offset))),
+        B: T.Tensor((8, 8), "float16", layout=T.TileLayout(T.S[(8, 8)] + (desc_b_offset))),
+        C: T.Tensor((16, 8), out_dtype, layout=T.TileLayout(T.S[(16, 8)] + (desc_c_offset))),
     ):
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:8], A[0:16, 0:8], B[0:8, 0:8])
@@ -311,7 +341,7 @@ def matmul_16x8x8_desc(out_dtype):
             for i, j, k in T.grid(16, 8, 8):
                 with Ts.sblock("update"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
-                    C[vi, vj] += T.cast(A[vi, vk], out_dtype) * T.cast(B[vk, vj], out_dtype)
+                    C[vi, vj] += T.cast(A[vi, vk], ty=out_dtype) * T.cast(B[vk, vj], ty=out_dtype)
 
     return desc
 
@@ -454,4 +484,4 @@ def test_empty_grid():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

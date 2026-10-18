@@ -25,13 +25,15 @@ from typing import TypeVar
 import pytest
 
 import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, ir, relax, topi
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax, topi
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, ir
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check(
@@ -39,21 +41,21 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(
+    roundtrip_mod = tvm_tirx.script.from_source(
         test,
         extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
+            "I": tvm_tirx.script.ir,
+            "R": tvm.relax.script,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
         },
     )
-    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
         relax.analysis.well_formed(parsed)
         relax.analysis.well_formed(roundtrip_mod)
     if expect:
-        tvm.ir.assert_structural_equal(parsed, expect)
+        tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
 
 def test_emit_te_function_attrs():
@@ -223,14 +225,14 @@ def test_cross_function_call():
 
 
 def test_class_normalize():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @R.function
         def mul_add(x: R.Tensor) -> R.Tensor:
             return R.multiply(R.add(x, x), R.add(x, x))
 
     # The parser automatically normalizes the input AST to the following ANF form
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class OutputModule:
         @R.function
         def mul_add(x: R.Tensor) -> R.Tensor:
@@ -242,7 +244,7 @@ def test_class_normalize():
 
 
 def test_context_aware_parsing(monkeypatch):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def add(
@@ -266,7 +268,7 @@ def test_context_aware_parsing(monkeypatch):
     def _break_env(self, *args):
         raise RuntimeError("Fail to pass context-aware parsing")
 
-    monkeypatch.setattr(tvm.ir.GlobalVar, "__call__", _break_env)
+    monkeypatch.setattr(tvm_tirx.ir.GlobalVar, "__call__", _break_env)
 
     _check(Module)
 
@@ -388,7 +390,7 @@ def test_extern_func_in_module():
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a
 
-    expected = tvm.IRModule({"my_ext": relax.ExternFunc("my_ext"), "func": func})
+    expected = tvm_tirx.IRModule({"my_ext": relax.ExternFunc("my_ext"), "func": func})
 
     _check(parsed_module, expected)
 
@@ -427,7 +429,7 @@ def test_define_relax_function_using_global_var():
 
     MainDefinedLater["main"] = main
 
-    tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
+    tvm_tirx.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -453,12 +455,12 @@ def test_shared_meta_var_uses_ordinary_relax_bindings():
     assert not via_i.var.same_as(via_i.value)
     assert not via_t.var.same_as(via_t.value)
     assert func.body.body.same_as(output.var)
-    source = func.script(show_all_ty=False)
+    source = func.script(extra_config={"relax.show_all_ty": False})
     assert "meta_var" not in source
     _check(func)
 
     symbol = T.dynamic("symbol", "int64")
-    with pytest.raises(tvm.error.InternalError, match="Invalid annotation"):
+    with pytest.raises(RuntimeError, match="Invalid annotation"):
 
         @R.function(private=True)
         def mismatched_binding():
@@ -480,4 +482,4 @@ def test_return_annotation_keeps_local_symbols_and_unused_captures():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

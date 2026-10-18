@@ -19,7 +19,7 @@
 import warnings
 from typing import TYPE_CHECKING, Union
 
-import tvm
+import tvm_tirx
 
 # isort: off
 from typing import Literal
@@ -28,11 +28,10 @@ from typing import Literal
 
 from tvm_ffi import get_global_func, register_global_func
 
-from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
-from tvm.runtime import Tensor
-from tvm.target import Target
-from tvm.tirx.expr import IntImm
+from tvm_tirx.ir import IntImm, IRModule
+from tvm_tirx.ir.transform import PassContext
+from tvm_tirx.runtime import Tensor
+from tvm_tirx.target import Target
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -69,9 +68,9 @@ def extract_tasks(
     ----------
     mod : Union[IRModule, relax.Function]
         The module or function to tune
-    target : tvm.target.Target
+    target : tvm_tirx.target.Target
         The compilation target
-    params : Optional[Dict[str, tvm.runtime.Tensor]]
+    params : Optional[Dict[str, tvm_tirx.runtime.Tensor]]
         The associated parameters of the program
     module_equality : Optional[str]
         A string to specify the module equality testing and hashing method.
@@ -189,7 +188,7 @@ def tune_relax(
     ----------
     mod : Union[IRModule, relax.Function]
         The module or function to tune
-    params : Optional[Dict[str, tvm.runtime.Tensor]]
+    params : Optional[Dict[str, tvm_tirx.runtime.Tensor]]
         The associated parameters of the program
     target : Union[Target, str]
         The compilation target
@@ -303,7 +302,7 @@ def _tune_relax(
     ----------
     mod : Union[IRModule, relax.Function]
         The module or function to tune
-    params : Optional[Dict[str, tvm.runtime.Tensor]]
+    params : Optional[Dict[str, tvm_tirx.runtime.Tensor]]
         The associated parameters of the program
     target : Union[Target, str]
         The compilation target
@@ -398,9 +397,9 @@ def compile_relax(
         The database to use
     mod : IRModule
         The Relax program to be compiled
-    target : tvm.target.Target
+    target : tvm_tirx.target.Target
         The compilation target
-    params : Optional[Dict[str, tvm.runtime.Tensor]]
+    params : Optional[Dict[str, tvm_tirx.runtime.Tensor]]
         The associated parameters of the program
     enable_warning : bool
         A boolean value indicating if to print warnings for TIR functions not
@@ -465,8 +464,10 @@ def compile_relax(
 
     is_gpu_target = relax_pipeline_mod.BackendDispatcher.is_gpu_target(target)
 
-    @tvm.ir.transform.module_pass(opt_level=3)
-    def _ms_pipeline(mod: tvm.ir.IRModule, _ctx: tvm.ir.transform.PassContext) -> tvm.ir.IRModule:
+    @tvm_tirx.ir.transform.module_pass(opt_level=3)
+    def _ms_pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.ir.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
         fuse_seq = [
             *dispatch_passes,
             relax.transform.LegalizeOps(enable_warning=enable_warning),
@@ -475,7 +476,7 @@ def compile_relax(
             relax.transform.FuseOps(),
             relax.transform.FuseTIR(),
         ]
-        mod = tvm.ir.transform.Sequential(fuse_seq)(mod)
+        mod = tvm_tirx.ir.transform.Sequential(fuse_seq)(mod)
         mod = MetaScheduleApplyDatabase(enable_warning=enable_warning)(mod)
         # DLight handles functions not covered by the database.
         # GPU rules apply only for GPU targets.
@@ -487,7 +488,7 @@ def compile_relax(
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-        mod = tvm.ir.transform.Sequential(lower_passes + finalize_passes)(mod)
+        mod = tvm_tirx.ir.transform.Sequential(lower_passes + finalize_passes)(mod)
         return mod
 
     with target, database, PassContext(opt_level=3):

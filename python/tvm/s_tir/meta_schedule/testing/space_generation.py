@@ -23,12 +23,12 @@ from typing import Literal
 
 import tvm_ffi
 
-from tvm.ir import IRModule
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Trace
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
-from tvm.target import Target
+from tvm_tirx.ir import IRModule
+from tvm_tirx.target import Target
 
 
 def get_rules(
@@ -144,7 +144,7 @@ def check_sketches(
 def print_sketches(sketches: list[Schedule]):
     for i, sch in enumerate(sketches):
         print(f"###### {i}")
-        sch.mod.show(black_format=False)
+        sch.mod.show()
         for inst in sch.trace.insts:
             if inst in sch.trace.decisions:
                 print(f'("{inst.kind.name}", {sch.trace.decisions[inst]}),')

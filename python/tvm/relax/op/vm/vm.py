@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 """Relax vm primitives."""
 
-from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import MemoryScope
+from tvm_tirx.ir import Call, DataTypeImm, GenericConst, StringImm
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import MemoryScope
 
 from ...expr import Expr, Tuple, prim_value
 from ...utils import convert_to_expr
@@ -68,8 +68,8 @@ def alloc_storage(
     return _Call(
         "relax.vm.alloc_storage",
         [shape, runtime_device_index, dtype, storage_scope],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -118,8 +118,8 @@ def alloc_tensor(
     return _Call(
         "relax.vm.alloc_tensor",
         [storage, offset, shape, dtype, runtime_device_ind],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -137,7 +137,7 @@ def kill_object(obj: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
     result : Call
         CallNode that kills the input object.
     """
-    return _Call("relax.vm.kill_object", [obj], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.vm.kill_object", [obj], loc=loc, ty=ty)  # type: ignore
 
 
 def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
@@ -164,6 +164,6 @@ def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, loc: Location = UNKNOWN_LO
     return _Call(
         "relax.vm.call_tir_dyn",
         [func, args],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

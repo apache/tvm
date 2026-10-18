@@ -20,11 +20,15 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
+import tvm_ffi
+
+from tvm.runtime import time_evaluator
+
 if TYPE_CHECKING:
     import numpy as np
 
-    from tvm.runtime import Device, Module, Tensor
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
+    from tvm_tirx.runtime import Device, Tensor
 
 # pylint: disable=import-outside-toplevel,protected-access
 
@@ -32,7 +36,7 @@ if TYPE_CHECKING:
 def _args_to_device(args, device, f_alloc=None):
     import numpy as np
 
-    from tvm.runtime import Tensor, empty
+    from tvm_tirx.runtime import Tensor, empty
 
     uploaded_args = []
     for arg in args:
@@ -52,7 +56,7 @@ def _args_to_device(args, device, f_alloc=None):
 
 def _args_to_numpy(args):
     from tvm.rpc import RemoteTensor
-    from tvm.runtime import Tensor
+    from tvm_tirx.runtime import Tensor
 
     downloaded_args = []
     for arg in args:
@@ -64,10 +68,11 @@ def _args_to_numpy(args):
 
 
 def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
-    from tvm.support import ndk, tar
+    from tvm_tirx.codegen import Executable
+    from tvm_tirx.support import ndk, tar
 
     def export_with(func):
-        return lambda mod, path: mod.export_library(path, fcompile=func)
+        return lambda mod, path: Executable(mod).export_library(path, fcompile=func)
 
     if export_func == "tar":
         export_func = export_with(tar.tar)
@@ -84,18 +89,18 @@ def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
 
 
 def local_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+    mod: "tvm_ffi.Module",
     device_type: str,
     args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
-    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    export_func: Callable[["tvm_ffi.Module", str], None] | Literal["tar", "ndk"] = "tar",
     output_format: str | None = None,
 ):
     """Run a TVM module on a local device.
 
     Parameters
     ----------
-    mod : Module
+    mod : tvm_ffi.Module
         The TVM module to run.
     device_type : str
         The device type to run the module on.
@@ -103,7 +108,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
         The arguments to be fed to the module.
     evaluator_config : Optional[EvaluatorConfig]
         The evaluator configuration to use.
-    export_func : Union[Callable[Module, str], Literal["tar", "ndk"]]
+    export_func : Union[Callable[tvm_ffi.Module, str], Literal["tar", "ndk"]]
         The function to export the module to a file.
         If callable, it must be a function that takes two arguments: the module to export and the
         path to export to.
@@ -123,8 +128,9 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     import os.path as osp
     import tempfile
 
-    from tvm.runtime import device, load_module
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
+    from tvm_tirx.runtime import load_module
+    from tvm_tirx.support import cc, tar, utils
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
     export_func, output_format = _normalize_export_func(export_func, output_format)
@@ -132,17 +138,24 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     with tempfile.TemporaryDirectory() as tmp_dir:
         artifact_path = osp.join(tmp_dir, "tvm_tmp_mod." + output_format)
         export_func(mod, artifact_path)
-        device: Device = device(device_type, 0)
+        device: Device = tvm_ffi.device(device_type, 0)
 
         args = _args_to_device(args, device)
+        if artifact_path.endswith((".o", ".tar")):
+            with utils.tempdir() as temp:
+                objects = tar.normalize_file_list_by_unpacking_tars(temp, [artifact_path])
+                library = osp.join(tmp_dir, "module.so")
+                cc.create_shared(library, objects)
+            artifact_path = library
         remote_mod = load_module(artifact_path)
-        profile_result = remote_mod.time_evaluator(
+        profile_result = time_evaluator(
+            remote_mod,
             func_name=remote_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
+            f_preproc="runtime.CacheFlushCPUArguments"
             if evaluator_config.enable_cpu_cache_flush
             else "",
         )(*args)
@@ -153,19 +166,19 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+    mod: "tvm_ffi.Module",
     device_type: str,
     args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    export_func: Callable[["tvm_ffi.Module", str], None] | Literal["tar", "ndk"] = "tar",
     output_format: str | None = None,
 ):
     """Run a TVM module on a remote device.
 
     Parameters
     ----------
-    mod : Module
+    mod : tvm_ffi.Module
         The TVM module to run.
     device_type : str
         The device type to run the module on.
@@ -180,7 +193,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
         - TVM_TRACKER_HOST
         - TVM_TRACKER_PORT
         - TVM_TRACKER_KEY
-    export_func : Union[Callable[Module, str], Literal["tar", "ndk"]]
+    export_func : Union[Callable[tvm_ffi.Module, str], Literal["tar", "ndk"]]
         The function to export the module to a file.
         If callable, it must be a function that takes two arguments: the module to export and the
         path to export to.
@@ -218,13 +231,14 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
             session.upload(artifact_path, remote_path)
             args = _args_to_device(args, device, device.empty)
             remote_mod = session.load_module(remote_path)
-            profile_result = remote_mod.time_evaluator(
+            profile_result = time_evaluator(
+                remote_mod,
                 func_name=remote_mod.entry_name,
-                dev=device,
+                device=device,
                 number=evaluator_config.number,
                 repeat=evaluator_config.repeat,
                 min_repeat_ms=evaluator_config.min_repeat_ms,
-                f_preproc="cache_flush_cpu_non_first_arg"
+                f_preproc="runtime.CacheFlushCPUArguments"
                 if evaluator_config.enable_cpu_cache_flush
                 else "",
             )(*args)

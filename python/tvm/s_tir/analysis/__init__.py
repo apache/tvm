@@ -21,12 +21,13 @@
 from typing import Optional, Union
 
 import tvm
-from tvm.ir import IRModule, TensorRegion
-from tvm.tirx.expr import Var
+import tvm_tirx
+from tvm_tirx.ir import IRModule, TensorRegion
+from tvm_tirx.tirx.expr import Var
 from tvm.s_tir import SBlock
 
-from tvm.ir import Stmt
-from tvm.tirx.function import Function
+from tvm_tirx.ir import Stmt
+from tvm_tirx.tirx.function import Function
 from . import _ffi_api
 
 
@@ -85,7 +86,7 @@ def detect_tensor_access_lca(func: Function) -> dict[Var, Stmt]:
 
     Parameters
     ----------
-    func: tvm.tirx.Function
+    func: tvm_tirx.tirx.Function
         The function to be detected.
 
     Returns
@@ -113,7 +114,7 @@ def find_anchor_sblock(mod: IRModule) -> SBlock | None:
 
     Parameters
     ----------
-    mod: tvm.ir.IRModule
+    mod: tvm_tirx.ir.IRModule
         The input TIR module.
     Returns
     -------
@@ -128,7 +129,7 @@ def verify_gpu_code(func: Function, constraints: dict[str, int]) -> bool:
 
     Parameters
     ----------
-    func: tvm.tirx.Function
+    func: tvm_tirx.tirx.Function
         The module to be verified.
 
     constraints : Dict[str, int]
@@ -188,19 +189,19 @@ def OOBChecker():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm_tirx.ir.transform.Pass
         The result pass
     """
     return _ffi_api.OOBChecker()  # type: ignore
 
 
-def get_vtcm_compaction_passes() -> list[tvm.ir.transform.Pass]:
+def get_vtcm_compaction_passes() -> list[tvm_tirx.ir.transform.Pass]:
     """Utility function to get the list of lowering passes to be applied to calculate the compacted
     VTCM allocation size
 
     Returns
     -------
-    result : List[tvm.ir.transform.Pass]
+    result : List[tvm_tirx.ir.transform.Pass]
         returns list of passes
     """
     return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member

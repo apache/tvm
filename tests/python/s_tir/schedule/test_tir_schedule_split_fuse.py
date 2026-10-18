@@ -21,15 +21,17 @@ from __future__ import annotations
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx.expr import IntImm
+from tvm_tirx import tirx
+from tvm_tirx.ir import IntImm
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -688,7 +690,7 @@ def test_split_int64_factors():
     sch = tvm.s_tir.Schedule(elementwise_symbolic, debug_mask="all")
     block_b = sch.get_sblock("B")
     _, _, k = sch.get_loops(block_b)
-    sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
+    sch.split(k, factors=[IntImm(ty="int64", value=10), None])
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 
@@ -751,4 +753,4 @@ def test_fused_symbolic_2D_tiling():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

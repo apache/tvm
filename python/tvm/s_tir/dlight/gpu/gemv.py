@@ -19,9 +19,10 @@
 
 from functools import reduce
 
-import tvm
-from tvm import s_tir, tirx
-from tvm.target import Target
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 from ..analysis import (
     SBlockInfo,
@@ -149,7 +150,11 @@ class GEMV(GPUScheduleRule):
             for tensor in vector_input_tensors:
                 dtype_bytes = get_bytes(tensor.dtype)
                 tensor_size = (
-                    reduce(lambda x, y: x * y, tensor.shape, tirx.IntImm(tensor.shape[0].ty, 1))
+                    reduce(
+                        lambda x, y: x * y,
+                        tensor.shape,
+                        tvm_tirx.ir.IntImm(tensor.shape[0].ty, 1),
+                    )
                     * dtype_bytes
                 )
                 shared_mem_usage += tensor_size
@@ -161,7 +166,7 @@ class GEMV(GPUScheduleRule):
             max_smem = get_max_shared_memory_per_block(target)
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
-                and isinstance(shared_mem_usage, tirx.IntImm)
+                and isinstance(shared_mem_usage, tvm_tirx.ir.IntImm)
                 and shared_mem_usage.value <= max_smem
             )
 
@@ -186,8 +191,8 @@ class GEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_tensor_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tvm.ir.For = sch.get(l)
-                if isinstance(loop.extent, tirx.IntImm):
+                loop: tvm_tirx.ir.For = sch.get(l)
+                if isinstance(loop.extent, tvm_tirx.ir.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
@@ -257,22 +262,26 @@ class GEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[3],
-                ann_key="auto_unroll_max_step",
+                ann_key="tirx.auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(block_or_loop=sch.get_loops(rf)[3], ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(
+                block_or_loop=sch.get_loops(rf)[3], ann_key="tirx.unroll_explicit", ann_val=1
+            )
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[3],
-                ann_key="auto_unroll_max_step",
+                ann_key="tirx.auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(block_or_loop=sch.get_loops(rf2)[3], ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(
+                block_or_loop=sch.get_loops(rf2)[3], ann_key="tirx.unroll_explicit", ann_val=1
+            )
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="unroll_explicit",
+                    ann_key="tirx.unroll_explicit",
                     ann_val=unroll_factor,
                 )
 
@@ -527,10 +536,12 @@ class GEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[3],
-                ann_key="auto_unroll_max_step",
+                ann_key="tirx.auto_unroll_max_step",
                 ann_val=UNROLL,
             )
-            sch.annotate(block_or_loop=sch.get_loops(rf2)[3], ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(
+                block_or_loop=sch.get_loops(rf2)[3], ann_key="tirx.unroll_explicit", ann_val=1
+            )
 
             # Schedule epilogue
             if epilogue_info is not None:
@@ -655,8 +666,8 @@ class GEMV(GPUScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.reorder(bx, tx, r0, r1, c, vec)
 
-        sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=8)
-        sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(tx, ann_key="tirx.auto_unroll_max_step", ann_val=8)
+        sch.annotate(tx, ann_key="tirx.unroll_explicit", ann_val=1)
 
         if LOAD_V_SHARED:
             V_shared = sch.cache_read(block, vector_input_tensors[0], storage_scope="shared")

@@ -21,6 +21,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/support.h>
+#include <tvm/tirx/type.h>
 
 namespace tvm {
 namespace script {
@@ -34,20 +35,8 @@ CallDoc TensorHelperCall(DocTranslatorObj* d, const Type& type, const ffi::Strin
       << "Ts." << helper << " cannot reconstruct this nonrepresentable TensorType";
   // S-TIR's allocation and matching helpers retain their public scope/align names.
   // Translate the canonical Type fields at this sugar boundary only.
-  bool has_offset = false;
-  bool has_factor = false;
   for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
-    has_offset |= rhs->kwargs_keys[i] == "elem_offset";
-    has_factor |= rhs->kwargs_keys[i] == "offset_factor";
     if (rhs->kwargs_keys[i] == "data_alignment") rhs->kwargs_keys.Set(i, "align");
-  }
-  // An explicit factor makes these helpers synthesize a symbolic offset.
-  // Supply the fixed zero explicitly when the type printer omitted it.
-  if (has_factor && !has_offset) {
-    rhs->kwargs_keys.push_back("elem_offset");
-    rhs->kwargs_values.push_back(d->WithExtraStateScope<bool>("ir.explicit_value_type", true, [&] {
-      return d->Translate(type.as_or_throw<tirx::TensorType>()->elem_offset).value();
-    }));
   }
   rhs->callee = NamespaceDoc("s_tir")->Attr(helper);
   return rhs;
@@ -131,11 +120,11 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
     auto annotations = block->annotations;
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+    if (auto value = annotations.Get(s_tir::attr::kTensorAllocatedAddr.name)) {
       for (const auto& entry : value.value().cast<s_tir::TensorAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
-      annotations.erase(s_tir::attr::kTensorAllocatedAddr);
+      annotations.erase(s_tir::attr::kTensorAllocatedAddr.name);
     }
     if (!annotations.empty()) {
       d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")
@@ -194,7 +183,7 @@ ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
@@ -215,7 +204,7 @@ ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
@@ -231,7 +220,7 @@ ffi::Optional<ExprDoc> MatchTensorRegionDocTranslate(DocTranslatorObj* d, ffi::A
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::MatchTensorRegionNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&MatchTensorRegionDocTranslate>());
 }
 

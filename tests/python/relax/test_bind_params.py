@@ -19,15 +19,16 @@
 import numpy as np
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import relax, tirx
-from tvm.script import relax as R
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
+from tvm_tirx import tirx
 
-param_specification = tvm.testing.parameter("by_string", "by_var")
-param_shape = tvm.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")
-tensor_param_dtype = tvm.testing.parameter("float32", None)
+param_specification = tvm_tirx.testing.parameter("by_string", "by_var")
+param_shape = tvm_tirx.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")
+tensor_param_dtype = tvm_tirx.testing.parameter("float32", None)
 
 
 def test_bind_tensor_param(param_specification, param_shape, tensor_param_dtype):
@@ -72,7 +73,7 @@ def test_bind_tensor_param(param_specification, param_shape, tensor_param_dtype)
 
     after = before.bind_params({var: np.arange(16).astype("float32")})
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_shape_param(param_shape):
@@ -105,14 +106,14 @@ def test_bind_shape_param(param_shape):
 
     after = before.bind_params({"A": relax.ShapeExpr([16])})
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
-prim_value_dtype = tvm.testing.parameter("int64", "int32", "float32")
+prim_value_dtype = tvm_tirx.testing.parameter("int64", "int32", "float32")
 
 
 def test_bind_prim_value(prim_value_dtype):
-    prim_type = tvm.ir.PrimType(prim_value_dtype)
+    prim_type = tvm_tirx.ir.PrimType(prim_value_dtype)
     param = relax.Var("A", prim_type)
     before = relax.Function([param], param, prim_type).with_attr("global_symbol", "main")
     value = tirx.const(16, prim_value_dtype)
@@ -120,8 +121,8 @@ def test_bind_prim_value(prim_value_dtype):
     after = before.bind_params({"A": value})
 
     assert not after.params
-    tvm.ir.assert_structural_equal(after.ret_ty, prim_type)
-    tvm.ir.assert_structural_equal(after.body.body, value)
+    tvm_tirx.ir.assert_structural_equal(after.ret_ty, prim_type)
+    tvm_tirx.ir.assert_structural_equal(after.body.body, value)
 
 
 def test_error_on_unknown_var():
@@ -147,4 +148,4 @@ def test_error_on_unknown_var_name():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

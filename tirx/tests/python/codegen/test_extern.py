@@ -1,0 +1,110 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ruff: noqa: F841
+import numpy as np
+import pytest
+import tvm_ffi
+
+import tvm_tirx
+import tvm_tirx.testing
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+
+
+@pytest.mark.gpu
+def test_add_pipeline():
+    """Test extern-style add pipeline with vectorized operations."""
+    nn = 64
+    max_threads = 4
+
+    # CPU version: serial loop with vectorized operations
+    @I.ir_module
+    class ModuleCPU:
+        @T.function
+        def main(A: T.Tensor((64,), "float32"), C: T.Tensor((64,), "float32")):
+            for i in T.serial((64 + 1) // 2):
+                C[T.Ramp(i * 2, 1, 2)] = A[T.Ramp(i * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
+
+    # GPU version: thread bindings with vectorized operations
+    @I.ir_module
+    class ModuleGPU:
+        @T.function
+        def main(A: T.Tensor((64,), "float32"), C: T.Tensor((64,), "float32")):
+            bx = T.launch_thread("blockIdx.x", (64 + 4 - 1) // 4)
+            tx = T.launch_thread("threadIdx.x", 4)
+            idx = bx * 4 + tx
+            if T.likely(idx < 64):
+                C[T.Ramp(idx * 2, 1, 2)] = A[T.Ramp(idx * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
+
+    def check_target(target):
+        if not tvm_tirx.testing.device_enabled(target):
+            return
+        mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
+        # build and invoke the kernel.
+        f = tvm_tirx.tirx.compile(mod, target=target)
+        n = nn
+
+        def run_and_check():
+            dev = tvm_tirx.device_from_target(target, 0)
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            f(a, c)
+            tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+
+        if target == "llvm":
+            run_and_check()
+        else:
+            tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+    check_target("llvm")
+    check_target("opencl")
+    check_target("cuda")
+
+
+def test_pack_buffer_simple():
+    """Test call_packed with buffer arguments."""
+    nn = 1024
+
+    @I.ir_module
+    class Module:
+        @T.function
+        def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024,), "float32")):
+            T.evaluate(T.call_packed("my_extern_array_func1", A, C))
+
+    @tvm_ffi.register_global_func
+    def my_extern_array_func1(aa, bb):
+        aa.copyto(bb)
+
+    def check_target(target):
+        if not tvm_tirx.testing.device_enabled(target):
+            return
+        # build and invoke the kernel.
+        f = tvm_tirx.tirx.compile(Module, target=target)
+        dev = tvm_tirx.cpu(0)
+        # launch the kernel.
+        n = nn
+        a = tvm_tirx.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+
+        f(a, c)
+        tvm_tirx.testing.assert_allclose(c.numpy(), a.numpy())
+
+    check_target("llvm")
+
+
+if __name__ == "__main__":
+    tvm_tirx.testing.main()

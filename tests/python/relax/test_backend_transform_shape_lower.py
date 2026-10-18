@@ -16,15 +16,15 @@
 # under the License.
 # ruff: noqa: F841
 
-import tvm.script
-import tvm.testing
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
 
@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 def test_const_shape_arg():
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
@@ -44,7 +44,7 @@ def test_const_shape_arg():
             """Extra function, checks if the pass preserves it."""
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
@@ -80,14 +80,14 @@ def test_static_fn_check():
     """Check static shape and function."""
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
             R.func_attr({"relax.force_pure": True})
             return y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
@@ -121,7 +121,7 @@ def test_simple_symbolic_shape():
     n = T.dynamic("n", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor([n, 2, m], "float32")):
@@ -136,7 +136,7 @@ def test_simple_symbolic_shape():
     n = T.dynamic("n", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor([n, 2, m], "float32")):
@@ -184,7 +184,7 @@ def test_symbolic_compute():
     k = T.dynamic("k", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor([n, m], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
@@ -202,7 +202,7 @@ def test_symbolic_compute():
     k = T.dynamic("k", "int64")
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def shape_func(H: T.Tensor(T.int64(4), "int64")):
@@ -302,7 +302,7 @@ def test_tuple_handling():
     m = T.dynamic("m", "int64")
     k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -318,7 +318,7 @@ def test_tuple_handling():
     m = T.dynamic("m", "int64")
     k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -394,7 +394,7 @@ def test_return_match_check():
     n = T.dynamic("n", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor([n, m], "float32"), y: R.Any) -> R.Tuple(R.Tensor([n, m], "float32")):
@@ -410,7 +410,7 @@ def test_return_match_check():
     n = T.dynamic("n", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor([n, m], "float32"), y: R.Any) -> R.Tuple(R.Tensor([n, m], "float32")):
@@ -480,7 +480,7 @@ def test_return_match_check_with_new_expr():
 
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor([n, n], "float32")) -> R.Tensor([n * n], "float32"):
@@ -496,7 +496,7 @@ def test_return_match_check_with_new_expr():
 
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor([n, n], "float32")) -> R.Tensor([n * n], "float32"):
@@ -845,4 +845,4 @@ def test_check_weights_with_dynamic_shape():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

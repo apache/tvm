@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
+import tvm_ffi
+
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_ipc_allreduce_rewrite():
@@ -64,11 +66,13 @@ def test_ipc_allreduce_rewrite():
 
     allreduce_strategy = 1
     mod = relax.transform.IPCAllReduceRewrite(allreduce_strategy)(Module)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod,
         (
             Expected
-            if tvm.get_global_func("runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True)
+            if tvm_ffi.get_global_func(
+                "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
+            )
             is not None
             else Module
         ),
@@ -120,11 +124,13 @@ def test_ipc_allreduce_spread_along_reshape():
 
     allreduce_strategy = 1
     mod = relax.transform.IPCAllReduceRewrite(allreduce_strategy)(Module)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod,
         (
             Expected
-            if tvm.get_global_func("runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True)
+            if tvm_ffi.get_global_func(
+                "runtime.disco.cuda_ipc.custom_allreduce", allow_missing=True
+            )
             is not None
             else Module
         ),
@@ -153,8 +159,8 @@ def test_ipc_allreduce_skip_reducer_other_than_sum():
 
     allreduce_strategy = 1
     mod = relax.transform.IPCAllReduceRewrite(allreduce_strategy)(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Module)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

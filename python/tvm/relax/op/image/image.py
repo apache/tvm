@@ -20,12 +20,11 @@ from typing import cast
 
 import tvm_ffi
 
-from tvm import DataType
-from tvm.ir import Attrs, is_prim_expr
-from tvm.ir import Call as _Call
-from tvm.ir import PrimType as _PrimType
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs, is_prim_expr
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ...expr import Expr, ShapeExpr
 
@@ -49,7 +48,7 @@ def resize2d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -105,7 +104,7 @@ def resize2d(
     extrapolation_value: float
         Fill value to use when roi is outside of the image
 
-    out_dtype : Optional[str | DataType]
+    out_dtype : Optional[str | tvm_ffi.dtype]
         The dtype of the output tensor.
         It it is not specified, the output will have the same dtype as input if not specified.
 
@@ -146,8 +145,8 @@ def resize2d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -162,7 +161,7 @@ def resize3d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -206,8 +205,8 @@ def resize3d(
             extrapolation_value=extrapolation_value,
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -263,8 +262,8 @@ def grid_sample(
             padding_mode=padding_mode,
             align_corners=align_corners,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -314,7 +313,7 @@ def affine_grid(
             "relax.image.affine_grid",
             [data, size],
             attrs=_make_attrs("relax.attrs.AffineGridAttrs", align_corners=align_corners),
-            ty=ty,
             loc=loc,
+            ty=ty,
         ),
     )

@@ -17,11 +17,11 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """S-TIR construction and validation over shared TIRx syntax."""
 
-from tvm import ir as _ir
-from tvm import tirx as _tir
-from tvm.script.ir_builder import base as _base
-from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
-from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
+from tvm_tirx import ir as _ir
+from tvm_tirx import tirx as _tir
+from tvm_tirx.script.ir_builder import base as _base
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
 
 from . import _ffi_api
 from .frame import BlockInitFrame, SBlockFrame
@@ -35,16 +35,12 @@ from .ir import _get_sblock_name_suffix
 
 def function(is_private=False, persistent=False, *, private=None):
     """Create an S-TIR function frame."""
-    return _ffi_api.Function(is_private if private is None else private, persistent)
+    return _ffi_api.Function(is_private if private is None else private, persistent, False)
 
 
 def function_(*, private=False, persistent=False, decl=False, loc=None):
     """Enter an S-TIR declaration or definition frame."""
-    native = (
-        _ffi_api.DeclFunction(private, persistent)
-        if decl
-        else _ffi_api.Function(private, persistent)
-    )
+    native = _ffi_api.Function(private, persistent, decl)
     return _base.at_(loc, native)
 
 

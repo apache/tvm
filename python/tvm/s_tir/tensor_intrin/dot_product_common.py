@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Dot product related intrinsics."""
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 from .. import TensorIntrin
 
@@ -27,11 +27,33 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
     if dtype_c == "uint32":
         assert dtype_a == dtype_b == "uint8"
 
+    dp4a_desc_a_offset = T.dynamic("dp4a_desc_a_offset", "int32")
+    dp4a_desc_b_offset = T.dynamic("dp4a_desc_b_offset", "int32")
+    dp4a_desc_c_offset = T.dynamic("dp4a_desc_c_offset", "int32")
+
     @Ts.function
     def dp4a_desc(
-        A: T.Tensor((4,), dtype_a, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-        B: T.Tensor((4,), dtype_b, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-        C: T.Tensor((1,), dtype_c, offset_factor=1, elem_offset=T.int32(), align=4, scope="local"),
+        A: T.Tensor(
+            (4,),
+            dtype_a,
+            layout=T.TileLayout(T.S[(4,)] + (dp4a_desc_a_offset)),
+            align=4,
+            scope="shared",
+        ),
+        B: T.Tensor(
+            (4,),
+            dtype_b,
+            layout=T.TileLayout(T.S[(4,)] + (dp4a_desc_b_offset)),
+            align=4,
+            scope="shared",
+        ),
+        C: T.Tensor(
+            (1,),
+            dtype_c,
+            layout=T.TileLayout(T.S[(1,)] + (dp4a_desc_c_offset)),
+            align=4,
+            scope="local",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])
@@ -39,13 +61,35 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
             for i in range(0, 4):
                 with Ts.sblock("update"):
                     vi = Ts.axis.remap("R", [i])
-                    C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
+                    C[0] = C[0] + T.cast(A[vi], ty=dtype_c) * T.cast(B[vi], ty=dtype_c)
+
+    dp4a_impl_a_offset = T.dynamic("dp4a_impl_a_offset", "int32")
+    dp4a_impl_b_offset = T.dynamic("dp4a_impl_b_offset", "int32")
+    dp4a_impl_c_offset = T.dynamic("dp4a_impl_c_offset", "int32")
 
     @Ts.function
     def dp4a_impl(
-        A: T.Tensor((4,), dtype_a, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-        B: T.Tensor((4,), dtype_b, offset_factor=1, elem_offset=T.int32(), align=4, scope="shared"),
-        C: T.Tensor((1,), dtype_c, offset_factor=1, elem_offset=T.int32(), align=4, scope="local"),
+        A: T.Tensor(
+            (4,),
+            dtype_a,
+            layout=T.TileLayout(T.S[(4,)] + (dp4a_impl_a_offset)),
+            align=4,
+            scope="shared",
+        ),
+        B: T.Tensor(
+            (4,),
+            dtype_b,
+            layout=T.TileLayout(T.S[(4,)] + (dp4a_impl_b_offset)),
+            align=4,
+            scope="shared",
+        ),
+        C: T.Tensor(
+            (1,),
+            dtype_c,
+            layout=T.TileLayout(T.S[(1,)] + (dp4a_impl_c_offset)),
+            align=4,
+            scope="local",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])

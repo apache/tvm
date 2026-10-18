@@ -117,7 +117,7 @@ A tensor's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
       mapped = Tx.alloc_local([1], "uint64")
       Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
       ptr_ty = PtrType(PrimType("uint64"), "shared")
-      ptr = Tx.reinterpret(ptr_ty, mapped[0])
+      ptr = Tx.reinterpret(mapped[0], ty=ptr_ty)
       remote_mbar = Tx.decl_tensor(ptr, ty_args=[Tx.Tensor([1], "uint64", scope="shared")])
 
   Pointer bindings cannot be reassigned; use a new name for a different

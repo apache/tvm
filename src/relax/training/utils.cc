@@ -52,7 +52,7 @@ class AppendLossMutator : private ExprMutator {
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
     auto new_func_transformed =
-        WithAttr(mutator.VisitExpr(new_func).as_or_throw<Function>(), tvm::attr::kGlobalSymbol,
+        WithAttr(mutator.VisitExpr(new_func).as_or_throw<Function>(), tvm::attr::kGlobalSymbol.name,
                  new_func_name.value_or(func_name + "_loss"));
 
     auto new_module = ffi::GetRef<IRModule>(mod.CopyOnWrite());

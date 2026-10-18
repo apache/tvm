@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_TYPE_H_
 #define TVM_RELAX_DISTRIBUTED_TYPE_H_
 
+#include <tvm/base.h>
 #include <tvm/relax/distributed/global_info.h>
 #include <tvm/relax/type.h>
 

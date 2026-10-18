@@ -19,6 +19,7 @@
 #ifndef TVM_RELAX_EXPR_H_
 #define TVM_RELAX_EXPR_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/structural_equal.h>
@@ -495,54 +496,59 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 // kPrimitive.
 namespace attr {
 /*! \brief Mark the function as a primitive function. */
-constexpr const char* kPrimitive = "Primitive";
+inline constexpr ffi::reflection::AttrKey<bool> kPrimitive{"Primitive"};
 /*!
  * \brief Indicate the codegen that should be used for building this function.
  * When this is unset or set to "default", the default compilation pipeline will be used.
  */
-constexpr const char* kCodegen = "Codegen";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kCodegen{"Codegen"};
 /*! \brief Treat the function as a composite operator. */
-constexpr const char* kComposite = "Composite";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kComposite{"Composite"};
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
-constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kPartitionedFromPattern{
+    "PartitionedFromPattern"};
 /*! \brief The required workspace for an external function. */
-constexpr const char* kWorkspaceSize = "WorkspaceSize";
+inline constexpr ffi::reflection::AttrKey<int64_t> kWorkspaceSize{"WorkspaceSize"};
 
 // Note: in the future, we prefer snake_case instead of CamelCase for attributes.
 // Past ones will be kept for backwards compatibility.
 /*! \brief Override checking purity for this function and treat as pure
  * (is_pure must be set to true) */
-constexpr const char* kForcePure = "relax.force_pure";
+inline constexpr ffi::reflection::AttrKey<bool> kForcePure{"relax.force_pure"};
 
 /*!
  * \brief The number of inputs of a function.
  * If a function has the num_input attribute, the last func->params.size() - num_inputs
  * arguments are assumed to be weights that are fixed across invocations.
  */
-constexpr const char* kNumInput = "num_input";
-constexpr const char* kOpPattern = "op_pattern";
+inline constexpr ffi::reflection::AttrKey<int64_t> kNumInput{"num_input"};
+inline constexpr ffi::reflection::AttrKey<int64_t> kOpPattern{"op_pattern"};
 
-constexpr const char* kOpAttrs = "op_attrs";
+inline constexpr ffi::reflection::AttrKey<ffi::ObjectRef> kOpAttrs{"op_attrs"};
 
-constexpr const char* kOperatorName = "operator_name";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kOperatorName{"operator_name"};
 
-constexpr const char* kLibraryKernel = "library_kernel";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kLibraryKernel{"library_kernel"};
 
-constexpr const char* kCSource = "c_source";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kCSource{"c_source"};
 
-constexpr const char* kCSourceFmt = "c_source_fmt";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kCSourceFmt{"c_source_fmt"};
 
-constexpr const char* kTirVarUpperBound = "tir_var_upper_bound";
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, IntImm>> kTirVarUpperBound{
+    "tir_var_upper_bound"};
 
-constexpr const char* kTirVarLowerBound = "tir_var_lower_bound";
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, IntImm>> kTirVarLowerBound{
+    "tir_var_lower_bound"};
 
-constexpr const char* kTirNonNegativeVar = "tir_non_negative_var";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::String>> kTirNonNegativeVar{
+    "tir_non_negative_var"};
 
 constexpr const char* kMemoryPlanDynamicFuncOutput = "relax.memory_plan_dynamic_func_output";
 
-constexpr const char* kCaptureSymbolicVars = "relax.rewrite_cuda_graph.capture_symbolic_vars";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::String>> kCaptureSymbolicVars{
+    "relax.rewrite_cuda_graph.capture_symbolic_vars"};
 
-constexpr const char* kScoped = "scoped";
+inline constexpr ffi::reflection::AttrKey<int64_t> kScoped{"scoped"};
 
 }  // namespace attr
 

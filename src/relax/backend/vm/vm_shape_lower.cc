@@ -32,7 +32,7 @@
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_functor.h>
 #include <tvm/runtime/vm/builtin.h>
@@ -368,7 +368,7 @@ class VMShapeLowerMutator
       this->builder_->EmitNormalized(shape_heap_binding);
       std::vector<MatchShapeTodoItem> match_todos;
       size_t num_input = func->params.size();
-      if (auto opt_num_input = func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
+      if (auto opt_num_input = func->attrs.GetAttr(tvm::relax::attr::kNumInput)) {
         // If the function has the attribute 'num_input', do shape checking on for the real inputs
         // and skip weights.
         num_input = static_cast<size_t>(opt_num_input.value());
@@ -750,12 +750,13 @@ class VMShapeLowerMutator
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
     tirx::Function shape_func(params, body, ret_type);
-    shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
-    shape_func = WithAttr(std::move(shape_func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
-    if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
+    shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir.name, true);
+    shape_func =
+        WithAttr(std::move(shape_func), tvm::attr::kScriptNamespace.name, ffi::String("s_tir"));
+    if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget.name).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tirx::Function>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
+          WithAttr<tirx::Function>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc.name, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),

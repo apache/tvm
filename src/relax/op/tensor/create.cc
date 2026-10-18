@@ -28,7 +28,7 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/sym/analyzer.h>
 
 #include <string>
@@ -393,7 +393,7 @@ Type InferTypeArange(const CallNode* call_node) {
       return tvm::floordiv((end - start + step - 1), step);
     } else {
       return tvm::prim::cast(
-          tvm::ceil(tvm::prim::cast(end - start, tvm::PrimType::Float(32)) / step),
+          tvm::prim::ceil(tvm::prim::cast(end - start, tvm::PrimType::Float(32)) / step),
           tvm::PrimType::Int(64));
     }
   }();

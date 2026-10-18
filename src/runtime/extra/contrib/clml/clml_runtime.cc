@@ -1947,12 +1947,12 @@ class CLMLRuntime : public JSONRuntimeBase {
 #else
   void Run() override {
     TVM_FFI_THROW(InternalError) << "Cannot call run on CLML module without runtime enabled. "
-                                 << "Please build with USE_CLML_GRAPH_EXECUTOR.";
+                                 << "Please build with TVM_USE_CLML_GRAPH_EXECUTOR.";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "CLML engine is not initialized. "
-                 << "Please build with USE_CLML_GRAPH_EXECUTOR.";
+                 << "Please build with TVM_USE_CLML_GRAPH_EXECUTOR.";
   }
 #endif
   /*! CLML sub graph symbol in TVM main module */

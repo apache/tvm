@@ -18,14 +18,15 @@
 # ruff: noqa: E501, F401
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
 from tvm.te import create_function
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _target() -> Target:
@@ -51,7 +52,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class AfterRewrite0:
     @Ts.function
     def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
@@ -102,7 +103,7 @@ class AfterRewrite0:
                             Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WarpExecutionAfterRewrite:
     @Ts.function
     def main(
@@ -244,7 +245,7 @@ def test_rewrite_cooperative_fetch():
     # fmt: on
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, AfterRewrite0)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, AfterRewrite0)
 
 
 def test_rewrite_warp_execution():
@@ -289,8 +290,8 @@ def test_rewrite_warp_execution():
     # fmt: on
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod, WarpExecutionAfterRewrite)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, WarpExecutionAfterRewrite)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

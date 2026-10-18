@@ -1776,7 +1776,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
     } else {
       // fallback path for non-integer or step of unknown sign
       return tvm::prim::cast(
-          tvm::ceil(tvm::prim::cast(stop - start, tvm::PrimType::Float(32)) / step),
+          tvm::prim::ceil(tvm::prim::cast(stop - start, tvm::PrimType::Float(32)) / step),
           DefaultIndexType());
     }
   }();
@@ -1858,7 +1858,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   ffi::Array<PrimExpr> dst_shape = layout_converter.value().ForwardShape(src->shape);
 
   ffi::Map<ffi::String, ffi::Any> attrs = {
-      {tvm::s_tir::attr::kScheduleRule, ffi::String(schedule_rule)},
+      {tvm::s_tir::attr::kScheduleRule.name, ffi::String(schedule_rule)},
       // Information about layouts needed for the schedule rule
       {tvm::topi::attr::kSrcLayout, ffi::String(src_layout)},
       {tvm::topi::attr::kDstLayout, ffi::String(dst_layout)},

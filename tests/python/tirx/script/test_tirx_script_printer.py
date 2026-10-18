@@ -20,20 +20,21 @@
 import pytest
 from tvm_ffi import get_global_func
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import ir, s_tir, tirx
-from tvm import tirx as tir
-from tvm.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import ir_builder as IB
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.printer.scriptable import _script
-from tvm.tirx.cuda import op as cuda_op
-from tvm.tirx.script import ir_builder as TB
-from tvm.tirx.trn import op as trn_op
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm_tirx import ir, tirx
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import ir_builder as IB
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.script.printer.scriptable import _script
+from tvm_tirx.tirx.cuda import op as cuda_op
+from tvm_tirx.tirx.script import ir_builder as TB
+from tvm_tirx.tirx.trn import op as trn_op
 
 
 def test_failed_invalid_prefix():
@@ -116,12 +117,12 @@ def test_ir_prefix_rendering_imports_and_reservations(config, alias, comment_imp
     assert var.script(verbose_expr=True, **config).strip() == (
         f'{alias}_1 = {alias}.dynamic("{alias}", dtype="int32")\n{alias}_1'
     )
-    mod = tvm.IRModule({})
+    mod = tvm_tirx.IRModule({})
     script = mod.script(**config)
-    import_line = f"from tvm.script import tirx as {alias}"
+    import_line = f"from tvm_tirx.script import tirx as {alias}"
     assert script.splitlines()[0] == ("# " if comment_imports else "") + import_line
     assert f"@{alias}.ir_module" in script
-    assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={alias: I}))
+    assert_structural_equal(mod, tvm_tirx.script.from_source(script, extra_vars={alias: I}))
 
 
 def test_reflected_type_recursive_values(monkeypatch):
@@ -129,27 +130,29 @@ def test_reflected_type_recursive_values(monkeypatch):
     from tvm_ffi.dataclasses import py_class
 
     @py_class("tirx.PrinterValuesType")
-    class PrinterValuesType(tvm.ir.Type):
+    class PrinterValuesType(tvm_tirx.ir.Type):
         values: tvm_ffi.Array
 
     monkeypatch.setattr(T, "PrinterValues", PrinterValuesType, raising=False)
     value = PrinterValuesType(
-        tvm_ffi.convert([T.int32(128), {"nested": [T.float32(1.25), tvm.ir.PrimType("int32")]}])
+        tvm_ffi.convert(
+            [T.int32(128), {"nested": [T.float32(1.25), tvm_tirx.ir.PrimType("int32")]}]
+        )
     )
     source = value.script()
     assert source == 'T.PrinterValues([T.int32(128), {"nested": [T.float32(1.25), T.int32]}])'
     restored = eval(source, {"T": T})
-    tvm.ir.assert_structural_equal(value, restored)
+    tvm_tirx.ir.assert_structural_equal(value, restored)
     assert restored.script() == source
 
     tensor = T.Tensor((T.int64(128), 4), T.float32)
     source = tensor.script()
     assert source == "T.Tensor((T.int64(128), 4), T.float32)"
-    tvm.ir.assert_structural_equal(tensor, eval(source, {"T": T}))
+    tvm_tirx.ir.assert_structural_equal(tensor, eval(source, {"T": T}))
 
 
 def test_tensor():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
     _assert_print(
         a,
         """A = T.Var("A", T.Tensor((128, 128), T.float16))
@@ -162,7 +165,7 @@ def _assert_print(obj, expected):
 
 
 def test_tensor_region():
-    src = tirx.decl_tensor((128, 128), "float32", name="src")
+    src = tirx.Var("src", tirx.TensorType((128, 128), "float32"))
     obj = TensorRegion(
         src,
         [
@@ -181,8 +184,8 @@ src[64:128, 64:128]
 
 
 def test_tensor_load():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
-    obj = tirx.TensorLoad(a, [128, 128])
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
+    obj = tvm_tirx.ir.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
         """A = T.Var("A", T.Tensor((128, 128), T.float16))
@@ -191,7 +194,7 @@ A[128, 128]""",
 
 
 def test_tensor_store():
-    a = tirx.decl_tensor((128, 128), "float16", name="A")
+    a = tirx.Var("A", tirx.TensorType((128, 128), "float16"))
     with IRBuilder() as ib:
         TB.tensor_store(a, [128, 128], a[128, 128] + 1)
     obj = ib.get()
@@ -447,25 +450,25 @@ Ts.iter_var(a, T.Range(0, 8), "DataPar", "")
 
 
 def test_string_imm():
-    s = tvm.ir.StringImm("str")
+    s = tvm_tirx.ir.StringImm("str")
     _assert_print(s, '"str"')
 
 
 def test_cast():
-    obj = tirx.Cast(tirx.Var("a", "float32"), "float64")
+    obj = tirx.Cast("float64", tirx.Var("a", "float32"))
     _assert_print(
         obj,
         """
 a = T.dynamic("a", dtype="float32")
-T.Cast(a, "float64")
+T.Cast("float64", a)
 """,
     )
 
 
 def test_llvm_intrin_imm():
-    a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_intrin("llvm.donothing", ty="int32x4")
     _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty=T.int32x4)')
-    a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
+    a = tirx.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")
     _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty=T.int32x4)')
 
 
@@ -501,8 +504,8 @@ a {sign} b"""
 
 
 def test_binary_arith_const():
-    a = tirx.IntImm("int64", 3)
-    b = tirx.IntImm("int64", 4)
+    a = tvm_tirx.ir.IntImm("int64", 3)
+    b = tvm_tirx.ir.IntImm("int64", 4)
     for op, name in [
         (tirx.Add, "Add"),
         (tirx.Sub, "Sub"),
@@ -575,11 +578,11 @@ def test_select():
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(32, "32"), (tvm.tirx.vscale() * 8, "T.vscale() * 8")]
+    "lanes, scripted_lanes", [(32, "32"), (tvm_tirx.tirx.vscale() * 8, "T.vscale() * 8")]
 )
 def test_ramp(lanes, scripted_lanes):
     a = tirx.Var("a", "int32")
-    obj = tirx.Ramp(a, 1, lanes)
+    obj = tvm_tirx.ir.prim.vector_expr.Ramp(a, 1, lanes)
     _assert_print(
         obj,
         f"""
@@ -590,10 +593,10 @@ T.Ramp(a, 1, {scripted_lanes})
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(4, "4"), (tvm.tirx.vscale() * 4, "T.vscale() * 4")]
+    "lanes, scripted_lanes", [(4, "4"), (tvm_tirx.tirx.vscale() * 4, "T.vscale() * 4")]
 )
 def test_broadcast(lanes, scripted_lanes):
-    obj = tirx.Broadcast(0, lanes)
+    obj = tvm_tirx.ir.prim.vector_expr.Broadcast(0, lanes)
     _assert_print(
         obj,
         f"""
@@ -637,7 +640,7 @@ Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 
 
 def test_int_imm():
-    _assert_print(tirx.IntImm("int64", 1), "T.int64(1)")
+    _assert_print(tvm_tirx.ir.IntImm("int64", 1), "T.int64(1)")
     obj = TB.int16(1)
     _assert_print(
         obj,
@@ -690,22 +693,22 @@ def test_tuple_type():
 
 def test_nested_seqstmt_roundtrip():
     original = nested_seqstmt()
-    parsed = tvm.script.from_source(
+    parsed = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx},
     )
-    tvm.ir.assert_structural_equal(original, parsed, True)
+    tvm_tirx.ir.assert_structural_equal(original, parsed, True)
 
 
 def nested_seqstmt():
     """Sequence construction flattens nested input and removes no-op statements."""
-    func = tvm.tirx.Function(
+    func = tvm_tirx.tirx.Function(
         params=[],
-        body=tvm.ir.SeqStmt(
+        body=tvm_tirx.ir.SeqStmt(
             [
-                tvm.ir.SeqStmt([tvm.ir.Evaluate(0), tvm.ir.Evaluate(1)]),
-                tvm.ir.Evaluate(2),
+                tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Evaluate(0), tvm_tirx.ir.Evaluate(1)]),
+                tvm_tirx.ir.Evaluate(2),
             ]
         ),
     )
@@ -721,7 +724,7 @@ def test_print_kwargs_schedule_op_full_code():
         T.cuda.tile.apply(T.ptx['mov.b32'], A[0:16], T.float32(1.25), scope="warp")
     # fmt: on
 
-    expected = """# from tvm.script import tirx as T
+    expected = """# from tvm_tirx.script import tirx as T
 
 @T.function
 def test():
@@ -735,15 +738,17 @@ def test():
 
 
 def from_source(code):
-    return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
+    return tvm_tirx.script.from_source(
+        code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+    )
 
 
 def test_default_script_prefix_tirx_irmodule_non_main():
     """IRModule with non-main TIRx Function should default to T prefix."""
-    mod = tvm.IRModule({"foo": _make_minimal_tirx_function()})
+    mod = tvm_tirx.IRModule({"foo": _make_minimal_tirx_function()})
     code = mod.script()
-    assert "# from tvm.script import tirx as T" in code
-    assert "# from tvm.script import tir as T" not in code
+    assert "# from tvm_tirx.script import tirx as T" in code
+    assert "# from tvm_tirx.script import tir as T" not in code
     assert "@T.function" in code
     assert "def foo(" in code
     parsed = from_source(code)
@@ -752,7 +757,7 @@ def test_default_script_prefix_tirx_irmodule_non_main():
 
 
 def _make_minimal_tirx_function():
-    source = """# from tvm.script import tirx as T
+    source = """# from tvm_tirx.script import tirx as T
 
 @T.function()
 def f(A: T.Tensor((1,), T.float32)):
@@ -761,7 +766,7 @@ def f(A: T.Tensor((1,), T.float32)):
 
 
 def test_printer_cuda_namespace_printf():
-    node = tvm.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
+    node = tvm_tirx.ir.Evaluate(cuda_op.printf("x=%d", tvm_tirx.ir.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -772,19 +777,19 @@ def _assert_namespace_print(obj, expected):
 
 
 def test_printer_cuda_cluster_sync():
-    node = tvm.ir.Evaluate(cuda_op.cuda_cluster_sync())
+    node = tvm_tirx.ir.Evaluate(cuda_op.cluster_sync())
     _assert_namespace_print(node, "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_namespace_mbarrier_wait():
-    node = tvm.ir.Evaluate(
-        cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0))
+    node = tvm_tirx.ir.Evaluate(
+        cuda_op.mbarrier_wait(tvm_tirx.ir.IntImm("int32", 0), tvm_tirx.ir.IntImm("int32", 0))
     )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
 
 def test_printer_nvshmem_namespace():
-    node = tvm.ir.Evaluate(cuda_op.nvshmem_fence())
+    node = tvm_tirx.ir.Evaluate(cuda_op.nvshmem_fence())
     _assert_namespace_print(node, "T.nvshmem.fence()")
 
 
@@ -795,7 +800,7 @@ def test_printer_ptx_more():
     a = tir.Var("a", "handle")
     b = tir.Var("b", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
+        cuda_op.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
         """
 d = T.Var("d", T.Ptr(T.void))
 a = T.Var("a", T.Ptr(T.void))
@@ -803,7 +808,7 @@ T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)
 """,
     )
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_instr_descriptor(
+        cuda_op.tcgen05_encode_instr_descriptor(
             d,
             d_dtype="f16",
             a_dtype="f16",
@@ -825,7 +830,7 @@ T.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dty
 """,  # noqa: E501
     )
     _assert_namespace_print(
-        cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled(
+        cuda_op.tcgen05_encode_instr_descriptor_block_scaled(
             d,
             d_dtype="f16",
             a_dtype="f16",
@@ -852,40 +857,40 @@ T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype
 def test_printer_cuda_mbarrier_wait_var():
     bar = tir.Var("bar", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_mbarrier_wait(bar, 1),
+        cuda_op.mbarrier_wait(bar, 1),
         """
 bar = T.Var("bar", T.Ptr(T.void))
 T.cuda.mbarrier_wait(bar, 1)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_cluster_sync(), "T.cuda.cluster_sync()")
+    _assert_namespace_print(cuda_op.cluster_sync(), "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_more():
     p = tir.Var("p", "handle")
-    _assert_namespace_print(cuda_op.cuda_thread_fence(), "T.cuda.thread_fence()")
-    _assert_namespace_print(cuda_op.cuda_warp_sync(), "T.cuda.warp_sync()")
-    _assert_namespace_print(cuda_op.cuda_cta_sync(), "T.cuda.cta_sync()")
-    _assert_namespace_print(cuda_op.cuda_grid_sync(), "T.cuda.grid_sync()")
-    _assert_namespace_print(cuda_op.cuda_cluster_sync(), "T.cuda.cluster_sync()")
-    _assert_namespace_print(cuda_op.cuda_syncthreads_and(1), "T.cuda.syncthreads_and(1)")
-    _assert_namespace_print(cuda_op.cuda_syncthreads_or(1), "T.cuda.syncthreads_or(1)")
-    _assert_namespace_print(cuda_op.cuda_nano_sleep(100), "T.cuda.nano_sleep(100)")
+    _assert_namespace_print(cuda_op.thread_fence(), "T.cuda.thread_fence()")
+    _assert_namespace_print(cuda_op.warp_sync(), "T.cuda.warp_sync()")
+    _assert_namespace_print(cuda_op.cta_sync(), "T.cuda.cta_sync()")
+    _assert_namespace_print(cuda_op.grid_sync(), "T.cuda.grid_sync()")
+    _assert_namespace_print(cuda_op.cluster_sync(), "T.cuda.cluster_sync()")
+    _assert_namespace_print(cuda_op.syncthreads_and(1), "T.cuda.syncthreads_and(1)")
+    _assert_namespace_print(cuda_op.syncthreads_or(1), "T.cuda.syncthreads_or(1)")
+    _assert_namespace_print(cuda_op.nano_sleep(100), "T.cuda.nano_sleep(100)")
     _assert_namespace_print(
-        cuda_op.cuda_atomic_add(p, tir.IntImm("int32", 1)),
+        cuda_op.atomic_add(p, tvm_tirx.ir.IntImm("int32", 1)),
         """
 p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_add(p, 1)
 """,
     )
     _assert_namespace_print(
-        cuda_op.cuda_atomic_cas(p, 1, 2),
+        cuda_op.atomic_cas(p, 1, 2),
         """
 p = T.Var("p", T.Ptr(T.void))
 T.cuda.atomic_cas(p, 1, 2)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
+    _assert_namespace_print(cuda_op.func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
@@ -905,7 +910,9 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
     assert "T.cuda.__shfl_xor_sync(" in code
     assert "T.tirx." not in code
     assert (
-        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 
@@ -923,7 +930,9 @@ def test_printer_webgpu_namespace_roundtrip():
     assert "T.webgpu.subgroup_shuffle_down(" in code
     assert "T.tirx." not in code
     assert (
-        tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}).script()
+        tvm_tirx.script.from_source(
+            code, extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx}
+        ).script()
         == code
     )
 
@@ -1007,8 +1016,8 @@ T.nvshmem.putmem_signal_nbi_block(p, p, 16, p, 1, "set", 0)
 
 
 def test_printer_nki_namespace():
-    A = tir.decl_tensor([1], dtype="float16", name="A")
-    B = tir.decl_tensor([1], dtype="float16", name="B")
+    A = tir.Var("A", tir.TensorType([1], "float16"))
+    B = tir.Var("B", tir.TensorType([1], "float16"))
     a0 = A[0]
     b0 = B[0]
     _assert_namespace_print(
@@ -1108,11 +1117,11 @@ def test_printer_ptx_mma_and_wgmma():
     a = tir.Var("a", "handle")
     tir.Var("b", "handle")
     _assert_namespace_print(
-        cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
+        cuda_op.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
         """
 d = T.Var("d", T.Ptr(T.void))
 a = T.Var("a", T.Ptr(T.void))
 T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)
 """,
     )
-    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")
+    _assert_namespace_print(cuda_op.wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")

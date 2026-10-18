@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 # ruff: noqa: E501, F841
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.transform import DefaultGPUSchedule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 
 def test_broadcast_to_symbolic():
@@ -29,7 +29,7 @@ def test_broadcast_to_symbolic():
     x_0 = T.dynamic("x_0", "int64")
     x_1 = T.dynamic("x_1", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def broadcast_to(
@@ -49,7 +49,7 @@ def test_broadcast_to_symbolic():
     x_0 = T.dynamic("x_0", "int64")
     x_1 = T.dynamic("x_1", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1), "float32")):
@@ -65,16 +65,16 @@ def test_broadcast_to_symbolic():
                             T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_matmul():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def matmul(
@@ -136,7 +136,7 @@ def test_matmul():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def matmul(
@@ -194,16 +194,16 @@ def test_matmul():
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_add():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
@@ -215,7 +215,7 @@ def test_add():
                     Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(
@@ -264,16 +264,16 @@ def test_add():
 
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_full():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
@@ -285,7 +285,7 @@ def test_full():
                     Ts.writes(T_full[ax0, ax1])
                     T_full[ax0, ax1] = rxplaceholder[()]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def full(
@@ -311,17 +311,17 @@ def test_full():
 
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_scheduled():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Scheduled:
         @Ts.function
         def full(
@@ -347,17 +347,17 @@ def test_scheduled():
 
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         # should do nothing
         After = DefaultGPUSchedule()(Scheduled)
-    tvm.ir.assert_structural_equal(After, Scheduled)
+    tvm_tirx.ir.assert_structural_equal(After, Scheduled)
 
 
 def test_multiple():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
@@ -379,7 +379,7 @@ def test_multiple():
                     Ts.writes(T_full[ax0, ax1])
                     T_full[ax0, ax1] = rxplaceholder[()]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(
@@ -449,16 +449,16 @@ def test_multiple():
                         T_full[ax0, ax1] = rxplaceholder[()]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=3):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 def test_add_on_metal():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
@@ -470,7 +470,7 @@ def test_add_on_metal():
                     Ts.writes(T_add[ax0, ax1, ax2, ax3])
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
@@ -487,16 +487,16 @@ def test_add_on_metal():
                         T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("apple/m1-gpu")
-    with target, tvm.ir.transform.PassContext(opt_level=0):
+    target = tvm_tirx.target.Target("apple/m1-gpu")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_scalar_add():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def add(rxplaceholder: T.Tensor((), "int64"), T_add: T.Tensor((), "int64")):
@@ -507,7 +507,7 @@ def test_scalar_add():
                 Ts.writes(T_add[()])
                 T_add[()] = rxplaceholder[()] + T.int64(1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def add(rxplaceholder: T.Tensor((), "int64"), T_add: T.Tensor((), "int64")):
@@ -522,17 +522,17 @@ def test_scalar_add():
                         T_add[()] = rxplaceholder[()] + T.int64(1)
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=0):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_sum():
     # sum has two reduction axes and no spatial axis
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def sum(A: T.Tensor((T.int64(2), T.int64(2)), "float64"), A_red: T.Tensor((), "float64")):
@@ -543,7 +543,7 @@ def test_sum():
                         A_red[()] = T.float64(0)
                     A_red[()] = A_red[()] + A[v_k0, v_k1]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def sum(A: T.Tensor((T.int64(2), T.int64(2)), "float64"), A_red: T.Tensor((), "float64")):
@@ -561,10 +561,10 @@ def test_sum():
                             A_red[()] = A_red[()] + A[v_k0, v_k1]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=0):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_scalar_block_no_loops():
@@ -573,14 +573,14 @@ def test_scalar_block_no_loops():
     # root block" because the realized block was the function's root sref.
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def scalar_add(a: T.Tensor((), "float32"), b: T.Tensor((), "float32"), c: T.Tensor((), "float32")):
             with Ts.sblock("scalar_add"):
                 c[()] = a[()] + b[()]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function
         def scalar_add(a: T.Tensor((), "float32"), b: T.Tensor((), "float32"), c: T.Tensor((), "float32")):
@@ -595,11 +595,11 @@ def test_scalar_block_no_loops():
                         c[()] = a[()] + b[()]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.ir.transform.PassContext(opt_level=0):
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm_tirx.ir.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

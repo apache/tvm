@@ -94,9 +94,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
-      if (key == tvm::attr::kGlobalSymbol) {
+      if (key == tvm::attr::kGlobalSymbol.name) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_weight_prepack");
-      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors) {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors.name) {
         dict.Set(key, original_value);
       }
     }
@@ -140,9 +140,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
-      if (key == tvm::attr::kGlobalSymbol) {
+      if (key == tvm::attr::kGlobalSymbol.name) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_prepacked");
-      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors) {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeTensors.name) {
         dict.Set(key, original_value);
       }
     }
@@ -170,7 +170,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
-    auto it = op->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
+    auto it = op->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc.name);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && IsOne((*it).second.cast<PrimExpr>());
 
@@ -209,7 +209,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
                       op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()});
 
       auto new_annotations = op->annotations;
-      new_annotations.erase(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
+      new_annotations.erase(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc.name);
       auto n = ffi::make_object<s_tir::SBlockNode>(*block.get());
       n->annotations = new_annotations;
       return s_tir::SBlock(n);

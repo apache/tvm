@@ -362,7 +362,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
 
   ffi::Map<ffi::String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.adaptive_pool_max"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name,
+              tvm::ffi::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -373,7 +374,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
         },
         "adaptive_pool_max", "adaptive_pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.adaptive_pool_avg"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name,
+              tvm::ffi::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -589,7 +591,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     auto temp =
         do_pad ? pad(x, pad_before, pad_after, tvm::prim::min_value(PrimType(x->dtype)), "pad_temp")
                : x;
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.pool_max"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name, tvm::ffi::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -604,7 +606,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
         },
         "pool_max", "pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.pool_avg"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name, tvm::ffi::String("meta_schedule.pool_avg"));
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 

@@ -18,24 +18,25 @@
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
-def run_passes(func: tvm.tirx.Function):
-    mod = tvm.IRModule.from_expr(func)
+def run_passes(func: tvm_tirx.tirx.Function):
+    mod = tvm_tirx.IRModule.from_expr(func)
 
-    cuda_target = tvm.target.Target("cuda", host="llvm")
+    cuda_target = tvm_tirx.target.Target("cuda", host="llvm")
 
-    mod = tvm.tirx.transform.Apply(
+    mod = tvm_tirx.tirx.transform.Apply(
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
 
-    mod = tvm.tirx.transform.SplitHostDevice()(mod)
+    mod = tvm_tirx.tirx.transform.SplitHostDevice()(mod)
     return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 
@@ -95,11 +96,11 @@ def test_sync_inside_condition():
             for i, j in T.grid(4, 4):
                 A[i, j] = A_shared[i, j] + 1.0
 
-    with pytest.raises(tvm.error.InternalError):
-        s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func1))
+    with pytest.raises(RuntimeError):
+        s_tir.transform.ThreadSync("shared")(tvm_tirx.IRModule.from_expr(func1))
 
     for func in (func2, func3):
-        mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
+        mod = s_tir.transform.ThreadSync("shared")(tvm_tirx.IRModule.from_expr(func))
         assert 'T.gpu_storage_sync("shared")' in mod.script()
 
 
@@ -139,9 +140,9 @@ def test_sync_shared_dyn():
         E_1 = T.decl_tensor(E.data, ty_args=[T.Tensor((16,), "float32", data=E.data)])
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     mod = tvm.s_tir.transform.ThreadSync("shared.dyn")(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_sync_shared_aliasing_tensor_views():
@@ -158,12 +159,12 @@ def test_sync_shared_aliasing_tensor_views():
             shared_storage.data, ty_args=[T.Tensor((16,), "float32", scope="shared")]
         )
         for i in range(2):
-            shared_half[threadIdx_x] = T.Cast(A[i * 32 + threadIdx_x], "float16")
+            shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
             T.gpu_storage_sync("shared")
             local[0] = shared_float[threadIdx_x % 16]
             A[i * 32 + threadIdx_x] = local[0]
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
 
     # In addition to the explicit write-to-read barrier, the shared physical
@@ -247,9 +248,9 @@ def test_sync_bind():
             (threadIdx_x,),
         )
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 @pytest.mark.parametrize("loop", [T.serial, T.unroll])
@@ -268,12 +269,12 @@ def test_hoist_if_preserves_sync_placement(loop):
 
     # Each iteration must keep its own guard so synchronization can be inserted
     # between shared-memory accesses, outside conditional control flow.
-    finish = tvm.ir.transform.Sequential(
-        [tvm.tirx.transform.UnrollLoop(), tvm.s_tir.transform.ThreadSync("shared")]
+    finish = tvm_tirx.ir.transform.Sequential(
+        [tvm_tirx.tirx.transform.UnrollLoop(), tvm.s_tir.transform.ThreadSync("shared")]
     )
     Expected = finish(Before)
-    After = finish(tvm.tirx.transform.HoistIf()(Before))
-    tvm.ir.assert_structural_equal(After, Expected)
+    After = finish(tvm_tirx.tirx.transform.HoistIf()(Before))
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

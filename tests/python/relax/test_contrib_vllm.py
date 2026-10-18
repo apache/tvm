@@ -19,15 +19,16 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.relax import script as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
-has_vllm = tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
+has_vllm = tvm_ffi.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
 
 vllm_enabled = pytest.mark.skipif(
     not has_vllm,
@@ -45,16 +46,16 @@ def build_and_run(mod, inputs_np, target, legalize=True):
     if legalize:
         mod = relax.transform.LegalizeOps()(mod)
 
-        with tvm.target.Target("cuda"):
+        with tvm_tirx.target.Target("cuda"):
             mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
-    with tvm.ir.transform.PassContext():
+    with tvm_tirx.ir.transform.PassContext():
         ex = tvm.compile(mod, target)
 
-    dev = tvm.cuda(0)
+    dev = tvm_tirx.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+    inputs = [tvm_tirx.runtime.tensor(inp, dev) for inp in inputs_np]
 
     out = f(*inputs)
 
@@ -766,26 +767,26 @@ def test_reconstruct_from_cache():
     num_tokens = 8
     num_blocks = 1
 
-    reshape_and_cache_func = tvm.get_global_func("tvm.contrib.vllm.reshape_and_cache")
-    reconstruct_from_cache_func = tvm.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
+    reshape_and_cache_func = tvm_ffi.get_global_func("tvm.contrib.vllm.reshape_and_cache")
+    reconstruct_from_cache_func = tvm_ffi.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
     def run_and_check():
-        dev = tvm.cuda(0)
-        key = tvm.runtime.tensor(
+        dev = tvm_tirx.cuda(0)
+        key = tvm_tirx.runtime.tensor(
             np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
         )
-        value = tvm.runtime.tensor(
+        value = tvm_tirx.runtime.tensor(
             np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
         )
-        slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
+        slot_mapping = tvm_tirx.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
 
-        k_cache = tvm.runtime.tensor(
+        k_cache = tvm_tirx.runtime.tensor(
             np.random.randn(
                 num_blocks, num_heads, head_dim // vec_size, block_size, vec_size
             ).astype("float16"),
             dev,
         )
-        v_cache = tvm.runtime.tensor(
+        v_cache = tvm_tirx.runtime.tensor(
             np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
         )
 
@@ -795,8 +796,8 @@ def test_reconstruct_from_cache():
         np.testing.assert_equal(key.numpy(), out[0].numpy())
         np.testing.assert_equal(value.numpy(), out[1].numpy())
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

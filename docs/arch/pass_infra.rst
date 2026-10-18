@@ -475,7 +475,7 @@ a certain scope.
 .. code:: python
 
     @tvm_ffi.register_object("transform.PassContext")
-    class PassContext(tvm.runtime.Object):
+    class PassContext(tvm_ffi.Object):
         def __enter__(self):
             _transform.EnterPassContext(self)
             return self

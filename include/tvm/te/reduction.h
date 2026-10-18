@@ -23,6 +23,7 @@
 #ifndef TVM_TE_REDUCTION_H_
 #define TVM_TE_REDUCTION_H_
 
+#include <tvm/base.h>
 #include <tvm/s_tir/iter_var.h>
 
 namespace tvm::prim {

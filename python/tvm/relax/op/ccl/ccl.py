@@ -18,10 +18,10 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ...expr import Expr
 
@@ -62,8 +62,8 @@ def allreduce(
         "relax.ccl.allreduce",
         [x],
         attrs=_make_attrs("relax.attrs.AllReduceAttrs", op_type=op_type, in_group=in_group),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -95,8 +95,8 @@ def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, loc: Locat
         "relax.ccl.allgather",
         [x],
         attrs=_make_attrs("relax.attrs.AllGatherAttrs", num_workers=num_workers, in_group=in_group),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -116,8 +116,8 @@ def broadcast_from_worker0(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> 
     return _Call(
         "relax.ccl.broadcast_from_worker0",
         [x],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -151,6 +151,6 @@ def scatter_from_worker0(
         "relax.ccl.scatter_from_worker0",
         [x],
         attrs=_make_attrs("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

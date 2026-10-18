@@ -22,21 +22,23 @@ import pytest
 import tvm_ffi
 
 import tvm
+import tvm_tirx
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import match_shape_stride_pattern
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _is_tensor_binding(node, *op_names):
     return (
-        isinstance(node, tvm.ir.Bind)
-        and isinstance(node.value, tvm.ir.Call)
-        and isinstance(node.value.op, tvm.ir.Op)
+        isinstance(node, tvm_tirx.ir.Bind)
+        and isinstance(node.value, tvm_tirx.ir.Call)
+        and isinstance(node.value.op, tvm_tirx.ir.Op)
         and node.value.op.name in op_names
     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Transpose:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -57,7 +59,7 @@ class Transpose:
                             B[ax1, ax0] = A_shared_dyn[ax1, ax0]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class GlobalToShared:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -79,7 +81,7 @@ class GlobalToShared:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SharedToGlobal:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -101,7 +103,7 @@ class SharedToGlobal:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax1, ax0]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class GlobalToSharedWithLocalStage:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -125,7 +127,7 @@ class GlobalToSharedWithLocalStage:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class SharedToWmma:
     @Ts.function
     def main() -> None:
@@ -147,7 +149,7 @@ class SharedToWmma:
                                     A_wmma[ax0, ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToShared:
     @Ts.function
     def main() -> None:
@@ -169,7 +171,7 @@ class WmmaToShared:
                                     C_shared[ax0, ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToGlobal:
     @Ts.function
     def main(C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -188,7 +190,7 @@ class WmmaToGlobal:
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class WmmaToGlobalWithFusion:
     @Ts.function
     def main(A: T.Tensor([1024], "float32"), C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -209,7 +211,7 @@ class WmmaToGlobalWithFusion:
                                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MmaToGlobal:
     @Ts.function
     def main(C: T.Tensor([1024, 1024], "float32")) -> None:
@@ -228,7 +230,7 @@ class MmaToGlobal:
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedGlobalToShared:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -239,7 +241,10 @@ class TransformedGlobalToShared:
                     for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float32", strides=[128, 1], scope="shared.dyn"
+                                [128, 128],
+                                dtype="float32",
+                                layout=T.TileLayout(T.S[[128, 128] : [128, 1]]),
+                                scope="shared.dyn",
                             )
                             with Ts.sblock("A_shared"):
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
@@ -271,7 +276,7 @@ class TransformedGlobalToShared:
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedSharedToGlobal:
     @Ts.function
     def main(A: T.Tensor([1024, 1024], "float32"), B: T.Tensor([1024, 1024], "float32")) -> None:
@@ -282,7 +287,10 @@ class TransformedSharedToGlobal:
                     for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float32", strides=[129, 1], scope="shared.dyn"
+                                [128, 128],
+                                dtype="float32",
+                                layout=T.TileLayout(T.S[[128, 128] : [129, 1]]),
+                                scope="shared.dyn",
                             )
                             with Ts.sblock("A_shared"):
                                 Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -316,7 +324,7 @@ class TransformedSharedToGlobal:
                                                 ]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
     @Ts.function
     def main(A: T.Tensor((1024, 1024), "float32"), B: T.Tensor((1024, 1024), "float32")):
@@ -329,7 +337,9 @@ class TransformedGlobalToSharedWithLocalStage:
                             Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                             Ts.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                             A_shared_dyn = Ts.sblock_alloc_tensor(
-                                (128, 128), strides=(128, 1), scope="shared.dyn"
+                                (128, 128),
+                                layout=T.TileLayout(T.S[(128, 128) : (128, 1)]),
+                                scope="shared.dyn",
                             )
                             with Ts.sblock("A_shared"):
                                 Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
@@ -426,7 +436,11 @@ s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
 
 
-@tvm.script.ir_module
+transformedsharedtowmma_src_offset = T.dynamic("transformedsharedtowmma_src_offset", "int32")
+transformedsharedtowmma_tgt_offset = T.dynamic("transformedsharedtowmma_tgt_offset", "int32")
+
+
+@tvm_tirx.script.ir_module
 class TransformedSharedToWmma:
     @Ts.function
     def main() -> None:
@@ -438,7 +452,10 @@ class TransformedSharedToWmma:
                     for ty in T.parallel(8, annotations={"thread_binding": "threadIdx.y"}):
                         with Ts.sblock():
                             A_shared_dyn = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float16", strides=[136, 1], scope="shared.dyn"
+                                [128, 128],
+                                dtype="float16",
+                                layout=T.TileLayout(T.S[[128, 128] : [136, 1]]),
+                                scope="shared.dyn",
                             )
                             A_wmma = Ts.sblock_alloc_tensor(
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
@@ -468,9 +485,11 @@ class TransformedSharedToWmma:
                                             ],
                                             [16, 16],
                                             dtype="float16",
-                                            strides=[s1, s0],
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16] : [s1, s0]]
+                                                + ((16) * transformedsharedtowmma_src_offset)
+                                            ),
                                             scope="shared.dyn",
-                                            offset_factor=16,
                                         )
                                         tgt = Ts.match_tensor(
                                             A_wmma[
@@ -480,16 +499,20 @@ class TransformedSharedToWmma:
                                             [16, 16],
                                             dtype="float16",
                                             scope="wmma.matrix_a",
-                                            offset_factor=16,
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16]]
+                                                + ((16) * transformedsharedtowmma_tgt_offset)
+                                            ),
                                         )
+                                        tgt_pattern = T.meta_var(match_shape_stride_pattern(tgt.ty))
                                         T.evaluate(
                                             T.gpu_load_matrix_sync(
                                                 tgt.data,
                                                 16,
                                                 16,
                                                 16,
-                                                tgt.elem_offset // 256
-                                                + tgt.elem_offset % 256 // 16,
+                                                tgt_pattern.elem_offset // 256
+                                                + tgt_pattern.elem_offset % 256 // 16,
                                                 src.ptr_to([0] * len(src.shape)),
                                                 s1,
                                                 "row_major",
@@ -501,7 +524,11 @@ s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
 
 
-@tvm.script.ir_module
+transformedwmmatoshared_src_offset = T.dynamic("transformedwmmatoshared_src_offset", "int32")
+transformedwmmatoshared_tgt_offset = T.dynamic("transformedwmmatoshared_tgt_offset", "int32")
+
+
+@tvm_tirx.script.ir_module
 class TransformedWmmaToShared:
     @Ts.function
     def main() -> None:
@@ -516,7 +543,10 @@ class TransformedWmmaToShared:
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             C_shared = Ts.sblock_alloc_tensor(
-                                [128, 128], dtype="float32", strides=[136, 1], scope="shared.dyn"
+                                [128, 128],
+                                dtype="float32",
+                                layout=T.TileLayout(T.S[[128, 128] : [136, 1]]),
+                                scope="shared.dyn",
                             )
                             with Ts.sblock("A_wmma"):
                                 Ts.reads(C_accum[0:128, 0:128])
@@ -544,7 +574,10 @@ class TransformedWmmaToShared:
                                             [16, 16],
                                             dtype="float32",
                                             scope="wmma.accumulator",
-                                            offset_factor=16,
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16]]
+                                                + ((16) * transformedwmmatoshared_src_offset)
+                                            ),
                                         )
                                         tgt = Ts.match_tensor(
                                             C_shared[
@@ -553,18 +586,21 @@ class TransformedWmmaToShared:
                                             ],
                                             [16, 16],
                                             dtype="float32",
-                                            strides=[s1, s0],
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16] : [s1, s0]]
+                                                + ((16) * transformedwmmatoshared_tgt_offset)
+                                            ),
                                             scope="shared.dyn",
-                                            offset_factor=16,
                                         )
+                                        src_pattern = T.meta_var(match_shape_stride_pattern(src.ty))
                                         T.evaluate(
                                             T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                src_pattern.elem_offset // 256
+                                                + src_pattern.elem_offset % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -576,7 +612,11 @@ s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
 
 
-@tvm.script.ir_module
+transformedwmmatoglobal_src_offset = T.dynamic("transformedwmmatoglobal_src_offset", "int32")
+transformedwmmatoglobal_tgt_offset = T.dynamic("transformedwmmatoglobal_tgt_offset", "int32")
+
+
+@tvm_tirx.script.ir_module
 class TransformedWmmaToGlobal:
     @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
@@ -594,7 +634,9 @@ class TransformedWmmaToGlobal:
                                 Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = Ts.sblock_alloc_tensor(
-                                    (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
+                                    (8, 8, 16, 16),
+                                    layout=T.TileLayout(T.S[(8, 8, 16, 16) : (2048, 256, 16, 1)]),
+                                    scope="shared.dyn",
                                 )
                                 for ax0_0 in range(8):
                                     for ax1_0 in range(8):
@@ -613,22 +655,30 @@ class TransformedWmmaToGlobal:
                                                 ],
                                                 (16, 16),
                                                 scope="wmma.accumulator",
-                                                offset_factor=16,
+                                                layout=T.TileLayout(
+                                                    T.S[(16, 16)]
+                                                    + ((16) * transformedwmmatoglobal_src_offset)
+                                                ),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
-                                                strides=(s1, s0),
+                                                layout=T.TileLayout(
+                                                    T.S[(16, 16) : (s1, s0)]
+                                                    + ((16) * transformedwmmatoglobal_tgt_offset)
+                                                ),
                                                 scope="shared.dyn",
-                                                offset_factor=16,
+                                            )
+                                            src_pattern = T.meta_var(
+                                                match_shape_stride_pattern(src.ty)
                                             )
                                             T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                src_pattern.elem_offset // 256
+                                                + src_pattern.elem_offset % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
@@ -775,7 +825,15 @@ s1_1 = T.dynamic("s1_1", "int32")
 s0_1 = T.dynamic("s0_1", "int32")
 
 
-@tvm.script.ir_module
+transformedwmmatoglobalwithfusion_src_offset = T.dynamic(
+    "transformedwmmatoglobalwithfusion_src_offset", "int32"
+)
+transformedwmmatoglobalwithfusion_tgt_offset = T.dynamic(
+    "transformedwmmatoglobalwithfusion_tgt_offset", "int32"
+)
+
+
+@tvm_tirx.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
     @Ts.function
     def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
@@ -796,7 +854,9 @@ class TransformedWmmaToGlobalWithFusion:
                                 Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = Ts.sblock_alloc_tensor(
-                                    (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
+                                    (8, 8, 16, 16),
+                                    layout=T.TileLayout(T.S[(8, 8, 16, 16) : (2048, 256, 16, 1)]),
+                                    scope="shared.dyn",
                                 )
                                 for ax0_0 in range(8):
                                     for ax1_0 in range(8):
@@ -815,22 +875,36 @@ class TransformedWmmaToGlobalWithFusion:
                                                 ],
                                                 (16, 16),
                                                 scope="wmma.accumulator",
-                                                offset_factor=16,
+                                                layout=T.TileLayout(
+                                                    T.S[(16, 16)]
+                                                    + (
+                                                        (16)
+                                                        * transformedwmmatoglobalwithfusion_src_offset
+                                                    )
+                                                ),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
-                                                strides=(s1_1, s0_1),
+                                                layout=T.TileLayout(
+                                                    T.S[(16, 16) : (s1_1, s0_1)]
+                                                    + (
+                                                        (16)
+                                                        * transformedwmmatoglobalwithfusion_tgt_offset
+                                                    )
+                                                ),
                                                 scope="shared.dyn",
-                                                offset_factor=16,
+                                            )
+                                            src_pattern = T.meta_var(
+                                                match_shape_stride_pattern(src.ty)
                                             )
                                             T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
-                                                src.elem_offset // 256
-                                                + src.elem_offset % 256 // 16,
+                                                src_pattern.elem_offset // 256
+                                                + src_pattern.elem_offset % 256 // 16,
                                                 tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1_1,
                                                 "row_major",
@@ -998,7 +1072,11 @@ s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
 
 
-@tvm.script.ir_module
+transformedmmatoglobal_src_offset = T.dynamic("transformedmmatoglobal_src_offset", "int32")
+transformedmmatoglobal_tgt_offset = T.dynamic("transformedmmatoglobal_tgt_offset", "int32")
+
+
+@tvm_tirx.script.ir_module
 class TransformedMmaToGlobal:
     @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
@@ -1016,7 +1094,9 @@ class TransformedMmaToGlobal:
                                 Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = Ts.sblock_alloc_tensor(
-                                    (8, 16, 8, 8), strides=(1152, 72, 8, 1), scope="shared.dyn"
+                                    (8, 16, 8, 8),
+                                    layout=T.TileLayout(T.S[(8, 16, 8, 8) : (1152, 72, 8, 1)]),
+                                    scope="shared.dyn",
                                 )
                                 for ax0_0 in range(16):
                                     for ax1_0 in range(16):
@@ -1035,14 +1115,19 @@ class TransformedMmaToGlobal:
                                                 ],
                                                 (8, 8),
                                                 scope="mma.matrixC",
-                                                offset_factor=8,
+                                                layout=T.TileLayout(
+                                                    T.S[(8, 8)]
+                                                    + ((8) * transformedmmatoglobal_src_offset)
+                                                ),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
-                                                strides=(s1, s0),
+                                                layout=T.TileLayout(
+                                                    T.S[(8, 8) : (s1, s0)]
+                                                    + ((8) * transformedmmatoglobal_tgt_offset)
+                                                ),
                                                 scope="shared.dyn",
-                                                offset_factor=8,
                                             )
                                             tx = T.launch_thread("threadIdx.x", 32)
                                             for vec in T.vectorized(2):
@@ -1104,7 +1189,7 @@ class TransformedMmaToGlobal:
 
 def _check(original, transformed):
     mod = tvm.s_tir.transform.LowerAutoCopy()(original)
-    tvm.ir.assert_structural_equal(mod, transformed, True)
+    tvm_tirx.ir.assert_structural_equal(mod, transformed, True)
 
 
 def test_coalesce_vectorize():
@@ -1136,9 +1221,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if _is_tensor_binding(n, "tirx.alloc_tensor") and n.var.scope() == tvm.runtime.MemoryScope(
-            "shared.dyn"
-        ):
+        if _is_tensor_binding(
+            n, "tirx.alloc_tensor"
+        ) and n.var.scope() == tvm_tirx.runtime.MemoryScope("shared.dyn"):
             num_alloc[0] += 1
             alloc_extents.append(n.var.shape)
 
@@ -1159,7 +1244,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 def test_auto_padding():
     mod = tvm.s_tir.transform.LowerAutoCopy()(Transpose)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    mod = tvm.tirx.transform.FlattenTensor()(mod)
+    mod = tvm_tirx.tirx.transform.FlattenTensor()(mod)
     verify_single_allocation(mod["main"].body, 16 * 130)
 
 

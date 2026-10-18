@@ -23,6 +23,7 @@
 #ifndef TVM_S_TIR_STMT_FUNCTOR_H_
 #define TVM_S_TIR_STMT_FUNCTOR_H_
 
+#include <tvm/base.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 

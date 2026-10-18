@@ -18,13 +18,11 @@
 
 import tvm_ffi
 
-from tvm.runtime import Object
-
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("s_tir.SLayout")
-class SLayout(Object):
+class SLayout(tvm_ffi.Object):
     """SLayout is composed of upper cases, lower cases and numbers,
     where upper case indicates a primal axis and
     the corresponding lower case with factor size indicates the subordinate axis.
@@ -83,7 +81,7 @@ class SLayout(Object):
 
 
 @tvm_ffi.register_object("s_tir.SBijectiveLayout")
-class SBijectiveLayout(Object):
+class SBijectiveLayout(tvm_ffi.Object):
     """Bijective mapping for two layouts (src-layout and dst-layout).
     It provides shape and index conversion between each other.
 

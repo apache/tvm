@@ -16,8 +16,8 @@
 # under the License.
 """Parallel dot-product prefill for wide FP32 WebGPU attention heads."""
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 from ._kernel_common import _get_kv_chunk_len, _get_seq_offset, _length_info_buffer, _rope
 
@@ -259,12 +259,12 @@ def _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling):
     @Ts.function
     def batch_prefill_ragged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
         k: T.Tensor((klen, h_kv, 512), "float32"),
         v: T.Tensor((klen, h_kv, 512), "float32"),
-        kv_indptr: T.Tensor((batch + 1,), "int32", elem_offset=ki),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
+        kv_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (ki))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -325,13 +325,17 @@ def _attention_prefill_paged_parallel(
     @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
-        pages: T.Tensor((num_pages, 2, h_kv, page_size, 512), "float32", elem_offset=po),
-        page_indptr: T.Tensor((batch + 1,), "int32", elem_offset=pi),
-        page_values: T.Tensor((nnz_pages,), "int32", elem_offset=pv),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
+        pages: T.Tensor(
+            (num_pages, 2, h_kv, page_size, 512),
+            "float32",
+            layout=T.TileLayout(T.S[(num_pages, 2, h_kv, page_size, 512)] + (po)),
+        ),
+        page_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (pi))),
+        page_values: T.Tensor((nnz_pages,), "int32", layout=T.TileLayout(T.S[(nnz_pages,)] + (pv))),
         length_info: _length_info_buffer(batch, sliding_window, li),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -386,16 +390,27 @@ def _attention_prefill_paged_split(
     )
     symbol = "batch_prefill_paged_kv_sliding_window" if sliding_window else "batch_prefill_paged_kv"
 
+    batch_prefill_paged_kv_part_output_offset = T.dynamic(
+        "batch_prefill_paged_kv_part_output_offset", "int32"
+    )
+    batch_prefill_paged_kv_part_lse_offset = T.dynamic(
+        "batch_prefill_paged_kv_part_lse_offset", "int32"
+    )
+
     @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
-        q_indptr: T.Tensor((batch + 1,), "int32", elem_offset=qi),
-        pages: T.Tensor((num_pages, 2, h_kv, page_size, 512), "float32", elem_offset=po),
-        page_indptr: T.Tensor((batch + 1,), "int32", elem_offset=pi),
-        page_values: T.Tensor((nnz_pages,), "int32", elem_offset=pv),
+        q_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (qi))),
+        pages: T.Tensor(
+            (num_pages, 2, h_kv, page_size, 512),
+            "float32",
+            layout=T.TileLayout(T.S[(num_pages, 2, h_kv, page_size, 512)] + (po)),
+        ),
+        page_indptr: T.Tensor((batch + 1,), "int32", layout=T.TileLayout(T.S[(batch + 1,)] + (pi))),
+        page_values: T.Tensor((nnz_pages,), "int32", layout=T.TileLayout(T.S[(nnz_pages,)] + (pv))),
         length_info: _length_info_buffer(batch, sliding_window, li),
-        k_rope_pos_offset: T.Tensor((batch,), "int32", elem_offset=kp),
-        q_rope_position: T.Tensor((qlen,), "int32", elem_offset=qp),
+        k_rope_pos_offset: T.Tensor((batch,), "int32", layout=T.TileLayout(T.S[(batch,)] + (kp))),
+        q_rope_position: T.Tensor((qlen,), "int32", layout=T.TileLayout(T.S[(qlen,)] + (qp))),
         output: T.Tensor((qlen, h_q, 512), "float32"),
         lse: T.Tensor((qlen, h_q), "float32"),
         causal: T.int32,
@@ -408,18 +423,26 @@ def _attention_prefill_paged_split(
         # Launch each KV partition separately so long contexts do not produce
         # one long-running dispatch. Merge their softmax-weighted outputs below.
         temporary = Ts.sblock_alloc_tensor(
-            (T.int64(4), T.Cast(qlen, "int64"), T.int64(h_q), T.int64(512)), "float32"
+            (T.int64(4), T.Cast("int64", qlen), T.int64(h_q), T.int64(512)), "float32"
         )
         temporary_lse = Ts.sblock_alloc_tensor(
-            (T.int64(4), T.Cast(qlen, "int64"), T.int64(h_q)), "float32"
+            (T.int64(4), T.Cast("int64", qlen), T.int64(h_q)), "float32"
         )
         for part_idx in T.serial(4):
             with Ts.sblock("part_idx"):
                 part_output = Ts.match_tensor(
-                    temporary[part_idx, 0:qlen, 0:h_q, 0:512], (qlen, h_q, 512), offset_factor=1
+                    temporary[part_idx, 0:qlen, 0:h_q, 0:512],
+                    (qlen, h_q, 512),
+                    layout=T.TileLayout(
+                        T.S[(qlen, h_q, 512)] + (batch_prefill_paged_kv_part_output_offset)
+                    ),
                 )
                 part_lse = Ts.match_tensor(
-                    temporary_lse[part_idx, 0:qlen, 0:h_q], (qlen, h_q), offset_factor=1
+                    temporary_lse[part_idx, 0:qlen, 0:h_q],
+                    (qlen, h_q),
+                    layout=T.TileLayout(
+                        T.S[(qlen, h_q)] + (batch_prefill_paged_kv_part_lse_offset)
+                    ),
                 )
                 body(
                     q,

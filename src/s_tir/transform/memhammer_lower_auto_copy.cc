@@ -30,6 +30,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/target/target.h>
+#include <tvm/tirx/type.h>
 
 #include <array>
 #include <stack>
@@ -182,7 +183,15 @@ class AutoPadder {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
-        b->strides = strides;
+        static const auto memory_axis = tvm::tirx::Axis::Get("m");
+        ffi::Array<tvm::tirx::Iter> shard;
+        for (size_t i = 0; i < b->shape.size(); ++i) {
+          shard.push_back(tvm::tirx::Iter(b->shape[i], strides[i], memory_axis));
+        }
+        ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+        if (b->layout.has_value())
+          offset = b->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+        b->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
         TensorVar new_tensor = TensorVar(tensor->name, TensorType(std::move(b)), tensor->loc);
         result.push_back(new_tensor);
         padded_tensor_map_.Set(tensor, new_tensor);
@@ -748,7 +757,7 @@ class AutoCopyMutator : public StmtExprMutator {
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
-    if (!GetAnn<bool>(op, tvm::s_tir::attr::kAutoCopy).value_or(false)) {
+    if (!GetAnn<bool>(op, tvm::s_tir::attr::kAutoCopy.name).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
       n->alloc_tensors = padder.PadSharedMemory(std::move(n->alloc_tensors));
       return block;
@@ -840,7 +849,7 @@ class ThreadExtentCollector : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
     if (ffi::Optional<int64_t> warp_execution =
-            GetAnn<int64_t>(op, tvm::s_tir::attr::kWarpExecution)) {
+            GetAnn<int64_t>(op, tvm::s_tir::attr::kWarpExecution.name)) {
       if (warp_execution.value() != 0) {
         thread_extent_.Set("threadIdx.x", 32);
       }

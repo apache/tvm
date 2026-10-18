@@ -182,7 +182,7 @@ Pass InlinePrivateFunctions() {
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<relax::Function>()) {
         auto func = opt.value();
-        bool is_private = !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+        bool is_private = !func->GetAttr(tvm::attr::kGlobalSymbol).has_value();
         if (is_private && !value_references.count(gvar)) {
           replacements.Set(gvar, func);
         }

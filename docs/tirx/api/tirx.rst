@@ -29,7 +29,7 @@ loads, and tensor-region constructors. Include ``tvm/tirx/type.h`` for
 ``TensorRegion`` expression from ``tvm/ir/expr.h`` and ``TensorRegionType``
 from ``tvm/ir/type.h``.
 
-.. automodule:: tvm.tirx
+.. automodule:: tvm_tirx.tirx
    :members:
    :imported-members:
    :exclude-members: Call, CommReducer, ComposeLayout, DispatchContext,

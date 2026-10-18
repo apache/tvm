@@ -260,9 +260,9 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
         shape.push_back(tensor.shape()[i]);
       }
     }
-    TensorType new_type(std::move(shape), tensor.dtype(), tensor.scope(), tensor.strides(),
-                        tensor.elem_offset(), tensor.ty()->data_alignment,
-                        tensor.ty()->offset_factor, tensor.ty()->layout);
+    auto new_type_node = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    new_type_node->shape = std::move(shape);
+    TensorType new_type(std::move(new_type_node));
     return TensorVar(tensor->name, std::move(new_type), tensor->loc);
   }
 

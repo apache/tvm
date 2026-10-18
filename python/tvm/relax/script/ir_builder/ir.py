@@ -24,12 +24,8 @@ import inspect
 import numbers as _numbers
 import re as _re
 
-from tvm import ir as _ir
 from tvm import relax
 from tvm import relax as _relax
-from tvm.ir import IRModule
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.type import _init_type_api, _normalize_type
 from tvm.relax import Expr, ExternFunc, ShapeExpr, TupleGetItem, const
 from tvm.relax.distributed import DeviceMesh as _DeviceMesh
 from tvm.relax.distributed import DTensorType as _DTensorType
@@ -37,10 +33,13 @@ from tvm.relax.distributed import Placement as _Placement
 from tvm.relax.distributed import device_mesh
 from tvm.relax.dpl import PatternMatchingRewriter
 from tvm.relax.global_info import DummyGlobalInfo, VDevice
-from tvm.runtime._tensor import (
+from tvm_tirx import ir as _ir
+from tvm_tirx.ir import IRModule
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.type import _init_type_api, _normalize_type
+from tvm_tirx.runtime._tensor import (
     cpu,
     cuda,
-    device,
     ext_dev,
     hexagon,
     metal,
@@ -50,11 +49,11 @@ from tvm.runtime._tensor import (
     vulkan,
     webgpu,
 )
-from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
-from tvm.script.ir_builder.base import resolve_global_info_args as _resolve_global_info_args
-from tvm.script.ir_builder.ir import _global_infos
-from tvm.script.ir_builder.ir import dtype as dtype
-from tvm.script.ir_builder.parser_protocol import resolve_global_info_ as _resolve_global_info
+from tvm_tirx.script.ir_builder.base import LocationEntry as _LocationEntry
+from tvm_tirx.script.ir_builder.base import resolve_global_info_args as _resolve_global_info_args
+from tvm_tirx.script.ir_builder.ir import _global_infos
+from tvm_tirx.script.ir_builder.ir import dtype as dtype
+from tvm_tirx.script.ir_builder.parser_protocol import resolve_global_info_ as _resolve_global_info
 
 from . import _ffi_api
 
@@ -207,8 +206,8 @@ def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
 
     """
     if not isinstance(rewriter_mod, IRModule):
-        from tvm.script.parser.entry import parse
-        from tvm.script.parser.inspect_source import capture_definition_scope
+        from tvm_tirx.script.parser.entry import parse
+        from tvm_tirx.script.parser.inspect_source import capture_definition_scope
 
         if not inspect.isclass(rewriter_mod):
             raise TypeError(f"Expect a class, but got: {rewriter_mod}")
@@ -567,7 +566,6 @@ __all__ = [
     "const",
     "cpu",
     "cuda",
-    "device",
     "device_mesh",
     "dtype",
     "dummy_global_info",

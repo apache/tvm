@@ -24,9 +24,10 @@
 #ifndef TVM_RELAX_ANALYSIS_H_
 #define TVM_RELAX_ANALYSIS_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>

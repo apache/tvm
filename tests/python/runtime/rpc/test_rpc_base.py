@@ -18,7 +18,7 @@ import random
 
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm.rpc import base
 
 
@@ -40,4 +40,4 @@ def test_rpc_base_random_key(device_key):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

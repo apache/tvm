@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 """The TIR backend compilation pipeline for Adreno"""
 
-from tvm.tirx import compilation_pipeline as tir_pipeline
+from tvm_tirx.tirx import compilation_pipeline as tir_pipeline
 
 
 def default_tir_pipeline(*, prepare_only=False, target=None):

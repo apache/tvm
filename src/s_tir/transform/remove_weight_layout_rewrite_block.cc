@@ -63,7 +63,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
 
-    auto it = block->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
+    auto it = block->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc.name);
     if (it == block->annotations.end() || !IsOne((*it).second.cast<PrimExpr>())) {
       // The block is not a weight layout block
       // Remove allocates if needed

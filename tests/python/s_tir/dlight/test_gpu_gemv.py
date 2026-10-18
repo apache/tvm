@@ -20,11 +20,12 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_gemv_rejects_composite_normalized_axis():
@@ -46,10 +47,10 @@ def test_gemv_rejects_composite_normalized_axis():
                     data[0, vrc, (vw + vrw - 383) // 256] * weight[vrc, 0, 511 - vrw]
                 )
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("webgpu"):
         scheduled = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(scheduled["main"], before)
+    tvm_tirx.ir.assert_structural_equal(scheduled["main"], before)
 
 
 def test_gemv_basic():
@@ -96,7 +97,7 @@ def test_gemv_basic():
                 v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
-                var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast(var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3], "float32")
+                var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float32", var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
 
     n = T.dynamic("n", "int32")
 
@@ -114,7 +115,7 @@ def test_gemv_basic():
             for ax0_fused_ax1_fused_fused_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1, ax2 in T.grid(1, 1, 1):
-                        for ax3_0 in T.serial(1, annotations={"unroll_explicit": 256}):
+                        for ax3_0 in T.serial(1, annotations={"tirx.unroll_explicit": 256}):
                             for ax3_1 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
                                 for ax3_2 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax3_3 in T.vectorized(2):
@@ -135,7 +136,7 @@ def test_gemv_basic():
                                 Ts.reads()
                                 Ts.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1])
                                 var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] = T.float16(0)
-                    for ax2_fused_u_fused_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_u_fused_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0, ax1, ax2_ax3_fused_0 in T.grid(1, 1, 1):
                             for ax2_ax3_fused_1 in T.vectorized(2):
                                 with Ts.sblock("lv1638_local"):
@@ -158,7 +159,7 @@ def test_gemv_basic():
                                     var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] + lv1637_shared[0, v0, 0, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused] * lv1638_local[0, v0, v1, vax2_fused_u_fused_0 * 128 + vax2_fused_u_fused_2 * 2 + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused]
             for ax2_ax3_fused_0 in T.parallel(1, annotations={"thread_binding": "threadIdx.y"}):
                 for ax0 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
-                    for ax2_ax3_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_ax3_fused_1_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_ax3_fused_1_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
                                 vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 = Ts.axis.spatial(64, ax0)
@@ -194,14 +195,14 @@ def test_gemv_basic():
                         v1 = Ts.axis.spatial(n, ax0_fused_ax1_fused_fused_0 % n)
                         Ts.reads(var_NT_matmul_intermediate_local[0, v0, 0, v1], lv1614[0, 0, 0, v1])
                         Ts.writes(var_compute_intermediate[0, v0, 0, v1])
-                        var_compute_intermediate[0, v0, 0, v1] = T.Cast(T.min(T.max(var_NT_matmul_intermediate_local[0, v0, 0, v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1614[0, 0, 0, v1]), "float32")
+                        var_compute_intermediate[0, v0, 0, v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[0, v0, 0, v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1614[0, 0, 0, v1]))
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv_256_threads():
@@ -216,7 +217,7 @@ def test_decode_gemv_256_threads():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv571[v_i, v_j // 8], lv572[v_i, v_j // 32])
                 Ts.writes(p_output0_intermediate[v_i, v_j])
-                p_output0_intermediate[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv571[v_i, v_j // 8], T.Cast(v_j % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv572[v_i, v_j // 32]
+                p_output0_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv571[v_i, v_j // 8], T.Cast("uint32", v_j % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v_i, v_j // 32]
         for i0, i1, i2, k in T.grid(1, 1, 22016, 4096):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -244,7 +245,7 @@ def test_decode_gemv_256_threads():
                                 Ts.reads()
                                 Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
-                    for ax1_0_fused_ax1_1_fused_0 in T.serial(32, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_ax1_1_fused_0 in T.serial(32, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0_ax1_fused in T.serial(1):
                             for ax0_1 in T.vectorized(1):
                                 with Ts.sblock("lv571_local"):
@@ -261,10 +262,10 @@ def test_decode_gemv_256_threads():
                                     vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_2 = Ts.axis.remap("RR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_2])
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2], lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
-                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2] * ((T.Cast(T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], T.Cast((vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
+                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_2 // 8 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused * 8 + vax1_0_fused_ax1_1_fused_2) // 32])
             for ax2_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
                 for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
-                    for ax2_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_1_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_fused_1_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
                                 vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.spatial(16, ax0)
@@ -293,10 +294,10 @@ def test_decode_gemv_256_threads():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("apple/m1-gpu-restricted"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv1():
@@ -312,7 +313,7 @@ def test_decode_gemv1():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv571[v_i, v_j // 8], lv572[v_i, v_j // 32])
                 Ts.writes(p_output0_intermediate[v_i, v_j])
-                p_output0_intermediate[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv571[v_i, v_j // 8], T.Cast(v_j % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv572[v_i, v_j // 32]
+                p_output0_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv571[v_i, v_j // 8], T.Cast("uint32", v_j % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v_i, v_j // 32]
         for i0, i1, i2, k in T.grid(1, 1, 22016, 4096):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -334,7 +335,7 @@ def test_decode_gemv1():
             for u_fused_ax0_fused_fused_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(1, 1):
-                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
+                        for ax2_0 in T.serial(1, annotations={"tirx.unroll_explicit": 256}):
                             for ax2_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                                 for ax2_2 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(8):
@@ -352,7 +353,7 @@ def test_decode_gemv1():
                                 Ts.reads()
                                 Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
-                    for ax1_0_fused_ax1_1_fused_0 in T.serial(16, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_ax1_1_fused_0 in T.serial(16, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0_ax1_fused_0 in range(1):
                             for ax0_ax1_fused_1 in T.vectorized(1):
                                 with Ts.sblock("lv571_local"):
@@ -369,10 +370,10 @@ def test_decode_gemv1():
                                     vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_2 = Ts.axis.remap("RR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_2])
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv1654_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4], lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
-                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast(T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast((vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
+                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv1654_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv572[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
             for ax2_fused_0_ax2_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
-                    for ax2_fused_2_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_2_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_fused_2_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
                                 vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.spatial(32, ax0)
@@ -401,10 +402,10 @@ def test_decode_gemv1():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv2():
@@ -421,7 +422,7 @@ def test_decode_gemv2():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv771[v_i, v_j // 8], lv772[v_i, v_j // 32])
                 Ts.writes(p_output0_intermediate_1[v_i, v_j])
-                p_output0_intermediate_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv771[v_i, v_j // 8], T.Cast(v_j % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv772[v_i, v_j // 32]
+                p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv771[v_i, v_j // 8], T.Cast("uint32", v_j % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv772[v_i, v_j // 32]
         for i0, i1, i2, k in T.grid(1, 1, 32000, 4096):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -435,7 +436,7 @@ def test_decode_gemv2():
                 v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(var_NT_matmul_intermediate[v_i0, v_i1, v_i2])
                 Ts.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
-                p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast(var_NT_matmul_intermediate[v_i0, v_i1, v_i2], "float32")
+                p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_NT_matmul_intermediate[v_i0, v_i1, v_i2])
 
     @Ts.function(private=True)
     def expected(lv771: T.Tensor((32000, 512), "uint32"), lv772: T.Tensor((32000, 128), "float16"), lv3216: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 32000), "float32")):
@@ -450,7 +451,7 @@ def test_decode_gemv2():
             for u_fused_ax0_fused_fused_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(1, 1):
-                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
+                        for ax2_0 in T.serial(1, annotations={"tirx.unroll_explicit": 256}):
                             for ax2_1 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                                 for ax2_2 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(8):
@@ -468,7 +469,7 @@ def test_decode_gemv2():
                                 Ts.reads()
                                 Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
-                    for ax1_0_fused_ax1_1_fused_0 in T.serial(16, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_ax1_1_fused_0 in T.serial(16, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0_ax1_fused_0 in range(1):
                             for ax0_ax1_fused_1 in T.vectorized(1):
                                 with Ts.sblock("lv771_local"):
@@ -485,10 +486,10 @@ def test_decode_gemv2():
                                     vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_2 = Ts.axis.remap("RR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_2])
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0], lv3216_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4], lv771_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], lv772[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
-                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv3216_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast(T.bitwise_and(T.shift_right(lv771_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast((vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv772[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
+                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] + lv3216_shared[0, 0, vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv771_local[v0, vax1_0_fused_ax1_1_fused_0 * 32 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 + vax1_0_fused_ax1_1_fused_2 // 2], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv772[v0, (vax1_0_fused_ax1_1_fused_0 * 256 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // 4 * 8 + vax1_0_fused_ax1_1_fused_2 * 4 + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % 4) // 32])
             for ax2_fused_0_ax2_fused_1_fused in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
                 for ax0 in T.parallel(32, annotations={"thread_binding": "threadIdx.x"}):
-                    for ax2_fused_2_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_2_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_fused_2_1 in T.vectorized(1):
                             with Ts.sblock("NT_matmul_rf_init"):
                                 vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.spatial(32, ax0)
@@ -520,14 +521,14 @@ def test_decode_gemv2():
                         v0 = Ts.axis.spatial(32000, u_fused_ax0_fused_fused_0 * 16 + ax0_fused_0_ax0_fused_1_fused + ax0_fused_2)
                         Ts.reads(var_NT_matmul_intermediate_local[0, 0, v0])
                         Ts.writes(p_output0_intermediate[0, 0, v0])
-                        p_output0_intermediate[0, 0, v0] = T.Cast(var_NT_matmul_intermediate_local[0, 0, v0], "float32")
+                        p_output0_intermediate[0, 0, v0] = T.Cast("float32", var_NT_matmul_intermediate_local[0, 0, v0])
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv3():
@@ -544,7 +545,7 @@ def test_decode_gemv3():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv575[v_i, v_j // T.int64(8)], lv576[v_i, v_j // T.int64(32)])
                 Ts.writes(p_output0_intermediate_1[v_i, v_j])
-                p_output0_intermediate_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv575[v_i, v_j // T.int64(8)], T.Cast(v_j % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv576[v_i, v_j // T.int64(32)]
+                p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv575[v_i, v_j // T.int64(8)], T.Cast("uint32", v_j % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv576[v_i, v_j // T.int64(32)]
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(4096), T.int64(11008)):
             with Ts.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -573,7 +574,7 @@ def test_decode_gemv3():
             for u_fused_ax0_fused_fused_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
-                        for ax2_0 in T.serial(T.int64(22), annotations={"unroll_explicit": 256}):
+                        for ax2_0 in T.serial(T.int64(22), annotations={"tirx.unroll_explicit": 256}):
                             for ax2_1 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
                                 for ax2_2 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
                                     for ax2_3 in T.vectorized(T.int64(1)):
@@ -592,7 +593,7 @@ def test_decode_gemv3():
                                 Ts.reads()
                                 Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] = T.float16(0)
-                    for ax1_0_fused_ax1_1_fused_0 in T.serial(T.int64(43), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_ax1_1_fused_0 in T.serial(T.int64(43), annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax0_ax1_fused_0 in T.serial(T.int64(0), T.int64(1)):
                             for ax0_ax1_fused_1 in T.vectorized(T.int64(1)):
                                 with Ts.sblock("lv575_local"):
@@ -609,10 +610,10 @@ def test_decode_gemv3():
                                     vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_2 = Ts.axis.remap("RR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_2])
                                     Ts.reads(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0], lv574_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)], lv575_local[v0, vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) + vax1_0_fused_ax1_1_fused_2 // T.int64(2)], lv576[v0, (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) // T.int64(32)])
                                     Ts.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0])
-                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] + lv574_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)] * ((T.Cast(T.bitwise_and(T.shift_right(lv575_local[v0, vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) + vax1_0_fused_ax1_1_fused_2 // T.int64(2)], T.Cast((vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv576[v0, (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) // T.int64(32)])
+                                    var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] = var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] + lv574_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv575_local[v0, vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) + vax1_0_fused_ax1_1_fused_2 // T.int64(2)], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv576[v0, (vax1_0_fused_ax1_1_fused_0 * T.int64(256) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused // T.int64(4) * T.int64(8) + vax1_0_fused_ax1_1_fused_2 * T.int64(4) + vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused % T.int64(4)) // T.int64(32)])
             for ax2_fused_0 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
                 for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
-                    for ax2_fused_1_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_1_0 in T.serial(T.int64(1), annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_fused_1_1 in T.vectorized(T.int64(1)):
                             with Ts.sblock("NT_matmul_rf_init"):
                                 vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 = Ts.axis.spatial(T.int64(32), ax0)
@@ -648,10 +649,10 @@ def test_decode_gemv3():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_autogptq_decode_gemv():
@@ -667,7 +668,7 @@ def test_autogptq_decode_gemv():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv9[v_i // T.int64(8), v_j], lv10[lv12[v_i], v_j // T.int64(8)], lv12[v_i], lv11[lv12[v_i], v_j])
                 Ts.writes(decode_intermediate[v_i, v_j])
-                decode_intermediate[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv9[v_i // T.int64(8), v_j], T.Cast(v_i % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16") - (T.Cast(T.bitwise_and(T.shift_right(lv10[lv12[v_i], v_j // T.int64(8)], T.Cast(v_j % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16") + T.float16(1))) * lv11[lv12[v_i], v_j]
+                decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv9[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) - (T.Cast("float16", T.bitwise_and(T.shift_right(lv10[lv12[v_i], v_j // T.int64(8)], T.Cast("uint32", v_j % T.int64(8) * T.int64(4))), T.uint32(15))) + T.float16(1))) * lv11[lv12[v_i], v_j]
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -686,10 +687,10 @@ def test_autogptq_decode_gemv():
 
     # The GeMV rule does not yet support the inner dim being grouped.
     # So the rule is expected to skip transforming this function.
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], func)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], func)
 
 
 def test_outer_reduction_adreno():
@@ -709,7 +710,7 @@ def test_outer_reduction_adreno():
         for i, j in T.grid(11008, 4096):
             with Ts.sblock("decode"):
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
-                p_output0_intermediate_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv575[v_i // 8, v_j], T.Cast(v_i % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16")- T.float16(7)) * lv576[v_i // 32, v_j]
+                p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv575[v_i // 8, v_j], T.Cast("uint32", v_i % 8) * T.uint32(4)), T.uint32(15)))- T.float16(7)) * lv576[v_i // 32, v_j]
         for i0, i1, i2, k in T.grid(1, 1, 4096, 11008):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -764,7 +765,7 @@ def test_outer_reduction_adreno():
                                     vax1_0_fused_ax1_1_fused_0, vax1_0_fused_ax1_1_fused_1, vax1_0_fused_ax1_1_fused_3 = Ts.axis.remap("RRR", [ax1_0_fused_ax1_1_fused_0, ax1_0_fused_ax1_1_fused_1, ax1_0_fused_ax1_1_fused_3])
                                     Ts.reads(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0], lv574[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8], lv575_local[vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_1 * 16 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 4 + vax1_0_fused_ax1_1_fused_3, v0], lv576_local[vax1_0_fused_ax1_1_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1 * 4 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 + vax1_0_fused_ax1_1_fused_3 // 4, v0])
                                     Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0])
-                                    var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] + lv574[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8] * ((T.Cast(T.bitwise_and(T.shift_right(lv575_local[vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_1 * 16 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 4 + vax1_0_fused_ax1_1_fused_3, v0], T.Cast((vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8) % 8, "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv576_local[vax1_0_fused_ax1_1_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1 * 4 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 + vax1_0_fused_ax1_1_fused_3 // 4, v0])
+                                    var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, 0, 0, v0] + lv574[0, 0, vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv575_local[vax1_0_fused_ax1_1_fused_0 * 16 + vax1_0_fused_ax1_1_fused_1 * 16 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 4 + vax1_0_fused_ax1_1_fused_3, v0], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * 128 + vax1_0_fused_ax1_1_fused_1 * 128 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 * 32 + vax1_0_fused_ax1_1_fused_3 * 8 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused % 8) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv576_local[vax1_0_fused_ax1_1_fused_0 * 4 + vax1_0_fused_ax1_1_fused_1 * 4 + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // 8 + vax1_0_fused_ax1_1_fused_3 // 4, v0])
             for ax2 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
                 for ax0 in T.parallel(4, annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul_rf_init"):
@@ -773,7 +774,7 @@ def test_outer_reduction_adreno():
                         Ts.reads()
                         Ts.writes(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0])
                         var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, 0, 0, v0] = T.float16(0)
-                    for ax1 in T.serial(8, annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                    for ax1 in T.serial(8, annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_update"):
                             vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1 = Ts.axis.remap("SR", [ax0, ax1])
                             v0 = Ts.axis.spatial(4096, u_fused_ax0_fused_fused_0 * 64 + ax2)
@@ -798,10 +799,10 @@ def test_outer_reduction_adreno():
                         Ts.writes(p_output0_intermediate[0, 0, v0])
                         p_output0_intermediate[0, 0, v0] = lv570[0, 0, v0] + var_matmul_intermediate_local[0, 0, v0]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction_adreno_dynamic():
@@ -820,7 +821,7 @@ def test_outer_reduction_adreno_dynamic():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv612[v_i // T.int64(8), v_j], lv613[v_i // T.int64(32), v_j])
                 Ts.writes(p_output0_intermediate_1[v_i, v_j])
-                p_output0_intermediate_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv612[v_i // T.int64(8), v_j], T.Cast(v_i % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv613[v_i // T.int64(32), v_j]
+                p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv612[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv613[v_i // T.int64(32), v_j]
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), v, T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -834,7 +835,7 @@ def test_outer_reduction_adreno_dynamic():
                 v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(var_matmul_intermediate[v_i0, v_i1, v_i2])
                 Ts.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
-                p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast(var_matmul_intermediate[v_i0, v_i1, v_i2], "float32")
+                p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
 
     v = T.dynamic("v", "int64")
 
@@ -899,7 +900,7 @@ def test_outer_reduction_adreno_dynamic():
                                         Ts.where(u_fused_ax0_fused_fused_0 * T.int64(256) + u_fused_ax0_fused_fused_1 < v)
                                         Ts.reads(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0], lv1607_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused], lv612_local[vax1_0_fused_ax1_1_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1 * T.int64(4) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // T.int64(8) + vax1_0_fused_ax1_1_fused_3, v0], lv613_local[(vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) // T.int64(32) + vax1_0_fused_ax1_1_fused_0 + vax1_0_fused_ax1_1_fused_1, v0])
                                         Ts.writes(var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0])
-                                        var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] + lv1607_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused] * ((T.Cast(T.bitwise_and(T.shift_right(lv612_local[vax1_0_fused_ax1_1_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1 * T.int64(4) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // T.int64(8) + vax1_0_fused_ax1_1_fused_3, v0], T.Cast((vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv613_local[(vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) // T.int64(32) + vax1_0_fused_ax1_1_fused_0 + vax1_0_fused_ax1_1_fused_1, v0])
+                                        var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] = var_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused, T.int64(0), T.int64(0), v0] + lv1607_shared[T.int64(0), T.int64(0), vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv612_local[vax1_0_fused_ax1_1_fused_0 * T.int64(4) + vax1_0_fused_ax1_1_fused_1 * T.int64(4) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused // T.int64(8) + vax1_0_fused_ax1_1_fused_3, v0], T.Cast("uint32", (vax1_0_fused_ax1_1_fused_0 * T.int64(32) + vax1_0_fused_ax1_1_fused_1 * T.int64(32) + vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv613_local[(vax1_0_fused_ax1_1_fused_3 * T.int64(8) + vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused) // T.int64(32) + vax1_0_fused_ax1_1_fused_0 + vax1_0_fused_ax1_1_fused_1, v0])
             for ax2 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                 for ax0 in T.parallel(T.int64(1), annotations={"thread_binding": "threadIdx.y"}):
                     with Ts.sblock("matmul_rf_init"):
@@ -909,7 +910,7 @@ def test_outer_reduction_adreno_dynamic():
                         Ts.reads()
                         Ts.writes(var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0])
                         var_matmul_intermediate_rf_local_1[vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, T.int64(0), T.int64(0), v0] = T.float16(0)
-                    for ax1 in T.serial(T.int64(8), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                    for ax1 in T.serial(T.int64(8), annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                         with Ts.sblock("matmul_rf_update"):
                             vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0, vax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_1 = Ts.axis.remap("SR", [ax0, ax1])
                             v0 = Ts.axis.spatial(v, u_fused_ax0_fused_fused_0 * T.int64(256) + ax2)
@@ -935,13 +936,13 @@ def test_outer_reduction_adreno_dynamic():
                         Ts.where(u_fused_ax0_fused_fused_0 * T.int64(256) + (ax0_fused_0 + ax0_fused_1) < v)
                         Ts.reads(var_matmul_intermediate_local[T.int64(0), T.int64(0), v0])
                         Ts.writes(p_output0_intermediate[T.int64(0), T.int64(0), v0])
-                        p_output0_intermediate[T.int64(0), T.int64(0), v0] = T.Cast(var_matmul_intermediate_local[T.int64(0), T.int64(0), v0], "float32")
+                        p_output0_intermediate[T.int64(0), T.int64(0), v0] = T.Cast("float32", var_matmul_intermediate_local[T.int64(0), T.int64(0), v0])
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_blockized_gemv():
@@ -990,7 +991,7 @@ def test_blockized_gemv():
                                         Ts.reads()
                                         Ts.writes(o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0])
                                         o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] = T.float16(0)
-                            for ax1_fused_u_fused_0 in T.serial(32, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_fused_u_fused_0 in T.serial(32, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax0 in range(1):
                                     for ax1_ax2_fused_0 in range(8):
                                         for ax1_ax2_fused_1 in T.vectorized(1):
@@ -1012,7 +1013,7 @@ def test_blockized_gemv():
                                             o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] = o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] + x[0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2] * w_local[0, v0, vax1_fused_u_fused_0 * 128 + vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused * 8 + vax1_fused_u_fused_2]
                     for ax2_fused_0 in T.parallel(4, annotations={"thread_binding": "threadIdx.x"}):
                         for ax0 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
-                            for ax2_fused_1_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax2_fused_1_0 in T.serial(1, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax2_fused_1_1 in T.vectorized(1):
                                     with Ts.sblock("gemv_rf_init"):
                                         vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 = Ts.axis.spatial(16, ax0)
@@ -1040,10 +1041,10 @@ def test_blockized_gemv():
                                     o[v_expert_id_o, v0] = o[v_expert_id_o, v0] + o_rf_local_1[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0, v_expert_id_o, v0]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_func_to_skip():
@@ -1073,10 +1074,10 @@ def test_func_to_skip():
             )
 
     # This function should be skipped.
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], before)
+        tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 def test_gemv_cuda_target_without_max_shared_memory_per_block():
@@ -1104,7 +1105,7 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
     target = Target({"kind": "cuda", "max_num_threads": 1024})
     assert target.attrs.get("max_shared_memory_per_block", None) is None
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with target:
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1128,7 +1129,7 @@ def test_gemv_rank_one_vector_input():
                     output[vi] = T.float32(0)
                 output[vi] += matrix[vi, vk] * vector[vk]
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1136,7 +1137,7 @@ def test_gemv_rank_one_vector_input():
     sch = tvm.s_tir.Schedule(mod)
     vector_local = sch.get_sblock("vector_local")
     vector_load_loop = sch.get(sch.get_loops(vector_local)[-1])
-    assert vector_load_loop.kind == tvm.ir.ForKind.VECTORIZED
+    assert vector_load_loop.kind == tvm_tirx.ir.ForKind.VECTORIZED
 
 
 def test_gemv_broadcast_epilogue():
@@ -1170,12 +1171,12 @@ def test_gemv_broadcast_epilogue():
                 Ts.reads(C_temp[v_i0, v_i1, 0, v_i4])
                 Ts.writes(C[v_i0, v_i1, v_i2, v_i3, v_i4])
                 C[v_i0, v_i1, v_i2, v_i3, v_i4] = T.Cast(
-                    C_temp[v_i0, v_i1, 0, v_i4], "float32"
+                    "float32", C_temp[v_i0, v_i1, 0, v_i4]
                 )
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
 
@@ -1183,4 +1184,4 @@ def test_gemv_broadcast_epilogue():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

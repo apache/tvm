@@ -18,9 +18,9 @@
 Core TVMScript
 ==============
 
-TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
+TIRx kernels use ``tvm_tirx.script.tirx`` for the parser and core IR builders::
 
-   from tvm.script import tirx as Tx
+   from tvm_tirx.script import tirx as Tx
 
    Tx.alloc_tensor(...)
 
@@ -30,7 +30,7 @@ authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 
 Parser entry points
 -------------------
-.. automodule:: tvm.script.tirx
+.. automodule:: tvm_tirx.script.tirx
    :members: function, jit, inline, macro
    :undoc-members:
    :no-index:
@@ -39,18 +39,18 @@ Core IR builder
 ---------------
 
 Common statement frames and construction helpers live in
-``tvm.script.ir_builder.frame`` and ``tvm.script.ir_builder.stmt``. The TIRx
+``tvm_tirx.script.ir_builder.frame`` and ``tvm_tirx.script.ir_builder.stmt``. The TIRx
 namespace re-exports them alongside its function, tensor/layout, and execution
 scope builders. Native shared statement builders live under
 ``include/tvm/script/ir_builder`` and ``src/script/ir_builder``; dialect-specific
 thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
 
-.. automodule:: tvm.tirx.script.ir_builder.ir
+.. automodule:: tvm_tirx.tirx.script.ir_builder.ir
    :members:
    :no-index:
    :exclude-members: LetAnnotation
 
-.. currentmodule:: tvm.tirx.script.ir_builder.ir
+.. currentmodule:: tvm_tirx.tirx.script.ir_builder.ir
 
 .. py:class:: LetAnnotation(type_spec=None)
 
@@ -65,9 +65,9 @@ construct IR. ``IRBuilder.line_trace_scope()`` records file-backed Python source
 lines. Script-facing void calls automatically emit into an active IRBuilder,
 with or without line tracing::
 
-   from tvm.script import tirx as Tx
-   from tvm.script.ir_builder import IRBuilder
-   from tvm.tirx.script import ir_builder as I
+   from tvm_tirx.script import tirx as Tx
+   from tvm_tirx.script.ir_builder import IRBuilder
+   from tvm_tirx.tirx.script import ir_builder as I
 
    with IRBuilder() as builder:
        with I.function_():
@@ -83,7 +83,7 @@ Auto emission applies to script-facing calls through ``Tx``, including PTX
 and backend namespaces. A void call returns an ``AlreadyEmitted`` receipt;
 passing that receipt to ``evaluate`` or ``emit_`` does not emit it again.
 Calls producing values remain expressions. Raw IR constructors such as
-``tvm.ir.Call``, ``tvm.tirx.op`` and raw backend APIs remain pure even inside
+``tvm_tirx.ir.Call``, ``tvm_tirx.tirx.op`` and raw backend APIs remain pure even inside
 an IRBuilder. Line tracing only supplies source locations; it neither enables
 nor disables emission. The trace scope restores its previous trace and location
 state on exit, including exceptional exits, and applies only to its owning builder.
@@ -121,9 +121,9 @@ A register fragment is an ordinary local tensor with an explicit layout.
 For a two-CTA Layout-B accumulator, define the TMEM and register layouts
 outside the kernel::
 
-   from tvm.backend.cuda.axis import tid_in_wg
-   from tvm.backend.cuda.layout import tmem_mma_operand_layout
-   from tvm.tirx.layout import TileLayout, S
+   from tvm_tirx.backend.cuda.axis import tid_in_wg
+   from tvm_tirx.backend.cuda.layout import tmem_mma_operand_layout
+   from tvm_tirx.tirx.layout import TileLayout, S
 
    layout_b = tmem_mma_operand_layout(
        "D", (64, 128), "float32", M=128, cta_group=2)

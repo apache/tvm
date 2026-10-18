@@ -17,11 +17,11 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from tvm.ir import Call, Op
-from tvm.ir.attrs import make_node
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _make_op_api
 from tvm.relax.distributed import DeviceMesh, Placement
+from tvm_tirx.ir import Call, Op
+from tvm_tirx.ir.attrs import make_node
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _make_op_api
 
 from ...expr import Expr
 
@@ -56,8 +56,8 @@ def annotate_sharding(
         attrs=make_node(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -90,8 +90,8 @@ def redistribute(
         attrs=make_node(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -127,6 +127,6 @@ def redistribute_replica_to_shard(
         "relax.dist.redistribute_replica_to_shard",
         [input],
         attrs=make_node("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

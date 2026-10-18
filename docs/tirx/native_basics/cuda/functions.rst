@@ -177,7 +177,7 @@ trailing ``1, 1`` are the grid/block launch dims):
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
 device checks (e.g. asserting ``B.shape[0] == n``)::
 
-    n = Tx.Cast(Tx.abi_field_get(a_shape, 0, 17, "int64"), "int32")   # = a.shape[0]
+    n = Tx.Cast("int32", Tx.abi_field_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
 ``@Tx.function`` vs ``@Tx.jit``
 --------------------------------
@@ -226,7 +226,7 @@ Launch parameters
 shape reads precede it, while the kernel body follows it. A flat call scopes the
 remaining statements in the enclosing body; ``with Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,))):`` gives
 an explicit boundary. Both forms create a ``RegionStmt`` with the
-``tirx.device_entry`` op. ``LowerTIRx`` removes this region, resolves scope ids,
+``tirx.device_entry`` op. ``TileDispatch`` lowers this region, resolves scope ids,
 and retains its launch operands on a ``device_scope`` region.
 ``SplitHostDevice`` separates the host configuration from the device body.
 

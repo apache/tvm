@@ -19,13 +19,14 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 add_cuda_source = """
 extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_elements) {
@@ -100,18 +101,18 @@ def test_tir_call_source_kernel():
                     64,
                 )
 
-    tvm.ir.assert_structural_equal(Module["add"], Parsed["add"])
+    tvm_tirx.ir.assert_structural_equal(Module["add"], Parsed["add"])
     assert len(Module.get_attr("external_mods")) == 1
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lib = tvm.compile(Module)
 
     def run_and_check():
-        device = tvm.cuda(0)
-        x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
-        y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        device = tvm_tirx.cuda(0)
+        x_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        y_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
         output_np = x_nd.numpy() + y_nd.numpy()
         output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
-        tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)

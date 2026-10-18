@@ -23,14 +23,15 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -252,6 +253,10 @@ def access_under_scope(
             C[vi, vj] = A[vi, vj] * 2.0
 
 
+opaque_access_a0_offset = T.dynamic("opaque_access_a0_offset", "int32")
+opaque_access_c0_offset = T.dynamic("opaque_access_c0_offset", "int32")
+
+
 @Ts.function
 def opaque_access(
     A: T.Tensor((128, 128), dtype="float16"),
@@ -294,8 +299,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (opaque_access_a0_offset)),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -304,8 +308,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (opaque_access_c0_offset)),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -555,6 +558,10 @@ def cache_read_under_scope(
             C[vi, vj] = A_global[vi, vj] * 2.0
 
 
+cache_read_opaque_access_a0_offset = T.dynamic("cache_read_opaque_access_a0_offset", "int32")
+cache_read_opaque_access_c0_offset = T.dynamic("cache_read_opaque_access_c0_offset", "int32")
+
+
 @Ts.function
 def cache_read_opaque_access(
     A: T.Tensor((128, 128), dtype="float16"),
@@ -605,8 +612,9 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_read_opaque_access_a0_offset)
+                ),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -615,8 +623,9 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_read_opaque_access_c0_offset)
+                ),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -914,6 +923,10 @@ def cache_write_under_scope(
             C[vi, vj] = A[vi, vj] * 2.0
 
 
+cache_write_opaque_access_a0_offset = T.dynamic("cache_write_opaque_access_a0_offset", "int32")
+cache_write_opaque_access_c0_offset = T.dynamic("cache_write_opaque_access_c0_offset", "int32")
+
+
 @Ts.function
 def cache_write_opaque_access(
     A: T.Tensor((128, 128), dtype="float16"),
@@ -960,8 +973,9 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_write_opaque_access_a0_offset)
+                ),
             )
             C0 = Ts.match_tensor(
                 C_global[
@@ -970,8 +984,9 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_write_opaque_access_c0_offset)
+                ),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -1271,7 +1286,7 @@ def symbolic_matmul_blocked_cache_write(
 
 ########## Testcases for cache_read ##########
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_cache_read_elementwise(use_block_name):
@@ -1799,4 +1814,4 @@ def test_cache_read_sibling_nested_block_predicates_use_union():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

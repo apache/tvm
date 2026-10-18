@@ -379,13 +379,13 @@ struct ReadWriteAtImpl {
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                 int read_tensor_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_tensor_index, storage_scope,
-                                     {{s_tir::attr::kAutoCopy, true}});
+                                     {{s_tir::attr::kAutoCopy.name, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                  int write_tensor_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_tensor_index,
-                                      storage_scope, {{s_tir::attr::kAutoCopy, true}});
+                                      storage_scope, {{s_tir::attr::kAutoCopy.name, true}});
 }
 
 /******** Instruction Registration ********/

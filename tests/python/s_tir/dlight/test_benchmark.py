@@ -23,8 +23,10 @@ import pytest
 
 pytest.importorskip("cloudpickle")  # tvm.s_tir.dlight.benchmark imports cloudpickle
 
-import tvm.testing
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.dlight.benchmark import (
     benchmark,
     benchmark_function,
@@ -34,10 +36,8 @@ from tvm.s_tir.dlight.benchmark import (
     extract_function,
 )
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 # The test function uses an undefined symbolic var in Relax.
 # In principle, this should be attached to an argument.
@@ -118,7 +118,7 @@ def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax2_3_init, ax1_3_init in T.grid(T.int64(4), T.int64(4)):
                                     with Ts.sblock("matmul_init"):
                                         v0 = Ts.axis.spatial(T.int64(1), ax0)
@@ -224,7 +224,7 @@ def test_benchmark_function_local():
 
 @pytest.mark.skip("requires CUDA")
 def test_benchmark_function_full_local():
-    with tvm.target.Target("nvidia/geforce-rtx-3070"):
+    with tvm_tirx.target.Target("nvidia/geforce-rtx-3070"):
         benchmark_function(
             cuda_workload,
         )
@@ -254,7 +254,7 @@ def test_benchmark_function_full_rpc():
 
 
 def test_benchmark_relax_func():
-    with tvm.target.Target({"kind": "llvm", "num-cores": 4}):
+    with tvm_tirx.target.Target({"kind": "llvm", "num-cores": 4}):
         benchmark_relax_func(Module, "test")
 
 
@@ -289,7 +289,7 @@ def test_extract_function_matmul1():
 
 
 def test_extract_from_relax():
-    with tvm.target.Target({"kind": "llvm", "num-cores": 4}):
+    with tvm_tirx.target.Target({"kind": "llvm", "num-cores": 4}):
         with tempfile.TemporaryDirectory() as filepath:
             extract_from_relax(
                 Module,
@@ -318,4 +318,4 @@ def test_extract_func_info_from_function():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

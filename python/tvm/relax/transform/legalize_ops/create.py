@@ -20,9 +20,10 @@
 
 import numpy as np
 
-import tvm
-from tvm import te, tirx, topi
-from tvm.ir import Call
+import tvm_tirx
+from tvm import te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr, const
@@ -117,12 +118,12 @@ register_legalize("relax.eye_like", _eye(is_like=True, function_name="eye_like")
 @register_legalize("relax.arange")
 def _arange(bb: BlockBuilder, call: Call) -> Expr:
     assert len(call.args) == 3
-    assert all(tvm.ir.is_prim_expr(x) for x in call.args)
+    assert all(tvm_tirx.ir.is_prim_expr(x) for x in call.args)
     start, end, step = call.args
     dtype = call.attrs.dtype
 
     def is_const_scalar(x: tirx.Expr):
-        return isinstance(x, tirx.IntImm | tirx.FloatImm)
+        return isinstance(x, tvm_tirx.ir.IntImm | tvm_tirx.ir.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
@@ -138,16 +139,16 @@ def _shape_to_tensor(bb: BlockBuilder, call: Call) -> Expr:
         return call
     values = list(values)
     n = len(values)
-    symbolic = [v for v in values if not isinstance(v, tirx.IntImm)]
+    symbolic = [v for v in values if not isinstance(v, tvm_tirx.ir.IntImm)]
 
     def te_shape_to_tensor(*sym):
         sym = list(sym)
-        resolved = [v if isinstance(v, tirx.IntImm) else sym.pop(0) for v in values]
+        resolved = [v if isinstance(v, tvm_tirx.ir.IntImm) else sym.pop(0) for v in values]
 
         def fcompute(i):
             result = tirx.const(0, "int64")
             for idx in range(n - 1, -1, -1):
-                result = tirx.if_then_else(i == idx, tirx.Cast(resolved[idx], "int64"), result)
+                result = tirx.if_then_else(i == idx, tirx.Cast("int64", resolved[idx]), result)
             return result
 
         return te.compute((n,), fcompute, name="shape_to_tensor")

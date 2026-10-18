@@ -19,15 +19,16 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.schedule import ScheduleError
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 @Ts.function
@@ -280,8 +281,8 @@ def matmul_unit_dim_reindex_write(
             C[v0, v1] = C_reindex[v0, v1]
 
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
-use_tensor_name = tvm.testing.parameter(by_dict={"tensor_index": False, "tensor_name": True})
+use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+use_tensor_name = tvm_tirx.testing.parameter(by_dict={"tensor_index": False, "tensor_name": True})
 
 
 def test_reindex_read_basic(use_block_name, use_tensor_name):
@@ -350,4 +351,4 @@ def test_matmul_unit_dim_reindex_write(use_block_name, use_tensor_name):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

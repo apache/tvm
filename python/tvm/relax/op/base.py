@@ -22,12 +22,13 @@ from collections.abc import Callable
 import tvm_ffi
 
 import tvm
-import tvm.runtime
-from tvm.ir import Attrs, Call, Op
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.op import _make_op_api
-from tvm.runtime import DataTypeCode, Object
+import tvm_tirx
+import tvm_tirx.runtime
+from tvm_tirx.ir import Attrs, Call, Op
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.op import _make_op_api
+from tvm_tirx.runtime import DataTypeCode
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import Type
@@ -61,7 +62,7 @@ def register_gradient(
     result : callable
         The registered gradient, or a decorator if fgradient is not supplied.
     """
-    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
+    return tvm_tirx.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
 
 
 def null_value(*, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
@@ -72,7 +73,7 @@ def null_value(*, ty=None, loc: Location = UNKNOWN_LOC) -> Call:
     ret: Call
         The created call node.
     """
-    return Call("relax.null_value", [], ty=ty, loc=loc)  # type: ignore
+    return Call("relax.null_value", [], loc=loc, ty=ty)  # type: ignore
 
 
 def _wrap_inline_arg_tuple(args) -> Expr:
@@ -86,7 +87,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 
     """
     if isinstance(args, tuple | list):
-        return tvm.ir.Tuple([convert_to_expr(arg) for arg in args])
+        return tvm_tirx.ir.Tuple([convert_to_expr(arg) for arg in args])
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
@@ -102,19 +103,19 @@ def _wrap_tir_arg_tuple(func, args) -> Expr:
     if not isinstance(args, tuple | list):
         return _wrap_inline_arg_tuple(args)
     signature = getattr(func, "ty", None)
-    arg_types = signature.arg_types if isinstance(signature, tvm.ir.FuncType) else ()
+    arg_types = signature.arg_types if isinstance(signature, tvm_tirx.ir.FuncType) else ()
     values = []
     for i, value in enumerate(args):
         ty = arg_types[i] if i < len(arg_types) else None
-        if isinstance(ty, tvm.ir.PrimType) and ty.dtype.lanes == 1:
+        if isinstance(ty, tvm_tirx.ir.PrimType) and ty.dtype.lanes == 1:
             if type(value) in (int, bool) and ty.matches_code(
                 DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL
             ):
-                value = tvm.tirx.IntImm(ty, value)
+                value = tvm_tirx.ir.IntImm(ty, value)
             elif type(value) is float and ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-                value = tvm.tirx.FloatImm(ty, value)
+                value = tvm_tirx.ir.FloatImm(ty, value)
         values.append(convert_to_expr(value))
-    return tvm.ir.Tuple(values)
+    return tvm_tirx.ir.Tuple(values)
 
 
 _call_tir = _make_op_api(Op.get("relax.call_tir"), __name__)
@@ -160,7 +161,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
     ----------
     gvar : GlobalVar
         The GlobalVar referring to a TIRx Function with its native
-        ``tvm.ir.FuncType`` signature.
+        ``tvm_tirx.ir.FuncType`` signature.
 
     args : Expr
         The ordered arguments, supplied as an inline Relax tuple, a Python
@@ -206,7 +207,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
     A caller that knows the scalar function has no effects may assert purity::
 
         result = relax.call_pure_packed(
-            tvm.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
+            tvm_tirx.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
         )
 
     A native copy function with a void return writes to a caller-owned tensor::
@@ -214,7 +215,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
         relax.call_tir_packed(copy, (source, destination))
     """
     args = _wrap_tir_arg_tuple(gvar, args)
-    return Call("relax.call_tir_packed", [gvar, args], ty=ty, loc=loc)
+    return Call("relax.call_tir_packed", [gvar, args], loc=loc, ty=ty)
 
 
 @tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")
@@ -315,7 +316,7 @@ def call_py_func(
     ``ty_args`` contains exactly one result type, including a TupleType for
     tuple-valued results. Omitted ``ty`` uses the registered result inference.
     """
-    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, ty=ty, loc=loc)
+    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, loc=loc, ty=ty)
 
 
 def call_builtin_with_ctx(
@@ -361,12 +362,12 @@ def call_builtin_with_ctx(
         "relax.call_builtin_with_ctx",
         [func, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
-def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Object:
+def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> tvm_ffi.Object:
     """
     Create a closure with free variables and return the closure.
 
@@ -381,13 +382,13 @@ def make_closure(func: Expr, args: Expr, *, ty=None, loc: Location = UNKNOWN_LOC
 
     Returns
     -------
-    ret: Object
+    ret: tvm_ffi.Object
         The VMClosure.
     """
 
     args = _wrap_inline_arg_tuple(args)
 
-    return Call("relax.make_closure", [func, args], ty=ty, loc=loc)  # type: ignore
+    return Call("relax.make_closure", [func, args], loc=loc, ty=ty)  # type: ignore
 
 
 def invoke_closure(
@@ -421,18 +422,18 @@ def invoke_closure(
         "relax.invoke_closure",
         [closure, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
-def render_object(val: tvm.Object) -> str:
+def render_object(val: tvm_ffi.Object) -> str:
     """
     Given a TVM Object, renders it in string form. Used for Relax printing and assertions.
 
     Parameters
     ----------
-    val: tvm.Object
+    val: tvm_ffi.Object
         An object to render
 
     Returns
@@ -440,7 +441,7 @@ def render_object(val: tvm.Object) -> str:
     ret: str
         A string representing the value, ideally human-readable
     """
-    if isinstance(val, tvm.runtime.Tensor):
+    if isinstance(val, tvm_tirx.runtime.Tensor):
         return str(val)
     if isinstance(val, tvm_ffi.Array):
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
@@ -448,8 +449,8 @@ def render_object(val: tvm.Object) -> str:
     return str(val)
 
 
-@tvm.register_global_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
+@tvm_ffi.register_global_func("relax.run.shape_to_tensor")
+def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm_tirx.runtime.Tensor:
     """
     Takes a Shape and convert it to Tensor.
 
@@ -458,11 +459,11 @@ def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
     shape_tuple: tvm_ffi.Shape
         Shape tuple that we want to convert to Tensor at runtime
     """
-    return tvm.runtime.tensor([int(v) for v in shape_tuple])
+    return tvm_tirx.runtime.tensor([int(v) for v in shape_tuple])
 
 
-@tvm.register_global_func("relax.run.print")
-def relax_print(format_str: str, *format_args: tvm.Object) -> None:
+@tvm_ffi.register_global_func("relax.run.print")
+def relax_print(format_str: str, *format_args: tvm_ffi.Object) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -477,7 +478,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
     format_str: str
         The first argument is a Python-style format string for printing the values
 
-    format_args: List[Object]
+    format_args: List[tvm_ffi.Object]
         The values to print.
     """
     val_strs = map(render_object, format_args)
@@ -489,11 +490,13 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
 
 def print(format: str | Expr, *values: Expr, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """Print values using the canonical leading format-string operand."""
-    return Call("relax.print", [format, *values], ty=ty, loc=loc)
+    return Call("relax.print", [format, *values], loc=loc, ty=ty)
 
 
-@tvm.register_global_func("relax.run.assert_op")
-def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Object) -> None:
+@tvm_ffi.register_global_func("relax.run.assert_op")
+def relax_assert_op(
+    condition: tvm_ffi.Object, format_str: str, *format_args: tvm_ffi.Object
+) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
     If the condition is true, then the operator does nothing.
@@ -507,13 +510,13 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
     Parameters
     ----------
-    condition: tvm.Object
+    condition: tvm_ffi.Object
         The assertion condition. Must be a boolean scalar.
 
     format_str: str
         A Python-style format string for the error message.
 
-    format_args: List[tvm.Object]
+    format_args: List[tvm_ffi.Object]
         Values used for formatting the string.
     """
     if not isinstance(format_str, str):
@@ -523,7 +526,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
     if isinstance(condition, bool | int):
         val = condition
-    elif isinstance(condition, tvm.runtime.Tensor):
+    elif isinstance(condition, tvm_tirx.runtime.Tensor):
         # may happen if the original program had unknown shape or dtype for the tensor's type
         dtype = condition.dtype
         if dtype != "bool":
@@ -581,7 +584,7 @@ def assert_op(
     result : Expr
         A Call to the Relax assert operation.
     """
-    return Call("relax.assert_op", [condition, format, *values], ty=ty, loc=loc)
+    return Call("relax.assert_op", [condition, format, *values], loc=loc, ty=ty)
 
 
 def shape_of(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -597,7 +600,7 @@ def shape_of(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : Expr
         A relax Call, which gets the shape of the input
     """
-    return Call("relax.shape_of", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.shape_of", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def size(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -613,7 +616,7 @@ def size(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : Expr
         A scalar tensor of dtype int64 containing the total number of elements.
     """
-    return Call("relax.size", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.size", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def tensor_to_shape(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -627,7 +630,7 @@ def tensor_to_shape(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : Expr
         A relax Call, which transforms the tensor values to the shape
     """
-    return Call("relax.tensor_to_shape", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.tensor_to_shape", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 def shape_to_tensor(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -641,7 +644,7 @@ def shape_to_tensor(expr: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : Expr
         A relax Call, which transforms the shape values to the tensor
     """
-    return Call("relax.shape_to_tensor", [expr], ty=ty, loc=loc)  # type: ignore # pylint: disable=no-member
+    return Call("relax.shape_to_tensor", [expr], loc=loc, ty=ty)  # type: ignore # pylint: disable=no-member
 
 
 @tvm_ffi.register_object("relax.attrs.CallInplacePackedAttrs")
@@ -716,8 +719,8 @@ def call_inplace_packed(
         [op, *args],
         attrs=_make_attrs("relax.attrs.CallInplacePackedAttrs", inplace_indices=inplace_indices),
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -779,8 +782,8 @@ def call_pure_packed(
         "relax.call_pure_packed",
         [op, *args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore # pylint: disable=no-member
 
 
@@ -821,8 +824,8 @@ def invoke_pure_closure(
         "relax.invoke_pure_closure",
         [closure, args],
         ty_args=ty_args,
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -853,8 +856,8 @@ def to_vdevice(data, dst_vdevice, *, ty=None, loc: Location = UNKNOWN_LOC) -> Ex
         "relax.to_vdevice",
         [data],
         attrs=_make_attrs("relax.attrs.ToVDeviceAttrs", dst_vdevice=dst_vdevice),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -873,4 +876,4 @@ def hint_on_device(
         index=index,
         memory_scope=memory_scope,
     )
-    return Call("relax.hint_on_device", [data], attrs=attrs, ty=ty, loc=loc)
+    return Call("relax.hint_on_device", [data], attrs=attrs, loc=loc, ty=ty)

@@ -19,12 +19,13 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Optional
 
-import tvm
+import tvm_tirx
 from tvm import relax
-from tvm.ir import IRModule
+from tvm.runtime import time_evaluator
 from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tirx import Function
+from tvm_tirx.ir import IRModule
+from tvm_tirx.tirx import Function
 
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_function
 from .utils import (
@@ -44,7 +45,7 @@ def benchmark(
     *,
     dym_var_sample: dict[str, int],
     args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None,
-    target: str | tvm.target.Target | None = None,
+    target: str | tvm_tirx.target.Target | None = None,
     func_name: str | None = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
@@ -60,7 +61,7 @@ def benchmark(
     args : Optional[List[Union[relax.TensorType, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the Function or IRModule.
-    target : Optional[Union[str, tvm.target.Target]]
+    target : Optional[Union[str, tvm_tirx.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
     func_name : Optional[str]
         The name of the function to be benchmarked, will use "main" by default.
@@ -93,20 +94,20 @@ def benchmark(
     if args is None:
         args, _ = extract_func_info_from_function(mod[func_name])
     # produce target & device
-    target = tvm.target.Target.current() if target is None else tvm.target.Target(target)
+    target = tvm_tirx.target.Target.current() if target is None else tvm_tirx.target.Target(target)
     if target is None:
         raise ValueError("Target is not specified")
     if target.kind.name == "llvm":
-        dev = tvm.cpu()
+        dev = tvm_tirx.cpu()
     elif target.kind.name == "cuda":
-        dev = tvm.cuda()
+        dev = tvm_tirx.cuda()
     else:
         raise ValueError(f"Unsupported device type from {target.kind.name}")
     # populate input shapes
     input_infos = populuate_input_shape(args, dym_var_sample)
     # generate input tensors, including scalars
     # scalars are appended to the end of the list due to parsing order
-    input_tensors: list[tvm.runtime.Tensor | int] = []
+    input_tensors: list[tvm_tirx.runtime.Tensor | int] = []
     scalar_input_tensors: list[int] = []
     for input_shape, input_dtype in input_infos:
         if input_dtype == "scalar":
@@ -116,26 +117,29 @@ def benchmark(
         else:
             # normal case like [1, n, 128], generate random tensor
             input_tensors.append(
-                tvm.runtime.tensor(generate_input_data(list(input_shape), input_dtype), device=dev)
+                tvm_tirx.runtime.tensor(
+                    generate_input_data(list(input_shape), input_dtype), device=dev
+                )
             )
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
     # build locally
-    rt_mod = tvm.tirx.compile(mod, target=target).mod
+    rt_mod = tvm_tirx.tirx.compile(mod, target=target).mod
     # set up evaluator config
     evaluator_config = EvaluatorConfig._normalized(  # pylint: disable=protected-access
         evaluator_config
     )
     # run benchmark
     if rpc_config is None:
-        profile_result = rt_mod.time_evaluator(
+        profile_result = time_evaluator(
+            rt_mod,
             func_name,
-            dev=dev,
+            device=dev,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
             f_preproc=(
-                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+                "runtime.CacheFlushCPUArguments" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )(*input_tensors)
     else:
@@ -144,7 +148,9 @@ def benchmark(
         _, profile_result = rpc_run(
             rt_mod,
             device_type=dev._DEVICE_TYPE_TO_NAME[dev.dlpack_device_type()],
-            args=[w.numpy() if isinstance(w, tvm.runtime.Tensor) else w for w in input_tensors],
+            args=[
+                w.numpy() if isinstance(w, tvm_tirx.runtime.Tensor) else w for w in input_tensors
+            ],
             rpc_config=rpc_config,
             evaluator_config=evaluator_config,
         )
@@ -159,7 +165,7 @@ def benchmark_function(
     args: list[relax.TensorType | tuple[tuple[int | str, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
     sample_number: int = 5,
-    target: str | tvm.target.Target | None = None,
+    target: str | tvm_tirx.target.Target | None = None,
     weight: int | None = 1,
     relax_func_name: str | None = None,
     function_name: str | None = None,
@@ -184,7 +190,7 @@ def benchmark_function(
         the input information from the Function or IRModule.
     sample_number : int
         The number of times to sample dynamic shape variables.
-    target: Optional[Union[str, tvm.target.Target]]
+    target: Optional[Union[str, tvm_tirx.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
     weight : Optional[int]
         The weight of this Function.
@@ -233,14 +239,14 @@ def benchmark_function(
 
 
 def benchmark_relax_func(
-    mod: tvm.ir.IRModule,
-    relax_func: tvm.ir.GlobalVar | str,
+    mod: tvm_tirx.ir.IRModule,
+    relax_func: tvm_tirx.ir.GlobalVar | str,
     sample_number: int = 2,
     dym_var_sample_func: Callable[
         [dict[str, str]],
         dict[str, int],
     ] = default_dym_var_sample_func,
-    target: str | dict | tvm.target.Target = None,
+    target: str | dict | tvm_tirx.target.Target = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
 ) -> None:
@@ -248,17 +254,17 @@ def benchmark_relax_func(
 
     Parameters
     ----------
-    mod : tvm.ir.IRModule
+    mod : tvm_tirx.ir.IRModule
         The IRModule to be benchmarked.
-    relax_func : Union[tvm.ir.GlobalVar, str]
+    relax_func : Union[tvm_tirx.ir.GlobalVar, str]
         The relax function to be benchmarked.
     sample_number : int
         The number of times to sample dynamic shape variables.
     dym_var_sample_func : Callable[[Dict[str, str]], Dict[str, int]]
         The function to sample dynamic shape variables.
-    target : Union[str, tvm.target.Target]
+    target : Union[str, tvm_tirx.target.Target]
         The target to be benchmarked on.
-    dev : tvm.runtime.Device
+    dev : tvm_tirx.runtime.Device
         The device to be benchmarked on.
     evaluator_config : Optional["EvaluatorConfig"]
         The evaluator configuration to use.
@@ -276,7 +282,7 @@ def benchmark_relax_func(
             if get_func_name_from_gv(gv) == relax_func:
                 relax_func = gv
                 break
-        if not isinstance(relax_func, tvm.ir.GlobalVar):
+        if not isinstance(relax_func, tvm_tirx.ir.GlobalVar):
             raise ValueError(
                 f"Cannot find relax function with name {relax_func}, "
                 + f"candidates are: {[get_func_name_from_gv(gv) for gv in relax_funcs]}"

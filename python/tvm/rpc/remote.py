@@ -17,13 +17,13 @@
 """Explicit RPC-owned devices, tensors, and streams.
 
 A remote tensor is not a local tensor or a DLPack provider. Use ``numpy`` or
-``copyto(tvm.cpu())`` to materialize its contents in the client process.
+``copyto(tvm_tirx.cpu())`` to materialize its contents in the client process.
 """
 
 import numpy as np
 import tvm_ffi
 
-import tvm.runtime
+import tvm_tirx.runtime
 
 from . import _ffi_api
 
@@ -57,7 +57,7 @@ class RemoteDevice(tvm_ffi.Object):
     type and index. The native object retains its session; the descriptor alone
     does not identify that session and must not be used for local allocation.
     Device capability attributes use the same definitions and conversions as
-    :class:`tvm.runtime.Device`, with queries dispatched by the owning session.
+    :class:`tvm_tirx.runtime.Device`, with queries dispatched by the owning session.
     Explicit session closure invalidates allocation, queries and stream calls.
     """
 
@@ -86,14 +86,10 @@ class RemoteDevice(tvm_ffi.Object):
         try:
             return super().__getattr__(name)
         except AttributeError:
-            attribute = getattr(tvm.runtime.Device, name, None)
+            attribute = getattr(tvm_tirx.runtime.Device, name, None)
             if not isinstance(attribute, property):
                 raise AttributeError(f"RemoteDevice has no attribute {name!r}") from None
             return attribute.__get__(_RemoteDeviceAttributeQuery(self))
-
-    def texture_spatial_limit(self):
-        """Query the shared texture limit convenience through this session."""
-        return tvm.runtime.Device.texture_spatial_limit(_RemoteDeviceAttributeQuery(self))
 
     def empty(self, shape, dtype="float32", mem_scope=None):
         """Allocate a remote tensor through this device's session."""
@@ -109,7 +105,7 @@ class RemoteDevice(tvm_ffi.Object):
         local = (
             data
             if isinstance(data, tvm_ffi.Tensor) and dtype is None
-            else tvm.runtime.tensor(np.asarray(data, dtype=dtype))
+            else tvm_tirx.runtime.tensor(np.asarray(data, dtype=dtype))
         )
         return self.empty(local.shape, local.dtype).copyfrom(local)
 
@@ -163,10 +159,10 @@ class RemoteTensor(tvm_ffi.Object):
         return f"RemoteTensor(shape={tuple(self.shape)}, dtype={self.dtype}, device={self.device})"
 
     def __dlpack__(self, *args, **kwargs):
-        raise TypeError("RemoteTensor cannot export local DLPack; copyto(tvm.cpu()) first")
+        raise TypeError("RemoteTensor cannot export local DLPack; copyto(tvm_tirx.cpu()) first")
 
     def __dlpack_device__(self):
-        raise TypeError("RemoteTensor has no local DLPack device; copyto(tvm.cpu()) first")
+        raise TypeError("RemoteTensor has no local DLPack device; copyto(tvm_tirx.cpu()) first")
 
     def copyfrom(self, source):
         """Copy a local value or a tensor from the same remote session."""
@@ -176,7 +172,7 @@ class RemoteTensor(tvm_ffi.Object):
             self.device.sync()
         else:
             if not isinstance(source, tvm_ffi.Tensor):
-                source = tvm.runtime.tensor(np.asarray(source, dtype=str(self.dtype)))
+                source = tvm_tirx.runtime.tensor(np.asarray(source, dtype=str(self.dtype)))
             if tuple(source.shape) != tuple(self.shape):
                 raise ValueError("Tensor copy shape mismatch")
             if str(source.dtype) != str(self.dtype):
@@ -190,10 +186,10 @@ class RemoteTensor(tvm_ffi.Object):
             target = target.empty(self.shape, self.dtype)
         if isinstance(target, RemoteTensor):
             return target.copyfrom(self)
-        if isinstance(target, tvm.runtime.Device):
-            is_cpu = target.dlpack_device_type() == tvm.runtime.cpu().dlpack_device_type()
-            local = tvm.runtime.empty(
-                self.shape, self.dtype, target if is_cpu else tvm.runtime.cpu()
+        if isinstance(target, tvm_tirx.runtime.Device):
+            is_cpu = target.dlpack_device_type() == tvm_tirx.runtime.cpu().dlpack_device_type()
+            local = tvm_tirx.runtime.empty(
+                self.shape, self.dtype, target if is_cpu else tvm_tirx.runtime.cpu()
             )
             _ffi_api.CopyToLocal(self, local)
             if is_cpu:
@@ -204,7 +200,7 @@ class RemoteTensor(tvm_ffi.Object):
 
     def numpy(self):
         """Materialize in client memory and convert to NumPy."""
-        return self.copyto(tvm.runtime.cpu()).numpy()
+        return self.copyto(tvm_tirx.runtime.cpu()).numpy()
 
     def _create_view(self, shape, dtype=None, relative_byte_offset=0):
         return _ffi_api.CreateView(
@@ -236,7 +232,10 @@ def time_evaluator(
     f_preproc="",
 ):
     """Create an evaluator after validating the module and remote device session."""
-    return module.time_evaluator(
+    from tvm.runtime import time_evaluator as runtime_time_evaluator
+
+    return runtime_time_evaluator(
+        module,
         func_name,
         device,
         number,

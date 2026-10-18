@@ -20,8 +20,10 @@
 import logging
 import math
 
-from tvm import s_tir, te, tirx, topi
-from tvm.ir import Call
+import tvm_tirx
+from tvm import s_tir, te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -674,7 +676,7 @@ def _te_attention(
     k: te.Tensor,
     v: te.Tensor,
     bias: te.Tensor,
-    scale: tirx.FloatImm,
+    scale: tvm_tirx.ir.FloatImm,
     causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
@@ -690,7 +692,7 @@ def _te_attention(
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
-        p = topi.divide(p, tirx.sqrt(tirx.Cast(head_dim, p.dtype)))
+        p = topi.divide(p, tirx.sqrt(tirx.Cast(p.dtype, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
@@ -699,7 +701,7 @@ def _te_attention(
         s = topi.nn.softmax(p)
     else:
         if causal_mask == "TopLeft":
-            offset = tirx.IntImm("int32", 0)
+            offset = tvm_tirx.ir.IntImm("int32", 0)
         elif causal_mask == "BottomRight":
             offset = tirx.abs(seq_len - seq_len_kv).astype("int32")
         else:

@@ -150,9 +150,9 @@ ffi::Optional<Range> IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& v
   Analyzer analyzer;
   analyzer->Bind(vranges_addl);
 
-  std::unordered_map<const VarNode*, IntSet> var_intsets;
+  ffi::Map<Var, IntSet> var_intsets;
   for (auto kv : vranges_addl) {
-    var_intsets.insert_or_assign(kv.first.get(), IntSet::FromRange(kv.second));
+    var_intsets.Set(kv.first, IntSet::FromRange(kv.second));
   }
 
   const ffi::Array<PrimExpr>& equal = this->equal;
@@ -672,13 +672,13 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   ffi::Map<Var, Range> ranges;
   for (const Var& v : vars) {
     sym::IntSet dom{ffi::UnsafeInit{}};
-    auto relax_it = relax_map_->find(v.get());
+    auto relax_it = relax_map_->find(v);
     if (relax_it != relax_map_->end()) {
-      dom = relax_it->second;
+      dom = (*relax_it).second;
     } else {
-      auto hint_it = hint_map_->find(v.get());
+      auto hint_it = hint_map_->find(v);
       if (hint_it != hint_map_->end()) {
-        dom = hint_it->second;
+        dom = (*hint_it).second;
       }
     }
     if (dom.defined()) {
@@ -694,10 +694,10 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   return result.ranges;
 }
 
-ConditionalBoundsContext::ConditionalBoundsContext(
-    const PrimExpr& condition, std::unordered_map<const VarNode*, sym::IntSet>* relax_map,
-    std::unordered_map<const VarNode*, sym::IntSet>* hint_map,
-    std::vector<PrimExpr>* pending_conditions)
+ConditionalBoundsContext::ConditionalBoundsContext(const PrimExpr& condition,
+                                                   ffi::Map<Var, sym::IntSet>* relax_map,
+                                                   ffi::Map<Var, sym::IntSet>* hint_map,
+                                                   std::vector<PrimExpr>* pending_conditions)
     : condition_(condition),
       relax_map_(relax_map),
       hint_map_(hint_map),
@@ -713,22 +713,22 @@ void ConditionalBoundsContext::EnterWithScope() {
   }
   // update solved var ranges
   for (const auto& kv : constraints.value()) {
-    const VarNode* var = kv.first.get();
+    const Var& var = kv.first;
     sym::IntSet new_dom = sym::IntSet::FromRange(kv.second);
     auto relax_it = relax_map_->find(var);
     if (relax_it != relax_map_->end()) {
       // this is a bound for relaxed var
-      origin_map_.emplace(var, relax_it->second);
-      relax_it->second = sym::Intersect({relax_it->second, new_dom});
+      origin_map_.Set(var, (*relax_it).second);
+      relax_map_->Set(var, sym::Intersect({(*relax_it).second, new_dom}));
     } else {
       // this is a bound for free var
       auto hint_it = hint_map_->find(var);
       if (hint_it != hint_map_->end()) {
-        origin_map_.emplace(var, hint_it->second);
-        hint_it->second = sym::Intersect({hint_it->second, new_dom});
+        origin_map_.Set(var, (*hint_it).second);
+        hint_map_->Set(var, sym::Intersect({(*hint_it).second, new_dom}));
       } else {
-        origin_map_.emplace(var, sym::IntSet::Nothing());
-        hint_map_->insert(hint_it, {var, new_dom});
+        origin_map_.Set(var, sym::IntSet::Nothing());
+        hint_map_->Set(var, new_dom);
       }
     }
   }
@@ -738,19 +738,19 @@ void ConditionalBoundsContext::ExitWithScope() {
   pending_conditions_->erase(pending_conditions_->begin() + origin_pending_conditions_num_,
                              pending_conditions_->end());
   for (const auto& p : origin_map_) {
-    const auto* var = p.first;
+    const Var& var = p.first;
     auto relax_it = relax_map_->find(var);
     if (relax_it != relax_map_->end()) {
       // recover bound for relaxed var
-      relax_it->second = p.second;
+      relax_map_->Set(var, p.second);
     } else {
       // recover bound for free var
       auto hint_it = hint_map_->find(var);
       TVM_FFI_ICHECK(hint_it != hint_map_->end());
       if (p.second.IsNothing()) {
-        hint_map_->erase(hint_it);
+        hint_map_->erase(var);
       } else {
-        hint_it->second = p.second;
+        hint_map_->Set(var, p.second);
       }
     }
   }

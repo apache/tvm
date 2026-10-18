@@ -39,6 +39,7 @@
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/type.h>
 
 #include <list>
 #include <map>
@@ -57,12 +58,17 @@ namespace {
 
 ffi::Array<PrimExpr> GetTensorAllocationShape(const TensorVar& tensor) {
   ffi::Array<PrimExpr> alloc_shape = tensor.shape();
-  if (tensor.strides().size()) {
-    TVM_FFI_ICHECK_EQ(tensor.shape().size(), tensor.strides().size());
-    for (size_t i = tensor.strides().size() - 1; i > 0; --i) {
+  if (tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size()) {
+    TVM_FFI_ICHECK_EQ(tensor.shape().size(),
+                      tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size());
+    for (size_t i = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>().size() - 1;
+         i > 0; --i) {
       TVM_FFI_ICHECK(sym::Analyzer()->CanProveEqual(
-          floormod(tensor.strides()[i - 1], tensor.strides()[i]), 0));
-      alloc_shape.Set(i, tensor.strides()[i - 1] / tensor.strides()[i]);
+          floormod(tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i - 1],
+                   tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i]),
+          0));
+      alloc_shape.Set(i, tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i - 1] /
+                             tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>()[i]);
     }
   }
   return alloc_shape;
@@ -539,7 +545,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 7. Wrap with the merged-buffer AllocTensor.
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (scope.has_volatile_alloc) {
-        annotations.Set(tvm::tirx::attr::kVolatile, true);
+        annotations.Set(tvm::tirx::attr::kVolatile.name, true);
       }
       Stmt alloc_stmt = Bind(scope.merged_tensor.value(),
                              Call(scope.merged_tensor.value().ty(), tirx::alloc_tensor_op(), {},
@@ -566,7 +572,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
         if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {
-          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
+          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile.name)) {
             scope.has_volatile_alloc = true;
           }
           return Evaluate(0);

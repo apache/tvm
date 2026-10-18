@@ -22,11 +22,12 @@ import sys
 
 import pytest
 
-import tvm.testing
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import from_source
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import from_source
+from tvm_tirx.script import tirx as T
 
 
 def test_tir_starred_shape_expression():
@@ -42,7 +43,7 @@ def test_tir_starred_shape_expression():
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
-    tvm.ir.assert_structural_equal(starred, non_starred)
+    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
 
 
 def test_inferred_ty_with_dynamic_tensor():
@@ -56,16 +57,20 @@ def test_inferred_ty_with_dynamic_tensor():
         for i, j in T.grid(M, N):
             B[i * N + j] = A[i, j]
 
-    M = tvm.tirx.Var("M", "int64")
-    N = tvm.tirx.Var("N", "int64")
-    expected = tvm.ir.FuncType(
+    M = tvm_tirx.tirx.Var("M", "int64")
+    N = tvm_tirx.tirx.Var("N", "int64")
+    expected = tvm_tirx.ir.FuncType(
         [
-            tvm.tirx.decl_tensor([M, N], "float32", layout=None).ty,
-            tvm.tirx.decl_tensor([M * N], "float32", layout=None).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M, N], "float32", layout=None)
+            ).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M * N], "float32", layout=None)
+            ).ty,
         ],
-        tvm.ir.TupleType([]),
+        tvm_tirx.ir.TupleType([]),
     )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_tir_tensor_region_extent_correct_dtype():
@@ -105,7 +110,7 @@ def gemm_dyn_shape(
 def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(
         gemm_dyn_shape.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
@@ -232,7 +237,10 @@ def undefined_stride_in_decl_tensor():
     def func():
         data_ptr = T.handle("float32")
         buf = T.decl_tensor(
-            data_ptr, ty_args=[T.Tensor([1], "float32", strides=[stride], data=data_ptr)]
+            data_ptr,
+            ty_args=[
+                T.Tensor([1], "float32", layout=T.TileLayout(T.S[[1] : [stride]]), data=data_ptr)
+            ],
         )
         T.evaluate(buf[0])
 
@@ -247,7 +255,12 @@ def undefined_elem_offset_in_decl_tensor():
     def func():
         data_ptr = T.handle("float32")
         buf = T.decl_tensor(
-            data_ptr, ty_args=[T.Tensor([1], "float32", elem_offset=elem_offset, data=data_ptr)]
+            data_ptr,
+            ty_args=[
+                T.Tensor(
+                    [1], "float32", layout=T.TileLayout(T.S[[1]] + (elem_offset)), data=data_ptr
+                )
+            ],
         )
         T.evaluate(buf[0])
 
@@ -267,18 +280,18 @@ def undefined_elem_offset_in_decl_tensor():
 )
 def test_roundtrip_dynamic_shape(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

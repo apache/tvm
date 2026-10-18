@@ -161,7 +161,7 @@ inline InlineType AutoInlineObj::CheckInline(const s_tir::Schedule& sch,
   }
   // Cond 6. The block is disallowed for auto inline
   if (ffi::Optional<ffi::String> ann =
-          s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleInlineRule)) {
+          s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleInlineRule.name)) {
     if (ann.value() == "disable") return InlineType::kNoInline;
   }
   // Last cond: Check inline into the consumers or the spatial producer
@@ -189,7 +189,7 @@ inline InlineType AutoInlineObj::CheckInline(const s_tir::Schedule& sch,
     if (producer_srefs.size() == 1 &&
         s_tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
         CanReverseComputeInline(state, block_sref) &&
-        !GetAnn<ffi::String>(producer_srefs[0], tvm::s_tir::attr::kMetaScheduleAutoTensorize)
+        !GetAnn<ffi::String>(producer_srefs[0], tvm::s_tir::attr::kMetaScheduleAutoTensorize.name)
              .has_value()) {
       return InlineType::kInlineIntoProducer;
     }

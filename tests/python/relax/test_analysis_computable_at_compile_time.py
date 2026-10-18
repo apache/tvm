@@ -18,9 +18,10 @@
 
 
 import tvm
-import tvm.testing
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm_tirx.script import tirx as T
 
 
 def _analyze_func(func: tvm.relax.Function) -> list[str]:
@@ -246,4 +247,4 @@ def test_compile_time_expressions_may_use_variables_from_match_cast():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

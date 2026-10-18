@@ -16,20 +16,20 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
-import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
 from tvm.te import create_function
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Softmax_mn_after_inline:
     @Ts.function
     def main(
@@ -41,7 +41,7 @@ class Softmax_mn_after_inline:
             with Ts.sblock("T_softmax_maxelem"):
                 i0_1, k = Ts.axis.remap("SR", [i0, i1])
                 with Ts.init():
-                    T_softmax_maxelem[i0_1] = T.min_value("float32")
+                    T_softmax_maxelem[i0_1] = T.min_value(ty="float32")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_expsum"):
@@ -577,7 +577,7 @@ def argmax(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -603,7 +603,7 @@ def argmax_32(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )

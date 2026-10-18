@@ -78,7 +78,7 @@ the space of possible schedules.
 import os
 import tempfile
 
-import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend import nn
 
@@ -100,8 +100,8 @@ class DemoModel(nn.Module):
 input_shape = (1, 784)
 mod, params = DemoModel().export_tvm({"forward": {"x": nn.spec.Tensor(input_shape, "float32")}})
 
-device = tvm.cuda(0)
-target = tvm.target.Target.from_device(device)
+device = tvm_tirx.cuda(0)
+target = tvm_tirx.target.Target.from_device(device)
 
 ######################################################################
 # User-Facing Entry Points
@@ -129,7 +129,7 @@ target = tvm.target.Target.from_device(device)
 
 if os.getenv("CI", "") != "true":
     with target, tempfile.TemporaryDirectory() as tmp_dir:
-        tuned_mod = tvm.ir.transform.Sequential(
+        tuned_mod = tvm_tirx.ir.transform.Sequential(
             [
                 relax.get_pipeline("zero"),
                 relax.transform.MetaScheduleTuneTIR(

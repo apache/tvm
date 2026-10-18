@@ -16,9 +16,10 @@
 # under the License.
 """Default legalization function for vision network related operators."""
 
-import tvm
-from tvm import relax, te, tirx, topi
-from tvm.ir import Call
+import tvm_tirx
+from tvm import relax, te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, TupleGetItem
@@ -59,7 +60,7 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
     else:
         raise ValueError(f"Unexpected scores shape: {scores_shape}")
 
-    if isinstance(max_output_boxes_per_class, tvm.ir.GenericConst):
+    if isinstance(max_output_boxes_per_class, tvm_tirx.ir.GenericConst):
         max_boxes_val = int(max_output_boxes_per_class.value.numpy())
     else:
         max_boxes_val = int(num_boxes)
@@ -93,7 +94,7 @@ def _all_class_non_max_suppression(block_builder: BlockBuilder, call: Call) -> E
         def compute_end(i):
             return tirx.if_then_else(
                 i == 0,
-                tirx.Cast(count_tensor[0], "int64"),
+                tirx.Cast("int64", count_tensor[0]),
                 tirx.const(3, "int64"),
             )
 

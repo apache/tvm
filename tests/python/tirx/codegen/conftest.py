@@ -16,41 +16,18 @@
 # under the License.
 """Hardware requirements for TIRx codegen tests."""
 
-import gc
 from pathlib import Path
 
-import pytest
-
-from tvm.testing import env
-
-
-@pytest.fixture(autouse=True)
-def _source_codegen_without_cuda(monkeypatch):
-    # CPU-only source checks must not depend on a CUDA compiler being installed.
-    if not env.has_cuda():
-        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-
-
-@pytest.fixture(autouse=True)
-def _release_cuda_cache_between_tests():
-    yield
-    gc.collect()
-    try:
-        import torch
-    except ImportError:
-        return
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+from tvm_tirx.testing._pytest import (
+    _release_cuda_cache_between_tests as _release_cuda_cache_between_tests,
+)
+from tvm_tirx.testing._pytest import (
+    _source_codegen_without_cuda as _source_codegen_without_cuda,
+)
+from tvm_tirx.testing._pytest import (
+    codegen_collection_modifyitems,
+)
 
 
 def pytest_collection_modifyitems(config, items):
-    if env.has_cuda_compute(10):
-        return
-    suite_root = Path(__file__).resolve().parent
-    skip = pytest.mark.skip(reason="requires a CUDA compute capability 10.0 device")
-    for item in items:
-        if (
-            Path(item.path).resolve().is_relative_to(suite_root)
-            and item.get_closest_marker("gpu") is not None
-        ):
-            item.add_marker(skip)
+    codegen_collection_modifyitems(config, items, Path(__file__).resolve().parent)

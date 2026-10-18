@@ -17,8 +17,8 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Relax ternary arithmetic operators."""
 
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -45,4 +45,4 @@ def ewise_fma(
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.ewise_fma", [x1, x2, x3], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.ewise_fma", [x1, x2, x3], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore

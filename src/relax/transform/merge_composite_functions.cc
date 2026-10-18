@@ -240,8 +240,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       return std::nullopt;
     }
 
-    auto composite_name_opt = mod_->Lookup(ffi::GetRef<GlobalVar>(gvar))
-                                  ->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
+    auto composite_name_opt =
+        mod_->Lookup(ffi::GetRef<GlobalVar>(gvar))->GetAttr(tvm::relax::attr::kComposite);
     if (!composite_name_opt) {
       return std::nullopt;
     }
@@ -250,7 +250,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   ffi::Optional<ffi::String> GetCodegenName(Group* group) {
-    if (auto opt_str = group->attrs.Get(tvm::relax::attr::kCodegen)) {
+    if (auto opt_str = group->attrs.Get(tvm::relax::attr::kCodegen.name)) {
       return opt_str.value().as_or_throw<ffi::String>();
     }
     return std::nullopt;
@@ -332,7 +332,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   Group* CreateNewGroup(const CallNode* call) {
     Group* group = arena_->make<Group>();
     if (ffi::Optional<ffi::String> codegen_name = GetCodegenName(call->op)) {
-      group->attrs.Set(tvm::relax::attr::kCodegen, codegen_name.value());
+      group->attrs.Set(tvm::relax::attr::kCodegen.name, codegen_name.value());
     }
     return group;
   }
@@ -465,10 +465,10 @@ class CompositeInliner : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto gvar = call->op.as_or_throw<GlobalVar>();
       auto func = mod_->Lookup(gvar).as_or_throw<Function>();
-      if (func->GetAttr<ffi::String>(tvm::relax::attr::kComposite)) {
+      if (func->GetAttr(tvm::relax::attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
           auto new_func = CopyWithNewVars(func);
-          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
+          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive.name);
           inlined_functions_.Set(func, new_func);
         }
         return Call(Type::Missing(), inlined_functions_[func], call->args);
@@ -507,7 +507,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
       auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
-      if (auto codegen_name = func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen)) {
+      if (auto codegen_name = func->GetAttr(tvm::relax::attr::kCodegen)) {
         GlobalVar new_var = [&]() -> GlobalVar {
           if (var_map_.count(cur_var) > 0) {
             // if we visited before, we don't need to create the new function,
@@ -522,8 +522,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
             // rename the function.
             ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
             Function new_func = inliner.Run(func.as_or_throw<Function>());
-            new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
-            new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
+            new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol.name, new_func_name);
+            new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive.name);
             // add a function with a new name.
             auto new_var = builder_->AddFunction(new_func, new_func_name);
             var_map_.insert_or_assign(cur_var, new_var);

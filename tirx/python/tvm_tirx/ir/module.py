@@ -1,0 +1,281 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""IRModule that holds the functions and type definitions."""
+
+import tvm_ffi
+
+from . import _ffi_api
+from . import expr as _expr
+from .attrs import DictAttrs, make_node
+from .base import Node, Scriptable
+from .function import BaseFunc
+
+
+@tvm_ffi.register_object("ir.IRModule")
+class IRModule(Node, Scriptable):
+    """IRModule that holds functions and type definitions.
+
+    IRModule is the basic unit for all IR transformations across the stack.
+
+    Parameters
+    ----------
+    functions: Optional[dict].
+        Map of global var to BaseFunc
+    """
+
+    def __init__(self, functions=None, attrs=None, global_infos=None):
+        if functions is None:
+            functions = {}
+        elif isinstance(functions, dict):
+            mapped_funcs = {}
+            for k, v in functions.items():
+                if isinstance(k, str):
+                    k = _expr.GlobalVar(k)
+                if not isinstance(k, _expr.GlobalVar):
+                    raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
+                mapped_funcs[k] = v
+            functions = mapped_funcs
+
+        attrs = None if not attrs else attrs
+        if attrs is not None:
+            attrs = make_node("ir.DictAttrs", **attrs)
+        if global_infos is None:
+            global_infos = {}
+        self.__init_handle_by_constructor__(
+            _ffi_api.IRModule,
+            functions,
+            attrs,
+            global_infos,
+        )
+        self.__pyfuncs__ = {}
+
+    def clone(self) -> "IRModule":
+        return _ffi_api.IRModuleClone(self)
+
+    def functions_items(self):
+        """Get items in self.functions.items() in alphabetical order.
+
+        Returns
+        -------
+        items: List[Tuple[GlobalVar, Function]]
+            The functions items.
+        """
+        items = list(self.functions.items())
+        items.sort(key=lambda item: str(item[0].name_hint))
+        return items
+
+    def __setitem__(self, var, val):
+        """Add a mapping to the module.
+
+        Parameters
+        ---------
+        var: GlobalVar
+            The global variable.
+
+        val: Union[Function, Type]
+            The value.
+        """
+        return self._add(var, val, True)
+
+    def _add(self, var, val, update=True):
+        if isinstance(val, BaseFunc):
+            if isinstance(var, str):
+                if _ffi_api.IRModuleContainGlobalVar(self, var):
+                    var = _ffi_api.IRModuleGetGlobalVar(self, var)
+                else:
+                    var = _expr.GlobalVar(var)
+            _ffi_api.IRModuleAdd(self, var, val, update)
+
+    def __getitem__(self, var):
+        """Lookup a global definition by name or by variable.
+
+        Parameters
+        ----------
+        var: Union[String, GlobalVar, GlobalTypeVar]
+            The name or global variable.
+
+        Returns
+        -------
+        val: Union[Function, Type]
+            The definition referenced by :code:`var` (either a function or type).
+        """
+        if isinstance(var, str):
+            return _ffi_api.IRModuleLookupStr(self, var)
+        assert isinstance(var, _expr.GlobalVar)
+        return _ffi_api.IRModuleLookup(self, var)
+
+    def __delitem__(self, var: str | _expr.GlobalVar):
+        _ffi_api.IRModuleRemove(self, var)
+
+    def __contains__(self, var: str | _expr.GlobalVar) -> bool:
+        return _ffi_api.IRModuleContains(self, var)
+
+    def update(self, other):
+        """Insert functions in another Module to current one.
+
+        Parameters
+        ----------
+        other: IRModule
+            The module to merge into the current Module.
+        """
+        if isinstance(other, dict):
+            other = IRModule(other)
+
+        return _ffi_api.IRModuleUpdate(self, other)
+
+    def update_func(self, var, func):
+        """Update the function corresponding to a global variable in the
+        module.
+
+        Parameters
+        ----------
+        var: GlobalVar
+            The global variable.
+
+        func: tvm_tirx.ir.BaseFunc
+            The function to be inserted.
+        """
+        return _ffi_api.IRModuleUpdateFunction(self, var, func)
+
+    def update_global_info(self, name, global_info):
+        """Update global info in the module
+
+        Parameters
+        ----------
+        name: str
+            The name for the global info.
+
+        global_info: List[GlobalInfo]
+            The global info to be updated.
+        """
+        return _ffi_api.IRModuleUpdateGlobalInfo(self, name, global_info)
+
+    def get_global_var(self, name):
+        """Get a global variable in the function by name.
+
+        Parameters
+        ----------
+        name: str
+            The name of the global variable.
+
+        Returns
+        -------
+        global_var: GlobalVar
+            The global variable mapped to :code:`name`.
+
+        Raises
+        ------
+        RuntimeError if we cannot find corresponding global var.
+        """
+        return _ffi_api.IRModuleGetGlobalVar(self, name)
+
+    def get_global_vars(self):
+        """Collect all global vars defined in this module.
+
+        Returns
+        -------
+        global_vars: Array[GlobalVar]
+            An array of global vars.
+        """
+        return _ffi_api.IRModuleGetGlobalVars(self)
+
+    @staticmethod
+    def from_expr(expr, functions=None):
+        """Construct a module from a standalone expression.
+
+        Parameters
+        ----------
+        expr: Expr
+            The starting expression
+
+        global_funcs: Optional[dict]
+            Map of global vars to function definitions
+
+        Returns
+        -------
+        mod: Module
+            A module containing the passed definitions,
+            where expr is set as the entry point
+            (wrapped in a function if necessary)
+        """
+        funcs = functions if functions is not None else {}
+        return _ffi_api.IRModuleFromExpr(expr, funcs)
+
+    def get_attr(self, attr_key):
+        """Get the IRModule attribute.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+
+        Returns
+        -------
+        attr_value : Any
+            Attribute value
+        """
+
+        return _ffi_api.IRModuleGetAttr(self, attr_key)
+
+    def with_attr(self, attr_key, attr_value):
+        """Copy the IRModule and add an attribute to it.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+
+        attr_value : tvm_ffi.Object
+            The new attribute value.
+
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule with the attribute
+        """
+
+        return _ffi_api.IRModuleWithAttr(self, attr_key, attr_value)
+
+    def without_attr(self, attr_key: str) -> "IRModule":
+        """Copy the IRModule and remove an attribute key and its associated value.
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule without the attribute
+        """
+
+        return _ffi_api.IRModuleWithoutAttr(self, attr_key)
+
+    def with_attrs(self, attr_map: DictAttrs | dict[str, tvm_ffi.Object]) -> "IRModule":
+        """Copy the IRModule and add the given attribute map to it.
+        Parameters
+        ----------
+        attr_map: Union[DictAttrs, Dict[str, tvm_ffi.Object]]
+            The attribute map
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule with the attribute
+        """
+        if isinstance(attr_map, DictAttrs):
+            attr_map = attr_map.dict
+
+        return _ffi_api.IRModuleWithAttrs(self, attr_map)

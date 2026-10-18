@@ -436,14 +436,11 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
   // NOTE: we only apply the annotated bounds to the TIR variables that
   // appear in the **function signature**.
   ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>(tvm::relax::attr::kTirVarUpperBound)
-          .value_or(ffi::Map<ffi::String, IntImm>());
+      func->GetAttr(tvm::relax::attr::kTirVarUpperBound).value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Map<ffi::String, IntImm> var_lower_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>(tvm::relax::attr::kTirVarLowerBound)
-          .value_or(ffi::Map<ffi::String, IntImm>());
+      func->GetAttr(tvm::relax::attr::kTirVarLowerBound).value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Array<ffi::String> non_negative_var_attr_raw =
-      func->GetAttr<ffi::Array<ffi::String>>(tvm::relax::attr::kTirNonNegativeVar)
-          .value_or(ffi::Array<ffi::String>());
+      func->GetAttr(tvm::relax::attr::kTirNonNegativeVar).value_or(ffi::Array<ffi::String>());
   std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
   std::unordered_map<ffi::String, IntImm> var_lower_bound_attr;
   std::unordered_set<ffi::String> non_negative_var_attr;

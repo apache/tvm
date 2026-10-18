@@ -116,22 +116,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
-    if (ann.first == tvm::s_tir::attr::kMetaScheduleParallel) {
+    if (ann.first == tvm::s_tir::attr::kMetaScheduleParallel.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleVectorize) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleVectorize.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollExplicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollImplicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
@@ -144,16 +144,16 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
 void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
                      const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleParallel);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleParallel.name);
   }
   if (parsed.max_vectorize_extent != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleVectorize);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleVectorize.name);
   }
   if (parsed.unroll_explicit != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name);
   }
   if (parsed.unroll_implicit != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name);
   }
 }
 
@@ -444,8 +444,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep, max_step);
-  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit, unroll_explicit);
+  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep.name, max_step);
+  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit.name, unroll_explicit);
 }
 
 }  // namespace s_tir

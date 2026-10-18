@@ -27,8 +27,9 @@ import time
 import tvm_ffi
 from tvm_ffi import DLDeviceType
 
-import tvm.runtime
-from tvm.support import utils
+import tvm
+import tvm_tirx.runtime
+from tvm_tirx.support import utils
 
 from . import _ffi_api, base, server
 
@@ -49,12 +50,12 @@ class RPCSession:
 
         Returns
         -------
-        module : runtime.Module
+        module : tvm_ffi.Module
             The system-wide library module.
 
         See Also
         --------
-        tvm.runtime.system_lib
+        tvm_ffi.system_lib
         """
         return self.get_function("ffi.SystemLib")()
 
@@ -87,7 +88,7 @@ class RPCSession:
         dev: RemoteDevice
             The session-owned device.
         """
-        return _ffi_api.RemoteDevice(self._sess, tvm.runtime.device(dev_type, dev_id))
+        return _ffi_api.RemoteDevice(self._sess, tvm_ffi.device(dev_type, dev_id))
 
     def close(self):
         """Close this session; existing remote values reject further operations."""
@@ -200,9 +201,11 @@ class RPCSession:
         --------
         .. code-block:: python
 
+            from tvm_tirx.codegen import Executable
+
             mod = build_module_with_cross_compilation()
             # export the module as tar because a local linker is not available
-            mod.export_library("lib.tar")
+            Executable(mod).export_library("lib.tar")
             remote.upload("lib.tar")
             # invoke the linker on the remote to link the module as a library
             # note that the library can only run on the same env as the remote
@@ -544,7 +547,7 @@ def connect(
             raise TypeError("Expect the session constructor to be a list or tuple")
         sess = _ffi_api.Connect(url, port, key, enable_logging, *session_constructor_args)
     except NameError:
-        raise RuntimeError("Please compile with USE_RPC=1")
+        raise RuntimeError("Please compile with TVM_USE_RPC=1")
     return RPCSession(sess)
 
 

@@ -18,19 +18,20 @@ from __future__ import annotations
 
 import tvm
 import tvm.s_tir
-import tvm.testing
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     # These expected fixtures include the subsequent lowering of thread loops.
     mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(
+    mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
@@ -61,9 +62,7 @@ def transformed_elementwise_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
     for i in T.serial(0, 16):
-        B_new = T.alloc_tensor(
-            ty_args=[T.Tensor([1, 16], "float32")], annotations={"tensor_data_alignment": 64}
-        )
+        B_new = T.alloc_tensor(ty_args=[T.Tensor([1, 16], "float32")])
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
@@ -98,10 +97,7 @@ def transformed_gpu_func(
     i0 = T.launch_thread("blockIdx.x", 4)
     i1 = T.launch_thread("threadIdx.x", 2)
     i2 = T.launch_thread("vthread", 2)
-    B = T.alloc_tensor(
-        ty_args=[T.Tensor([1, 16], "float32", scope="local")],
-        annotations={"tensor_data_alignment": 64},
-    )
+    B = T.alloc_tensor(ty_args=[T.Tensor([1, 16], "float32", scope="local")])
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
     for j in range(0, 16):
@@ -140,9 +136,7 @@ def transformed_symbolic_func(
     m: T.int32,
 ) -> None:
     for i in range(0, n):
-        B = T.alloc_tensor(
-            ty_args=[T.Tensor([m], "float32")], annotations={"tensor_data_alignment": 64}
-        )
+        B = T.alloc_tensor(ty_args=[T.Tensor([m], "float32")])
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
@@ -197,12 +191,8 @@ def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "floa
 @Ts.function
 def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
-        B = T.alloc_tensor(
-            ty_args=[T.Tensor((32,), "float32")], annotations={"tensor_data_alignment": 64}
-        )
-        C = T.alloc_tensor(
-            ty_args=[T.Tensor((32,), "float32")], annotations={"tensor_data_alignment": 64}
-        )
+        B = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
+        C = T.alloc_tensor(ty_args=[T.Tensor((32,), "float32")])
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
         D[i] = C[i] * 2.0
@@ -216,7 +206,9 @@ def compacted_strided_tensor_func(
         with Ts.sblock():
             Ts.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             Ts.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
-            B = Ts.sblock_alloc_tensor([4, 16], "float32", strides=[17, 1], scope="global")
+            B = Ts.sblock_alloc_tensor(
+                [4, 16], "float32", layout=T.TileLayout(T.S[[4, 16] : [17, 1]]), scope="global"
+            )
             for i1 in range(0, 4):
                 for j in range(0, 16):
                     with Ts.sblock():
@@ -238,8 +230,7 @@ def transformed_strided_tensor_func(
     # body
     for i0 in T.serial(4):
         B = T.alloc_tensor(
-            ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1])],
-            annotations={"tensor_data_alignment": 64},
+            ty_args=[T.Tensor([4, 16], "float32", layout=T.TileLayout(T.S[[4, 16] : [17, 1]]))]
         )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
@@ -257,7 +248,9 @@ def compacted_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32")
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         with Ts.sblock(""):
             A_pad_shared_dyn = Ts.sblock_alloc_tensor(
-                (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+                (1, padded_size, 64),
+                layout=T.TileLayout(T.S[(1, padded_size, 64) : (72 * padded_size, 72, 1)]),
+                scope="shared.dyn",
             )
             for ax0, ax1 in T.grid(96, 64):
                 with Ts.sblock("A_pad_shared.dyn"):
@@ -281,11 +274,10 @@ def transformed_symbolic_strided_tensor_func(A: T.Tensor((1, n, 10240), "float32
                 T.Tensor(
                     (1, padded_size, 64),
                     "float32",
-                    strides=(72 * padded_size, 72, 1),
+                    layout=T.TileLayout(T.S[(1, padded_size, 64) : (72 * padded_size, 72, 1)]),
                     scope="shared.dyn",
                 )
-            ],
-            annotations={"tensor_data_alignment": 64},
+            ]
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
@@ -357,29 +349,50 @@ def test_preserved_annotations():
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_preserved_none_pragma_annotation():
     @Ts.function
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8, annotations={"unroll_explicit": None}):
+        for i in T.serial(8, annotations={"tirx.unroll_explicit": None}):
             with Ts.sblock("block"):
                 B[i] = A[i] + 1.0
 
     @Ts.function
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8, annotations={"unroll_explicit": None}):
+        for i in T.serial(8, annotations={"tirx.unroll_explicit": None}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"],
         after.with_attr("global_symbol", "main"),
     )
+
+
+def test_allocation_type_alignment():
+    @Ts.function
+    def before(A: T.Tensor(4, "float32")):
+        with Ts.sblock("root"):
+            B = Ts.sblock_alloc_tensor((4,), "float32", scope="shared", align=128)
+            for i in range(4):
+                B[i] = A[i]
+            for i in range(4):
+                A[i] = B[i]
+
+    @Ts.function
+    def after(A: T.Tensor(4, "float32")):
+        B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", scope="shared", align=128)])
+        for i in range(4):
+            B[i] = A[i]
+        for i in range(4):
+            A[i] = B[i]
+
+    _check(before, after)
 
 
 def test_boolean_handling():
@@ -387,4 +400,4 @@ def test_boolean_handling():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

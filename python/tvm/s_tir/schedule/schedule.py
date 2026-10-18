@@ -20,14 +20,15 @@ import inspect
 from collections.abc import Callable
 from typing import Literal
 
+import tvm_ffi
+from tvm_ffi import register_error
 from tvm_ffi import register_object as _register_object
 
-from tvm.error import register_error
-from tvm.ir import Expr, For, GlobalVar, IRModule, is_prim_expr
-from tvm.runtime import DataTypeCode, MemoryScope, Object
 from tvm.s_tir import SBlock
-from tvm.tirx import FloatImm, Function, IntImm, Var, is_tensor_var
-from tvm.tirx.function import IndexMap
+from tvm_tirx.ir import Expr, FloatImm, For, GlobalVar, IntImm, IRModule, is_prim_expr
+from tvm_tirx.runtime import DataTypeCode, MemoryScope
+from tvm_tirx.tirx import Function, Var, is_tensor_var
+from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
 from ._type_checker import type_checked
@@ -41,7 +42,7 @@ class ScheduleError(RuntimeError):
 
 
 @_register_object("s_tir.LoopRV")
-class LoopRV(Object):
+class LoopRV(tvm_ffi.Object):
     """A random variable that refers to a loop"""
 
     def __init__(self) -> None:
@@ -52,7 +53,7 @@ class LoopRV(Object):
 
 
 @_register_object("s_tir.SBlockRV")
-class SBlockRV(Object):
+class SBlockRV(tvm_ffi.Object):
     """A random variable that refers to a block"""
 
     def __init__(self) -> None:
@@ -112,7 +113,7 @@ def _get_sblock_default_dtype(block: SBlock) -> str:
 
 
 @_register_object("s_tir.Schedule")
-class Schedule(Object):
+class Schedule(tvm_ffi.Object):
     """The user-facing schedule class
 
     A schedule is a set of transformations that change the order of computation but
@@ -289,12 +290,12 @@ class Schedule(Object):
 
         trace = self.trace
         if trace is not None:
-            # Trace.show only supports the style and black_format arguments
+            # Trace.show only supports the style argument
             param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
             param_binding.apply_defaults()
             bound_args = param_binding.arguments
 
-            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
+            trace.show(style=bound_args["style"])
 
     ########## Lookup ##########
 
@@ -1900,8 +1901,8 @@ class Schedule(Object):
             def resize_cache_index(
                 A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
-                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32")
+                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32")
                 for ax0, ax1 in T.grid(80, 80):
                     with Ts.sblock("index_0"):
                         v0 = Ts.axis.spatial(80, ax0)
@@ -2899,11 +2900,11 @@ class Schedule(Object):
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
-                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
+                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, ty="float16")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("C"):
                         vi, vj = Ts.axis.remap("SS", [i, j]
-                        C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
+                        C[vi, vj] = T.cast(B[vi, vj], ty="float32") + 1.0
 
         Note
         ----
@@ -3044,9 +3045,9 @@ class Schedule(Object):
 
             @Ts.function
             def mma_desc(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3059,9 +3060,9 @@ class Schedule(Object):
 
             @Ts.function
             def mma_intrin(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3070,13 +3071,13 @@ class Schedule(Object):
                     T.evaluate(
                         T.gpu_mma_sync(
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             A.data,
-                            A.elem_offset // 256,
+                            A.layout.apply(0, 0)["m"] // 256,
                             B.data,
-                            B.elem_offset // 256,
+                            B.layout.apply(0, 0)["m"] // 256,
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             dtype="void",
                         )
                     )
@@ -3118,30 +3119,30 @@ class Schedule(Object):
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         B_1 = Ts.match_tensor(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         C_1 = Ts.match_tensor(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         T.evaluate(
                             T.gpu_mma_sync(
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 A_1.data,
-                                A_1.elem_offset // 256,
+                                A_1.layout.apply(0, 0)["m"] // 256,
                                 B_1.data,
-                                B_1.elem_offset // 256,
+                                B_1.layout.apply(0, 0)["m"] // 256,
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 dtype="void",
                             )
                         )
@@ -3497,7 +3498,7 @@ class Schedule(Object):
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
-            # tensor's type.  If the default `tvm.runtime.convert`
+            # tensor's type.  If the default `tvm_ffi.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the tensor's type.
             if tensor_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(

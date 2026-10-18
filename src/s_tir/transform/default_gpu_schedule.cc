@@ -95,7 +95,7 @@ IRModule MarkScheduled(const IRModule& mod) {
     if (const auto* function_node = base_func.as<tirx::FunctionNode>()) {
       tirx::Function function = ffi::GetRef<tirx::Function>(function_node);
       tirx::Function new_function =
-          WithAttr(std::move(function), tvm::s_tir::attr::kIsScheduled, true);
+          WithAttr(std::move(function), tvm::s_tir::attr::kIsScheduled.name, true);
       result.Set(gv, new_function);
     } else {
       result.Set(gv, base_func);
@@ -103,7 +103,6 @@ IRModule MarkScheduled(const IRModule& mod) {
   }
 
   return IRModule(result,              // functions
-                  mod->source_map,     // map
                   mod->attrs,          // attrs
                   mod->global_infos);  // global_infos
 }
@@ -165,7 +164,8 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
   // the target from context.
   ffi::Optional<tvm::Target> target = tvm::Target::Current();
   // the Target in kTarget attribute of Function
-  ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+  ffi::Optional<tvm::Target> func_target =
+      func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget.name);
   if (func_target.has_value()) {
     target = func_target.value();
   }
@@ -190,7 +190,7 @@ Pass DefaultGPUSchedule() {
         for (const auto& [gv, base_func] : m->functions) {
           if (const auto* function_node = base_func.as<tirx::FunctionNode>();
               function_node != nullptr && IsScheduledOnGPU(base_func) &&
-              !base_func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled)) {
+              !base_func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled.name)) {
             tirx::Function func = ffi::GetRef<tirx::Function>(function_node);
             tirx::Function new_func = WrapBareSBlockBody(func);
             if (!new_func.same_as(func)) {
@@ -202,18 +202,19 @@ Pass DefaultGPUSchedule() {
           wrapped.Set(gv, base_func);
         }
         if (any_wrapped) {
-          m = IRModule(wrapped, m->source_map, m->attrs, m->global_infos);
+          m = IRModule(wrapped, m->attrs, m->global_infos);
         }
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tirx::FunctionNode>() &&
-              !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
+              !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled.name) &&
+              IsScheduledOnGPU(func)) {
             // get the target from context.
             ffi::Optional<tvm::Target> target = tvm::Target::Current();
             // get the target from kTarget attribute
             ffi::Optional<tvm::Target> func_target =
-                func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+                func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget.name);
             if (func_target.has_value()) {
               target = func_target.value();
             }

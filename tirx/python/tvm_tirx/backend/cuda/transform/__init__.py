@@ -1,0 +1,56 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""CUDA-specific TIRx transformations."""
+
+# pylint: disable=invalid-name
+
+from tvm_ffi import get_global_func
+
+
+def LowerIket():
+    """Lower frontend-only NVIDIA IKET annotations.
+
+    This pass must run after ``tvm_tirx.tirx.transform.SplitHostDevice`` and before
+    ``tvm_tirx.tirx.transform.MakePackedAPI``.  It strips annotations for regular
+    compilation and emits NVIDIA IKET metadata and NativeDump placeholders
+    when the IRModule is explicitly IKET-enabled.  Trace collection and
+    postprocessing are owned by the external ``run-iket`` process.
+
+    Returns
+    -------
+    fpass : tvm_tirx.ir.transform.Pass
+        The result pass.
+    """
+    return get_global_func("tirx.backend.cuda.transform.LowerIket")()
+
+
+def BindBackendConfig():
+    """Resolve per-entry compilation settings and targets before tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transform.BindBackendConfig")("")
+
+
+def SpecializeDeviceHelpers():
+    """Clone private device helpers into each independently compiled CUDA group."""
+    return get_global_func("tirx.backend.cuda.transform.SpecializeDeviceHelpers")()
+
+
+def SpecializeEntryHelpers():
+    """Specialize shared helper calls before target-sensitive tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transform.SpecializeEntryHelpers")()
+
+
+__all__ = ["BindBackendConfig", "LowerIket", "SpecializeDeviceHelpers", "SpecializeEntryHelpers"]

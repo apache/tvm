@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/type.h>
 
@@ -54,7 +54,7 @@ ffi::Optional<ExprDoc> MatchCastDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::MatchCastNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&MatchCastDocTranslate>());
 }
 
@@ -126,7 +126,7 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::VarBindingNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&VarBindingDocTranslate>());
 }
 
@@ -157,7 +157,8 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::IfExprNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate, FDocTranslate::FromNative<&IfDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate.name,
+      FDocTranslate::FromNative<&IfDocTranslate>());
 }
 
 }  // namespace

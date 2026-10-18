@@ -25,12 +25,13 @@ from collections.abc import Callable
 from enum import IntEnum
 
 import tvm
-from tvm import IRModule, tirx
-from tvm.ir import Call, Type
+import tvm_tirx
 from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar
 from tvm.relax.type import FuncType
 from tvm.s_tir import SBlock
-from tvm.tirx import IndexMap, Var
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Call, Type
+from tvm_tirx.tirx import IndexMap, Var
 
 from . import _ffi_api
 
@@ -489,7 +490,7 @@ def well_formed(obj: IRModule | Function, check_ty: bool = True) -> None:
 
     Parameters
     ----------
-    obj : Union[tvm.IRModule, Function]
+    obj : Union[tvm_tirx.IRModule, Function]
         The input IRModule or relax.Function.
 
     check_ty : bool
@@ -512,7 +513,7 @@ def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
 
     Parameters
     ----------
-    obj : Union[tvm.IRModule, Function]
+    obj : Union[tvm_tirx.IRModule, Function]
         The input IRModule or relax.Function.
 
     check_ty : bool
@@ -566,7 +567,7 @@ def suggest_layout_transforms(
     return _ffi_api.suggest_layout_transforms(func, write_tensor_index_maps)  # type: ignore
 
 
-def detect_recursion(mod: tvm.IRModule) -> list[list[GlobalVar]]:
+def detect_recursion(mod: tvm_tirx.IRModule) -> list[list[GlobalVar]]:
     """
     Find all sets of recursive or mutually recursive functions in the module.
 

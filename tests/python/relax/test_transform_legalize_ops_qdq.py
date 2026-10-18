@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_quantize_fp32_to_int8():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(
@@ -35,7 +35,7 @@ def test_quantize_fp32_to_int8():
             out = R.quantize(data, scale, zp, axis=0, out_dtype="int8")
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -52,14 +52,14 @@ def test_quantize_fp32_to_int8():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float32", C[v_i0]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -74,11 +74,11 @@ def test_quantize_fp32_to_int8():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_fp16_to_uint8():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(
@@ -89,7 +89,7 @@ def test_quantize_fp16_to_uint8():
             out = R.quantize(data, scale, zp, axis=0, out_dtype="uint8")
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -106,14 +106,14 @@ def test_quantize_fp16_to_uint8():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "uint8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float16"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float16", C[v_i0]),
                                 T.float16(255),
                             ),
                             T.float16(0),
                         ),
-                        "uint8",
                     )
 
         @R.function
@@ -128,13 +128,13 @@ def test_quantize_fp16_to_uint8():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_fp32_to_int8_symbolic():
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(
@@ -148,7 +148,7 @@ def test_quantize_fp32_to_int8_symbolic():
     n_quantize = T.dynamic("n", "int64")
     n_main = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -166,14 +166,14 @@ def test_quantize_fp32_to_int8_symbolic():
                     Ts.reads(A[v_i0, v_i1], B[v_i1], C[v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i1]) + T.Cast(C[v_i1], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i1]) + T.Cast("float32", C[v_i1]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -188,11 +188,11 @@ def test_quantize_fp32_to_int8_symbolic():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_fp32_to_int8_scalar_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(data: R.Tensor((2, 4), "float32")) -> R.Tensor((2, 4), "int8"):
@@ -201,7 +201,7 @@ def test_quantize_fp32_to_int8_scalar_param():
             )
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -216,6 +216,7 @@ def test_quantize_fp32_to_int8_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
                                 T.round(A[v_i0, v_i1] / T.float32(2)) + T.float32(1),
@@ -223,7 +224,6 @@ def test_quantize_fp32_to_int8_scalar_param():
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -232,11 +232,11 @@ def test_quantize_fp32_to_int8_scalar_param():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_fp32_to_int8_scalar_1d_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(data: R.Tensor((2, 4), "float32")) -> R.Tensor((2, 4), "int8"):
@@ -249,7 +249,7 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
             )
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -266,14 +266,14 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
                     Ts.reads(A[v_i0, v_i1], B[v_i0], C[v_i0])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
-                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast(C[v_i0], "float32"),
+                                T.round(A[v_i0, v_i1] / B[v_i0]) + T.Cast("float32", C[v_i0]),
                                 T.float32(127),
                             ),
                             T.float32(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -287,11 +287,11 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_quantize_fp16_to_int8_scalar_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Quantize:
         @R.function
         def main(data: R.Tensor((2, 4), "float16")) -> R.Tensor((2, 4), "int8"):
@@ -300,7 +300,7 @@ def test_quantize_fp16_to_int8_scalar_param():
             )
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def quantize(
@@ -315,6 +315,7 @@ def test_quantize_fp16_to_int8_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(quantized[v_i0, v_i1])
                     quantized[v_i0, v_i1] = T.Cast(
+                        "int8",
                         T.max(
                             T.min(
                                 T.round(A[v_i0, v_i1] / T.float16(2)) + T.float16(1),
@@ -322,7 +323,6 @@ def test_quantize_fp16_to_int8_scalar_param():
                             ),
                             T.float16(-128),
                         ),
-                        "int8",
                     )
 
         @R.function
@@ -331,11 +331,11 @@ def test_quantize_fp16_to_int8_scalar_param():
             return out
 
     mod = LegalizeOps()(Quantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_int8_to_fp32():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dequantize:
         @R.function
         def main(
@@ -346,7 +346,7 @@ def test_dequantize_int8_to_fp32():
             out = R.dequantize(data, scale, zp, axis=0, out_dtype="float32")
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dequantize(
@@ -363,7 +363,7 @@ def test_dequantize_int8_to_fp32():
                     Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
-                        T.Cast(T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i0], "int32"), "float32")
+                        T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i0]))
                         * B[v_i0]
                     )
 
@@ -379,11 +379,11 @@ def test_dequantize_int8_to_fp32():
             return out
 
     mod = LegalizeOps()(Dequantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_int8_to_fp32_scalar_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dequantize:
         @R.function
         def main(data: R.Tensor((2, 4), "int8")) -> R.Tensor((2, 4), "float32"):
@@ -392,7 +392,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
             )
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dequantize(
@@ -407,7 +407,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
-                        T.Cast(A[v_i0, v_i1], "int32") - 1, "float32"
+                        "float32", T.Cast("int32", A[v_i0, v_i1]) - 1
                     ) * T.float32(2)
 
         @R.function
@@ -417,13 +417,13 @@ def test_dequantize_int8_to_fp32_scalar_param():
             return out
 
     mod = LegalizeOps()(Dequantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_int8_to_fp32_symbolic():
     n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dequantize:
         @R.function
         def main(
@@ -437,7 +437,7 @@ def test_dequantize_int8_to_fp32_symbolic():
     n_dequantize = T.dynamic("n", "int64")
     n_main = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dequantize(
@@ -455,7 +455,7 @@ def test_dequantize_int8_to_fp32_symbolic():
                     Ts.reads(A[v_i0, v_i1], C[v_i1], B[v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = (
-                        T.Cast(T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i1], "int32"), "float32")
+                        T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i1]))
                         * B[v_i1]
                     )
 
@@ -473,11 +473,11 @@ def test_dequantize_int8_to_fp32_symbolic():
             return out
 
     mod = LegalizeOps()(Dequantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_int8_to_fp16():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dequantize:
         @R.function
         def main(
@@ -488,7 +488,7 @@ def test_dequantize_int8_to_fp16():
             out = R.dequantize(data, scale, zp, axis=0, out_dtype="float16")
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dequantize(
@@ -505,18 +505,18 @@ def test_dequantize_int8_to_fp16():
                     Ts.reads(A[v_i0, v_i1], C[v_i0], B[v_i0])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
+                        "float16",
                         T.max(
                             T.min(
                                 T.Cast(
-                                    T.Cast(A[v_i0, v_i1], "int32") - T.Cast(C[v_i0], "int32"),
                                     "float32",
+                                    T.Cast("int32", A[v_i0, v_i1]) - T.Cast("int32", C[v_i0]),
                                 )
-                                * T.Cast(B[v_i0], "float32"),
+                                * T.Cast("float32", B[v_i0]),
                                 T.float32(65504),
                             ),
                             T.float32(-65504),
                         ),
-                        "float16",
                     )
 
         @R.function
@@ -531,11 +531,11 @@ def test_dequantize_int8_to_fp16():
             return out
 
     mod = LegalizeOps()(Dequantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dequantize_int8_to_fp16_scalar_param():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dequantize:
         @R.function
         def main(data: R.Tensor((2, 4), "int8")) -> R.Tensor((2, 4), "float16"):
@@ -544,7 +544,7 @@ def test_dequantize_int8_to_fp16_scalar_param():
             )
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dequantize(
@@ -559,15 +559,15 @@ def test_dequantize_int8_to_fp16_scalar_param():
                     Ts.reads(A[v_i0, v_i1])
                     Ts.writes(dequantized[v_i0, v_i1])
                     dequantized[v_i0, v_i1] = T.Cast(
+                        "float16",
                         T.max(
                             T.min(
-                                T.Cast(T.Cast(A[v_i0, v_i1], "int32") - 1, "float32")
+                                T.Cast("float32", T.Cast("int32", A[v_i0, v_i1]) - 1)
                                 * T.float32(2),
                                 T.float32(65504),
                             ),
                             T.float32(-65504),
                         ),
-                        "float16",
                     )
 
         @R.function
@@ -577,8 +577,8 @@ def test_dequantize_int8_to_fp16_scalar_param():
             return out
 
     mod = LegalizeOps()(Dequantize)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

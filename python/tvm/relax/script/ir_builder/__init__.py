@@ -17,8 +17,8 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """Public exports for the Relax builder."""
 
-from tvm.ir.type import _init_type_api
-from tvm.script.ir_builder.ir import constexpr
+from tvm_tirx.ir.type import _init_type_api
+from tvm_tirx.script.ir_builder.ir import constexpr
 
 from . import distributed as dist
 from . import ir as _native

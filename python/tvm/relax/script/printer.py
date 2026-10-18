@@ -19,9 +19,8 @@
 import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
-from tvm.ir.base import register_dialect_script_method
-from tvm.runtime import Object
-from tvm.script.printer import PrinterConfig
+from tvm_tirx.ir.base import register_dialect_script_method
+from tvm_tirx.script.printer import PrinterConfig
 
 
 def _relax_script(
@@ -35,11 +34,11 @@ def _relax_script(
     indent_spaces: int = 4,
     print_line_numbers: bool = False,
     num_context_lines: int = -1,
-    extra_config: dict | None = None,
     path_to_underline: list[AccessPath] | None = None,
     path_to_annotate: dict[AccessPath, str] | None = None,
-    obj_to_underline: list[Object] | None = None,
-    obj_to_annotate: dict[Object, str] | None = None,
+    obj_to_underline: list[tvm_ffi.Object] | None = None,
+    obj_to_annotate: dict[tvm_ffi.Object, str] | None = None,
+    extra_config: dict | None = None,
 ) -> str:
     merged_extra = dict(extra_config or {})
     return tvm_ffi.get_global_func("script.printer.ReprPrintRelax")(
@@ -53,11 +52,11 @@ def _relax_script(
             indent_spaces=indent_spaces,
             print_line_numbers=print_line_numbers,
             num_context_lines=num_context_lines,
-            extra_config=merged_extra,
             path_to_underline=path_to_underline,
             path_to_annotate=path_to_annotate,
             obj_to_underline=obj_to_underline,
             obj_to_annotate=obj_to_annotate,
+            extra_config=merged_extra,
         ),
     )
 

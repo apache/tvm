@@ -16,9 +16,10 @@
 # under the License.
 """ScatterElements operator"""
 
-from tvm import te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm import te
+from tvm_tirx import tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from . import utils
 from .math import cast
@@ -181,7 +182,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, mean, min, max]:", reduction
         )
 
-    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.Var("out_buf", tirx.TensorType(data.shape, data.dtype, layout=None))
     return te.extern(
         [data.shape],
         [data, indices, updates],

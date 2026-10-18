@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_matmul():
@@ -53,7 +53,7 @@ def test_matmul():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -110,10 +110,10 @@ def test_matmul():
                                             matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_int32():
@@ -145,7 +145,7 @@ def test_matmul_int32():
                 for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("matmul_init"):
@@ -202,10 +202,10 @@ def test_matmul_int32():
                                             matmul[0, v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": func})
+    mod = tvm_tirx.IRModule({"main": func})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_fused_matmul():
@@ -219,7 +219,7 @@ def test_fused_matmul():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(W[v_i // T.int64(8), v_j], S[v_i // T.int64(32), v_j])
                 Ts.writes(var_decode_intermediate[v_i, v_j])
-                var_decode_intermediate[v_i, v_j] = T.Cast(T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast(v_i % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float32") * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
+                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -247,7 +247,7 @@ def test_fused_matmul():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -281,7 +281,7 @@ def test_fused_matmul():
                                                         Ts.reads(W[v2 // T.int64(8), v1], S[v2 // T.int64(32), v1])
                                                         Ts.writes(var_decode_intermediate_reindex_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
-                                                        var_decode_intermediate_reindex_shared[v0, v1, v2] = T.Cast(T.bitwise_and(T.shift_right(W[v2 // T.int64(8), v1], T.Cast(v2 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float32") * T.reinterpret( T.shift_left(T.bitwise_and(S[v2 // T.int64(32), v1], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v2 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
+                                                        var_decode_intermediate_reindex_shared[v0, v1, v2] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v2 // T.int64(8), v1], T.Cast("uint32", v2 % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v2 // T.int64(32), v1], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v2 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
                                     for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
                                         for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with Ts.sblock("matmul_update"):
@@ -304,10 +304,10 @@ def test_fused_matmul():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_skip_gemv():
@@ -322,7 +322,7 @@ def test_skip_gemv():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(W[v_i // T.int64(8), v_j], S[v_i // T.int64(32), v_j])
                 Ts.writes(var_decode_intermediate[v_i, v_j])
-                var_decode_intermediate[v_i, v_j] = T.Cast(T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast(v_i % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float32") * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
+                var_decode_intermediate[v_i, v_j] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret( T.shift_left(T.bitwise_and(S[v_i // T.int64(32), v_j], T.uint32(65535)), T.uint32(16)), ty="float32") + T.reinterpret( T.shift_left(T.bitwise_and(T.shift_right(S[v_i // T.int64(32), v_j], T.uint32(16)), T.uint32(65535)), T.uint32(16)), ty="float32")
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -342,10 +342,10 @@ def test_skip_gemv():
 
     expected = before
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_output_fp32():
@@ -367,7 +367,7 @@ def test_output_fp32():
                 v_i, v_j = Ts.axis.remap("SS", [i, j])
                 Ts.reads(lv13[v_i, v_j // T.int64(8)], lv14[v_i, v_j // T.int64(32)])
                 Ts.writes(p_output0_intermediate_1[v_i, v_j])
-                p_output0_intermediate_1[v_i, v_j] = (T.Cast(T.bitwise_and(T.shift_right(lv13[v_i, v_j // T.int64(8)], T.Cast(v_j % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv14[v_i, v_j // T.int64(32)]
+                p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv13[v_i, v_j // T.int64(8)], T.Cast("uint32", v_j % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv14[v_i, v_j // T.int64(32)]
         for i0, i1, i2, k in T.grid(T.int64(1), n, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
                 v_i0, v_i1, v_i2, v_k = Ts.axis.remap("SSSR", [i0, i1, i2, k])
@@ -375,13 +375,13 @@ def test_output_fp32():
                 Ts.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
                 with Ts.init():
                     var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
-                var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast(lv48[v_i0, v_i1, v_k], "float32") * T.Cast(p_output0_intermediate_1[v_k, v_i2], "float32")
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast("float32", lv48[v_i0, v_i1, v_k]) * T.Cast("float32", p_output0_intermediate_1[v_k, v_i2])
         for i0 in range(T.int64(4096)):
             with Ts.sblock("compute"):
                 v_i0 = Ts.axis.spatial(T.int64(4096), i0)
                 Ts.reads(lv13_1[v_i0])
                 Ts.writes(var_compute_intermediate[v_i0])
-                var_compute_intermediate[v_i0] = T.Cast(lv13_1[v_i0], "float32")
+                var_compute_intermediate[v_i0] = T.Cast("float32", lv13_1[v_i0])
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
             with Ts.sblock("T_add"):
                 v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -393,7 +393,7 @@ def test_output_fp32():
                 v_i0, v_i1, v_i2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(var_T_add_intermediate[v_i0, v_i1, v_i2])
                 Ts.writes(var_compute_intermediate_1[v_i0, v_i1, v_i2])
-                var_compute_intermediate_1[v_i0, v_i1, v_i2] = T.Cast(var_T_add_intermediate[v_i0, v_i1, v_i2], "float16")
+                var_compute_intermediate_1[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_add_intermediate[v_i0, v_i1, v_i2])
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
             with Ts.sblock("T_add_1"):
                 v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
@@ -416,7 +416,7 @@ def test_output_fp32():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -450,7 +450,7 @@ def test_output_fp32():
                                                         Ts.reads(lv13[v2, v1 // T.int64(8)], lv14[v2, v1 // T.int64(32)])
                                                         Ts.writes(p_output0_intermediate_1_reindex_shared[v0, v1, v2])
                                                         Ts.sblock_attr({"tensor_dim_align": [[0, 1, 8, 2]]})
-                                                        p_output0_intermediate_1_reindex_shared[v0, v1, v2] = (T.Cast(T.bitwise_and(T.shift_right(lv13[v2, v1 // T.int64(8)], T.Cast(v1 % T.int64(8), "uint32") * T.uint32(4)), T.uint32(15)), "float16") - T.float16(7)) * lv14[v2, v1 // T.int64(32)]
+                                                        p_output0_intermediate_1_reindex_shared[v0, v1, v2] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv13[v2, v1 // T.int64(8)], T.Cast("uint32", v1 % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv14[v2, v1 // T.int64(32)]
                                     for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
                                         for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with Ts.sblock("matmul_update"):
@@ -460,7 +460,7 @@ def test_output_fp32():
                                                 v3 = Ts.axis.reduce(T.int64(4096), ax3_0 * T.int64(16) + ax3_1)
                                                 Ts.reads(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2], lv48_reindex_pad_shared[T.int64(0), v1, v3], p_output0_intermediate_1_reindex_shared[T.int64(0), v2, v3])
                                                 Ts.writes(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
-                                                var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] + T.Cast(lv48_reindex_pad_shared[T.int64(0), v1, v3], "float32") * T.Cast(p_output0_intermediate_1_reindex_shared[T.int64(0), v2, v3], "float32")
+                                                var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] + T.Cast("float32", lv48_reindex_pad_shared[T.int64(0), v1, v3]) * T.Cast("float32", p_output0_intermediate_1_reindex_shared[T.int64(0), v2, v3])
                                 for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(4), T.int64(2)):
                                     for ax2_1_1 in T.vectorized(T.int64(2)):
                                         with Ts.sblock("var_matmul_intermediate_reindex_pad_local"):
@@ -470,14 +470,14 @@ def test_output_fp32():
                                             Ts.where(ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1 < n)
                                             Ts.reads(var_matmul_intermediate_reindex_pad_local[v0, v1, v2], lv13_1[v2], lv3[T.int64(0), v1, v2])
                                             Ts.writes(p_output0_intermediate[T.int64(0), v1, v2])
-                                            p_output0_intermediate[T.int64(0), v1, v2] = T.Cast(var_matmul_intermediate_reindex_pad_local[v0, v1, v2] + T.Cast(lv13_1[v2], "float32"), "float16") + lv3[T.int64(0), v1, v2]
+                                            p_output0_intermediate[T.int64(0), v1, v2] = T.Cast("float16", var_matmul_intermediate_reindex_pad_local[v0, v1, v2] + T.Cast("float32", lv13_1[v2])) + lv3[T.int64(0), v1, v2]
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_inline_consumer_chain():
@@ -525,7 +525,7 @@ def test_inline_consumer_chain():
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(var_T_squeeze_intermediate[v_i0, v_i1])
                 Ts.writes(var_compute_intermediate[v_i0, v_i1])
-                var_compute_intermediate[v_i0, v_i1] = T.Cast(var_T_squeeze_intermediate[v_i0, v_i1], "float16")
+                var_compute_intermediate[v_i0, v_i1] = T.Cast("float16", var_T_squeeze_intermediate[v_i0, v_i1])
         for ax0, ax1 in T.grid(n, T.int64(2048)):
             with Ts.sblock("T_multiply_1"):
                 v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -548,7 +548,7 @@ def test_inline_consumer_chain():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("NT_matmul_init"):
@@ -602,14 +602,14 @@ def test_inline_consumer_chain():
                                             Ts.reads(lv52[T.int64(0), v1, v2], var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2])
                                             Ts.where(ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1 < n)
                                             Ts.writes(var_T_multiply_intermediate[v1, v2])
-                                            var_T_multiply_intermediate[v1, v2] = T.Cast(lv52[T.int64(0), v1, v2], "float16") * (var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2] * T.sigmoid(var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2]))
+                                            var_T_multiply_intermediate[v1, v2] = T.Cast("float16", lv52[T.int64(0), v1, v2]) * (var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2] * T.sigmoid(var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2]))
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("nvidia/geforce-gtx-1080-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_android():
@@ -699,10 +699,10 @@ def test_matmul_android():
                                     Ts.writes(matmul[v0, v1, v2])
                                     matmul[v0, v1, v2] = matmul_pad_local[v0, v1, v2]
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_fused_dequant_matmul_android():
@@ -722,7 +722,7 @@ def test_fused_dequant_matmul_android():
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(lv452[v_i0 // T.int64(8), v_i1])
                 Ts.writes(compute[v_i0, v_i1])
-                compute[v_i0, v_i1] = T.Cast(T.bitwise_and(T.shift_right(lv452[v_i0 // T.int64(8), v_i1], T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16")
+                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(lv452[v_i0 // T.int64(8), v_i1], T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4))), T.uint32(15)))
         for i0, i1 in T.grid(T.int64(4096), T.int64(12288)):
             with Ts.sblock("dequantize"):
                 v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -810,7 +810,7 @@ def test_fused_dequant_matmul_android():
                                             v_i1 = Ts.axis.spatial(T.int64(12288), i2_0 * T.int64(256) + i2_1 * T.int64(8) + ax0)
                                             Ts.reads(lv452_local[v_i0 // T.int64(8), v_i1], lv453_local[v_i0 // T.int64(32), v_i1])
                                             Ts.writes(dequantize_intermediate_intermediate_local[v_i0, v_i1])
-                                            dequantize_intermediate_intermediate_local[v_i0, v_i1] = (T.Cast(T.bitwise_and(T.shift_right(lv452_local[v_i0 // T.int64(8), v_i1], T.Cast(v_i0 % T.int64(8) * T.int64(4), "uint32")), T.uint32(15)), "float16") - T.float16(7)) * lv453_local[v_i0 // T.int64(32), v_i1]
+                                            dequantize_intermediate_intermediate_local[v_i0, v_i1] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv452_local[v_i0 // T.int64(8), v_i1], T.Cast("uint32", v_i0 % T.int64(8) * T.int64(4))), T.uint32(15))) - T.float16(7)) * lv453_local[v_i0 // T.int64(32), v_i1]
                                     for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(1), T.int64(1)):
                                         for ax3 in T.vectorized(T.int64(16)):
                                             with Ts.sblock("rms_norm130_reindex_pad_local"):
@@ -845,11 +845,11 @@ def test_fused_dequant_matmul_android():
                                     T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate_pad_local[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

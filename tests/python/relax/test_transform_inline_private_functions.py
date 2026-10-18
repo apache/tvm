@@ -19,12 +19,13 @@
 import pytest
 
 import tvm
-import tvm.script
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_inline_simple():
@@ -57,7 +58,7 @@ def test_inline_simple():
             return D
 
     After = tvm.relax.transform.InlinePrivateFunctions()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_skip_inline_of_recursive_functions():
@@ -99,7 +100,7 @@ def test_skip_inline_of_recursive_functions():
     Expected = Before
 
     After = tvm.relax.transform.InlinePrivateFunctions()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_preserve_closure_callee():
@@ -119,8 +120,8 @@ def test_preserve_closure_callee():
     assert relax.analysis.check_well_formed(Before, check_ty=True)
     after = relax.transform.InlinePrivateFunctions()(Before)
     assert relax.analysis.check_well_formed(after, check_ty=True)
-    tvm.ir.assert_structural_equal(after, Before)
+    tvm_tirx.ir.assert_structural_equal(after, Before)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

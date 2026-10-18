@@ -235,11 +235,11 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
 
     for (auto [gvar, func] : mod->functions) {
       if (gvar->name_hint == func_name) {
-        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+        if (!func->GetAttr(tvm::attr::kGlobalSymbol).has_value()) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
           internal_functions.insert(gvar->name_hint);
-          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol.name, gvar->name_hint);
         }
       } else {
         // Replace non-target functions with stubs to keep references intact.
@@ -263,7 +263,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           write_ptr->Remove((*it).second);
         }
         if (internal_functions.count(gvar->name_hint)) {
-          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol.name);
         }
         write_ptr->Add(gvar, func);
       }

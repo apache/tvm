@@ -46,7 +46,7 @@ class ExternFunctionRewriter : ExprMutator {
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
-      if (f->GetAttr<int64_t>(tvm::relax::attr::kWorkspaceSize)) {
+      if (f->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
         ret.insert_or_assign(gvar.get(), VisitExpr(f).as_or_throw<Function>());
       }
     }
@@ -54,24 +54,24 @@ class ExternFunctionRewriter : ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
-    if (!func_node->GetAttr<ffi::String>(tvm::relax::attr::kCodegen) &&
-        !func_node->GetAttr<ffi::String>(tvm::relax::attr::kComposite)) {
+    if (!func_node->GetAttr(tvm::relax::attr::kCodegen) &&
+        !func_node->GetAttr(tvm::relax::attr::kComposite)) {
       return ExprMutator::VisitExpr_(func_node);
     }
-    if (auto workspace = func_node->GetAttr<int64_t>(tvm::relax::attr::kWorkspaceSize)) {
+    if (auto workspace = func_node->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
       auto ty = TensorType(ShapeExpr({IntImm::Int32(max_workspace_size_)}), PrimType::UInt(8));
       Var workspace_param(name_sup_->FreshName("workspace"), ty);
 
-      if (func_node->GetAttr<ffi::String>(tvm::relax::attr::kCodegen)) {
+      if (func_node->GetAttr(tvm::relax::attr::kCodegen)) {
         workspace_var_param_ = workspace_param;
       }
 
       new_params.push_back(workspace_param);
       auto new_attrs = func_node->attrs;
-      new_attrs.CopyOnWrite()->dict.erase(tvm::relax::attr::kWorkspaceSize);
+      new_attrs.CopyOnWrite()->dict.erase(tvm::relax::attr::kWorkspaceSize.name);
       return Function(new_params, VisitExpr(func_node->body), func_node->ret_ty, func_node->is_pure,
                       new_attrs);
     }
@@ -84,7 +84,7 @@ class ExternFunctionRewriter : ExprMutator {
       if (auto callee = builder_->LookupBinding(var.value());
           callee && callee.value()->IsInstance<FunctionNode>() &&
           callee.value().as_or_throw<Function>()->GetAttr<ffi::String>(
-              tvm::relax::attr::kComposite)) {
+              tvm::relax::attr::kComposite.name)) {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
@@ -112,7 +112,7 @@ class WorkspaceProvider : ExprMutator {
 
   IRModule Run() {
     for (const auto& [gvar, f] : mod_->functions) {
-      if (auto workspace = f->GetAttr<int64_t>(tvm::relax::attr::kWorkspaceSize)) {
+      if (auto workspace = f->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
         max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value());
       }
     }
@@ -128,7 +128,7 @@ class WorkspaceProvider : ExprMutator {
       // This is only required since the well-formed check requires kGlobalSymbol to be the same
       // as the actual name of the global variable.
       builder_->UpdateFunction(new_gvar,
-                               WithAttr(f, tvm::attr::kGlobalSymbol, new_gvar->name_hint));
+                               WithAttr(f, tvm::attr::kGlobalSymbol.name, new_gvar->name_hint));
       gvar_map_.insert_or_assign(gvar, new_gvar);
       new_gvars_.insert(new_gvar);
       builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
@@ -136,9 +136,8 @@ class WorkspaceProvider : ExprMutator {
 
     for (const auto& [gvar, f] : mod_->functions) {
       workspace_var_main_ = std::nullopt;
-      if (!f->IsInstance<relax::FunctionNode>() ||
-          f->GetAttr<ffi::String>(tvm::relax::attr::kCodegen) ||
-          f->GetAttr<ffi::String>(tvm::relax::attr::kComposite)) {
+      if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr(tvm::relax::attr::kCodegen) ||
+          f->GetAttr(tvm::relax::attr::kComposite)) {
         continue;
       }
       auto func = mod_->Lookup(gvar).as_or_throw<Function>();

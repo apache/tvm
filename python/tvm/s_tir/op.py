@@ -20,7 +20,7 @@ import inspect
 from collections.abc import Callable
 
 from tvm.te import CommReducer
-from tvm.tirx import Expr, Var
+from tvm_tirx.tirx import Expr, Var
 
 
 def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:

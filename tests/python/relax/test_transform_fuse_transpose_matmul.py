@@ -18,13 +18,13 @@
 
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_transform_fuse_transpose_matmul():
@@ -72,13 +72,13 @@ def test_transform_fuse_transpose_matmul():
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm_tirx.ir.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_transform_fuse_transpose_matmul_const():
@@ -125,14 +125,14 @@ def test_transform_fuse_transpose_matmul_const():
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm_tirx.ir.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

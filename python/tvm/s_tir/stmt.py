@@ -17,19 +17,20 @@
 """Schedulable TensorIR statement nodes."""
 
 from collections.abc import Mapping, Sequence
+from typing import NamedTuple
 
 import tvm_ffi
 
-from tvm.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
-from tvm.ir.location import UNKNOWN_LOC
-from tvm.runtime import Object
 from tvm.s_tir import IterVar
+from tvm_tirx.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
+from tvm_tirx.ir.location import UNKNOWN_LOC
+from tvm_tirx.tirx import TensorType
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("s_tir.MatchTensorRegion")
-class MatchTensorRegion(Object, Scriptable):
+class MatchTensorRegion(tvm_ffi.Object, Scriptable):
     """MatchTensorRegion node.
 
     Parameters
@@ -82,7 +83,7 @@ class SBlock(Stmt):
     match_tensors: Optional[List[MatchTensorRegion]]
         The subregion tensor match
 
-    annotations: Optional[Mapping[str, Object]]
+    annotations: Optional[Mapping[str, tvm_ffi.Object]]
         Additional annotation hints.
 
     loc : Location, optional
@@ -97,7 +98,7 @@ class SBlock(Stmt):
     init: SeqStmt | None
     alloc_tensors: list[Var]
     match_tensors: list[MatchTensorRegion]
-    annotations: Mapping[str, Object]
+    annotations: Mapping[str, tvm_ffi.Object]
     loc: Location
 
     def __init__(
@@ -110,7 +111,7 @@ class SBlock(Stmt):
         init: Stmt | Sequence[Stmt] | None = None,
         alloc_tensors: list[Var] | None = None,
         match_tensors: list[MatchTensorRegion] | None = None,
-        annotations: Mapping[str, Object] | None = None,
+        annotations: Mapping[str, tvm_ffi.Object] | None = None,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
         if alloc_tensors is None:
@@ -174,3 +175,17 @@ class SBlockRealize(Stmt):
             block,
             loc,
         )  # type: ignore
+
+
+class ShapeStridePattern(NamedTuple):
+    """Shape, actual strides, and element offset of a regular memory layout."""
+
+    shape: Sequence[Expr]
+    strides: Sequence[Expr]
+    elem_offset: Expr
+
+
+def match_shape_stride_pattern(tensor_type: TensorType) -> ShapeStridePattern | None:
+    """Match absent or shape-aligned memory-only TileLayouts, without symbolic proofs."""
+    result = _ffi_api.MatchShapeStridePattern(tensor_type)
+    return None if result is None else ShapeStridePattern(*result)

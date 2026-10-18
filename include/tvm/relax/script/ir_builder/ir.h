@@ -19,6 +19,7 @@
 #ifndef TVM_RELAX_SCRIPT_IR_BUILDER_IR_H_
 #define TVM_RELAX_SCRIPT_IR_BUILDER_IR_H_
 
+#include <tvm/base.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/script/ir_builder/frame.h>
 #include <tvm/relax/type.h>
@@ -40,10 +41,8 @@ TVM_DLL ffi::Optional<tvm::relax::VDevice> LookupVDevice(ffi::String target_kind
  * \param is_private Whether the function is annotated as private.
  * \return The created ir_builder Function frame.
  */
-TVM_DLL FunctionFrame Function(bool is_pure, bool is_private);
-
-/*! \brief Start a bodyless declaration using the normal signature operations. */
-TVM_DLL FunctionFrame DeclFunction(bool is_pure, bool is_private, bool local);
+TVM_DLL FunctionFrame Function(bool is_pure, bool is_private, bool is_declaration = false,
+                               bool local = false);
 
 /*! \brief Define a local function under its cached declaration identity. */
 TVM_DLL FunctionFrame LocalFunction(bool is_pure, const tvm::Var& reference);

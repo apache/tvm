@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+import tvm_tirx
 from tvm import s_tir
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 @Ts.function
@@ -107,7 +107,7 @@ def global_tensor_with_blockidx(
 
 def test_tensor_load_store():
     func = tensor_load_store_func
-    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
     C, D = func.body[0].block.alloc_tensors
     lca = s_tir.analysis.detect_tensor_access_lca(func)
 
@@ -131,7 +131,7 @@ def test_tensor_load_store():
 
 def test_opaque_access():
     func = tensor_opaque_access
-    B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    B, C = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_tensor_access_lca(func)
 
     # Cannot detect tensor A since it is define by low-level Allocate
@@ -146,14 +146,14 @@ def test_opaque_access():
 
 def test_lca_func_root():
     func = lca_is_func_root
-    (A,) = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    (A,) = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_tensor_access_lca(func)
     assert lca[A] is None
 
 
 def test_match_tensor():
     func = match_tensor_func
-    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_tensor_access_lca(func)
 
     root_block = func.body[0].block
@@ -169,7 +169,7 @@ def test_match_tensor():
 
 def test_global_tensor_with_blockidx():
     func = global_tensor_with_blockidx
-    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
+    A, B = [x for x in func.params if tvm_tirx.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_tensor_access_lca(func)
 
     root_block = func.body[0].block

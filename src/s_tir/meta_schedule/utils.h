@@ -41,7 +41,6 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/support/base64.h>
 #include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
@@ -172,34 +171,6 @@ inline void clear_logging(const char* file, int lineno, ffi::Function logging_fu
 
 /*! \brief The type of the random state */
 using TRandState = LinearCongruentialEngine::TRandState;
-
-/*!
- * \brief Get the base64 encoded result of a string.
- * \param str The string to encode.
- * \return The base64 encoded string.
- */
-inline std::string Base64Encode(std::string str) {
-  std::string m_tensor;
-  support::BytesOutStream m_stream(&m_tensor);
-  support::Base64OutStream b64stream(&m_stream);
-  static_cast<support::Stream*>(&b64stream)->Write(str);
-  b64stream.Finish();
-  return m_tensor;
-}
-
-/*!
- * \brief Get the base64 decoded result of a string.
- * \param str The string to decode.
- * \return The base64 decoded string.
- */
-inline std::string Base64Decode(std::string str) {
-  std::string result;
-  support::BytesInStream m_stream(str);
-  support::Base64InStream b64stream(&m_stream);
-  b64stream.InitPosition();
-  static_cast<support::Stream*>(&b64stream)->Read(&result);
-  return result;
-}
 
 /*!
  * \brief Parses a json string into a json object.

@@ -18,10 +18,10 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -95,6 +95,6 @@ def multinomial_from_uniform(
         "relax.multinomial_from_uniform",
         [prob, uniform_sample, sample_indices],
         attrs=_make_attrs("relax.attrs.MultinomialFromUniformAttrs", dtype=dtype),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

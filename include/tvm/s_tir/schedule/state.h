@@ -23,6 +23,7 @@
 #ifndef TVM_S_TIR_SCHEDULE_STATE_H_
 #define TVM_S_TIR_SCHEDULE_STATE_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>

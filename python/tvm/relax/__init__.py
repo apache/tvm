@@ -20,7 +20,7 @@
 
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
-from tvm.ir import Call
+from tvm_tirx.ir import Call
 
 # Global information
 from .global_info import DummyGlobalInfo, VDevice
@@ -111,19 +111,22 @@ from .vm_build import build, VMExecutable
 
 from .binding_rewrite import DataflowBlockRewrite
 
-import tvm.script
+import tvm_tirx.script
+import tvm
 
-tvm.script.register_dialect("relax", "tvm.relax.script", builder_path="tvm.relax.script.ir_builder")
+tvm_tirx.script.register_dialect(
+    "relax", "tvm.relax.script", builder_path="tvm.relax.script.ir_builder"
+)
 
 
-def _check_script_module(module: "tvm.ir.IRModule") -> None:
+def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:
     # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
     from tvm.relax.script.ir_builder.parser_protocol import _check_module_well_formed
 
     _check_module_well_formed(module)
 
 
-tvm.script.register_module_validator(_check_script_module, prepend=True)
+tvm_tirx.script.register_module_validator(_check_script_module, prepend=True)
 
 
 def _initialize_script_namespace() -> None:
@@ -132,7 +135,7 @@ def _initialize_script_namespace() -> None:
     script._initialize()
 
 
-from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+from tvm_tirx.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("relax",))
 

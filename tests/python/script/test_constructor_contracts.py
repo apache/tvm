@@ -21,12 +21,39 @@ import linecache
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import ir, relax, tirx
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
+from tvm_tirx import ir, tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import s_tir as S
+from tvm_tirx.script import tirx as T
+
+
+@pytest.mark.parametrize("namespace", [T, S])
+def test_cast_script_positional_and_keyword_type(namespace):
+    @namespace.function(private=True)
+    def positional(x: namespace.int32):
+        namespace.evaluate(namespace.cast(x, "float32"))
+
+    @namespace.function(private=True)
+    def keyword(x: namespace.int32):
+        namespace.evaluate(namespace.cast(x, ty="float32"))
+
+    ir.assert_structural_equal(positional, keyword)
+    cast_expr = positional.body[0].value
+    assert cast_expr.ty == ir.PrimType("float32")
+    assert isinstance(cast_expr.loc, ir.SourceLoc)
+    ir.assert_structural_equal(
+        positional, tvm_tirx.script.from_source(positional.script(), extra_vars={"T": T, "Ts": S})
+    )
+    value = tirx.Var("x", "int32")
+    loc = ir.SourceLoc(ir.SourceName("cast"), 1, 1, 1, 8)
+    assert namespace.cast(value, "float32", loc=loc).loc.same_as(loc)
+    assert namespace.cast(value, ty="float32", loc=loc).loc.same_as(loc)
+    with pytest.raises(TypeError):
+        namespace.cast(value, "float32", loc)
 
 
 def test_call_type_and_validation_contract():
@@ -41,14 +68,18 @@ def test_call_type_and_validation_contract():
         assert unlocated.loc.same_as(ir.UNKNOWN_LOC)
         assert inspect.signature(constructor).parameters["loc"].default is ir.UNKNOWN_LOC
         with pytest.raises(TypeError):
-            constructor("prim.exp", [x], ty="float32", loc=None)
+            constructor("prim.exp", [x], loc=None, ty="float32")
         ir.assert_structural_equal(
             unlocated,
-            ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
+            ir.Call(
+                "prim.exp",
+                [x],
+                ty=ir.PrimType("float32"),
+            ),
         )
         with pytest.raises(TypeError):
             constructor("prim.exp", [], ty="float32").validate()
-        provisional = constructor("prim.exp", [], ty="float32", loc=loc)
+        provisional = constructor("prim.exp", [], loc=loc, ty="float32")
         assert not provisional.args
         assert provisional.loc.same_as(loc)
         assert provisional.ty.dtype == "float32"
@@ -57,7 +88,13 @@ def test_call_type_and_validation_contract():
 @pytest.mark.parametrize("ty", [ir.Type.missing(), "float32", "handle"])
 def test_raw_call_preserves_provisional_fields(ty):
     # Invalid arguments and type arguments must survive the raw representation.
-    call = ir.Call("prim.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
+    call = ir.Call(
+        "prim.exp",
+        [],
+        attrs={"tag": 7},
+        ty_args=[ir.StringType()],
+        ty=ty,
+    )
     source = call.script()
     assert "T.Call(" in source
     restored = eval(source, {"I": I, "R": R, "T": T})
@@ -65,7 +102,12 @@ def test_raw_call_preserves_provisional_fields(ty):
 
 
 def test_raw_call_preserves_checked_fields():
-    call = ir.Call("prim.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
+    call = ir.Call(
+        "prim.exp",
+        [tvm_tirx.ir.FloatImm("float32", 0)],
+        attrs={"tag": 7},
+        ty="float32",
+    )
     source = call.script()
     assert "T.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -87,10 +129,10 @@ def test_range_and_value_constructor_parameters():
     ir.assert_structural_equal(R.prim_value(3, dtype="int32"), relax.prim_value(3, dtype="int32"))
 
 
-def test_operation_dtype_keywords_match_normal_constructors():
+def test_operation_type_keywords_match_normal_constructors():
     for name in ("min_value", "max_value", "infinity"):
         ir.assert_structural_equal(
-            getattr(T, name)(dtype="float32"), getattr(tirx, name)(dtype="float32")
+            getattr(T, name)(ty="float32"), getattr(tirx, name)(ty="float32")
         )
     x = ir.Var("x", "float32")
     for operation in (T.exp, tirx.exp):
@@ -107,7 +149,12 @@ def test_normal_constructors_in_parsed_function():
 
     call = function.body[0].value
     ir.assert_structural_equal(
-        call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
+        call,
+        ir.Call(
+            "prim.exp",
+            [function.params[0]],
+            ty=ir.PrimType("float32"),
+        ),
     )
     loc = call.loc
     assert isinstance(loc, ir.SourceLoc)
@@ -141,12 +188,22 @@ def test_prim_value_boolean_and_symbolic_conversion():
 
 
 def test_tuple_constructor_materializes_raw_call_arguments():
-    value = tirx.IntImm("int64", 1)
+    value = tvm_tirx.ir.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
-    call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    call = ir.Call(
+        "relax.add",
+        [nested],
+        attrs={"tag": 1},
+        ty=ir.Type.missing(),
+    )
     assert call.args[0].same_as(nested)
-    from_python = ir.Call("relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing())
+    from_python = ir.Call(
+        "relax.add",
+        [((), (value,))],
+        attrs={"tag": 1},
+        ty=ir.Type.missing(),
+    )
     ir.assert_structural_equal(call, from_python)
     source = call.script()
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -164,4 +221,4 @@ def test_tuple_numeric_conversion_depends_on_context(value, constructor_dtype, p
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

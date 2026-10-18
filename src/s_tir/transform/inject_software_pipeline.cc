@@ -33,6 +33,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include <map>
 #include <unordered_set>
@@ -303,10 +304,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
         TensorVar new_tensor = replacement.value();
-        PrimExpr stride = new_tensor.strides().empty() ? PrimExpr(1) : new_tensor.strides()[0];
-        if (new_tensor.strides().empty()) {
-          for (const PrimExpr& extent : tensor.shape()) stride = stride * extent;
-        }
+        PrimExpr stride = tvm::tirx::MatchShapeStridePattern(new_tensor.ty()).value().get<1>()[0];
         if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
             (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // These logical matrix allocations are distributed over a warp.
@@ -565,11 +563,21 @@ class PipelineRewriter : public StmtExprMutator {
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_tensor =
         ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    auto strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
-    if (new_tensor->strides.size()) {
-      TVM_FFI_ICHECK(new_tensor->strides.size() + 1 == new_tensor->shape.size());
-      PrimExpr stride_0 = new_tensor->strides[0] * new_tensor->shape[1];
-      new_tensor->strides.insert(new_tensor->strides.begin(), stride_0);
+    if (new_tensor->layout.has_value()) {
+      TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
+      PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
+      strides.insert(strides.begin(), stride_0);
+      static const auto memory_axis = tvm::tirx::Axis::Get("m");
+      ffi::Array<tvm::tirx::Iter> shard;
+      for (size_t i = 0; i < new_tensor->shape.size(); ++i) {
+        shard.push_back(tvm::tirx::Iter(new_tensor->shape[i], strides[i], memory_axis));
+      }
+      ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+      if (new_tensor->layout.has_value())
+        offset = new_tensor->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+      new_tensor->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
     }
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }
@@ -1078,7 +1086,7 @@ class PipelineInjector : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   static Stmt Inject(const Function& func) {
-    auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
     auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -1194,9 +1202,9 @@ class PipelineInjector : public StmtExprMutator {
       }
     }
 
-    auto pipeline_stages = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineStage)
+    auto pipeline_stages = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineStage.name)
                                .as_or_throw<ffi::Array<int64_t>>();
-    auto pipeline_orders = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineOrder)
+    auto pipeline_orders = op->annotations.at(tvm::s_tir::attr::kSoftwarePipelineOrder.name)
                                .as_or_throw<ffi::Array<int64_t>>();
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "Function " << global_symbol_ << " has original order "
@@ -1208,7 +1216,7 @@ class PipelineInjector : public StmtExprMutator {
         << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
     std::unordered_set<int> pipeline_async_stages;
-    if (auto annot = op->annotations.Get(tvm::s_tir::attr::kSoftwarePipelineAsyncStages)) {
+    if (auto annot = op->annotations.Get(tvm::s_tir::attr::kSoftwarePipelineAsyncStages.name)) {
       for (int64_t s : annot.value().as_or_throw<ffi::Array<int64_t>>()) {
         pipeline_async_stages.insert(static_cast<int>(s));
       }
@@ -1217,9 +1225,9 @@ class PipelineInjector : public StmtExprMutator {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     for (const auto& kv : op->annotations) {
       const ffi::String& key = kv.first;
-      if (kv.first != tvm::s_tir::attr::kSoftwarePipelineStage &&
-          kv.first != tvm::s_tir::attr::kSoftwarePipelineOrder &&
-          kv.first != tvm::s_tir::attr::kSoftwarePipelineAsyncStages) {
+      if (kv.first != tvm::s_tir::attr::kSoftwarePipelineStage.name &&
+          kv.first != tvm::s_tir::attr::kSoftwarePipelineOrder.name &&
+          kv.first != tvm::s_tir::attr::kSoftwarePipelineAsyncStages.name) {
         preserved_annotations.Set(key, kv.second);
       }
     }
@@ -1271,7 +1279,7 @@ class PipelineInjector : public StmtExprMutator {
       tensor_data_to_tensor_.Set(tensor, tensor);
     }
 
-    auto it = op->annotations.find(tvm::s_tir::attr::kDoubleBufferScope);
+    auto it = op->annotations.find(tvm::s_tir::attr::kDoubleBufferScope.name);
     if (it != op->annotations.end()) {
       int tensor_index = (*it).second.cast<IntImm>()->value.as<int>().value();
       TVM_FFI_CHECK(tensor_index >= 0 && static_cast<size_t>(tensor_index) < op->writes.size(),
@@ -1291,8 +1299,8 @@ class PipelineInjector : public StmtExprMutator {
   }
 
   bool HasPipelineAnnotation(const ForNode* op) const {
-    auto it1 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineStage);
-    auto it2 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineOrder);
+    auto it1 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineStage.name);
+    auto it2 = op->annotations.find(tvm::s_tir::attr::kSoftwarePipelineOrder.name);
     bool has_stage = it1 != op->annotations.end();
     bool has_order = it2 != op->annotations.end();
     if (has_stage && has_order) {

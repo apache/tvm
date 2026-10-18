@@ -141,8 +141,8 @@ protocol.
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
 ``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source locations
-and validation. ``Call(..., ty=...)`` preserves an explicit result type, including
-``Type.missing()``. Omitted or ``None`` results use available inference and retain
+and validation. ``Call(op, args, ..., ty=ty)`` preserves an explicit result type, including
+``Type.missing()``. Omitting ``ty`` or passing ``ty=None`` uses available inference and retains
 ``Type.missing()`` when no deduction is available; inference errors propagate.
 Construction permits provisional IR, and ``call.validate()`` checks the registered
 operator contract separately. Raw printed calls use ``I.Call`` with an explicit

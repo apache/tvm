@@ -23,6 +23,7 @@
 #ifndef TVM_S_TIR_ITER_VAR_H_
 #define TVM_S_TIR_ITER_VAR_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>

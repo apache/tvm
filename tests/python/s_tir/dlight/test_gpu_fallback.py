@@ -18,14 +18,14 @@
 # ruff: noqa: E501, E741, F841
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_fallback():
@@ -100,7 +100,7 @@ def test_fallback_reduction():
                     Ts.writes(B[v0])
                     with Ts.init():
                         B[v0] = T.float32(0)
-                    B[v0] = B[v0] + T.Cast(A[v0, v1], "float32")
+                    B[v0] = B[v0] + T.Cast("float32", A[v0, v1])
 
     @I.ir_module
     class Expected:
@@ -124,7 +124,7 @@ def test_fallback_reduction():
                             Ts.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
                             Ts.reads(B[0], A[0, v1])
                             Ts.writes(B[0])
-                            B[0] = B[0] + T.Cast(A[0, v1], "float32")
+                            B[0] = B[0] + T.Cast("float32", A[0, v1])
 
     with Target("apple/m1-gpu"):
         mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
@@ -187,7 +187,7 @@ def test_fallback_irregular_spatial():
 
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:
-        mod = tvm.IRModule({"main": func})
+        mod = tvm_tirx.IRModule({"main": func})
         mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
             dl.gpu.Fallback(),
         )(mod)
@@ -299,4 +299,4 @@ def test_schedule_error_propagates_from_rule():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
