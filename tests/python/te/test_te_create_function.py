@@ -318,10 +318,18 @@ def te_extern_epilogue():
     return [A, B, D]
 
 
+tir_extern_epilogue_a_offset = T.dynamic("tir_extern_epilogue_a_offset", "int32")
+tir_extern_epilogue_b_offset = T.dynamic("tir_extern_epilogue_b_offset", "int32")
+
+
 @Ts.function
 def tir_extern_epilogue(
-    A: T.Tensor((4, 3), "float32", layout=T.TileLayout(T.S[(4, 3)] + (T.int32()))),
-    B: T.Tensor((3, 2), "float32", layout=T.TileLayout(T.S[(3, 2)] + (T.int32()))),
+    A: T.Tensor(
+        (4, 3), "float32", layout=T.TileLayout(T.S[(4, 3)] + (tir_extern_epilogue_a_offset))
+    ),
+    B: T.Tensor(
+        (3, 2), "float32", layout=T.TileLayout(T.S[(3, 2)] + (tir_extern_epilogue_b_offset))
+    ),
     D: T.Tensor((4, 2), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -814,17 +822,28 @@ def test_extern_with_explicit_buffer_access():
         )
         return [A, B, P, C]
 
+    tir_extern_a_offset = T.dynamic("tir_extern_a_offset", "int32")
+    tir_extern_b_offset = T.dynamic("tir_extern_b_offset", "int32")
+    tir_extern_p_offset = T.dynamic("tir_extern_p_offset", "int32")
+    tir_extern_c_offset = T.dynamic("tir_extern_c_offset", "int32")
+
     @Ts.function
     def tir_extern(
         A: T.Tensor(
-            [128, 128], dtype="float32", layout=T.TileLayout(T.S[[128, 128]] + (T.int32()))
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_a_offset)),
         ),
         B: T.Tensor(
-            [128, 128], dtype="float32", layout=T.TileLayout(T.S[[128, 128]] + (T.int32()))
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_b_offset)),
         ),
-        P: T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1]] + (T.int32()))),
+        P: T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1]] + (tir_extern_p_offset))),
         C: T.Tensor(
-            [128, 128], dtype="float32", layout=T.TileLayout(T.S[[128, 128]] + (T.int32()))
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_c_offset)),
         ),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})

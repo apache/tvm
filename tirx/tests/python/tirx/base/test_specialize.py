@@ -133,9 +133,9 @@ def element_wise_128_n(A: T.Tensor((128, n), "float32"), C: T.Tensor((128, n), "
         C[i, j] = B[i, j] + 1.0
 
 
-mem_copy_m = T.int32()
+mem_copy_m = T.dynamic("mem_copy_m", "int32")
 
-mem_copy_n = T.int32()
+mem_copy_n = T.dynamic("mem_copy_n", "int32")
 
 
 @T.function
@@ -168,9 +168,9 @@ def mem_copy_16_16_8_4(
         B[i, j] = A[i, j]
 
 
-mem_copy_m_n_p_n_m = T.int32()
+mem_copy_m_n_p_n_m = T.dynamic("mem_copy_m_n_p_n_m", "int32")
 
-mem_copy_m_n_p_n_n = T.int32()
+mem_copy_m_n_p_n_n = T.dynamic("mem_copy_m_n_p_n_n", "int32")
 
 
 @T.function
@@ -304,7 +304,7 @@ def test_specialize_decl_tensor():
 
 
 def test_specialize_preserves_decl_tensor_alias():
-    before_n = T.int32()
+    before_n = T.dynamic("before_n", "int32")
 
     @T.function(private=True)
     def before(A: T.Tensor((before_n,), "int32"), n: before_n):

@@ -390,6 +390,13 @@ def _attention_prefill_paged_split(
     )
     symbol = "batch_prefill_paged_kv_sliding_window" if sliding_window else "batch_prefill_paged_kv"
 
+    batch_prefill_paged_kv_part_output_offset = T.dynamic(
+        "batch_prefill_paged_kv_part_output_offset", "int32"
+    )
+    batch_prefill_paged_kv_part_lse_offset = T.dynamic(
+        "batch_prefill_paged_kv_part_lse_offset", "int32"
+    )
+
     @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((qlen, h_q, 512), "float32"),
@@ -426,12 +433,16 @@ def _attention_prefill_paged_split(
                 part_output = Ts.match_tensor(
                     temporary[part_idx, 0:qlen, 0:h_q, 0:512],
                     (qlen, h_q, 512),
-                    layout=T.TileLayout(T.S[(qlen, h_q, 512)] + (T.int32())),
+                    layout=T.TileLayout(
+                        T.S[(qlen, h_q, 512)] + (batch_prefill_paged_kv_part_output_offset)
+                    ),
                 )
                 part_lse = Ts.match_tensor(
                     temporary_lse[part_idx, 0:qlen, 0:h_q],
                     (qlen, h_q),
-                    layout=T.TileLayout(T.S[(qlen, h_q)] + (T.int32())),
+                    layout=T.TileLayout(
+                        T.S[(qlen, h_q)] + (batch_prefill_paged_kv_part_lse_offset)
+                    ),
                 )
                 body(
                     q,

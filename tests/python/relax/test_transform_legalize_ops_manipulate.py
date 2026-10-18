@@ -909,7 +909,7 @@ def test_split_by_indices_n_section_divisible_symbolic():
             gv = R.call_tir(Expected.split, (x, n), ty_args=[_TupleType([R.Tensor((m_main, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m_main, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m_main, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")])])
             return gv
 
-        split_n = T.int64()
+        split_n = T.dynamic("split_n", "int64")
 
         @Ts.function(private=True)
         def split(rxplaceholder: T.Tensor([m_split, split_n * T.int64(3)], dtype='float32'), n: split_n, T_split_sections: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_1: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_2: T.Tensor([m_split, split_n * T.int64(3) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype='float32')):
@@ -1463,13 +1463,17 @@ def test_scatter_elements():
         def main(x: R.Tensor((4,4), "float32"), indices: R.Tensor((2,2), "int64"), updates: R.Tensor((2,2), "float32")):
             gv = R.scatter_elements(x, indices, updates, axis=1)
             return gv
+    expected_rxplaceholder_offset = T.dynamic("expected_rxplaceholder_offset", "int64")
+    expected_rxplaceholder_1_offset = T.dynamic("expected_rxplaceholder_1_offset", "int64")
+    expected_rxplaceholder_2_offset = T.dynamic("expected_rxplaceholder_2_offset", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32",  layout=T.TileLayout(T.S[(T.int64(4), T.int64(4))] + (T.int64()))),
-            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64',  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (T.int64()))),
-            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32",  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (T.int64()))),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32",  layout=T.TileLayout(T.S[(T.int64(4), T.int64(4))] + (expected_rxplaceholder_offset))),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64',  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (expected_rxplaceholder_1_offset))),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32",  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (expected_rxplaceholder_2_offset))),
             out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1565,13 +1569,17 @@ def test_scatter_elements_symbolic():
     m_main = T.dynamic("m", "int64")
     n_main = T.dynamic("n", "int64")
 
+    expected_rxplaceholder_offset_1 = T.dynamic("expected_rxplaceholder_offset_1", "int64")
+    expected_rxplaceholder_1_offset_1 = T.dynamic("expected_rxplaceholder_1_offset_1", "int64")
+    expected_rxplaceholder_2_offset_1 = T.dynamic("expected_rxplaceholder_2_offset_1", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32",  layout=T.TileLayout(T.S[(a_scatter_elements, b_scatter_elements)] + (T.int64()))),
-            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64',  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (T.int64()))),
-            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32",  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (T.int64()))),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32",  layout=T.TileLayout(T.S[(a_scatter_elements, b_scatter_elements)] + (expected_rxplaceholder_offset_1))),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64',  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (expected_rxplaceholder_1_offset_1))),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32",  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (expected_rxplaceholder_2_offset_1))),
             out_buf: T.Tensor((a_scatter_elements, b_scatter_elements), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1868,6 +1876,9 @@ def test_scatter_nd():
 
     After = relax.transform.LegalizeOps()(Before)
 
+    expected_data_offset = T.dynamic("expected_data_offset", "int64")
+    expected_updates_offset = T.dynamic("expected_updates_offset", "int64")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1882,7 +1893,7 @@ def test_scatter_nd():
             return gv
 
         @Ts.function(private=True)
-        def scatter_nd(data: T.Tensor((T.int64(8),), "float32",  layout=T.TileLayout(T.S[(T.int64(8),)] + (T.int64()))), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32",  layout=T.TileLayout(T.S[(T.int64(4),)] + (T.int64()))), out_buf: T.Tensor((T.int64(8),), "float32")):
+        def scatter_nd(data: T.Tensor((T.int64(8),), "float32",  layout=T.TileLayout(T.S[(T.int64(8),)] + (expected_data_offset))), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32",  layout=T.TileLayout(T.S[(T.int64(4),)] + (expected_updates_offset))), out_buf: T.Tensor((T.int64(8),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):

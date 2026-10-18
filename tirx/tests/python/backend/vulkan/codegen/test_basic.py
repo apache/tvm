@@ -346,12 +346,15 @@ def test_vectorized_index_ramp():
     n = 4
     ramp_index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4)
 
+    module_a_offset = T.dynamic("module_a_offset", "int32")
+    module_b_offset = T.dynamic("module_b_offset", "int32")
+
     @I.ir_module
     class Module:
         @T.function
         def main(
-            A: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (T.int32()))),
-            B: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (T.int32()))),
+            A: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (module_a_offset))),
+            B: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (module_b_offset))),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -385,12 +388,15 @@ def test_vectorized_index_broadcast():
     broadcast_index = tvm_tirx.ir.prim.vector_expr.Broadcast(0, 4)
     ramp_index = tvm_tirx.ir.prim.vector_expr.Ramp(0, 1, 4)
 
+    module_a_offset_1 = T.dynamic("module_a_offset_1", "int32")
+    module_b_offset_1 = T.dynamic("module_b_offset_1", "int32")
+
     @I.ir_module
     class Module:
         @T.function
         def main(
-            A: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (T.int32()))),
-            B: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (T.int32()))),
+            A: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (module_a_offset_1))),
+            B: T.Tensor((n,), "int32", layout=T.TileLayout(T.S[(n,)] + (module_b_offset_1))),
         ):
             T.func_attr({"tirx.noalias": True})
 

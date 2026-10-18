@@ -255,16 +255,35 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 
 
 def test_get_tensorize_loop_mapping_matmul_mma():
+    matmul_16x16x16xf16f16f16_desc_a_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_a_offset", "int32"
+    )
+    matmul_16x16x16xf16f16f16_desc_b_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_b_offset", "int32"
+    )
+    matmul_16x16x16xf16f16f16_desc_c_offset = T.dynamic(
+        "matmul_16x16x16xf16f16f16_desc_c_offset", "int32"
+    )
+
     @Ts.function
     def matmul_16x16x16xf16f16f16_desc(
         A: T.Tensor(
-            (16, 16), "float16", align=64, layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_a_offset)),
         ),
         B: T.Tensor(
-            (16, 16), "float16", align=64, layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_b_offset)),
         ),
         C: T.Tensor(
-            (16, 16), "float16", align=64, layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))
+            (16, 16),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(16, 16)] + (matmul_16x16x16xf16f16f16_desc_c_offset)),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -306,11 +325,15 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
 
 def matmul_16x8x8_desc(out_dtype):
+    desc_a_offset = T.dynamic("desc_a_offset", "int32")
+    desc_b_offset = T.dynamic("desc_b_offset", "int32")
+    desc_c_offset = T.dynamic("desc_c_offset", "int32")
+
     @Ts.function
     def desc(
-        A: T.Tensor((16, 8), "float16", layout=T.TileLayout(T.S[(16, 8)] + (T.int32()))),
-        B: T.Tensor((8, 8), "float16", layout=T.TileLayout(T.S[(8, 8)] + (T.int32()))),
-        C: T.Tensor((16, 8), out_dtype, layout=T.TileLayout(T.S[(16, 8)] + (T.int32()))),
+        A: T.Tensor((16, 8), "float16", layout=T.TileLayout(T.S[(16, 8)] + (desc_a_offset))),
+        B: T.Tensor((8, 8), "float16", layout=T.TileLayout(T.S[(8, 8)] + (desc_b_offset))),
+        C: T.Tensor((16, 8), out_dtype, layout=T.TileLayout(T.S[(16, 8)] + (desc_c_offset))),
     ):
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:8], A[0:16, 0:8], B[0:8, 0:8])

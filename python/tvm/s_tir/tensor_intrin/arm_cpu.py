@@ -38,11 +38,18 @@ from .dot_product_common import (
 # shape and dtype, and share the common description with x86.
 
 
+neon_4x4_i8i8i32_desc_a_offset = T.dynamic("neon_4x4_i8i8i32_desc_a_offset", "int32")
+neon_4x4_i8i8i32_desc_b_offset = T.dynamic("neon_4x4_i8i8i32_desc_b_offset", "int32")
+neon_4x4_i8i8i32_desc_c_offset = T.dynamic("neon_4x4_i8i8i32_desc_c_offset", "int32")
+
+
 @Ts.function
 def neon_4x4_i8i8i32_desc(
-    A: T.Tensor((4,), "int8", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-    B: T.Tensor((4, 4), "int8", layout=T.TileLayout(T.S[(4, 4)] + (T.int32()))),
-    C: T.Tensor((4,), "int32", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
+    A: T.Tensor((4,), "int8", layout=T.TileLayout(T.S[(4,)] + (neon_4x4_i8i8i32_desc_a_offset))),
+    B: T.Tensor(
+        (4, 4), "int8", layout=T.TileLayout(T.S[(4, 4)] + (neon_4x4_i8i8i32_desc_b_offset))
+    ),
+    C: T.Tensor((4,), "int32", layout=T.TileLayout(T.S[(4,)] + (neon_4x4_i8i8i32_desc_c_offset))),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -54,11 +61,18 @@ def neon_4x4_i8i8i32_desc(
                     C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
 
+neon_4x4_i8i8i32_impl_a_offset = T.dynamic("neon_4x4_i8i8i32_impl_a_offset", "int32")
+neon_4x4_i8i8i32_impl_b_offset = T.dynamic("neon_4x4_i8i8i32_impl_b_offset", "int32")
+neon_4x4_i8i8i32_impl_c_offset = T.dynamic("neon_4x4_i8i8i32_impl_c_offset", "int32")
+
+
 @Ts.function
 def neon_4x4_i8i8i32_impl(
-    A: T.Tensor((4,), "int8", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-    B: T.Tensor((4, 4), "int8", layout=T.TileLayout(T.S[(4, 4)] + (T.int32()))),
-    C: T.Tensor((4,), "int32", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
+    A: T.Tensor((4,), "int8", layout=T.TileLayout(T.S[(4,)] + (neon_4x4_i8i8i32_impl_a_offset))),
+    B: T.Tensor(
+        (4, 4), "int8", layout=T.TileLayout(T.S[(4, 4)] + (neon_4x4_i8i8i32_impl_b_offset))
+    ),
+    C: T.Tensor((4,), "int32", layout=T.TileLayout(T.S[(4,)] + (neon_4x4_i8i8i32_impl_c_offset))),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -119,11 +133,21 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     out_dtype_x4 = f"{out_dtype}x4"
     in_dtype_x16 = f"{in_dtype}x16"
 
+    dot_prod_desc_a_offset = T.dynamic("dot_prod_desc_a_offset", "int32")
+    dot_prod_desc_b_offset = T.dynamic("dot_prod_desc_b_offset", "int32")
+    dot_prod_desc_c_offset = T.dynamic("dot_prod_desc_c_offset", "int32")
+
     @Ts.function
     def dot_prod_desc(
-        A: T.Tensor((4,), dtype=in_dtype, layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-        B: T.Tensor((4, 4), dtype=in_dtype, layout=T.TileLayout(T.S[(4, 4)] + (T.int32()))),
-        C: T.Tensor((4,), dtype=out_dtype, layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
+        A: T.Tensor(
+            (4,), dtype=in_dtype, layout=T.TileLayout(T.S[(4,)] + (dot_prod_desc_a_offset))
+        ),
+        B: T.Tensor(
+            (4, 4), dtype=in_dtype, layout=T.TileLayout(T.S[(4, 4)] + (dot_prod_desc_b_offset))
+        ),
+        C: T.Tensor(
+            (4,), dtype=out_dtype, layout=T.TileLayout(T.S[(4,)] + (dot_prod_desc_c_offset))
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -136,11 +160,21 @@ def get_dotprod_intrin(in_dtype, out_dtype):
                             B[vi, vk], ty=out_dtype
                         )
 
+    dot_prod_impl_a_offset = T.dynamic("dot_prod_impl_a_offset", "int32")
+    dot_prod_impl_b_offset = T.dynamic("dot_prod_impl_b_offset", "int32")
+    dot_prod_impl_c_offset = T.dynamic("dot_prod_impl_c_offset", "int32")
+
     @Ts.function
     def dot_prod_impl(
-        A: T.Tensor((4,), dtype=in_dtype, layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-        B: T.Tensor((4, 4), dtype=in_dtype, layout=T.TileLayout(T.S[(4, 4)] + (T.int32()))),
-        C: T.Tensor((4,), dtype=out_dtype, layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
+        A: T.Tensor(
+            (4,), dtype=in_dtype, layout=T.TileLayout(T.S[(4,)] + (dot_prod_impl_a_offset))
+        ),
+        B: T.Tensor(
+            (4, 4), dtype=in_dtype, layout=T.TileLayout(T.S[(4, 4)] + (dot_prod_impl_b_offset))
+        ),
+        C: T.Tensor(
+            (4,), dtype=out_dtype, layout=T.TileLayout(T.S[(4,)] + (dot_prod_impl_c_offset))
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
@@ -263,13 +297,18 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
+    desc_a_offset = T.dynamic("desc_a_offset", "int32")
+    desc_a_t_offset = T.dynamic("desc_a_t_offset", "int32")
+
     @Ts.function
     def desc(
         A: T.Tensor(
-            (SVF2, SVF2), dtype="float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (T.int32()))
+            (SVF2, SVF2), dtype="float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (desc_a_offset))
         ),
         A_t: T.Tensor(
-            (SVF2, SVF2), dtype="float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (T.int32()))
+            (SVF2, SVF2),
+            dtype="float32",
+            layout=T.TileLayout(T.S[(SVF2, SVF2)] + (desc_a_t_offset)),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -279,6 +318,11 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                 with Ts.sblock("transpose"):
                     v_m, v_k = Ts.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
+
+    impl_a_offset = T.dynamic("impl_a_offset", "int32")
+    impl_a_t_offset = T.dynamic("impl_a_t_offset", "int32")
+    impl_a_stride = T.dynamic("impl_a_stride", "int32")
+    impl_a_t_stride = T.dynamic("impl_a_t_stride", "int32")
 
     def impl():
         sub_tile_count = 4
@@ -290,7 +334,9 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(
+                            T.S[(SVF2, SVF2) : [impl_a_stride, 1]] + (impl_a_offset)
+                        ),
                     ),
                 )
                 A_t = T.arg_(
@@ -298,7 +344,9 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(
+                            T.S[(SVF2, SVF2) : [impl_a_t_stride, 1]] + (impl_a_t_offset)
+                        ),
                     ),
                 )
 
@@ -404,13 +452,18 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     SVF = tirx.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
+    desc_a_offset_1 = T.dynamic("desc_a_offset_1", "int32")
+    desc_a_t_offset_1 = T.dynamic("desc_a_t_offset_1", "int32")
+
     @Ts.function
     def desc(
         A: T.Tensor(
-            (SVF2, SVF), dtype="float16", layout=T.TileLayout(T.S[(SVF2, SVF)] + (T.int32()))
+            (SVF2, SVF), dtype="float16", layout=T.TileLayout(T.S[(SVF2, SVF)] + (desc_a_offset_1))
         ),
         A_t: T.Tensor(
-            (SVF, SVF2), dtype="float16", layout=T.TileLayout(T.S[(SVF, SVF2)] + (T.int32()))
+            (SVF, SVF2),
+            dtype="float16",
+            layout=T.TileLayout(T.S[(SVF, SVF2)] + (desc_a_t_offset_1)),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -421,6 +474,11 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     v_m, v_k = Ts.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
 
+    impl_a_offset = T.dynamic("impl_a_offset", "int32")
+    impl_a_t_offset = T.dynamic("impl_a_t_offset", "int32")
+    impl_a_stride = T.dynamic("impl_a_stride", "int32")
+    impl_a_t_stride = T.dynamic("impl_a_t_stride", "int32")
+
     def impl():
         with IRBuilder() as ib:
             with build_function():
@@ -429,7 +487,9 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     T.Tensor(
                         (SVF2, SVF),
                         "float16",
-                        layout=T.TileLayout(T.S[(SVF2, SVF) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(
+                            T.S[(SVF2, SVF) : [impl_a_stride, 1]] + (impl_a_offset)
+                        ),
                     ),
                 )
                 A_t = T.arg_(
@@ -437,7 +497,9 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     T.Tensor(
                         (SVF, SVF2),
                         "float16",
-                        layout=T.TileLayout(T.S[(SVF, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(
+                            T.S[(SVF, SVF2) : [impl_a_t_stride, 1]] + (impl_a_t_offset)
+                        ),
                     ),
                 )
 
@@ -618,12 +680,20 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
     )
 
+    desc_a_offset_2 = T.dynamic("desc_a_offset_2", "int32")
+    desc_b_offset = T.dynamic("desc_b_offset", "int32")
+    desc_c_offset = T.dynamic("desc_c_offset", "int32")
+
     @Ts.function
     def desc(
-        A: T.Tensor((K, SVF2), dtype=in_dtype, layout=T.TileLayout(T.S[(K, SVF2)] + (T.int32()))),
-        B: T.Tensor((K, SVF2), dtype=in_dtype, layout=T.TileLayout(T.S[(K, SVF2)] + (T.int32()))),
+        A: T.Tensor(
+            (K, SVF2), dtype=in_dtype, layout=T.TileLayout(T.S[(K, SVF2)] + (desc_a_offset_2))
+        ),
+        B: T.Tensor(
+            (K, SVF2), dtype=in_dtype, layout=T.TileLayout(T.S[(K, SVF2)] + (desc_b_offset))
+        ),
         C: T.Tensor(
-            (SVF2, SVF2), dtype="float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (T.int32()))
+            (SVF2, SVF2), dtype="float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (desc_c_offset))
         ),
     ):
         with Ts.sblock("root"):
@@ -633,6 +703,13 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                 with Ts.sblock("gemm"):
                     v_m, v_n, v_k = Ts.axis.remap("SSR", [m, n, k])
                     C[v_m, v_n] += T.Cast("float32", A[v_k, v_m]) * T.Cast("float32", B[v_k, v_n])
+
+    impl_a_offset = T.dynamic("impl_a_offset", "int32")
+    impl_b_offset = T.dynamic("impl_b_offset", "int32")
+    impl_c_offset = T.dynamic("impl_c_offset", "int32")
+    impl_a_stride = T.dynamic("impl_a_stride", "int32")
+    impl_b_stride = T.dynamic("impl_b_stride", "int32")
+    impl_c_stride = T.dynamic("impl_c_stride", "int32")
 
     def impl():
         sub_tile_count = 4
@@ -644,7 +721,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (K, SVF2),
                         in_dtype,
-                        layout=T.TileLayout(T.S[(K, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(T.S[(K, SVF2) : [impl_a_stride, 1]] + (impl_a_offset)),
                     ),
                 )
                 B = T.arg_(
@@ -652,7 +729,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (K, SVF2),
                         in_dtype,
-                        layout=T.TileLayout(T.S[(K, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(T.S[(K, SVF2) : [impl_b_stride, 1]] + (impl_b_offset)),
                     ),
                 )
                 C = T.arg_(
@@ -660,7 +737,9 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                     T.Tensor(
                         (SVF2, SVF2),
                         "float32",
-                        layout=T.TileLayout(T.S[(SVF2, SVF2) : [T.int32(), 1]] + (T.int32())),
+                        layout=T.TileLayout(
+                            T.S[(SVF2, SVF2) : [impl_c_stride, 1]] + (impl_c_offset)
+                        ),
                     ),
                 )
 
@@ -764,9 +843,13 @@ def get_sme_init_intrin():
     """
     SVF2 = 2 * 4 * T.vscale()
 
+    desc_c_offset_1 = T.dynamic("desc_c_offset_1", "int32")
+
     @Ts.function
     def desc(
-        C: T.Tensor((SVF2, SVF2), "float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (T.int32()))),
+        C: T.Tensor(
+            (SVF2, SVF2), "float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (desc_c_offset_1))
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -776,9 +859,13 @@ def get_sme_init_intrin():
                     v_m, v_n = Ts.axis.remap("SS", [m, n])
                     C[v_m, v_n] = T.float32(0)
 
+    impl_c_offset = T.dynamic("impl_c_offset", "int32")
+
     @Ts.function
     def impl(
-        C: T.Tensor((SVF2, SVF2), "float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (T.int32()))),
+        C: T.Tensor(
+            (SVF2, SVF2), "float32", layout=T.TileLayout(T.S[(SVF2, SVF2)] + (impl_c_offset))
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()

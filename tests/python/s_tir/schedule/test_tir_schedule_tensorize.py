@@ -46,8 +46,12 @@ from tvm_tirx.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
+mma_desc_a_offset = T.dynamic("mma_desc_a_offset", "int32")
+mma_desc_b_offset = T.dynamic("mma_desc_b_offset", "int32")
+mma_desc_c_offset = T.dynamic("mma_desc_c_offset", "int32")
+
 @Ts.function
-def mma_desc(A: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))), B: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))), C: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32())))) -> None:
+def mma_desc(A: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (mma_desc_a_offset))), B: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (mma_desc_b_offset))), C: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (mma_desc_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -57,8 +61,15 @@ def mma_desc(A: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S
                 vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
+mma_intrin_a_stride = T.dynamic("mma_intrin_a_stride", "int32")
+mma_intrin_a_offset = T.dynamic("mma_intrin_a_offset", "int32")
+mma_intrin_b_stride = T.dynamic("mma_intrin_b_stride", "int32")
+mma_intrin_b_offset = T.dynamic("mma_intrin_b_offset", "int32")
+mma_intrin_c_stride = T.dynamic("mma_intrin_c_stride", "int32")
+mma_intrin_c_offset = T.dynamic("mma_intrin_c_offset", "int32")
+
 @Ts.function
-def mma_intrin(A: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]] + (T.int32())), align=64), B: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]] + (T.int32())), align=64), C: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]] + (T.int32())), align=64)) -> None:
+def mma_intrin(A: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [mma_intrin_a_stride, 1]] + (mma_intrin_a_offset)), align=64), B: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [mma_intrin_b_stride, 1]] + (mma_intrin_b_offset)), align=64), C: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [mma_intrin_c_stride, 1]] + (mma_intrin_c_offset)), align=64)) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -91,8 +102,12 @@ def dot_product_desc(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32"),
                 vi = Ts.axis.remap("R", [i])
                 C[()] = C[()] + A[vi] * B[vi]
 
+dot_product_intrin_a_offset = T.dynamic("dot_product_intrin_a_offset", "int32")
+dot_product_intrin_b_offset = T.dynamic("dot_product_intrin_b_offset", "int32")
+dot_product_intrin_c_offset = T.dynamic("dot_product_intrin_c_offset", "int32")
+
 @Ts.function
-def dot_product_intrin(A: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (T.int32()))), B: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (T.int32()))), C: T.Tensor((), "float32",  layout=T.TileLayout(T.S[()] + (T.int32())))) -> None:
+def dot_product_intrin(A: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (dot_product_intrin_a_offset))), B: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (dot_product_intrin_b_offset))), C: T.Tensor((), "float32",  layout=T.TileLayout(T.S[()] + (dot_product_intrin_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[()], A[0 : 4], B[0 : 4])
@@ -113,8 +128,12 @@ def dot_product_intrin(A: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,
             )
         )
 
+dot_product_intrin_annotated_a_offset = T.dynamic("dot_product_intrin_annotated_a_offset", "int32")
+dot_product_intrin_annotated_b_offset = T.dynamic("dot_product_intrin_annotated_b_offset", "int32")
+dot_product_intrin_annotated_c_offset = T.dynamic("dot_product_intrin_annotated_c_offset", "int32")
+
 @Ts.function
-def dot_product_intrin_annotated(A: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (T.int32()))), B: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (T.int32()))), C: T.Tensor((), "float32",  layout=T.TileLayout(T.S[()] + (T.int32())))) -> None:
+def dot_product_intrin_annotated(A: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (dot_product_intrin_annotated_a_offset))), B: T.Tensor((4,), "float32",  layout=T.TileLayout(T.S[(4,)] + (dot_product_intrin_annotated_b_offset))), C: T.Tensor((), "float32",  layout=T.TileLayout(T.S[()] + (dot_product_intrin_annotated_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[()], A[0 : 4], B[0 : 4])
@@ -136,8 +155,12 @@ def dot_product_intrin_annotated(A: T.Tensor((4,), "float32",  layout=T.TileLayo
             )
         )
 
+outer_product_desc_a_offset = T.dynamic("outer_product_desc_a_offset", "int32")
+outer_product_desc_b_offset = T.dynamic("outer_product_desc_b_offset", "int32")
+outer_product_desc_c_offset = T.dynamic("outer_product_desc_c_offset", "int32")
+
 @Ts.function
-def outer_product_desc(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1)] + (T.int32()))), B: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1)] + (T.int32()))), C: T.Tensor((16, 16), "float32",  layout=T.TileLayout(T.S[(16, 16)] + (T.int32())))) -> None:
+def outer_product_desc(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1)] + (outer_product_desc_a_offset))), B: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1)] + (outer_product_desc_b_offset))), C: T.Tensor((16, 16), "float32",  layout=T.TileLayout(T.S[(16, 16)] + (outer_product_desc_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(
@@ -151,8 +174,15 @@ def outer_product_desc(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[
                 vii, vjj = Ts.axis.remap("SS", [i, j])
                 C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
+outer_product_intrin_a_stride = T.dynamic("outer_product_intrin_a_stride", "int32")
+outer_product_intrin_a_offset = T.dynamic("outer_product_intrin_a_offset", "int32")
+outer_product_intrin_b_stride = T.dynamic("outer_product_intrin_b_stride", "int32")
+outer_product_intrin_b_offset = T.dynamic("outer_product_intrin_b_offset", "int32")
+outer_product_intrin_c_stride = T.dynamic("outer_product_intrin_c_stride", "int32")
+outer_product_intrin_c_offset = T.dynamic("outer_product_intrin_c_offset", "int32")
+
 @Ts.function
-def outer_product_intrin(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [T.int32(), 1]] + (T.int32()))), B: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [T.int32(), 1]] + (T.int32()))), C: T.Tensor((16, 16), "float32",  layout=T.TileLayout(T.S[(16, 16) : [T.int32(), 1]] + (T.int32())))) -> None:
+def outer_product_intrin(A: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [outer_product_intrin_a_stride, 1]] + (outer_product_intrin_a_offset))), B: T.Tensor((16, 1), "float32",  layout=T.TileLayout(T.S[(16, 1) : [outer_product_intrin_b_stride, 1]] + (outer_product_intrin_b_offset))), C: T.Tensor((16, 16), "float32",  layout=T.TileLayout(T.S[(16, 16) : [outer_product_intrin_c_stride, 1]] + (outer_product_intrin_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(
@@ -194,6 +224,10 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
+tensorized_matmul_a_sub_stride = T.dynamic("tensorized_matmul_a_sub_stride", "int32")
+tensorized_matmul_b_sub_stride = T.dynamic("tensorized_matmul_b_sub_stride", "int32")
+tensorized_matmul_c_sub_stride = T.dynamic("tensorized_matmul_c_sub_stride", "int32")
+
 @Ts.function
 def tensorized_matmul(A: T.Tensor([128, 128], "float32",  align=64), B: T.Tensor([128, 128], "float32",  align=64), C: T.Tensor([128, 128], "float32",  align=64)) -> None:
 
@@ -217,17 +251,17 @@ def tensorized_matmul(A: T.Tensor([128, 128], "float32",  align=64), B: T.Tensor
                 A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (A_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[tensorized_matmul_a_sub_stride, 1]] + (A_elem_offset)),
                 )
                 B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (B_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[tensorized_matmul_b_sub_stride, 1]] + (B_elem_offset)),
                 )
                 C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (C_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[tensorized_matmul_c_sub_stride, 1]] + (C_elem_offset)),
                 )
                 A_sub_pattern = T.meta_var(match_shape_stride_pattern(A_sub.ty))
                 B_sub_pattern = T.meta_var(match_shape_stride_pattern(B_sub.ty))
@@ -266,6 +300,10 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
+tensorized_batch_matmul_mma_a_sub_stride = T.dynamic("tensorized_batch_matmul_mma_a_sub_stride", "int32")
+tensorized_batch_matmul_mma_b_sub_stride = T.dynamic("tensorized_batch_matmul_mma_b_sub_stride", "int32")
+tensorized_batch_matmul_mma_c_sub_stride = T.dynamic("tensorized_batch_matmul_mma_c_sub_stride", "int32")
+
 @Ts.function
 def tensorized_batch_matmul_mma(
     A: T.Tensor((16, 128, 128), "float32"),
@@ -291,17 +329,17 @@ def tensorized_batch_matmul_mma(
                 A_sub = Ts.match_tensor(
                     A[vn : vn + 1, vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
-                    layout=T.TileLayout(T.S[(16, 16):[T.int32(), 1]] + (A_elem_offset)),
+                    layout=T.TileLayout(T.S[(16, 16):[tensorized_batch_matmul_mma_a_sub_stride, 1]] + (A_elem_offset)),
                 )
                 B_sub = Ts.match_tensor(
                     B[vn : vn + 1, vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     (16, 16),
-                    layout=T.TileLayout(T.S[(16, 16):[T.int32(), 1]] + (B_elem_offset)),
+                    layout=T.TileLayout(T.S[(16, 16):[tensorized_batch_matmul_mma_b_sub_stride, 1]] + (B_elem_offset)),
                 )
                 C_sub = Ts.match_tensor(
                     C[vn : vn + 1, vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     (16, 16),
-                    layout=T.TileLayout(T.S[(16, 16):[T.int32(), 1]] + (C_elem_offset)),
+                    layout=T.TileLayout(T.S[(16, 16):[tensorized_batch_matmul_mma_c_sub_stride, 1]] + (C_elem_offset)),
                 )
                 A_sub_pattern = T.meta_var(match_shape_stride_pattern(A_sub.ty))
                 B_sub_pattern = T.meta_var(match_shape_stride_pattern(B_sub.ty))
@@ -319,6 +357,10 @@ def tensorized_batch_matmul_mma(
 
                     )
                 )
+
+tensorized_batch_matmul_dot_product_a_1_offset = T.dynamic("tensorized_batch_matmul_dot_product_a_1_offset", "int32")
+tensorized_batch_matmul_dot_product_b_1_offset = T.dynamic("tensorized_batch_matmul_dot_product_b_1_offset", "int32")
+tensorized_batch_matmul_dot_product_c_1_offset = T.dynamic("tensorized_batch_matmul_dot_product_c_1_offset", "int32")
 
 @Ts.function
 def tensorized_batch_matmul_dot_product(
@@ -340,12 +382,12 @@ def tensorized_batch_matmul_dot_product(
             )
             Ts.writes(C[vn, vi, vj])
             A_1 = Ts.match_tensor(
-                A[vn, vi, vko * 4 : vko * 4 + 4], [4], dtype="float32", layout=T.TileLayout(T.S[[4]] + (T.int32()))
+                A[vn, vi, vko * 4 : vko * 4 + 4], [4], dtype="float32", layout=T.TileLayout(T.S[[4]] + (tensorized_batch_matmul_dot_product_a_1_offset))
             )
             B_1 = Ts.match_tensor(
-                B[vn, vj, vko * 4 : vko * 4 + 4], [4], dtype="float32", layout=T.TileLayout(T.S[[4]] + (T.int32()))
+                B[vn, vj, vko * 4 : vko * 4 + 4], [4], dtype="float32", layout=T.TileLayout(T.S[[4]] + (tensorized_batch_matmul_dot_product_b_1_offset))
             )
-            C_1 = Ts.match_tensor(C[vn, vi, vj], [], dtype="float32", layout=T.TileLayout(T.S[[]] + (T.int32())))
+            C_1 = Ts.match_tensor(C[vn, vi, vj], [], dtype="float32", layout=T.TileLayout(T.S[[]] + (tensorized_batch_matmul_dot_product_c_1_offset)))
             A_1_pattern = T.meta_var(match_shape_stride_pattern(A_1.ty))
             B_1_pattern = T.meta_var(match_shape_stride_pattern(B_1.ty))
             C_1_pattern = T.meta_var(match_shape_stride_pattern(C_1.ty))
@@ -361,6 +403,13 @@ def tensorized_batch_matmul_dot_product(
                     ty="int32",
                 )
             )
+
+tensorized_batch_matmul_outer_product_a_1_stride = T.dynamic("tensorized_batch_matmul_outer_product_a_1_stride", "int32")
+tensorized_batch_matmul_outer_product_a_1_offset = T.dynamic("tensorized_batch_matmul_outer_product_a_1_offset", "int32")
+tensorized_batch_matmul_outer_product_b_1_stride = T.dynamic("tensorized_batch_matmul_outer_product_b_1_stride", "int32")
+tensorized_batch_matmul_outer_product_b_1_offset = T.dynamic("tensorized_batch_matmul_outer_product_b_1_offset", "int32")
+tensorized_batch_matmul_outer_product_c_1_stride = T.dynamic("tensorized_batch_matmul_outer_product_c_1_stride", "int32")
+tensorized_batch_matmul_outer_product_c_1_offset = T.dynamic("tensorized_batch_matmul_outer_product_c_1_offset", "int32")
 
 @Ts.function
 def tensorized_batch_matmul_outer_product(
@@ -383,11 +432,11 @@ def tensorized_batch_matmul_outer_product(
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
             Ts.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], layout=T.TileLayout(T.S[[16, 1]:[T.int32(), 1]] + (T.int32())), dtype="float32")
-            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], layout=T.TileLayout(T.S[[16, 1]:[T.int32(), 1]] + (T.int32())), dtype="float32"
+            A_1 = Ts.match_tensor(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], layout=T.TileLayout(T.S[[16, 1]:[tensorized_batch_matmul_outer_product_a_1_stride, 1]] + (tensorized_batch_matmul_outer_product_a_1_offset)), dtype="float32")
+            B_1 = Ts.match_tensor(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], layout=T.TileLayout(T.S[[16, 1]:[tensorized_batch_matmul_outer_product_b_1_stride, 1]] + (tensorized_batch_matmul_outer_product_b_1_offset)), dtype="float32"
             )
             C_1 = Ts.match_tensor(
-                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (T.int32())), dtype="float32"
+                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], layout=T.TileLayout(T.S[[16, 16]:[tensorized_batch_matmul_outer_product_c_1_stride, 1]] + (tensorized_batch_matmul_outer_product_c_1_offset)), dtype="float32"
             )
             A_1_pattern = T.meta_var(match_shape_stride_pattern(A_1.ty))
             B_1_pattern = T.meta_var(match_shape_stride_pattern(B_1.ty))
@@ -398,8 +447,12 @@ def tensorized_batch_matmul_outer_product(
                 )
             )
 
+annotated_mma_desc_a_offset = T.dynamic("annotated_mma_desc_a_offset", "int32")
+annotated_mma_desc_b_offset = T.dynamic("annotated_mma_desc_b_offset", "int32")
+annotated_mma_desc_c_offset = T.dynamic("annotated_mma_desc_c_offset", "int32")
+
 @Ts.function
-def annotated_mma_desc(A: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))), B: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32()))), C: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (T.int32())))) -> None:
+def annotated_mma_desc(A: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (annotated_mma_desc_a_offset))), B: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (annotated_mma_desc_b_offset))), C: T.Tensor((16, 16), "float32", align=64,  layout=T.TileLayout(T.S[(16, 16)] + (annotated_mma_desc_c_offset)))) -> None:
 
     with Ts.sblock("root"):
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -428,6 +481,10 @@ A_elem_offset = T.dynamic("A_elem_offset", "int32")
 B_elem_offset = T.dynamic("B_elem_offset", "int32")
 C_elem_offset = T.dynamic("C_elem_offset", "int32")
 
+annotated_tensorized_matmul_a_sub_stride = T.dynamic("annotated_tensorized_matmul_a_sub_stride", "int32")
+annotated_tensorized_matmul_b_sub_stride = T.dynamic("annotated_tensorized_matmul_b_sub_stride", "int32")
+annotated_tensorized_matmul_c_sub_stride = T.dynamic("annotated_tensorized_matmul_c_sub_stride", "int32")
+
 @Ts.function
 def annotated_tensorized_matmul(A: T.Tensor([128, 128], "float32",  align=64), B: T.Tensor([128, 128], "float32",  align=64), C: T.Tensor([128, 128], "float32",  align=64)) -> None:
 
@@ -452,17 +509,17 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], "float32",  align=64), B
                 A_sub = Ts.match_tensor(
                     A[vi * 16 : vi * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (A_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[annotated_tensorized_matmul_a_sub_stride, 1]] + (A_elem_offset)),
                 )
                 B_sub = Ts.match_tensor(
                     B[vj * 16 : vj * 16 + 16, vk * 16 : vk * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (B_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[annotated_tensorized_matmul_b_sub_stride, 1]] + (B_elem_offset)),
                 )
                 C_sub = Ts.match_tensor(
                     C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16],
                     [16, 16],
-                    layout=T.TileLayout(T.S[[16, 16]:[T.int32(), 1]] + (C_elem_offset)),
+                    layout=T.TileLayout(T.S[[16, 16]:[annotated_tensorized_matmul_c_sub_stride, 1]] + (C_elem_offset)),
                 )
                 A_sub_pattern = T.meta_var(match_shape_stride_pattern(A_sub.ty))
                 B_sub_pattern = T.meta_var(match_shape_stride_pattern(B_sub.ty))
@@ -751,6 +808,10 @@ def test_tensorize_matmul_mixed_dtype():
     B_elem_offset = T.dynamic("B_elem_offset", "int64")
     C_elem_offset = T.dynamic("C_elem_offset", "int64")
 
+    tensorized_matmul_int64_shape_a_sub_stride = T.dynamic("tensorized_matmul_int64_shape_a_sub_stride", "int64")
+    tensorized_matmul_int64_shape_b_sub_stride = T.dynamic("tensorized_matmul_int64_shape_b_sub_stride", "int64")
+    tensorized_matmul_int64_shape_c_sub_stride = T.dynamic("tensorized_matmul_int64_shape_c_sub_stride", "int64")
+
     @Ts.function
     def tensorized_matmul_int64_shape(
         A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -777,17 +838,17 @@ def test_tensorize_matmul_mixed_dtype():
                     A_sub = Ts.match_tensor(
                         A[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[T.int64(), T.int64(1)]] + (A_elem_offset)),
+                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[tensorized_matmul_int64_shape_a_sub_stride, T.int64(1)]] + (A_elem_offset)),
                     )
                     B_sub = Ts.match_tensor(
                         B[vj * T.int64(16) : vj * T.int64(16) + T.int64(16), vk * T.int64(16) : vk * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[T.int64(), T.int64(1)]] + (B_elem_offset)),
+                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[tensorized_matmul_int64_shape_b_sub_stride, T.int64(1)]] + (B_elem_offset)),
                     )
                     C_sub = Ts.match_tensor(
                         C[vi * T.int64(16) : vi * T.int64(16) + T.int64(16), vj * T.int64(16) : vj * T.int64(16) + T.int64(16)],
                         [T.int64(16), T.int64(16)],
-                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[T.int64(), T.int64(1)]] + (C_elem_offset)),
+                        layout=T.TileLayout(T.S[[T.int64(16), T.int64(16)]:[tensorized_matmul_int64_shape_c_sub_stride, T.int64(1)]] + (C_elem_offset)),
                     )
                     A_sub_pattern = T.meta_var(match_shape_stride_pattern(A_sub.ty))
                     B_sub_pattern = T.meta_var(match_shape_stride_pattern(B_sub.ty))

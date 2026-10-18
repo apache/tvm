@@ -39,16 +39,21 @@ from .dot_product_common import get_dp4a_intrin
 lift = tvm_ffi.convert
 
 
+sdot4_a_offset = T.dynamic("sdot4_a_offset", "int32")
+sdot4_b_offset = T.dynamic("sdot4_b_offset", "int32")
+sdot4_c_offset = T.dynamic("sdot4_c_offset", "int32")
+
+
 @Ts.function
 def sdot4(
     A: T.Tensor(
-        (4,), "int8", layout=T.TileLayout(T.S[(4,)] + (T.int32())), align=4, scope="shared"
+        (4,), "int8", layout=T.TileLayout(T.S[(4,)] + (sdot4_a_offset)), align=4, scope="shared"
     ),
     B: T.Tensor(
-        (4,), "int8", layout=T.TileLayout(T.S[(4,)] + (T.int32())), align=4, scope="shared"
+        (4,), "int8", layout=T.TileLayout(T.S[(4,)] + (sdot4_b_offset)), align=4, scope="shared"
     ),
     C: T.Tensor(
-        (1,), "int32", layout=T.TileLayout(T.S[(1,)] + (T.int32())), align=4, scope="local"
+        (1,), "int32", layout=T.TileLayout(T.S[(1,)] + (sdot4_c_offset)), align=4, scope="local"
     ),
 ) -> None:
     with Ts.sblock("root"):
@@ -154,13 +159,15 @@ def get_mma_fill_intrin(dtype, local_size):
                     Ts.writes(C_warp[warp_indices[0], warp_indices[1]])
                     C_warp[warp_indices[0], warp_indices[1]] = zero
 
+    mma_fill_impl_c_warp_offset = T.dynamic("mma_fill_impl_c_warp_offset", "int32")
+
     @Ts.function
     def mma_fill_impl(
         C_warp: T.Tensor(
             [1, local_size],
             dtype=dtype,
             scope="local",
-            layout=T.TileLayout(T.S[[1, local_size]] + (T.int32())),
+            layout=T.TileLayout(T.S[[1, local_size]] + (mma_fill_impl_c_warp_offset)),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -219,16 +226,22 @@ def get_mfma_load_intrin(
     else:
         raise ValueError("k_dim must be 4 or 16 currently")
 
+    mfma_load_desc_reg_offset = T.dynamic("mfma_load_desc_reg_offset", "int32")
+    mfma_load_desc_memory_offset = T.dynamic("mfma_load_desc_memory_offset", "int32")
+
     @Ts.function
     def mfma_load_desc(
         reg: T.Tensor(
             (WARP_SIZE, local_size),
             dtype,
-            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (mfma_load_desc_reg_offset)),
             scope="local",
         ),
         memory: T.Tensor(
-            memory_shape, dtype, layout=T.TileLayout(T.S[memory_shape] + (T.int32())), scope=scope
+            memory_shape,
+            dtype,
+            layout=T.TileLayout(T.S[memory_shape] + (mfma_load_desc_memory_offset)),
+            scope=scope,
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -247,13 +260,16 @@ def get_mfma_load_intrin(
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
 
+    mfma_load_impl_reg_offset = T.dynamic("mfma_load_impl_reg_offset", "int32")
+    mfma_load_impl_memory_offset = T.dynamic("mfma_load_impl_memory_offset", "int32")
+
     @Ts.function
     def mfma_load_impl(
         reg: T.Tensor(
             (1, local_size),
             dtype,
             align=64,
-            layout=T.TileLayout(T.S[(1, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size)] + (mfma_load_impl_reg_offset)),
             scope="local",
         ),
         memory: T.Tensor(
@@ -261,7 +277,7 @@ def get_mfma_load_intrin(
             dtype,
             align=64,
             scope=scope,
-            layout=T.TileLayout(T.S[memory_shape : [s0, s1]] + (T.int32())),
+            layout=T.TileLayout(T.S[memory_shape : [s0, s1]] + (mfma_load_impl_memory_offset)),
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -305,24 +321,28 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             return j, i
         return i, j
 
+    mfma_sync_desc_a_offset = T.dynamic("mfma_sync_desc_a_offset", "int32")
+    mfma_sync_desc_b_offset = T.dynamic("mfma_sync_desc_b_offset", "int32")
+    mfma_sync_desc_c_offset = T.dynamic("mfma_sync_desc_c_offset", "int32")
+
     @Ts.function
     def mfma_sync_desc(
         A: T.Tensor(
             (WARP_SIZE, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (mfma_sync_desc_a_offset)),
             scope="local",
         ),
         B: T.Tensor(
             (WARP_SIZE, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(WARP_SIZE, local_size)] + (mfma_sync_desc_b_offset)),
             scope="local",
         ),
         C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
-            layout=T.TileLayout(T.S[(WARP_SIZE, local_size_out)] + (T.int32())),
+            layout=T.TileLayout(T.S[(WARP_SIZE, local_size_out)] + (mfma_sync_desc_c_offset)),
             scope="local",
         ),
     ) -> None:
@@ -354,24 +374,28 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                         A[a_warp_indices[0], a_warp_indices[1]]
                     ) * maybe_cast(B[b_warp_indices[0], b_warp_indices[1]])
 
+    mfma_sync_impl_float_a_offset = T.dynamic("mfma_sync_impl_float_a_offset", "int32")
+    mfma_sync_impl_float_b_offset = T.dynamic("mfma_sync_impl_float_b_offset", "int32")
+    mfma_sync_impl_float_c_offset = T.dynamic("mfma_sync_impl_float_c_offset", "int32")
+
     @Ts.function
     def mfma_sync_impl_float(
         A: T.Tensor(
             (1, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(1, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size)] + (mfma_sync_impl_float_a_offset)),
             scope="local",
         ),
         B: T.Tensor(
             (1, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(1, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size)] + (mfma_sync_impl_float_b_offset)),
             scope="local",
         ),
         C: T.Tensor(
             (1, local_size_out),
             out_dtype,
-            layout=T.TileLayout(T.S[(1, local_size_out)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size_out)] + (mfma_sync_impl_float_c_offset)),
             scope="local",
         ),
     ) -> None:
@@ -394,24 +418,28 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 ty=f"{out_dtype}x4",
             )
 
+    mfma_sync_impl_integer_a_offset = T.dynamic("mfma_sync_impl_integer_a_offset", "int32")
+    mfma_sync_impl_integer_b_offset = T.dynamic("mfma_sync_impl_integer_b_offset", "int32")
+    mfma_sync_impl_integer_c_offset = T.dynamic("mfma_sync_impl_integer_c_offset", "int32")
+
     @Ts.function
     def mfma_sync_impl_integer(
         A: T.Tensor(
             (1, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(1, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size)] + (mfma_sync_impl_integer_a_offset)),
             scope="local",
         ),
         B: T.Tensor(
             (1, local_size),
             in_dtype,
-            layout=T.TileLayout(T.S[(1, local_size)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size)] + (mfma_sync_impl_integer_b_offset)),
             scope="local",
         ),
         C: T.Tensor(
             (1, local_size_out),
             out_dtype,
-            layout=T.TileLayout(T.S[(1, local_size_out)] + (T.int32())),
+            layout=T.TileLayout(T.S[(1, local_size_out)] + (mfma_sync_impl_integer_c_offset)),
             scope="local",
         ),
     ) -> None:
@@ -472,19 +500,22 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
 
+    mfma_store_impl_c_warp_offset = T.dynamic("mfma_store_impl_c_warp_offset", "int32")
+    mfma_store_impl_c_offset = T.dynamic("mfma_store_impl_c_offset", "int32")
+
     @Ts.function
     def mfma_store_impl(
         C_warp: T.Tensor(
             [1, local_size],
             dtype=dtype,
             scope="local",
-            layout=T.TileLayout(T.S[[1, local_size]] + (T.int32())),
+            layout=T.TileLayout(T.S[[1, local_size]] + (mfma_store_impl_c_warp_offset)),
         ),
         C: T.Tensor(
             [M_DIM, N_DIM],
             dtype=dtype,
             scope=scope,
-            layout=T.TileLayout(T.S[[M_DIM, N_DIM] : [s0, s1]] + (T.int32())),
+            layout=T.TileLayout(T.S[[M_DIM, N_DIM] : [s0, s1]] + (mfma_store_impl_c_offset)),
         ),
     ) -> None:
         with Ts.sblock("root"):

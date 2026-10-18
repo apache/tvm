@@ -26,11 +26,30 @@ from .. import TensorIntrin
 # Equivalent to the ones in topi/x86/tensor_intrin.py
 
 
+dot_product_16x4_u8i8i32_desc_a_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_desc_a_offset", "int32"
+)
+dot_product_16x4_u8i8i32_desc_b_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_desc_b_offset", "int32"
+)
+dot_product_16x4_u8i8i32_desc_c_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_desc_c_offset", "int32"
+)
+
+
 @Ts.function
 def dot_product_16x4_u8i8i32_desc(
-    A: T.Tensor((4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-    B: T.Tensor((16, 4), "int8", layout=T.TileLayout(T.S[(16, 4)] + (T.int32()))),
-    C: T.Tensor((16,), "int32", layout=T.TileLayout(T.S[(16,)] + (T.int32()))),
+    A: T.Tensor(
+        (4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (dot_product_16x4_u8i8i32_desc_a_offset))
+    ),
+    B: T.Tensor(
+        (16, 4),
+        "int8",
+        layout=T.TileLayout(T.S[(16, 4)] + (dot_product_16x4_u8i8i32_desc_b_offset)),
+    ),
+    C: T.Tensor(
+        (16,), "int32", layout=T.TileLayout(T.S[(16,)] + (dot_product_16x4_u8i8i32_desc_c_offset))
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])
@@ -42,11 +61,30 @@ def dot_product_16x4_u8i8i32_desc(
                     C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
 
+dot_product_16x4_u8i8i32_vnni_a_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_vnni_a_offset", "int32"
+)
+dot_product_16x4_u8i8i32_vnni_b_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_vnni_b_offset", "int32"
+)
+dot_product_16x4_u8i8i32_vnni_c_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_vnni_c_offset", "int32"
+)
+
+
 @Ts.function
 def dot_product_16x4_u8i8i32_vnni(
-    A: T.Tensor((4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-    B: T.Tensor((16, 4), "int8", layout=T.TileLayout(T.S[(16, 4)] + (T.int32()))),
-    C: T.Tensor((16,), "int32", layout=T.TileLayout(T.S[(16,)] + (T.int32()))),
+    A: T.Tensor(
+        (4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (dot_product_16x4_u8i8i32_vnni_a_offset))
+    ),
+    B: T.Tensor(
+        (16, 4),
+        "int8",
+        layout=T.TileLayout(T.S[(16, 4)] + (dot_product_16x4_u8i8i32_vnni_b_offset)),
+    ),
+    C: T.Tensor(
+        (16,), "int32", layout=T.TileLayout(T.S[(16,)] + (dot_product_16x4_u8i8i32_vnni_c_offset))
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])
@@ -68,11 +106,30 @@ def dot_product_16x4_u8i8i32_vnni(
         )
 
 
+dot_product_16x4_u8i8i32_avx512_a_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_avx512_a_offset", "int32"
+)
+dot_product_16x4_u8i8i32_avx512_b_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_avx512_b_offset", "int32"
+)
+dot_product_16x4_u8i8i32_avx512_c_offset = T.dynamic(
+    "dot_product_16x4_u8i8i32_avx512_c_offset", "int32"
+)
+
+
 @Ts.function
 def dot_product_16x4_u8i8i32_avx512(
-    A: T.Tensor((4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (T.int32()))),
-    B: T.Tensor((16, 4), "int8", layout=T.TileLayout(T.S[(16, 4)] + (T.int32()))),
-    C: T.Tensor((16,), "int32", layout=T.TileLayout(T.S[(16,)] + (T.int32()))),
+    A: T.Tensor(
+        (4,), "uint8", layout=T.TileLayout(T.S[(4,)] + (dot_product_16x4_u8i8i32_avx512_a_offset))
+    ),
+    B: T.Tensor(
+        (16, 4),
+        "int8",
+        layout=T.TileLayout(T.S[(16, 4)] + (dot_product_16x4_u8i8i32_avx512_b_offset)),
+    ),
+    C: T.Tensor(
+        (16,), "int32", layout=T.TileLayout(T.S[(16,)] + (dot_product_16x4_u8i8i32_avx512_c_offset))
+    ),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads(C[0:16], A[0:4], B[0:16, 0:4])

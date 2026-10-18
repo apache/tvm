@@ -436,6 +436,10 @@ s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
 
 
+transformedsharedtowmma_src_offset = T.dynamic("transformedsharedtowmma_src_offset", "int32")
+transformedsharedtowmma_tgt_offset = T.dynamic("transformedsharedtowmma_tgt_offset", "int32")
+
+
 @tvm_tirx.script.ir_module
 class TransformedSharedToWmma:
     @Ts.function
@@ -482,7 +486,8 @@ class TransformedSharedToWmma:
                                             [16, 16],
                                             dtype="float16",
                                             layout=T.TileLayout(
-                                                T.S[[16, 16] : [s1, s0]] + ((16) * T.int32())
+                                                T.S[[16, 16] : [s1, s0]]
+                                                + ((16) * transformedsharedtowmma_src_offset)
                                             ),
                                             scope="shared.dyn",
                                         )
@@ -494,7 +499,10 @@ class TransformedSharedToWmma:
                                             [16, 16],
                                             dtype="float16",
                                             scope="wmma.matrix_a",
-                                            layout=T.TileLayout(T.S[[16, 16]] + ((16) * T.int32())),
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16]]
+                                                + ((16) * transformedsharedtowmma_tgt_offset)
+                                            ),
                                         )
                                         tgt_pattern = T.meta_var(match_shape_stride_pattern(tgt.ty))
                                         T.evaluate(
@@ -514,6 +522,10 @@ class TransformedSharedToWmma:
 
 s0 = T.dynamic("s0", "int32")
 s1 = T.dynamic("s1", "int32")
+
+
+transformedwmmatoshared_src_offset = T.dynamic("transformedwmmatoshared_src_offset", "int32")
+transformedwmmatoshared_tgt_offset = T.dynamic("transformedwmmatoshared_tgt_offset", "int32")
 
 
 @tvm_tirx.script.ir_module
@@ -562,7 +574,10 @@ class TransformedWmmaToShared:
                                             [16, 16],
                                             dtype="float32",
                                             scope="wmma.accumulator",
-                                            layout=T.TileLayout(T.S[[16, 16]] + ((16) * T.int32())),
+                                            layout=T.TileLayout(
+                                                T.S[[16, 16]]
+                                                + ((16) * transformedwmmatoshared_src_offset)
+                                            ),
                                         )
                                         tgt = Ts.match_tensor(
                                             C_shared[
@@ -572,7 +587,8 @@ class TransformedWmmaToShared:
                                             [16, 16],
                                             dtype="float32",
                                             layout=T.TileLayout(
-                                                T.S[[16, 16] : [s1, s0]] + ((16) * T.int32())
+                                                T.S[[16, 16] : [s1, s0]]
+                                                + ((16) * transformedwmmatoshared_tgt_offset)
                                             ),
                                             scope="shared.dyn",
                                         )
@@ -594,6 +610,10 @@ class TransformedWmmaToShared:
 
 s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
+
+
+transformedwmmatoglobal_src_offset = T.dynamic("transformedwmmatoglobal_src_offset", "int32")
+transformedwmmatoglobal_tgt_offset = T.dynamic("transformedwmmatoglobal_tgt_offset", "int32")
 
 
 @tvm_tirx.script.ir_module
@@ -636,14 +656,16 @@ class TransformedWmmaToGlobal:
                                                 (16, 16),
                                                 scope="wmma.accumulator",
                                                 layout=T.TileLayout(
-                                                    T.S[(16, 16)] + ((16) * T.int32())
+                                                    T.S[(16, 16)]
+                                                    + ((16) * transformedwmmatoglobal_src_offset)
                                                 ),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 layout=T.TileLayout(
-                                                    T.S[(16, 16) : (s1, s0)] + ((16) * T.int32())
+                                                    T.S[(16, 16) : (s1, s0)]
+                                                    + ((16) * transformedwmmatoglobal_tgt_offset)
                                                 ),
                                                 scope="shared.dyn",
                                             )
@@ -803,6 +825,14 @@ s1_1 = T.dynamic("s1_1", "int32")
 s0_1 = T.dynamic("s0_1", "int32")
 
 
+transformedwmmatoglobalwithfusion_src_offset = T.dynamic(
+    "transformedwmmatoglobalwithfusion_src_offset", "int32"
+)
+transformedwmmatoglobalwithfusion_tgt_offset = T.dynamic(
+    "transformedwmmatoglobalwithfusion_tgt_offset", "int32"
+)
+
+
 @tvm_tirx.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
     @Ts.function
@@ -846,7 +876,11 @@ class TransformedWmmaToGlobalWithFusion:
                                                 (16, 16),
                                                 scope="wmma.accumulator",
                                                 layout=T.TileLayout(
-                                                    T.S[(16, 16)] + ((16) * T.int32())
+                                                    T.S[(16, 16)]
+                                                    + (
+                                                        (16)
+                                                        * transformedwmmatoglobalwithfusion_src_offset
+                                                    )
                                                 ),
                                             )
                                             tgt = Ts.match_tensor(
@@ -854,7 +888,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                 (16, 16),
                                                 layout=T.TileLayout(
                                                     T.S[(16, 16) : (s1_1, s0_1)]
-                                                    + ((16) * T.int32())
+                                                    + (
+                                                        (16)
+                                                        * transformedwmmatoglobalwithfusion_tgt_offset
+                                                    )
                                                 ),
                                                 scope="shared.dyn",
                                             )
@@ -1035,6 +1072,10 @@ s1 = T.dynamic("s1", "int32")
 s0 = T.dynamic("s0", "int32")
 
 
+transformedmmatoglobal_src_offset = T.dynamic("transformedmmatoglobal_src_offset", "int32")
+transformedmmatoglobal_tgt_offset = T.dynamic("transformedmmatoglobal_tgt_offset", "int32")
+
+
 @tvm_tirx.script.ir_module
 class TransformedMmaToGlobal:
     @Ts.function
@@ -1075,14 +1116,16 @@ class TransformedMmaToGlobal:
                                                 (8, 8),
                                                 scope="mma.matrixC",
                                                 layout=T.TileLayout(
-                                                    T.S[(8, 8)] + ((8) * T.int32())
+                                                    T.S[(8, 8)]
+                                                    + ((8) * transformedmmatoglobal_src_offset)
                                                 ),
                                             )
                                             tgt = Ts.match_tensor(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
                                                 layout=T.TileLayout(
-                                                    T.S[(8, 8) : (s1, s0)] + ((8) * T.int32())
+                                                    T.S[(8, 8) : (s1, s0)]
+                                                    + ((8) * transformedmmatoglobal_tgt_offset)
                                                 ),
                                                 scope="shared.dyn",
                                             )

@@ -796,6 +796,17 @@ def lowered_reduction_spatial_loop_predicate(
                     B[vi] = cross_thread_B[0]
 
 
+single_reduction_loop_with_tensorize_a_offset = T.dynamic(
+    "single_reduction_loop_with_tensorize_a_offset", "int32"
+)
+single_reduction_loop_with_tensorize_b_offset = T.dynamic(
+    "single_reduction_loop_with_tensorize_b_offset", "int32"
+)
+single_reduction_loop_with_tensorize_c_offset = T.dynamic(
+    "single_reduction_loop_with_tensorize_c_offset", "int32"
+)
+
+
 @Ts.function
 def single_reduction_loop_with_tensorize(
     input_A: T.Tensor((1, 64, 7, 7, 32), "uint8"),
@@ -837,19 +848,23 @@ def single_reduction_loop_with_tensorize(
                     input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
                     [4],
                     dtype="uint8",
-                    layout=T.TileLayout(T.S[[4]] + (T.int32())),
+                    layout=T.TileLayout(T.S[[4]] + (single_reduction_loop_with_tensorize_a_offset)),
                 )
                 B = Ts.match_tensor(
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                     [32, 4],
                     dtype="int8",
-                    layout=T.TileLayout(T.S[[32, 4]] + (T.int32())),
+                    layout=T.TileLayout(
+                        T.S[[32, 4]] + (single_reduction_loop_with_tensorize_b_offset)
+                    ),
                 )
                 C = Ts.match_tensor(
                     output[n, oc_chunk, oh, ow, 0:32],
                     [32],
                     dtype="int32",
-                    layout=T.TileLayout(T.S[[32]] + (T.int32())),
+                    layout=T.TileLayout(
+                        T.S[[32]] + (single_reduction_loop_with_tensorize_c_offset)
+                    ),
                 )
                 A_u8x4: T.uint8x4 = A[T.ramp(0, 1, 4)]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, ty="int32")
@@ -858,6 +873,17 @@ def single_reduction_loop_with_tensorize(
                 C[T.ramp(0, 1, 32)] = T.call_llvm_pure_intrin(
                     4217, C[T.ramp(0, 1, 32)], T.broadcast(A_i32, 32), B_i32x32, ty="int32x32"
                 )
+
+
+nested_reduction_loop_with_inner_match_tensors_a_offset = T.dynamic(
+    "nested_reduction_loop_with_inner_match_tensors_a_offset", "int32"
+)
+nested_reduction_loop_with_inner_match_tensors_b_offset = T.dynamic(
+    "nested_reduction_loop_with_inner_match_tensors_b_offset", "int32"
+)
+nested_reduction_loop_with_inner_match_tensors_c_offset = T.dynamic(
+    "nested_reduction_loop_with_inner_match_tensors_c_offset", "int32"
+)
 
 
 @Ts.function
@@ -894,19 +920,25 @@ def nested_reduction_loop_with_inner_match_tensors(
                             in0[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            layout=T.TileLayout(T.S[[4]] + (T.int32())),
+                            layout=T.TileLayout(
+                                T.S[[4]] + (nested_reduction_loop_with_inner_match_tensors_a_offset)
+                            ),
                         )
                         B = Ts.match_tensor(
                             in1[yi, yi * 4 + xr : yi * 4 + xr + 4],
                             [4],
                             dtype="int8",
-                            layout=T.TileLayout(T.S[[4]] + (T.int32())),
+                            layout=T.TileLayout(
+                                T.S[[4]] + (nested_reduction_loop_with_inner_match_tensors_b_offset)
+                            ),
                         )
                         C = Ts.match_tensor(
                             out[yi, xr],
                             [1],
                             dtype="int32",
-                            layout=T.TileLayout(T.S[[1]] + (T.int32())),
+                            layout=T.TileLayout(
+                                T.S[[1]] + (nested_reduction_loop_with_inner_match_tensors_c_offset)
+                            ),
                         )
                         A_i8x4: T.int8x4 = A[T.ramp(0, 1, 4)]
                         A_i32: T.int32 = T.reinterpret(A_i8x4, ty="int32")

@@ -455,6 +455,17 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     C_s0_3 = T.dynamic("C_s0_3", "int32")
     C_s1_3 = T.dynamic("C_s1_3", "int32")
 
+    complex_compute_c_offset = T.dynamic("complex_compute_c_offset", "int32")
+    complex_compute_a_1_offset = T.dynamic("complex_compute_a_1_offset", "int32")
+    complex_compute_c_offset_1 = T.dynamic("complex_compute_c_offset_1", "int32")
+    complex_compute_a_1_offset_1 = T.dynamic("complex_compute_a_1_offset_1", "int32")
+    complex_compute_c_offset_2 = T.dynamic("complex_compute_c_offset_2", "int32")
+    complex_compute_a_1_offset_2 = T.dynamic("complex_compute_a_1_offset_2", "int32")
+    complex_compute_b_offset = T.dynamic("complex_compute_b_offset", "int32")
+    complex_compute_c_offset_3 = T.dynamic("complex_compute_c_offset_3", "int32")
+    complex_compute_a_1_offset_3 = T.dynamic("complex_compute_a_1_offset_3", "int32")
+    complex_compute_c_offset_4 = T.dynamic("complex_compute_c_offset_4", "int32")
+
     @Ts.function
     def complex_compute(
         A: T.Tensor((2, 16, 16, 1280), "float16"),
@@ -499,7 +510,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     (16, 16),
                                     "float16",
                                     layout=T.TileLayout(
-                                        T.S[(16, 16) : (C_s0_0, C_s1_0)] + ((16) * T.int32())
+                                        T.S[(16, 16) : (C_s0_0, C_s1_0)]
+                                        + ((16) * complex_compute_c_offset)
                                     ),
                                     scope="wmma.accumulator",
                                 )
@@ -687,7 +699,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (A_s0_0, A_s1_0)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_a_1_offset)
                                             ),
                                             scope="shared.dyn",
                                         )
@@ -700,7 +712,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (C_s0_1, C_s1_1)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_c_offset_1)
                                             ),
                                             scope="wmma.matrix_a",
                                         )
@@ -743,7 +755,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (A_s0_1, A_s1_1)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_a_1_offset_1)
                                             ),
                                             scope="shared.dyn",
                                         )
@@ -756,7 +768,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (C_s0_2, C_s1_2)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_c_offset_2)
                                             ),
                                             scope="wmma.matrix_b",
                                         )
@@ -806,7 +818,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (A_s0_2, A_s1_2)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_a_1_offset_2)
                                             ),
                                             scope="wmma.matrix_a",
                                         )
@@ -818,7 +830,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             (16, 16),
                                             "float16",
                                             layout=T.TileLayout(
-                                                T.S[(16, 16) : (B_s0, B_s1)] + ((16) * T.int32())
+                                                T.S[(16, 16) : (B_s0, B_s1)]
+                                                + ((16) * complex_compute_b_offset)
                                             ),
                                             scope="wmma.matrix_b",
                                         )
@@ -831,7 +844,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             "float16",
                                             layout=T.TileLayout(
                                                 T.S[(16, 16) : (C_s0_3, C_s1_3)]
-                                                + ((16) * T.int32())
+                                                + ((16) * complex_compute_c_offset_3)
                                             ),
                                             scope="wmma.accumulator",
                                         )
@@ -871,7 +884,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     (16, 16),
                                     "float16",
                                     layout=T.TileLayout(
-                                        T.S[(16, 16) : (A_s0_3, A_s1_3)] + ((16) * T.int32())
+                                        T.S[(16, 16) : (A_s0_3, A_s1_3)]
+                                        + ((16) * complex_compute_a_1_offset_3)
                                     ),
                                     scope="wmma.accumulator",
                                 )
@@ -880,7 +894,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     (16, 16),
                                     "float16",
                                     layout=T.TileLayout(
-                                        T.S[(16, 16) : (C_s0_4, C_s1_4)] + ((16) * T.int32())
+                                        T.S[(16, 16) : (C_s0_4, C_s1_4)]
+                                        + ((16) * complex_compute_c_offset_4)
                                     ),
                                 )
                                 A_1_pattern = T.meta_var(match_shape_stride_pattern(A_1.ty))

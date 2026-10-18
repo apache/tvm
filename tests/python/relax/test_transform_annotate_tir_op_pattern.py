@@ -371,12 +371,16 @@ def test_annotate_opkind_softmax():
 
 
 def test_multiple_bufer_stores_fallback():
+    cumsummodule_rxplaceholder_offset = T.dynamic("cumsummodule_rxplaceholder_offset", "int32")
+
     @tvm_tirx.script.ir_module
     class CumsumModule:
         @Ts.function
         def cumsum(
             rxplaceholder: T.Tensor(
-                [10, 16], dtype="float32", layout=T.TileLayout(T.S[[10, 16]] + (T.int32()))
+                [10, 16],
+                dtype="float32",
+                layout=T.TileLayout(T.S[[10, 16]] + (cumsummodule_rxplaceholder_offset)),
             ),
             out_buf: T.Tensor(160, "float32"),
         ):

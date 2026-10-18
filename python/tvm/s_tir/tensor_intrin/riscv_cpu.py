@@ -73,15 +73,27 @@ def rvv_vec_dot_product_kernels(
         }
     """
 
+    rvv_vec_dot_prod_desc_a_offset = T.dynamic("rvv_vec_dot_prod_desc_a_offset", "int32")
+    rvv_vec_dot_prod_desc_b_offset = T.dynamic("rvv_vec_dot_prod_desc_b_offset", "int32")
+    rvv_vec_dot_prod_desc_c_offset = T.dynamic("rvv_vec_dot_prod_desc_c_offset", "int32")
+
     @Ts.function
     def rvv_vec_dot_prod_desc(
-        A: T.Tensor((n_elems,), data_dtype, layout=T.TileLayout(T.S[(n_elems,)] + (T.int32()))),
+        A: T.Tensor(
+            (n_elems,),
+            data_dtype,
+            layout=T.TileLayout(T.S[(n_elems,)] + (rvv_vec_dot_prod_desc_a_offset)),
+        ),
         B: T.Tensor(
             (n_lanes, n_elems),
             weight_dtype,
-            layout=T.TileLayout(T.S[(n_lanes, n_elems)] + (T.int32())),
+            layout=T.TileLayout(T.S[(n_lanes, n_elems)] + (rvv_vec_dot_prod_desc_b_offset)),
         ),
-        C: T.Tensor((n_lanes,), out_dtype, layout=T.TileLayout(T.S[(n_lanes,)] + (T.int32()))),
+        C: T.Tensor(
+            (n_lanes,),
+            out_dtype,
+            layout=T.TileLayout(T.S[(n_lanes,)] + (rvv_vec_dot_prod_desc_c_offset)),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
@@ -113,14 +125,24 @@ def rvv_vec_dot_product_kernels(
         wide_dtype += str(tvm_ffi.dtype(data_dtype).bits * 2)
 
     # fmt: off
+    rvv_vec_dot_prod_impl_a_offset = T.dynamic("rvv_vec_dot_prod_impl_a_offset", "int32")
+    rvv_vec_dot_prod_impl_b_offset = T.dynamic("rvv_vec_dot_prod_impl_b_offset", "int32")
+    rvv_vec_dot_prod_impl_c_offset = T.dynamic("rvv_vec_dot_prod_impl_c_offset", "int32")
+
     @Ts.function
     def rvv_vec_dot_prod_impl(
-        A: T.Tensor((n_elems,), data_dtype,  layout=T.TileLayout(T.S[(n_elems,)] + (T.int32()))),
+        A: T.Tensor(
+            (n_elems,), data_dtype,
+            layout=T.TileLayout(T.S[(n_elems,)] + rvv_vec_dot_prod_impl_a_offset),
+        ),
         B: T.Tensor(
             (n_lanes, n_elems), weight_dtype,
-            layout=T.TileLayout(T.S[(n_lanes, n_elems)] + T.int32()),
+            layout=T.TileLayout(T.S[(n_lanes, n_elems)] + rvv_vec_dot_prod_impl_b_offset),
         ),
-        C: T.Tensor((n_lanes,), out_dtype,  layout=T.TileLayout(T.S[(n_lanes,)] + (T.int32()))),
+        C: T.Tensor(
+            (n_lanes,), out_dtype,
+            layout=T.TileLayout(T.S[(n_lanes,)] + rvv_vec_dot_prod_impl_c_offset),
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])

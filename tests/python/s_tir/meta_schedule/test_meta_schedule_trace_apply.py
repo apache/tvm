@@ -1023,6 +1023,10 @@ class Conv2dInt8_NCHWc_target:
                 T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], ty="int32")
 
 def get_conv2d_vnni_mod(intrin_id):
+    conv2dint8_nchwc_scheduled_a_offset = T.dynamic("conv2dint8_nchwc_scheduled_a_offset", "int32")
+    conv2dint8_nchwc_scheduled_b_offset = T.dynamic("conv2dint8_nchwc_scheduled_b_offset", "int32")
+    conv2dint8_nchwc_scheduled_c_offset = T.dynamic("conv2dint8_nchwc_scheduled_c_offset", "int32")
+
     @tvm_tirx.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
         @Ts.function
@@ -1063,9 +1067,9 @@ def get_conv2d_vnni_mod(intrin_id):
                             ic_s_inner_o = Ts.axis.reduce(1, i9_0_0 + i9_0_1)
                             Ts.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
                             Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
-                            A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", layout=T.TileLayout(T.S[[4]] + (T.int32())))
-                            B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", layout=T.TileLayout(T.S[[16, 4]] + (T.int32())))
-                            C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", layout=T.TileLayout(T.S[[16]] + (T.int32())))
+                            A = Ts.match_tensor(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", layout=T.TileLayout(T.S[[4]] + (conv2dint8_nchwc_scheduled_a_offset)))
+                            B = Ts.match_tensor(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", layout=T.TileLayout(T.S[[16, 4]] + (conv2dint8_nchwc_scheduled_b_offset)))
+                            C = Ts.match_tensor(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", layout=T.TileLayout(T.S[[16]] + (conv2dint8_nchwc_scheduled_c_offset)))
                             A_u8x4 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.uint8x4, scope="local")])
                             A_u8x4[0] = A[T.ramp(0, 1, 4)]
                             A_i32 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local")])

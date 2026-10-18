@@ -32,7 +32,7 @@ from tvm_tirx.support import clang, utils
 def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     out_dtype = out_dtype or dtype
 
-    n = T.int32()
+    n = T.dynamic("n", "int32")
 
     @T.function
     def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
@@ -49,7 +49,7 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 
 
 def _binary_kernel(op, rhs_dtype="float32"):
-    n = T.int32()
+    n = T.dynamic("n", "int32")
 
     @T.function
     def kernel(
