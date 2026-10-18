@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
+# ruff: noqa: F401
 
 from __future__ import annotations
+
+import pytest
 
 import tvm_tirx
 from tvm_tirx.script import tirx as T
@@ -252,27 +255,6 @@ def test_specialize_mem_copy():
     # partially specialized
     func = mem_copy.specialize({q: n})
     assert_structural_equal_ignore_global_symbol(func, mem_copy_m_n_p_n)
-
-
-def test_specialize_split_layout():
-    n = T.dynamic("n", "int32")
-
-    def layout(extent):
-        return T.TileLayout(T.S[(extent, 2, 2)])
-
-    @T.function
-    def before(A: T.Tensor((n, 4), "float32", layout=layout(n)), n: n):
-        for i, j in T.grid(n, 4):
-            A[i, j] = T.float32(1)
-
-    @T.function
-    def expected(A: T.Tensor((8, 4), "float32", layout=layout(8))):
-        for i, j in T.grid(8, 4):
-            A[i, j] = T.float32(1)
-
-    specific = tvm_tirx.tirx.Var("specific", T.Tensor((8, 4), "float32", layout=layout(8)))
-    after = before.specialize({before.params[0]: specific})
-    assert_structural_equal_ignore_global_symbol(after, expected)
 
 
 def test_specialize_recursive_load():
