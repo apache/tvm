@@ -76,15 +76,10 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
           // Static physical geometry is already embedded in the lowered indices.
           // Retain symbolic geometry that may still define parameter variables.
           bool static_geometry = tile->replica.empty();
-          PrimExpr extent = 1;
           for (const auto& iter : tile->shard) {
             static_geometry &= iter->extent.as<IntImmNode>() && iter->stride.as<IntImmNode>();
-            extent *= iter->extent;
           }
-          PrimExpr size = 1;
-          for (const auto& dim : type->shape) size *= dim;
-          bool lower_layout = static_geometry || (IsContiguous(tensor.value().ty()) &&
-                                                  ana->CanProveEqual(extent, size));
+          bool lower_layout = static_geometry || type->HasDefaultLayout(ana);
           for (const auto& [axis, offset] : tile->offset) {
             lower_layout &= ana->CanProveEqual(offset, 0);
           }
@@ -212,11 +207,11 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
         type->shape = {ana->Simplify(mem_span)};
         type->layout = std::nullopt;
       } else {
-        flattened = FlattenedTensor(buf);
+        flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       }
     } else {
-      flattened = FlattenedTensor(buf);
+      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     if (flattened.dtype()->dtype == DLDataType{kDLBool, 8, 1}) {

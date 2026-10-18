@@ -574,6 +574,14 @@ class TileLayout(Layout):
             offset = {Axis.get(k) if isinstance(k, str) else k: v for k, v in offset.items()}
         return _ffi_api.TileLayout(shard, replica, offset or {})  # pylint: disable=no-member
 
+    def is_contiguous(self, analyzer=None) -> bool:
+        """Whether memory-only tile strides are contiguous, regardless of origin.
+
+        Replicas and non-memory axes are rejected. An optional analyzer supplies
+        existing constraints; symbolic proof is otherwise initialized lazily.
+        """
+        return _ffi_api.TileLayoutIsContiguous(self, analyzer)
+
     def is_trivial(self) -> bool:
         """Check if the layout is trivial."""
         return _ffi_api.TileLayoutIsTrivial(self)  # pylint: disable=no-member

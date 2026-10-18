@@ -30,35 +30,34 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/type.h>
 
-#include <memory>
 #include <utility>
 
 namespace tvm::tirx {
 
-bool IsContiguous(const TensorType& tensor) {
-  if (!tensor->layout.has_value()) return true;
-  const auto* tile = tensor->layout.as<TileLayoutNode>();
+bool TensorTypeNode::HasDefaultLayout(ffi::Optional<sym::Analyzer> analyzer) const {
+  if (!layout.has_value()) return true;
+  const auto* tile = layout.as<TileLayoutNode>();
   if (!tile || !tile->replica.empty()) return false;
   static const Axis memory_axis = Axis::Get("m");
-  for (const auto& [axis, offset] : tile->offset) {
-    if (axis != memory_axis) return false;
+  for (const auto& iter : tile->shard) {
+    if (iter->axis != memory_axis) return false;
   }
   prim::ExprDeepEqual deep_equal;
-  std::unique_ptr<sym::Analyzer> analyzer;
   auto equal = [&](const PrimExpr& lhs, const PrimExpr& rhs) {
     if (deep_equal(lhs, rhs)) return true;
-    if (!analyzer) analyzer = std::make_unique<sym::Analyzer>();
-    return (*analyzer)->CanProveEqual(lhs, rhs);
+    if (!analyzer.has_value()) analyzer = sym::Analyzer();
+    return analyzer.value()->CanProveEqual(lhs, rhs);
   };
-  PrimExpr stride =
-      IntImm(tile->shard.empty() ? PrimType::Int(64) : tile->shard.back()->stride.ty(), 1);
-  for (size_t i = tile->shard.size(); i > 0; --i) {
-    const auto& iter = tile->shard[i - 1];
-    if (iter->axis != memory_axis) return false;
-    if (!prim::IsOne(iter->extent) && !equal(iter->stride, stride)) return false;
-    stride = stride * iter->extent;
+  for (const auto& [axis, offset] : tile->offset) {
+    if (axis != memory_axis || !equal(offset, IntImm(offset.ty(), 0))) return false;
   }
-  return true;
+  PrimExpr extent = IntImm(DefaultIndexType(), 1);
+  for (size_t i = tile->shard.size(); i > 0; --i) extent = extent * tile->shard[i - 1]->extent;
+  PrimExpr size = IntImm(DefaultIndexType(), 1);
+  for (size_t i = shape.size(); i > 0; --i) size = size * shape[i - 1];
+  if (!equal(extent, size)) return false;
+  // Delegate last so any analyzer created above is reused by the stride proof.
+  return tile->IsContiguous(std::move(analyzer));
 }
 
 bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
@@ -172,7 +171,10 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
-  refl::GlobalDef().def("tirx.IsContiguous", IsContiguous);
+  refl::GlobalDef().def("tirx.TensorTypeHasDefaultLayout",
+                        [](const TensorType& tensor, ffi::Optional<sym::Analyzer> analyzer) {
+                          return tensor->HasDefaultLayout(std::move(analyzer));
+                        });
   refl::TypeAttrDef<TensorTypeNode>()
       .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
       .attr(ffi::type_attr::kStructuralMutate,

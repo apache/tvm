@@ -67,28 +67,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
-      bool is_default = false;
-      if (auto pattern = MatchShapeStridePattern(source.ty()); pattern.has_value()) {
-        is_default = ana->CanProveEqual(pattern.value().get<2>(), 0);
-        PrimExpr stride = 1;
-        auto strides = pattern.value().get<1>();
-        for (size_t i = source.shape().size(); i > 0; --i) {
-          is_default &= ana->CanProveEqual(strides[i - 1], stride);
-          stride *= source.shape()[i - 1];
-        }
-      } else if (IsContiguous(source.ty())) {
-        // Split compact memory tiles have the same implicit address geometry.
-        const auto* tile = source.ty()->layout.as<TileLayoutNode>();
-        PrimExpr extent = 1;
-        for (const auto& iter : tile->shard) extent *= iter->extent;
-        PrimExpr size = 1;
-        for (const auto& dim : source.shape()) size *= dim;
-        is_default = ana->CanProveEqual(extent, size);
-        for (const auto& [axis, offset] : tile->offset) {
-          is_default &= ana->CanProveEqual(offset, 0);
-        }
-      }
-      if (is_default && source.ty()->layout.has_value()) {
+      if (source.ty()->layout.has_value() && source.ty()->HasDefaultLayout(ana)) {
         auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
         type->layout = std::nullopt;
         source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
@@ -254,11 +233,11 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         type->shape = {analyzer_->Simplify(mem_span)};
         type->layout = std::nullopt;
       } else {
-        flattened = FlattenedTensor(buf);
+        flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       }
     } else {
-      flattened = FlattenedTensor(buf);
+      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     // Remap variables the pass has already rebuilt (a shape may load from

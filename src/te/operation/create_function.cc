@@ -756,7 +756,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   return body;
 }
 
-Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
+Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info,
+                              sym::AnalyzerObj* analyzer) {
   // Step 1. Check all inputs are visited before and update var_map.
   std::unordered_map<const VarNode*, Expr> var_map;
   std::unordered_map<const VarNode*, TensorVar> input_tensor_map;
@@ -786,7 +787,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       if (type->layout.has_value()) {
         auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
         type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
-        if (tirx::IsContiguous(TensorType(type))) type->layout = std::nullopt;
+        if (type->HasDefaultLayout(ffi::GetRef<sym::Analyzer>(analyzer)))
+          type->layout = std::nullopt;
       }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
@@ -891,7 +893,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     root_stmts->push_back(GenerateStmtFromCompute(compute_op.value(), info, analyzer));
   } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
-    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
+    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info, analyzer));
   } else {
     TVM_FFI_ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                           << "Only te.placeholder and te.compute are allowed for now.";

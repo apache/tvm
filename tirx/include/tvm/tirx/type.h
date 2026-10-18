@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -87,6 +88,17 @@ class TensorTypeNode : public TypeNode {
         .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
 
+  /*!
+   * \brief Whether the layout is provably equivalent to implicit row-major storage.
+   *
+   * An absent layout returns true. Explicit layouts must have zero origin and
+   * contiguous memory-only tiles covering exactly the tensor shape, without replicas.
+   * Equivalent split tiles and arbitrary strides on unit extents are accepted.
+   * Deep expression equality is tried before symbolic proof. A supplied analyzer
+   * retains its constraints; otherwise one is created only on the first proof fallback.
+   */
+  TVM_TIRX_DLL bool HasDefaultLayout(ffi::Optional<sym::Analyzer> analyzer = std::nullopt) const;
+
   /*! \return preferred index type for this tensor node */
   PrimType DefaultIndexType() const {
     return !shape.empty() ? shape[0].ty() : tvm::tirx::DefaultIndexType();
@@ -130,15 +142,6 @@ class TensorType : public Type {
     data_ = std::move(n);
   }
 };
-
-/*!
- * \brief Whether a tensor describes contiguous row-major memory, irrespective of its origin.
- *
- * An absent layout is contiguous. Tile layouts may have arbitrary strides on unit
- * extents, but no replicas or non-memory axes. Other layout forms return false.
- * Structural equality handles ordinary strides; symbolic proof is used only as a fallback.
- */
-TVM_TIRX_DLL bool IsContiguous(const TensorType& tensor);
 
 /*!
  * \brief Match a tensor's shape-aligned strided memory representation.

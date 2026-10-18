@@ -30,6 +30,7 @@
 #include <tvm/ffi/object.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/tile/thread_scope.h>
 
@@ -190,6 +191,15 @@ class TileLayoutNode : public LayoutNode {
 
   /*! \brief Get the shape of the shard */
   ffi::Array<PrimExpr> GetShardShape() const;
+
+  /*!
+   * \brief Whether the tile describes contiguous row-major memory strides.
+   *
+   * Memory-axis origins do not affect this predicate. Replicas and non-memory
+   * axes are rejected; unit extents may have arbitrary strides. Deep equality
+   * is tried first, reusing the supplied analyzer or lazily creating one for proof.
+   */
+  TVM_TIRX_DLL bool IsContiguous(ffi::Optional<sym::Analyzer> analyzer = std::nullopt) const;
 
   /*! \brief Is the layout trivial (pure memory, identical mapping) */
   bool IsTrivial() const;

@@ -33,7 +33,8 @@ namespace tirx {
 
 // A changed type requires a fresh variable. Callers bind that variable to a
 // decl_tensor over the source's physical pointer when using it as a view.
-TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
+TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor,
+                                         ffi::Optional<sym::Analyzer> analyzer = std::nullopt) {
   ffi::Array<PrimExpr> output_shape{1};
   const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
   bool explicit_strides =
@@ -44,7 +45,8 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
     for (const auto& iter : tile->shard) {
       span = span + (iter->extent - 1) * iter->stride;
     }
-    if (IsContiguous(tensor.ty())) {
+    // The flattened footprint excludes the origin, which the caller applies separately.
+    if (tile->IsContiguous(analyzer)) {
       output_shape.Set(0, PrimExpr(1));
       for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
     } else {

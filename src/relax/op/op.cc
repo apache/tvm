@@ -383,9 +383,12 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
   if (type.as<PtrTypeNode>()) return AnyType();
   if (!is_result) {
     if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
-      bool regular_contiguous =
-          tirx::IsContiguous(ffi::GetRef<tirx::TensorType>(tensor)) &&
+      bool regular =
           tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor)).has_value();
+      const auto* tile = tensor->layout.as<tirx::TileLayoutNode>();
+      // Runtime origin matching is handled separately by the native call boundary.
+      bool regular_contiguous =
+          regular && (!tensor->layout.has_value() || (tile && tile->IsContiguous()));
       TVM_FFI_CHECK(regular_contiguous, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;

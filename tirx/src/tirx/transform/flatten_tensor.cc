@@ -134,7 +134,7 @@ class TensorFlattener : public StmtExprMutatorWithAnalyzer {
 
     // buf': the storage husk. The linearized indices carry layout and
     // elem_offset, so the husk keeps neither.
-    auto flat = FlattenedTensor(fold_view);
+    auto flat = FlattenedTensor(fold_view, ffi::GetRef<sym::Analyzer>(analyzer_));
     auto type = ffi::make_object<TensorTypeNode>(*flat.ty().get());
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));

@@ -134,6 +134,15 @@ class TensorType(Type):
         "sub": lambda ty, expr: ty._sub(expr),
     }
 
+    def has_default_layout(self, analyzer=None) -> bool:
+        """Whether the layout matches implicit row-major storage with zero origin.
+
+        Equivalent split tiles are accepted when their extent covers this shape.
+        An optional analyzer supplies existing bindings and constraints; otherwise
+        symbolic analysis is initialized only when structural equality is insufficient.
+        """
+        return _ffi_api.TensorTypeHasDefaultLayout(self, analyzer)
+
     def effective_layout(self):
         """Return the explicit layout or infer a compact global layout.
 
