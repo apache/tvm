@@ -52,8 +52,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
   using StmtExprMutatorWithAnalyzer::Mutate;
   using StmtExprMutatorWithAnalyzer::Mutate_;
   static std::pair<Stmt, ffi::Array<Var>> Flatten(const Stmt& stmt, const ffi::Array<Var>& params,
-                                                  const Target& target,
-                                                  bool preserve_signature_layout) {
+                                                  const Target& target) {
     sym::Analyzer ana;
     auto storage_lower = ffi::make_object<LayoutApplier>(ana, target);
     ffi::Array<Var> new_params;
@@ -68,19 +67,31 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
+      bool is_default = false;
       if (auto pattern = MatchShapeStridePattern(source.ty()); pattern.has_value()) {
-        bool is_default = ana->CanProveEqual(pattern.value().get<2>(), 0);
+        is_default = ana->CanProveEqual(pattern.value().get<2>(), 0);
         PrimExpr stride = 1;
         auto strides = pattern.value().get<1>();
         for (size_t i = source.shape().size(); i > 0; --i) {
           is_default &= ana->CanProveEqual(strides[i - 1], stride);
           stride *= source.shape()[i - 1];
         }
-        if (is_default && !preserve_signature_layout && source.ty()->layout.has_value()) {
-          auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
-          type->layout = std::nullopt;
-          source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
+      } else if (IsContiguous(source.ty())) {
+        // Split compact memory tiles have the same implicit address geometry.
+        const auto* tile = source.ty()->layout.as<TileLayoutNode>();
+        PrimExpr extent = 1;
+        for (const auto& iter : tile->shard) extent *= iter->extent;
+        PrimExpr size = 1;
+        for (const auto& dim : source.shape()) size *= dim;
+        is_default = ana->CanProveEqual(extent, size);
+        for (const auto& [axis, offset] : tile->offset) {
+          is_default &= ana->CanProveEqual(offset, 0);
         }
+      }
+      if (is_default && source.ty()->layout.has_value()) {
+        auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
+        type->layout = std::nullopt;
+        source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
       }
       if (!flattened.same_as(source)) {
         param_flattened_tensors.emplace_back(flattened, source);
@@ -401,8 +412,7 @@ Pass LowerTensorLayouts() {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target,
-                                                 f->GetAttr(tvm::attr::kGlobalSymbol).has_value());
+    auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target);
     n->body = std::move(body);
     n->params = std::move(params);
     return f;

@@ -72,6 +72,24 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
           tensor.value().scope() == runtime::MemoryScope::Global()) {
         TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
         auto type = ffi::make_object<TensorTypeNode>(*tensor.value().ty().get());
+        if (const auto* tile = type->layout.as<TileLayoutNode>()) {
+          // Static physical geometry is already embedded in the lowered indices.
+          // Retain symbolic geometry that may still define parameter variables.
+          bool static_geometry = tile->replica.empty();
+          PrimExpr extent = 1;
+          for (const auto& iter : tile->shard) {
+            static_geometry &= iter->extent.as<IntImmNode>() && iter->stride.as<IntImmNode>();
+            extent *= iter->extent;
+          }
+          PrimExpr size = 1;
+          for (const auto& dim : type->shape) size *= dim;
+          bool lower_layout = static_geometry || (IsContiguous(tensor.value().ty()) &&
+                                                  ana->CanProveEqual(extent, size));
+          for (const auto& [axis, offset] : tile->offset) {
+            lower_layout &= ana->CanProveEqual(offset, 0);
+          }
+          if (lower_layout) type->layout = std::nullopt;
+        }
         TensorVar source =
             TensorVar(tensor.value()->name, TensorType(std::move(type)), tensor.value()->loc);
         param_flattened_tensors.emplace_back(flattened, source);
@@ -168,7 +186,6 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       flattened = buf;
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       type->shape = new_shape;
-      type->layout = std::nullopt;
       type->layout = std::nullopt;
     } else if (is_alloc) {
       if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>();
