@@ -188,54 +188,11 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     }
     TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
-    if (is_alloc) {
-      if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>()) {
-        // Allocation must cover the memory-axis span, including gaps, whether
-        // or not the layout also distributes elements across threads.
-        sym::Analyzer ana;
-        PrimExpr mem_span = IntImm::Int32(1);
-        for (const auto& iter : tile_layout->shard) {
-          if (iter->axis->IsMemoryAxis()) {
-            mem_span = mem_span + (iter->extent - 1) * iter->stride;
-          }
-        }
-        for (const auto& iter : tile_layout->replica) {
-          if (iter->axis->IsMemoryAxis()) {
-            mem_span = mem_span + (iter->extent - 1) * iter->stride;
-          }
-        }
-        for (const auto& [axis, off] : tile_layout->offset) {
-          if (axis->IsMemoryAxis()) {
-            mem_span = mem_span + off;
-          }
-        }
-        flattened = buf;
-        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
-        type->shape = {ana->Simplify(mem_span)};
-        type->layout = std::nullopt;
-      } else if (auto compose = buf.ty()->layout.as<ComposeLayoutNode>()) {
-        // A swizzle permutes addresses, so the logical element count is not
-        // the allocation footprint of a strided view. Round the underlying
-        // memory span to a block whose upper bits the swizzle cannot change.
-        // A bare swizzle applies to the full tensor, not just its atom period.
-        PrimExpr mem_span = compose->tile_layout->GetSpan(ffi::String("m"));
-        if (compose->tile_layout->IsTrivial()) {
-          mem_span = IntImm::Int32(1);
-          for (const auto& extent : buf.shape()) mem_span = mem_span * extent;
-        }
-        if (compose->swizzle_len != 0) {
-          int changed_bits = compose->per_element + compose->swizzle_len;
-          if (!compose->swizzle_inner) changed_bits += compose->atom_len;
-          PrimExpr block = IntImm(mem_span.ty(), int64_t{1} << changed_bits);
-          mem_span = floordiv(mem_span + block - 1, block) * block;
-        }
-        type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
-        type->shape = {analyzer_->Simplify(mem_span)};
-        type->layout = std::nullopt;
-      } else {
-        flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
-        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
-      }
+    if (is_alloc &&
+        (buf.ty()->layout.as<TileLayoutNode>() || buf.ty()->layout.as<ComposeLayoutNode>())) {
+      type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
+      type->shape = {TensorMemorySpan(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
+      type->layout = std::nullopt;
     } else {
       flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
@@ -253,7 +210,10 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     // Keep a regular view's origin in its flat memory layout. Allocations have
     // already included that origin in their span and use absolute indices.
     if (!is_alloc) {
-      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value()) {
+      const auto* tile = buf.ty()->layout.as<TileLayoutNode>();
+      bool nonnegative =
+          !tile || HasNonnegativeStrides(tile, ffi::GetRef<sym::Analyzer>(analyzer_));
+      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value() && nonnegative) {
         PrimExpr origin = pattern.value().get<2>();
         origin = analyzer_->canonical_simplify(
             StmtExprMutator::Mutate(ffi::AnyView(origin), InplaceMode::kDisallow)
@@ -319,6 +279,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         auto tile = layout.as_or_throw<TileLayout>();
         layout = TileLayout(tile->shard, tile->replica, {});
       }
+      layout = LayoutForTensorDomain(layout, tensor.shape(), ffi::GetRef<sym::Analyzer>(analyzer_));
       auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       if (res.empty() && tensor.shape().empty()) {
         return {IntImm(tensor.ty()->DefaultIndexType(), 0)};

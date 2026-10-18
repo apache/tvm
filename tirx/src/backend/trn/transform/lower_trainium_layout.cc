@@ -73,9 +73,13 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
         TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
         auto type = ffi::make_object<TensorTypeNode>(*tensor.value().ty().get());
         if (const auto* tile = type->layout.as<TileLayoutNode>()) {
-          // Static physical geometry is already embedded in the lowered indices.
-          // Retain symbolic geometry that may still define parameter variables.
-          bool static_geometry = tile->replica.empty();
+          // Trainium's physical axes are embedded in the lowered indices. Ordinary
+          // memory strides still define the parameter ABI, even when they are static.
+          // Retain symbolic physical geometry that may define parameter variables.
+          bool static_geometry =
+              IsTrainiumLayout(tile) && tile->replica.empty() &&
+              std::any_of(tile->shard.begin(), tile->shard.end(),
+                          [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
           for (const auto& iter : tile->shard) {
             static_geometry &= iter->extent.as<IntImmNode>() && iter->stride.as<IntImmNode>();
           }
@@ -182,36 +186,13 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       type->shape = new_shape;
       type->layout = std::nullopt;
-    } else if (is_alloc) {
-      if (auto tile_layout = buf.ty()->layout.as<TileLayoutNode>();
-          tile_layout && tile_layout->HasThreadAxis()) {
-        sym::Analyzer ana;
-        PrimExpr mem_span = IntImm::Int32(1);
-        for (const auto& iter : tile_layout->shard) {
-          if (iter->axis->IsMemoryAxis()) {
-            mem_span = mem_span + (iter->extent - 1) * iter->stride;
-          }
-        }
-        for (const auto& iter : tile_layout->replica) {
-          if (iter->axis->IsMemoryAxis()) {
-            mem_span = mem_span + (iter->extent - 1) * iter->stride;
-          }
-        }
-        for (const auto& [axis, off] : tile_layout->offset) {
-          if (axis->IsMemoryAxis()) {
-            mem_span = mem_span + off;
-          }
-        }
-        flattened = buf;
-        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
-        type->shape = {ana->Simplify(mem_span)};
-        type->layout = std::nullopt;
-      } else {
-        flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
-        type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
-      }
+    } else if (is_alloc && (buf.ty()->layout.as<TileLayoutNode>() ||
+                            buf.ty()->layout.as<ComposeLayoutNode>())) {
+      type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
+      type->shape = {TensorMemorySpan(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
+      type->layout = std::nullopt;
     } else {
-      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
+      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_), /*fold_origin=*/true);
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     if (flattened.dtype()->dtype == DLDataType{kDLBool, 8, 1}) {
@@ -296,6 +277,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
+      layout = LayoutForTensorDomain(layout, tensor.shape(), ffi::GetRef<sym::Analyzer>(analyzer_));
       auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};

@@ -16,12 +16,14 @@
 # under the License.
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 from tvm_tirx.tirx.transform import FlattenTensor
 
 
@@ -516,7 +518,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             base = T.alloc_shared([128], "uint64", layout=None)
             mbar = T.decl_tensor(
                 base.data,
-                ty_args=[T.Tensor((1,), "uint64", scope="shared", layout=None)],
+                ty_args=[T.Tensor((n[0] + 1,), "uint64", scope="shared", layout=None)],
             )
             mbar[n[0]] = T.uint64(1)
 
@@ -563,7 +565,7 @@ def test_tensor_flatten_offset():
             n: T.int32,
             A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
         ):
-            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n,), "float32", layout=None)])
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n + 100,), "float32", layout=None)])
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)
@@ -616,7 +618,7 @@ def test_tensor_index_merge_mult_mod(pattern):
         return T.TileLayout(T.S[(m, n) : (s, 1)]) if pattern == 1 else None
 
     def storage_span(m, n, s):
-        return T.max(s * m, (m - 1) * s + n) if pattern == 1 else m * n
+        return T.max(s * m, (m - 1) * T.max(s, 0) + n) if pattern == 1 else m * n
 
     def indices(k0, k1, s, n):
         if pattern == 1:
@@ -700,6 +702,177 @@ def test_tensor_index_merge_rank_four(factored):
 
     After = FlattenTensor()(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
+
+
+@pytest.mark.parametrize("allocate", [False, True], ids=["decl", "alloc"])
+@pytest.mark.parametrize("pass_name", ["LowerTensorLayouts", "FlattenTensor"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "split",
+        "split-origin",
+        "swizzled",
+        "compact-origin",
+        "reverse",
+        "reverse-split",
+        "scalar-origin",
+        "extended-compact",
+        "extended-gapped",
+        "partial-gapped",
+        "extended-unit",
+        "extended-unit-gapped",
+        "extended-unit-broadcast",
+    ],
+)
+def test_physical_storage_extent(case, pass_name, allocate):
+    if case.startswith("extended-unit"):
+        shape, index = (4,), (3,)
+        stride = {"extended-unit": 1, "extended-unit-gapped": 100, "extended-unit-broadcast": 0}[
+            case
+        ]
+        layout = T.TileLayout(T.S[(1,) : (stride,)])
+        expected_extent, expected_index = 3 * stride + 1, 3 * stride
+    elif case in ("extended-compact", "extended-gapped", "partial-gapped"):
+        size = 10 if case == "partial-gapped" else 12
+        shape, index = (size,), (size - 1,)
+        strides = (4, 1) if case == "extended-compact" else (16, 2)
+        layout = T.TileLayout(T.S[(2, 4) : strides])
+        # A partial outer tile uses its conservative rectangular storage bound.
+        expected_extent = 12 if case == "extended-compact" else 39
+        expected_index = (size - 1) // 4 * strides[0] + (size - 1) % 4 * strides[1]
+    elif case == "scalar-origin":
+        shape, index = (), ()
+        layout = T.TileLayout.from_iters(offset={"m": T.int32(8)})
+        expected_extent, expected_index = 9, 8
+        if pass_name == "LowerTensorLayouts" and not allocate:
+            expected_extent, expected_index = 1, 0
+    elif case == "reverse-split":
+        shape, index = (12,), (3,)
+        layout = T.TileLayout(T.S[(3, 4) : (-16, 2)] + 32)
+        expected_extent, expected_index = 39, 38
+    elif case == "reverse":
+        shape, index = (4,), (0,)
+        layout = T.TileLayout(T.S[(4,) : (-1,)] + 3)
+        expected_extent, expected_index = 4, 3
+    elif case.startswith("split"):
+        origin = 8 if case == "split-origin" else 0
+        shape, index = (12,), (11,)
+        layout = T.TileLayout(T.S[(3, 4) : (16, 2)] + origin)
+        expected_extent, expected_index = 39 + origin, 38 + origin
+    elif case == "swizzled":
+        shape, index = (128, 4), (127, 3)
+        layout = T.ComposeLayout(2, 1, 3, T.TileLayout(T.S[(128, 4) : (8, 1)]))
+        expected_extent, expected_index = 1024, 1023
+    else:
+        shape, index = (4,), (3,)
+        layout = T.TileLayout(T.S[(4,)] + 8)
+        expected_extent, expected_index = 12, 11
+        if pass_name == "LowerTensorLayouts" and not allocate:
+            # This pass keeps regular view origins in the flattened layout.
+            expected_extent, expected_index = 4, 3
+
+    if allocate:
+
+        @T.function(private=True)
+        def main(A: T.Tensor((2048,), "float32")):
+            B = T.alloc_tensor(ty_args=[T.Tensor(shape, "float32", layout=layout)])
+            B[index] = T.float32(7)
+    else:
+
+        @T.function(private=True)
+        def main(A: T.Tensor((2048,), "float32")):
+            B = T.decl_tensor(A.data, ty_args=[T.Tensor(shape, "float32", layout=layout)])
+            B[index] = T.float32(7)
+
+    with tvm_tirx.target.Target("llvm"):
+        after = getattr(tvm_tirx.tirx.transform, pass_name)()(tvm_tirx.IRModule({"main": main}))
+    body = after["main"].body
+    flat = body[0].var
+    assert int(flat.ty.shape[0]) == expected_extent
+    assert int(body[-1].indices[0]) == expected_index
+    retained_origin = (
+        case in ("compact-origin", "scalar-origin")
+        and pass_name == "LowerTensorLayouts"
+        and not allocate
+    )
+    if retained_origin:
+        assert int(flat.ty.layout.offset[T.Axis.m]) == 8
+    else:
+        assert flat.ty.layout is None
+    assert expected_index < expected_extent
+
+
+@pytest.mark.parametrize(
+    "pass_name", ["LowerTensorLayouts", "FlattenTensor", "LowerTrainiumLayout"]
+)
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_symbolic_reverse_storage(pass_name):
+    stride = T.dynamic("stride", "int32")
+    layout = T.TileLayout(T.S[(4,) : (-stride,)] + 3 * stride)
+
+    @T.function
+    def main(stride: stride, result: T.Tensor((4,), "float32")):
+        B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", layout=layout)])
+        for i in T.serial(4):
+            B[i] = T.Cast("float32", i + 1)
+        for i in T.serial(4):
+            result[i] = B[i]
+
+    if pass_name == "LowerTrainiumLayout":
+        from tvm_tirx.backend.trn.transform import LowerTrainiumLayout
+
+        transform = LowerTrainiumLayout()
+    else:
+        transform = getattr(tvm_tirx.tirx.transform, pass_name)()
+    with tvm_tirx.target.Target("llvm"):
+        after = transform(tvm_tirx.IRModule({"main": main}))
+    flat = next(
+        stmt.var
+        for stmt in after["main"].body
+        if isinstance(stmt, tvm_tirx.ir.Bind) and stmt.var.name == "B"
+    )
+    # The origin is folded into absolute indices; no second offset remains.
+    assert flat.ty.layout is None
+    for value in (1, 2):
+        analyzer = tvm_tirx.sym.Analyzer()
+        analyzer.bind(stride, T.int32(value))
+        extent = analyzer.simplify(flat.ty.shape[0])
+        assert int(extent) >= 3 * value + 1
+    lib = tvm_tirx.tirx.compile(after, target="llvm")
+    for value in (1, 2):
+        result = tvm_tirx.runtime.empty((4,), "float32")
+        lib(value, result)
+        np.testing.assert_array_equal(result.numpy(), np.arange(1, 5, dtype="float32"))
+
+
+@pytest.mark.parametrize("shape", [(0, 4), (4, 0)])
+@pytest.mark.parametrize("explicit", [False, True])
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_empty_layout_compiles(shape, explicit):
+    layout = T.TileLayout(T.S[shape]) if explicit else None
+
+    @T.function
+    def main(A: T.Tensor(shape, "float32", layout=layout)):
+        for i, j in T.grid(*shape):
+            A[i, j] = T.float32(0)
+
+    tvm_tirx.tirx.compile(main, target="llvm")
+
+
+@pytest.mark.parametrize("shape", [(0, 4), (4, 0)])
+@pytest.mark.parametrize("pass_name", ["LowerTensorLayouts", "FlattenTensor"])
+def test_empty_strided_allocation(shape, pass_name):
+    layout = T.TileLayout(T.S[shape : (16, 2)])
+
+    @T.function(private=True)
+    def main():
+        B = T.alloc_tensor(ty_args=[T.Tensor(shape, "float32", layout=layout)])
+        for i, j in T.grid(*shape):
+            B[i, j] = T.float32(0)
+
+    with tvm_tirx.target.Target("llvm"):
+        after = getattr(tvm_tirx.tirx.transform, pass_name)()(tvm_tirx.IRModule({"main": main}))
+    assert int(after["main"].body[0].var.ty.shape[0]) == 0
 
 
 if __name__ == "__main__":
