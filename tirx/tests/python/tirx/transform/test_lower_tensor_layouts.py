@@ -88,7 +88,7 @@ def test_lower_view_get():
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 A = T.alloc_local((2,), "float16", layout=None)
                 B = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 A_local = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
@@ -96,7 +96,7 @@ def test_lower_view_get():
                 for i in T.vectorized(2):
                     A_local[i] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + i])
                 B_1 = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 A_local_1 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
@@ -260,7 +260,7 @@ def test_lower_view_get():
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 A = T.alloc_local((8,), layout=None)
                 B = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((256,), "float32", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
                 )
                 A_local = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
@@ -275,7 +275,7 @@ def test_lower_view_get():
                             + T.cuda.thread_idx("x") % 4
                         ]
                 B_1 = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((256,), "float32", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
                 )
                 A_local_1 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((8,), "float32", scope="local", layout=None)]
@@ -477,7 +477,7 @@ def test_lower_view_get():
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 acc = T.alloc_local((64,), layout=None)
                 B = T.decl_tensor(
-                    acc.data, ty_args=[T.Tensor((16384,), "float32", scope="local", layout=None)]
+                    acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
                 )
                 acc_local = T.decl_tensor(
                     acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
@@ -494,7 +494,7 @@ def test_lower_view_get():
                                 + vec
                             ]
                 B_1 = T.decl_tensor(
-                    acc.data, ty_args=[T.Tensor((16384,), "float32", scope="local", layout=None)]
+                    acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
                 )
                 acc_local_1 = T.decl_tensor(
                     acc.data, ty_args=[T.Tensor((64,), "float32", scope="local", layout=None)]
@@ -700,10 +700,10 @@ def test_lower_view_get():
                 lane_id: T.let[T.int32] = T.cuda.thread_idx("x") % 32
                 A = T.alloc_local((2,), "float16", layout=None)
                 B = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 B_1 = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 A_local = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
@@ -714,10 +714,10 @@ def test_lower_view_get():
                 )
                 A_local_1[1] = T.Cast("float16", in_buf_1[T.cuda.thread_idx("x") * 2 + 1])
                 B_2 = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 B_3 = T.decl_tensor(
-                    A.data, ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)]
+                    A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]
                 )
                 A_local_2 = T.decl_tensor(
                     A.data, ty_args=[T.Tensor((2,), "float16", scope="local", layout=None)]

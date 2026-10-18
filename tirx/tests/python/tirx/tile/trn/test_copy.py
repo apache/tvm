@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
 import pytest
 import tvm_ffi
 
@@ -25,6 +26,7 @@ from tvm_tirx.backend.trn.tile.instruction_generator import InstructionGenerator
 from tvm_tirx.ir import assert_structural_equal as _assert_structural_equal
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym import Analyzer
+from tvm_tirx.testing import env
 from tvm_tirx.tirx import TensorType, Var
 from tvm_tirx.tirx.layout import S, TileLayout
 
@@ -59,6 +61,32 @@ def test_instruction_generator_compact_global_layout():
     layout = generator.split_layout_views[region]
     assert int(layout.apply(3, 5, shape=tensor.shape)["m"]) == 53
     assert tensor.layout is None
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_parameter_stride_contract():
+    """Physical index lowering must preserve the host's DLTensor stride checks."""
+    layout = TileLayout(S[(2, 2) : (3, 1)])
+
+    @T.function
+    def copy(
+        A: T.Tensor((2, 2), "float32", layout=layout, data_alignment=1),
+        B: T.Tensor((2, 2), "float32"),
+    ):
+        for i, j in T.grid(2, 2):
+            B[i, j] = A[i, j]
+
+    mod = tvm_tirx.IRModule({"main": copy})
+    lowered = tvm_tirx.backend.trn.transform.LowerTrainiumLayout()(mod)
+    # Execute the lowered scalar accesses and packed wrapper on the host, without
+    # requiring a Trainium device or compiling Trainium-specific instructions.
+    lib = tvm_tirx.tirx.compile(lowered, target="llvm")
+    data = np.arange(6, dtype="float32").reshape(2, 3)[:, :2]
+    result = tvm_tirx.runtime.empty((2, 2), "float32")
+    lib(data, result)
+    np.testing.assert_array_equal(result.numpy(), data)
+    with pytest.raises(ValueError, match="strides"):
+        lib(np.ascontiguousarray(data), result)
 
 
 def test_simple_copy():
@@ -348,7 +376,7 @@ def test_copy_different_shape_dim():
             T.trn.tile.load(A_sbuf, A[i, :, :])
 
     @T.function
-    def expected(A: T.Tensor((32, 128, 512), "float32", layout=None)):
+    def expected(A: T.Tensor((32, 128, 512), "float32", layout=src_layout)):
         T.func_attr({"global_symbol": "copy"})
 
         A_1 = T.decl_tensor(
@@ -500,7 +528,7 @@ def test_copy_with_complex_index():
         T.trn.tile.load(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
 
     @T.function
-    def expected(A: T.Tensor((4096, 4096), "float32", layout=None)):
+    def expected(A: T.Tensor((4096, 4096), "float32", layout=A_layout)):
         T.func_attr({"global_symbol": "copy"})
 
         A_1 = T.decl_tensor(
@@ -536,7 +564,7 @@ def test_copy_with_complex_index_2():
         T.trn.tile.load(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
 
     @T.function
-    def expected(A: T.Tensor((2, 2048, 1024), "float32", layout=None)):
+    def expected(A: T.Tensor((2, 2048, 1024), "float32", layout=A_layout)):
         T.func_attr({"global_symbol": "copy"})
 
         A_1 = T.decl_tensor(

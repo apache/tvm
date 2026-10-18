@@ -516,7 +516,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             base = T.alloc_shared([128], "uint64", layout=None)
             mbar = T.decl_tensor(
                 base.data,
-                ty_args=[T.Tensor((1,), "uint64", scope="shared", layout=None)],
+                ty_args=[T.Tensor((n[0] + 1,), "uint64", scope="shared", layout=None)],
             )
             mbar[n[0]] = T.uint64(1)
 
@@ -563,7 +563,7 @@ def test_tensor_flatten_offset():
             n: T.int32,
             A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
         ):
-            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n,), "float32", layout=None)])
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n + 100,), "float32", layout=None)])
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)
@@ -700,6 +700,23 @@ def test_tensor_index_merge_rank_four(factored):
 
     After = FlattenTensor()(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
+
+
+def test_split_layout_physical_storage_extent():
+    layout = T.TileLayout(T.S[(3, 4) : (16, 2)])
+
+    @T.function(private=True)
+    def main(data: T.handle):
+        B = T.decl_tensor(data, ty_args=[T.Tensor((12,), "float32", layout=layout)])
+        B[11] = T.float32(7)
+
+    # A borrowed view's flattened extent must cover the physical gaps.
+    after = FlattenTensor()(tvm_tirx.IRModule({"main": main}))
+    body = after["main"].body
+    flat = body[0].var
+    assert int(flat.ty.shape[0]) == 39
+    assert int(body[-1].indices[0]) == 38
+    assert flat.ty.layout is None
 
 
 if __name__ == "__main__":

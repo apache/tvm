@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../tirx/transform/flattened_tensor.h"
+#include "../../../tirx/transform/flatten_tensor_utils.h"
 
 namespace tvm {
 namespace tirx {
@@ -73,9 +73,13 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
         TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
         auto type = ffi::make_object<TensorTypeNode>(*tensor.value().ty().get());
         if (const auto* tile = type->layout.as<TileLayoutNode>()) {
-          // Static physical geometry is already embedded in the lowered indices.
-          // Retain symbolic geometry that may still define parameter variables.
-          bool static_geometry = tile->replica.empty();
+          // Trainium's physical axes are embedded in the lowered indices. Ordinary
+          // memory strides still define the parameter ABI, even when they are static.
+          // Retain symbolic physical geometry that may define parameter variables.
+          bool static_geometry =
+              IsTrainiumLayout(tile) && tile->replica.empty() &&
+              std::any_of(tile->shard.begin(), tile->shard.end(),
+                          [](const Iter& iter) { return iter->axis->IsMemoryAxis(); });
           for (const auto& iter : tile->shard) {
             static_geometry &= iter->extent.as<IntImmNode>() && iter->stride.as<IntImmNode>();
           }
@@ -211,7 +215,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       }
     } else {
-      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
+      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_), /*fold_origin=*/true);
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     if (flattened.dtype()->dtype == DLDataType{kDLBool, 8, 1}) {
