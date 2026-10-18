@@ -260,3 +260,129 @@ def test_dynamic_symbols_are_fresh_and_scope_independent():
 
     assert Module["first"].params[0].ty.shape[0].same_as(n)
     assert Module["first"].body[0].value.same_as(n)
+
+
+def test_tir_starred_shape_expression():
+    dims = (128, 128)
+
+    @T.function(private=True)
+    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
+        for i, j, k in T.grid(*A.shape):
+            A[i, j, k] = T.int32(1)
+
+    @T.function(private=True)
+    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
+
+
+def test_inferred_ty_with_dynamic_tensor():
+    """The inferred Type may contain dynamic shapes"""
+
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
+
+    @T.function
+    def func(A: T.Tensor([M, N], "float32"), B: T.Tensor([M * N], "float32")):
+        for i, j in T.grid(M, N):
+            B[i * N + j] = A[i, j]
+
+    M = tvm_tirx.tirx.Var("M", "int64")
+    N = tvm_tirx.tirx.Var("N", "int64")
+    expected = tvm_tirx.ir.FuncType(
+        [
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M, N], "float32", layout=None)
+            ).ty,
+            tvm_tirx.tirx.Var(
+                "tensor", tvm_tirx.tirx.TensorType([M * N], "float32", layout=None)
+            ).ty,
+        ],
+        tvm_tirx.ir.TupleType([]),
+    )
+    tvm_tirx.ir.assert_structural_equal(func.ty, expected)
+
+
+def loop_extent_dependent():
+    @T.function
+    def loop_extent_dependent(A: T.Tensor([], dtype="int32")) -> None:
+        for i in T.serial(0, 128):
+            for j in T.serial(0, i):
+                A[()] = A[()] + j
+
+    return loop_extent_dependent
+
+
+def undefined_shape_in_decl_tensor():
+    # uninitialized var
+    size = T.dynamic("size", "int32")
+
+    @T.function(check_well_formed=False)
+    def func():
+        buf = T.alloc_tensor(ty_args=[T.Tensor([size], "float32")])
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_stride_in_decl_tensor():
+    # uninitialized var
+    stride = T.dynamic("stride", "int32")
+
+    @T.function(check_well_formed=False)
+    def func():
+        data_ptr = T.handle("float32")
+        buf = T.decl_tensor(
+            data_ptr,
+            ty_args=[
+                T.Tensor([1], "float32", layout=T.TileLayout(T.S[[1] : [stride]]), data=data_ptr)
+            ],
+        )
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_elem_offset_in_decl_tensor():
+    # uninitialized var
+    elem_offset = T.dynamic("elem_offset", "int32")
+
+    @T.function(check_well_formed=False)
+    def func():
+        data_ptr = T.handle("float32")
+        buf = T.decl_tensor(
+            data_ptr,
+            ty_args=[
+                T.Tensor(
+                    [1], "float32", layout=T.TileLayout(T.S[[1]] + (elem_offset)), data=data_ptr
+                )
+            ],
+        )
+        T.evaluate(buf[0])
+
+    return func
+
+
+@pytest.mark.parametrize(
+    "ir_generator",
+    [
+        loop_extent_dependent,
+        undefined_shape_in_decl_tensor,
+        undefined_stride_in_decl_tensor,
+        undefined_elem_offset_in_decl_tensor,
+    ],
+    ids=lambda factory: factory.__name__,
+)
+def test_roundtrip_dynamic_shape(ir_generator):
+    original = ir_generator()
+    after_roundtrip = tvm_tirx.script.from_source(
+        original.script(show_meta=True),
+        check_well_formed=False,
+        extra_vars={
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+        },
+    )
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)

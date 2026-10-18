@@ -378,3 +378,186 @@ def test_mixed_closure_usage():
 
     tvm_tirx.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
     tvm_tirx.ir.assert_structural_equal(_normalize(f(32)), _normalize(expected_32))
+
+
+def test_tir_macro_decorator_signature():
+    @T.function(private=True)
+    def evaluate0():
+        T.evaluate(0)
+
+    # Ok, no parentheses
+    @T.inline
+    def func1():
+        T.evaluate(0)
+
+    @T.function(private=True)
+    def use1():
+        func1()
+
+    tvm_tirx.ir.assert_structural_equal(use1, evaluate0)
+
+    # Ok, empty parentheses
+    @T.inline()
+    def func2():
+        T.evaluate(0)
+
+    @T.function(private=True)
+    def use2():
+        func2()
+
+    tvm_tirx.ir.assert_structural_equal(use1, evaluate0)
+
+    with pytest.raises(ValueError):
+        # Wrong: non-keyword argument
+        @T.inline(True)
+        def func3():
+            T.evaluate()
+
+
+def test_tir_macro_hygienic():
+    x_value = 128
+
+    @T.inline
+    def static_capture(A, B):
+        B[()] = A[x_value]
+
+    @T.function(private=True)
+    def use_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
+        for x_value in T.serial(10):
+            static_capture(A, B)
+
+    @T.function(private=True)
+    def expected_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
+        for x_value in range(10):
+            B[()] = A[128]
+
+    tvm_tirx.ir.assert_structural_equal(use_hygienic, expected_hygienic)
+
+
+def test_tir_inline_late_binding():
+    """Inline defined inside function uses LEGB late binding:
+    it sees the current value of variables from its enclosing scope at call time."""
+
+    @T.function(private=True)
+    def use_late_binding(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
+        for x_value in T.serial(10):
+
+            @T.inline
+            def capture(A, B):
+                B[()] = A[x_value]
+
+            capture(A, B)
+
+    @T.function(private=True)
+    def expected(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
+        for x_value in range(10):
+            B[()] = A[x_value]
+
+    tvm_tirx.ir.assert_structural_equal(use_late_binding, expected)
+
+
+def test_tir_starred_expression():
+    dims = (128, 128)
+
+    @T.function(private=True)
+    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
+        for i, j, k in T.grid(128, *dims):
+            A[i, j, k] = T.int32(1)
+
+    @T.function(private=True)
+    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
+
+
+def test_tir_dynamic_for_loop():
+    dims = (128, 128)
+
+    @T.function(private=True)
+    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
+        for (*iters,) in T.grid(*A.shape):
+            A[iters] = T.int32(1)
+
+    @T.function(private=True)
+    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm_tirx.ir.assert_structural_equal(starred, non_starred)
+
+
+def test_tir_builtin_expression():
+    dims = (128, 128)
+
+    @T.function(private=True)
+    def with_builtin(A: T.Tensor([len(dims), *dims], "int32")) -> None:
+        for i, j, k in T.grid(*A.shape):
+            A[i, j, k] = T.int32(1 + len(A.shape))
+
+    @T.function(private=True)
+    def evaluated(A: T.Tensor((2, 128, 128), "int32")):
+        for i, j, k in T.grid(2, 128, 128):
+            A[i, j, k] = 4
+
+    tvm_tirx.ir.assert_structural_equal(with_builtin, evaluated)
+
+
+def test_deterministic_branch():
+    """Test deterministic branch"""
+
+    def create_func(predicate: bool):
+        @T.function(private=True)
+        def func() -> None:
+            if T.constexpr(predicate):
+                T.evaluate(0)
+            else:
+                T.evaluate(1)
+
+        return func
+
+    def create_expected(value):
+        @T.function(private=True)
+        def expected() -> None:
+            T.evaluate(value)
+
+        return expected
+
+    tvm_tirx.ir.assert_structural_equal(create_func(True), create_expected(0))
+    tvm_tirx.ir.assert_structural_equal(create_func(False), create_expected(1))
+
+
+def test_var_capturing_order():
+    b = 2
+
+    @T.function
+    def test_case():
+        k: T.let[T.int32] = b
+
+    @T.function
+    def func_ref():
+        k: T.let[T.int32] = 2
+        T.evaluate(0)
+
+    tvm_tirx.ir.assert_structural_equal(
+        test_case.with_attr("global_symbol", "main"), func_ref.with_attr("global_symbol", "main")
+    )
+
+
+def test_bind_with_constant():
+    @T.function
+    def constant_binds():
+        x = T.meta_var(1)
+        y = T.meta_var(42.0)
+        T.evaluate(T.cast(x, ty="float32") + y)
+
+    @T.function
+    def constant_binds_wrapped():
+        x = T.meta_var(T.int32(1))
+        y = T.meta_var(T.float32(42.0))
+        T.evaluate(T.cast(x, ty="float32") + y)
+
+    tvm_tirx.ir.assert_structural_equal(
+        _normalize(constant_binds), _normalize(constant_binds_wrapped)
+    )
