@@ -100,7 +100,7 @@ def test_omitted_and_explicit_none_layout(scope):
     assert T.Tensor((4, 8), "float32", scope=scope, layout=None).layout is None
     assert Var("tensor", TensorType((4, 8), "float32", scope=scope)).layout is None
     explicit = T.Tensor((4, 8), "float32", scope=scope, layout="default")
-    assert_structural_equal(explicit.layout, TileLayout(S[4, 8]))
+    assert_structural_equal(explicit.layout, TileLayout.from_iters(TileLayout(S[4, 8]).shard))
     with IRBuilder():
         with I.function():
             tensor_type = I.Tensor((4, 8), "float32", scope=scope)
@@ -114,27 +114,31 @@ def test_omitted_and_explicit_none_layout(scope):
     [((8, 16), None), ((8, 16), (16, 1)), ((8, 1, 16), (16, 99, 1))],
 )
 def test_effective_layout_on_tensor_type(shape, strides):
-    tensor_type = T.Tensor(shape, "float32", strides=strides)
+    tensor_type = T.Tensor(
+        shape, "float32", layout=T.TileLayout(T.S[shape:strides]) if strides else None
+    )
     before = save_json(tensor_type)
-    assert_structural_equal(tensor_type.effective_layout(), TileLayout(S[shape]))
+    effective = tensor_type.effective_layout()
+    assert_structural_equal(
+        effective, TileLayout(S[shape] if strides is None else S[shape:strides])
+    )
     assert save_json(tensor_type) == before
 
 
 def test_effective_global_layout_preserves_source_and_region():
-    tensor = Var("tensor", TensorType((8, 16), "float32", elem_offset=13))
+    tensor = Var("tensor", TensorType((8, 16), "float32", layout=T.TileLayout(T.S[(8, 16)] + (13))))
     before = save_json(tensor)
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
-    assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 35
+    assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 48
     starts = [r.min for r in region.region]
-    assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 35
-    assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 54
+    assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 48
+    assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 67
     assert save_json(tensor) == before
-    compact = Var("tensor", TensorType((8, 16), "float32", strides=(16, 1)))
-    assert_structural_equal(compact.ty.effective_layout(), layout)
-    strided = Var("tensor", TensorType((8, 16), "float32", strides=(32, 1)))
-    with pytest.raises(ValueError, match="noncompact"):
-        strided.ty.effective_layout()
+    compact = Var("tensor", TensorType((8, 16), "float32", layout=TileLayout(S[(8, 16) : (16, 1)])))
+    assert int(compact.ty.effective_layout().apply(2, 3, shape=compact.shape)["m"]) == 35
+    strided = Var("tensor", TensorType((8, 16), "float32", layout=TileLayout(S[(8, 16) : (32, 1)])))
+    assert int(strided.ty.effective_layout().apply(2, 3, shape=strided.shape)["m"]) == 67
     with pytest.raises(ValueError, match="explicit layout"):
         Var("tensor", TensorType((8, 16), "float32", scope="shared")).ty.effective_layout()
     explicit = Var("tensor", TensorType((8, 16), "float32", scope="shared", layout=layout))
@@ -147,7 +151,8 @@ def test_none_layout_views_keep_offsets_and_strides():
         with I.function():
             source = I.bind(
                 I.decl_tensor(
-                    I.ptr("float32"), ty_args=[I.Tensor((4, 8), "float32", elem_offset=5)]
+                    I.ptr("float32"),
+                    ty_args=[I.Tensor((4, 8), "float32", layout=T.TileLayout(T.S[(4, 8)] + (5)))],
                 )
             )
             reshaped = source.view(2, 2, 8)
@@ -156,16 +161,29 @@ def test_none_layout_views_keep_offsets_and_strides():
             row = source.sub[2, :]
             stepped = source.sub[:, 1::2]
             for view in (reshaped, permuted, sliced, row, stepped):
-                assert view.layout is None
+                assert view.layout is not None
             assert list(map(int, reshaped.shape)) == [2, 2, 8]
-            assert list(map(int, permuted.strides)) == [1, 8]
-            assert list(map(int, sliced.strides)) == [8, 1]
-            assert int(sliced.elem_offset) == 15
-            assert int(row.elem_offset) == 21
-            assert list(map(int, stepped.strides)) == [8, 2]
-            assert int(stepped.elem_offset) == 6
-            with pytest.raises(ValueError, match="non-contiguous"):
-                permuted.view(32)
+            assert list(map(int, [it.stride for it in permuted.layout.shard])) == [1, 8]
+            assert list(map(int, [it.stride for it in sliced.layout.shard])) == [8, 1]
+            assert (
+                int(sliced.layout.apply(*([0] * len(sliced.shape)), shape=sliced.shape).get("m", 0))
+                == 15
+            )
+            assert int(row.layout.apply(*([0] * len(row.shape)), shape=row.shape).get("m", 0)) == 21
+            assert list(map(int, [it.stride for it in stepped.layout.shard])) == [8, 2]
+            assert (
+                int(
+                    stepped.layout.apply(*([0] * len(stepped.shape)), shape=stepped.shape).get(
+                        "m", 0
+                    )
+                )
+                == 6
+            )
+            linear = permuted.view(32)
+            for i in range(32):
+                assert int(linear.layout.apply(i, shape=linear.shape)["m"]) == (
+                    int(permuted.layout.apply(i // 4, i % 4, shape=permuted.shape)["m"])
+                )
     parents = {bind.var: bind.value.args[0].args[0] for bind in builder.get().body.seq[1:]}
     for view in (reshaped, permuted, sliced, row, stepped):
         root = view
@@ -202,7 +220,10 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
             assert viewed.layout is None
             assert_structural_equal(viewed.shape[0], size // 2)
             misaligned = I.bind(
-                I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((8,), "float32", elem_offset=1)])
+                I.decl_tensor(
+                    I.ptr("float32"),
+                    ty_args=[I.Tensor((8,), "float32", layout=T.TileLayout(T.S[(8,)] + (1)))],
+                )
             )
             with pytest.raises(ValueError, match="align"):
                 misaligned.view("uint64")
@@ -268,7 +289,9 @@ def test_tile_load_infers_full_global_layout_with_offset():
     @T.function
     def kernel(A: T.Tensor((144,), "float32"), D: T.Tensor((2, 4), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
-        source = T.decl_tensor(A.data, ty_args=[T.Tensor((8, 16), "float32", elem_offset=7)])
+        source = T.decl_tensor(
+            A.data, ty_args=[T.Tensor((8, 16), "float32", layout=T.TileLayout(T.S[(8, 16)] + (7)))]
+        )
         registers = T.alloc_local((2, 4), "float32", layout="default")
         source_words = source.sub[2:4, 3:7].view(
             2, 2, 2, layout=TileLayout(S[(2, 2, 2) : (16, 2, 1)])

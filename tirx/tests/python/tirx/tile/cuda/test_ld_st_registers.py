@@ -756,7 +756,6 @@ def test_reg_view_preserves_shared_and_register_addresses(case):
             for layout, view in ((r_layout, r_view), (s_layout, s_view)):
                 before = layout.apply(row, col, shape=shape)
                 after = dict(view.ty.layout.apply(*coords, shape=view.ty.shape))
-                after["m"] = after.get("m", 0) + view.ty.elem_offset
                 assert {k: int(analyzer.simplify(v)) for k, v in before.items()} == {
                     k: int(analyzer.simplify(v)) for k, v in after.items()
                 }

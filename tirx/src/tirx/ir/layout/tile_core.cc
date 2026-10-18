@@ -307,6 +307,30 @@ ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
   return shard.Map([](const Iter& iter) { return iter->extent; });
 }
 
+bool TileLayoutNode::IsContiguous(ffi::Optional<sym::Analyzer> analyzer) const {
+  if (!replica.empty()) return false;
+  static const Axis memory_axis = Axis::Get("m");
+  for (const auto& [axis, origin] : offset) {
+    if (axis != memory_axis) return false;
+  }
+  for (const auto& iter : shard) {
+    if (iter->axis != memory_axis) return false;
+  }
+  prim::ExprDeepEqual deep_equal;
+  auto equal = [&](const PrimExpr& lhs, const PrimExpr& rhs) {
+    if (deep_equal(lhs, rhs)) return true;
+    if (!analyzer.has_value()) analyzer = sym::Analyzer();
+    return analyzer.value()->CanProveEqual(lhs, rhs);
+  };
+  PrimExpr stride = IntImm(shard.empty() ? PrimType::Int(64) : shard.back()->stride.ty(), 1);
+  for (size_t i = shard.size(); i > 0; --i) {
+    const auto& iter = shard[i - 1];
+    if (!prim::IsOne(iter->extent) && !equal(iter->stride, stride)) return false;
+    stride = stride * iter->extent;
+  }
+  return true;
+}
+
 bool TileLayoutNode::IsTrivial() const {
   if (shard.size() > 1) return false;
   if (shard.size() == 1) {
@@ -317,6 +341,10 @@ bool TileLayoutNode::IsTrivial() const {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.TileLayoutIsContiguous",
+                        [](const TileLayout& layout, ffi::Optional<sym::Analyzer> analyzer) {
+                          return layout->IsContiguous(std::move(analyzer));
+                        });
   refl::GlobalDef().def("tirx.TileLayoutIsTrivial", [](const TileLayout& layout) {
     return layout->Canonicalize().as<TileLayout>().value()->IsTrivial();
   });

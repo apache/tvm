@@ -45,17 +45,12 @@ using tvm::tirx::Layout;
 namespace {
 
 tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
-                                     runtime::MemoryScope storage_scope,
-                                     ffi::Optional<ffi::Array<PrimExpr>> strides,
-                                     ffi::Optional<PrimExpr> elem_offset, int align,
-                                     int offset_factor, ffi::Optional<Layout> layout,
-                                     ffi::Optional<Expr> data) {
+                                     runtime::MemoryScope storage_scope, int align,
+                                     ffi::Optional<Layout> layout, ffi::Optional<Expr> data) {
   if (data.has_value()) {
     storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
-  return tvm::tirx::TensorType(shape, dtype, storage_scope,
-                               strides.value_or(ffi::Array<PrimExpr>()), elem_offset, align,
-                               offset_factor, layout);
+  return tvm::tirx::TensorType(shape, dtype, storage_scope, align, layout);
 }
 
 }  // namespace

@@ -338,7 +338,15 @@ def test_strided():
             for i0 in T.serial(4):
                 B = T.alloc_tensor(ty_args=[T.Tensor([4, 17], "float32")])
                 B_1 = T.decl_tensor(
-                    B.data, ty_args=[T.Tensor([4, 16], "float32", strides=[17, 1], data=B.data)]
+                    B.data,
+                    ty_args=[
+                        T.Tensor(
+                            [4, 16],
+                            "float32",
+                            layout=T.TileLayout(T.S[[4, 16] : [17, 1]]),
+                            data=B.data,
+                        )
+                    ],
                 )
                 for i1, j in T.grid(4, 16):
                     B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
@@ -490,7 +498,12 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             n[0] = 4
             base = T.alloc_shared([128], "uint64")
             mbar = T.decl_tensor(
-                base.data, ty_args=[T.Tensor((1,), "uint64", elem_offset=n[0], scope="shared")]
+                base.data,
+                ty_args=[
+                    T.Tensor(
+                        (1,), "uint64", layout=T.TileLayout(T.S[(1,)] + (n[0])), scope="shared"
+                    )
+                ],
             )
             mbar[0] = T.uint64(1)
 
@@ -503,9 +516,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
             base = T.alloc_shared([128], "uint64", layout=None)
             mbar = T.decl_tensor(
                 base.data,
-                ty_args=[
-                    T.Tensor((1,), "uint64", elem_offset=T.int32(0), scope="shared", layout=None)
-                ],
+                ty_args=[T.Tensor((1,), "uint64", scope="shared", layout=None)],
             )
             mbar[n[0]] = T.uint64(1)
 
@@ -537,16 +548,22 @@ def test_tensor_flatten_offset():
     @I.ir_module
     class Before:
         @T.function(private=True)
-        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
+        def main(
+            m: T.int32,
+            n: T.int32,
+            A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
+        ):
             T.evaluate(A[2, 3])
 
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(m: T.int32, n: T.int32, A: T.Tensor((m, n), "float32", elem_offset=T.int32(100))):
-            flat = T.decl_tensor(
-                A.data, ty_args=[T.Tensor((m * n,), "float32", elem_offset=T.int32(0), layout=None)]
-            )
+        def main(
+            m: T.int32,
+            n: T.int32,
+            A: T.Tensor((m, n), "float32", layout=T.TileLayout(T.S[(m, n)] + (T.int32(100)))),
+        ):
+            flat = T.decl_tensor(A.data, ty_args=[T.Tensor((m * n,), "float32", layout=None)])
             T.evaluate(flat[n * 2 + 103])
 
     After = FlattenTensor()(Before)
@@ -559,16 +576,22 @@ def test_tensor_flatten_offset():
     ids=["matrix", "vector", "scalar", "strided"],
 )
 def test_tensor_flatten(shape, strides, span):
+    layout = T.TileLayout(T.S[shape:strides]) if strides else None
+
     @I.ir_module
     class Before:
         @T.function(private=True)
-        def main(A: T.Tensor(shape, "float32", strides=strides)):
+        def main(
+            A: T.Tensor(shape, "float32", layout=layout),
+        ):
             T.evaluate(A[tuple(0 for _ in shape)])
 
     @I.ir_module
     class Expected:
         @T.function(private=True)
-        def main(A: T.Tensor(shape, "float32", strides=strides)):
+        def main(
+            A: T.Tensor(shape, "float32", layout=layout),
+        ):
             flat = T.decl_tensor(A.data, ty_args=[T.Tensor((span,), "float32", layout=None)])
             T.evaluate(flat[0])
 
@@ -589,8 +612,8 @@ def test_tensor_index_merge_mult_mod(pattern):
     n = T.dynamic("n", "int32")
     s = T.dynamic("s", "int32")
 
-    def tensor_strides(s):
-        return (s, 1) if pattern == 1 else None
+    def tensor_layout(m, n, s):
+        return T.TileLayout(T.S[(m, n) : (s, 1)]) if pattern == 1 else None
 
     def storage_span(m, n, s):
         return T.max(s * m, (m - 1) * s + n) if pattern == 1 else m * n
@@ -621,7 +644,11 @@ def test_tensor_index_merge_mult_mod(pattern):
             s: T.int32,
             k0: T.int32,
             k1: T.int32,
-            A: T.Tensor((m, n), "float32", strides=tensor_strides(s)),
+            A: T.Tensor(
+                (m, n),
+                "float32",
+                layout=tensor_layout(m, n, s),
+            ),
         ):
             T.evaluate(A[indices(k0, k1, s, n)])
 
@@ -634,7 +661,11 @@ def test_tensor_index_merge_mult_mod(pattern):
             s: T.int32,
             k0: T.int32,
             k1: T.int32,
-            A: T.Tensor((m, n), "float32", strides=tensor_strides(s)),
+            A: T.Tensor(
+                (m, n),
+                "float32",
+                layout=tensor_layout(m, n, s),
+            ),
         ):
             flat = T.decl_tensor(
                 A.data, ty_args=[T.Tensor((storage_span(m, n, s),), "float32", layout=None)]

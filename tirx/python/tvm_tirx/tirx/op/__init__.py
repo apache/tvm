@@ -192,14 +192,25 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         loc=loc,
         ty=PtrType(tvm_tirx.ir.PrimType("int64")),
     )
+    from .._tensor_view import _is_memory_tile, _view_layout
+    from ..layout import Axis
+
+    layout = _view_layout(buf)
+    if not _is_memory_tile(layout, buf.ty.shape):
+        raise ValueError("DLTensor packing requires a shape-aligned strided memory layout")
+    stride_exprs = [it.stride for it in layout.shard]
+    index_type = buf.ty.shape[0].ty if buf.ty.shape else "int64"
+    origin = layout.offset.get(Axis.m, const(0, index_type))
+    # The DLTensor carries its origin separately from the compact-stride sentinel.
+    contiguous = layout.is_contiguous()
     strides = (
         Call(
             "tirx.stack_make_shape",
-            buf.ty.strides,
+            stride_exprs,
             loc=loc,
             ty=PtrType(tvm_tirx.ir.PrimType("int64")),
         )
-        if buf.ty.strides
+        if not contiguous
         else 0
     )
     pack_args = [
@@ -208,7 +219,7 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         strides,
         len(buf.ty.shape),
         const(0, dtype=buf.ty.dtype),
-        buf.ty.elem_offset,
+        origin,
     ]
     return Call(
         "tirx.stack_make_dltensor",

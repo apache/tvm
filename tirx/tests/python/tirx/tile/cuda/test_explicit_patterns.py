@@ -122,7 +122,6 @@ def _dispatch(
     opcode=LD,
     scope="thread",
     align=16,
-    elem_offset=0,
     active=32,
 ):
     matrix = opcode.startswith("ldmatrix")
@@ -134,7 +133,6 @@ def _dispatch(
             scope="shared" if matrix else "global",
             layout=src_layout or TileLayout(S[src_shape]),
             align=align,
-            elem_offset=elem_offset,
         ),
     )
     dst_shape = dst_shape or src_shape
@@ -156,7 +154,7 @@ def test_contract_rejections():
     with pytest.raises(RuntimeError, match="consecutive elements"):
         _dispatch(src_layout=TileLayout(S[(2, 4) : (8, 2)]))
     with pytest.raises(RuntimeError, match="16-byte aligned"):
-        _dispatch(elem_offset=1)
+        _dispatch(src_layout=TileLayout(S[(2, 4)] + 1))
     with pytest.raises(RuntimeError, match="known 16-byte-aligned base"):
         _dispatch(align=4)
     with pytest.raises(RuntimeError, match="Repeat shapes must agree"):
@@ -236,11 +234,14 @@ def test_region_starts_and_element_offsets_gpu():
         for i in T.unroll(32):
             raw[i] = T.uint32(777)
         src = T.decl_tensor(
-            A.data, ty_args=[T.Tensor((3, 8), "uint32", elem_offset=4, align=16, layout="default")]
+            A.data,
+            ty_args=[T.Tensor((3, 8), "uint32", align=16, layout=T.TileLayout(T.S[(3, 8)] + (4)))],
         )
         dst = T.decl_tensor(
             raw.data,
-            ty_args=[T.Tensor((3, 8), "uint32", elem_offset=4, scope="local", layout="default")],
+            ty_args=[
+                T.Tensor((3, 8), "uint32", scope="local", layout=T.TileLayout(T.S[(3, 8)] + (4)))
+            ],
         )
         T.cuda.tile.apply(T.ptx[LD], dst[1:3, 2:6], src[0:2, 4:8])
         for i in T.unroll(32):

@@ -259,30 +259,6 @@ class TVMFFIABIBuilder {
                    bool with_lets);
 
   /*!
-   * \brief Array bind: binds element-wise with ffi::reflection::AccessPath[k] for each element.
-   *
-   * \param arg The expected array of expressions.
-   * \param value The actual array of expressions to bind against.
-   * \param base_path Base ffi::reflection::AccessPath; each element appends ArrayItem(k).
-   */
-  void BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
-                 const ffi::reflection::AccessPath& base_path);
-
-  /*!
-   * \brief TensorVar-to-tensor bind with ffi::reflection::AccessPath.
-   *
-   * Binds data, elem_offset, shape, and strides of \p arg against \p value,
-   * emitting assertions for any mismatches.
-   *
-   * \param arg The expected tensor definition.
-   * \param value The actual tensor to bind against.
-   * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
-   * \param fuzzy_match If true, allow value to have more dimensions than arg.
-   */
-  void BindTensor(const TensorVar& arg, const TensorVar& value,
-                  ffi::reflection::AccessPath base_path, bool fuzzy_match);
-
-  /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.
    *
    * \param tensor The tensor definition to bind against.

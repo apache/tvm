@@ -738,7 +738,10 @@ def test_simplify_trivial_let_elem_offset():
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
         A = T.decl_tensor(
-            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+            A_ptr,
+            ty_args=[
+                T.Tensor(1, "float32", layout=T.TileLayout(T.S[1] + (A_offset_redef)), data=A_ptr)
+            ],
         )
         A[0] = 42.0
 
@@ -746,7 +749,10 @@ def test_simplify_trivial_let_elem_offset():
     def expected(A_ptr: T.handle("float32"), A_offset: T.int32):
         A_offset_redef = A_offset
         A = T.decl_tensor(
-            A_ptr, ty_args=[T.Tensor(1, "float32", elem_offset=A_offset_redef, data=A_ptr)]
+            A_ptr,
+            ty_args=[
+                T.Tensor(1, "float32", layout=T.TileLayout(T.S[1] + (A_offset_redef)), data=A_ptr)
+            ],
         )
         A[0] = 42.0
 
@@ -780,7 +786,12 @@ def test_simplify_trivial_let_stride():
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
         A = T.decl_tensor(
-            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+            A_ptr,
+            ty_args=[
+                T.Tensor(
+                    1, "float32", layout=T.TileLayout(T.S[(1,) : [A_stride_redef]]), data=A_ptr
+                )
+            ],
         )
         A[0] = 42.0
 
@@ -788,7 +799,12 @@ def test_simplify_trivial_let_stride():
     def expected(A_ptr: T.handle("float32"), A_stride: T.int32):
         A_stride_redef = A_stride
         A = T.decl_tensor(
-            A_ptr, ty_args=[T.Tensor(1, "float32", strides=[A_stride_redef], data=A_ptr)]
+            A_ptr,
+            ty_args=[
+                T.Tensor(
+                    1, "float32", layout=T.TileLayout(T.S[(1,) : [A_stride_redef]]), data=A_ptr
+                )
+            ],
         )
         A[0] = 42.0
 

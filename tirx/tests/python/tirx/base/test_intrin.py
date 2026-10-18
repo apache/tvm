@@ -32,7 +32,7 @@ from tvm_tirx.support import clang, utils
 def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     out_dtype = out_dtype or dtype
 
-    n = T.int32()
+    n = T.dynamic("n", "int32")
 
     @T.function
     def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
@@ -49,7 +49,7 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 
 
 def _binary_kernel(op, rhs_dtype="float32"):
-    n = T.int32()
+    n = T.dynamic("n", "int32")
 
     @T.function
     def kernel(
@@ -329,10 +329,10 @@ stride_3 = T.dynamic("stride_3", "int32")
 class Module:
     @T.function
     def test_tir_fma(
-        A_1: T.Tensor([n], "float32", strides=[stride], elem_offset=0, align=64, offset_factor=1),
-        B_1: T.Tensor([n], "float32", strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
-        C_1: T.Tensor([n], "float32", strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
-        d_1: T.Tensor([n], "float32", strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+        A_1: T.Tensor([n], "float32", layout=T.TileLayout(T.S[[n] : [stride]]), align=64),
+        B_1: T.Tensor([n], "float32", layout=T.TileLayout(T.S[[n] : [stride_1]]), align=64),
+        C_1: T.Tensor([n], "float32", layout=T.TileLayout(T.S[[n] : [stride_2]]), align=64),
+        d_1: T.Tensor([n], "float32", layout=T.TileLayout(T.S[[n] : [stride_3]]), align=64),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})

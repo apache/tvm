@@ -822,9 +822,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     // Flat packing and lifetime reuse cannot reconstruct arbitrary physical views.
     // Preserve their original allocation before either planning step can combine it.
-    if (type->shape.size() != 1 || type->layout.has_value() || !IsConstInt(type->elem_offset, 0) ||
-        (!type->strides.empty() &&
-         (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1)))) {
+    if (type->shape.size() != 1 || type->layout.has_value()) {
       return true;
     }
     if (!call->args.empty()) return true;
@@ -842,8 +840,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool HasCompatibleAlignment(const StorageEntry* entry, const CallNode* call) {
     auto first = entry->allocs[0]->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
     auto type = call->ty_args[0].as_or_throw<TensorType>();
-    return first->data_alignment == type->data_alignment &&
-           first->offset_factor == type->offset_factor;
+    return first->data_alignment == type->data_alignment;
   }
 
   // The owning lowering handles single-allocation layouts that cannot be packed
@@ -856,10 +853,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     for (const auto* allocation : entry->allocs) {
       const auto* call = allocation->value.as<CallNode>();
       auto type = call->ty_args[0].as_or_throw<TensorType>();
-      if (type->shape.size() != 1 || type->dtype.IsScalableVector() || type->layout.has_value() ||
-          !IsConstInt(type->elem_offset, 0) ||
-          (!type->strides.empty() &&
-           (type->strides.size() != 1 || !IsConstInt(type->strides[0], 1))))
+      if (type->shape.size() != 1 || type->dtype.IsScalableVector() || type->layout.has_value())
         return false;
     }
     return true;
@@ -883,7 +877,6 @@ class StoragePlanRewriter : public StmtExprMutator {
         auto type = allocation->value.as<CallNode>()->ty_args[0].as_or_throw<TensorType>();
         uint64_t element_bits = type->dtype.bits() * type->dtype.lanes();
         if (!include_alignment(element_bits) ||
-            !include_alignment(element_bits * std::max(type->offset_factor, 1)) ||
             !include_alignment(static_cast<uint64_t>(std::max(type->data_alignment, 1)) * 8)) {
           return std::nullopt;
         }
@@ -1071,9 +1064,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_->Simplify(combo_size);
           TensorVar buf(
               e->alloc_var->name,
-              TensorType({combo_size}, alloc_type, e->scope, {}, std::nullopt,
-                         first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment,
-                         first_call->ty_args[0].as_or_throw<TensorType>()->offset_factor));
+              TensorType({combo_size}, alloc_type, e->scope,
+                         first_call->ty_args[0].as_or_throw<TensorType>()->data_alignment));
           e->alloc_var = buf;
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
@@ -1116,8 +1108,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       shape_type = PrimType::Int(64);
     }
     PrimExpr alloc_size = MakeConst(shape_type, alloc_elements);
-    TensorVar buf(e->alloc_var->name, TensorType({alloc_size}, e->elem_type, e->scope, {},
-                                                 std::nullopt, static_cast<int>(align / 8), 0));
+    TensorVar buf(e->alloc_var->name,
+                  TensorType({alloc_size}, e->elem_type, e->scope, static_cast<int>(align / 8)));
     e->alloc_var = buf;
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;

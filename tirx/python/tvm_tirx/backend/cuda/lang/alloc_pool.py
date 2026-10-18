@@ -201,23 +201,23 @@ class SMEMPool:
         self,
         shape,
         dtype="float32",
-        strides=None,
         scope="shared.dyn",
         align=0,
         layout="default",
     ):
+        from tvm_tirx.ir import PtrType
+        from tvm_tirx.tirx import ptr_byte_offset
+
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
         res = ir._bind_tensor(
             ir.decl_tensor(
-                self.ptr,
+                ptr_byte_offset(self.ptr, self.offset, ty=PtrType(dtype, scope)),
                 ty_args=[
                     ir.Tensor(
                         shape,
                         dtype,
-                        strides=strides,
-                        byte_offset=self.offset,
                         scope=scope,
                         align=align,
                         layout=layout,

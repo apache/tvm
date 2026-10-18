@@ -25,6 +25,7 @@ import tvm.s_tir.testing
 import tvm_tirx
 import tvm_tirx.testing
 from tvm import s_tir
+from tvm.s_tir import match_shape_stride_pattern
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
@@ -454,6 +455,17 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     C_s0_3 = T.dynamic("C_s0_3", "int32")
     C_s1_3 = T.dynamic("C_s1_3", "int32")
 
+    complex_compute_c_offset = T.dynamic("complex_compute_c_offset", "int32")
+    complex_compute_a_1_offset = T.dynamic("complex_compute_a_1_offset", "int32")
+    complex_compute_c_offset_1 = T.dynamic("complex_compute_c_offset_1", "int32")
+    complex_compute_a_1_offset_1 = T.dynamic("complex_compute_a_1_offset_1", "int32")
+    complex_compute_c_offset_2 = T.dynamic("complex_compute_c_offset_2", "int32")
+    complex_compute_a_1_offset_2 = T.dynamic("complex_compute_a_1_offset_2", "int32")
+    complex_compute_b_offset = T.dynamic("complex_compute_b_offset", "int32")
+    complex_compute_c_offset_3 = T.dynamic("complex_compute_c_offset_3", "int32")
+    complex_compute_a_1_offset_3 = T.dynamic("complex_compute_a_1_offset_3", "int32")
+    complex_compute_c_offset_4 = T.dynamic("complex_compute_c_offset_4", "int32")
+
     @Ts.function
     def complex_compute(
         A: T.Tensor((2, 16, 16, 1280), "float16"),
@@ -497,17 +509,20 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0_0, C_s1_0),
+                                    layout=T.TileLayout(
+                                        T.S[(16, 16) : (C_s0_0, C_s1_0)]
+                                        + ((16) * complex_compute_c_offset)
+                                    ),
                                     scope="wmma.accumulator",
-                                    offset_factor=16,
                                 )
+                                C_pattern = T.meta_var(match_shape_stride_pattern(C.ty))
                                 T.gpu_fill_fragment(
                                     C.data,
                                     16,
                                     16,
                                     16,
-                                    C.ty.elem_offset // C_s0_0 // 16 * (C_s0_0 // 16)
-                                    + C.ty.elem_offset % C_s0_0 // 16,
+                                    C_pattern.elem_offset // C_s0_0 // 16 * (C_s0_0 // 16)
+                                    + C_pattern.elem_offset % C_s0_0 // 16,
                                     T.float32(0),
                                 )
                         for k_0_0 in T.serial(
@@ -682,9 +697,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0_0, A_s1_0),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (A_s0_0, A_s1_0)]
+                                                + ((16) * complex_compute_a_1_offset)
+                                            ),
                                             scope="shared.dyn",
-                                            offset_factor=16,
                                         )
                                         C = Ts.match_tensor(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
@@ -693,17 +710,20 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0_1, C_s1_1),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (C_s0_1, C_s1_1)]
+                                                + ((16) * complex_compute_c_offset_1)
+                                            ),
                                             scope="wmma.matrix_a",
-                                            offset_factor=16,
                                         )
+                                        C_pattern = T.meta_var(match_shape_stride_pattern(C.ty))
                                         T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
-                                            + C.ty.elem_offset % C_s0_1 // 16,
+                                            C_pattern.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
+                                            + C_pattern.elem_offset % C_s0_1 // 16,
                                             A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_0,
                                             "row_major",
@@ -733,9 +753,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0_1, A_s1_1),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (A_s0_1, A_s1_1)]
+                                                + ((16) * complex_compute_a_1_offset_1)
+                                            ),
                                             scope="shared.dyn",
-                                            offset_factor=16,
                                         )
                                         C = Ts.match_tensor(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
@@ -744,17 +766,20 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0_2, C_s1_2),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (C_s0_2, C_s1_2)]
+                                                + ((16) * complex_compute_c_offset_2)
+                                            ),
                                             scope="wmma.matrix_b",
-                                            offset_factor=16,
                                         )
+                                        C_pattern = T.meta_var(match_shape_stride_pattern(C.ty))
                                         T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
-                                            + C.ty.elem_offset % C_s0_2 // 16,
+                                            C_pattern.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
+                                            + C_pattern.elem_offset % C_s0_2 // 16,
                                             A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_1,
                                             "col_major",
@@ -791,9 +816,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0_2, A_s1_2),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (A_s0_2, A_s1_2)]
+                                                + ((16) * complex_compute_a_1_offset_2)
+                                            ),
                                             scope="wmma.matrix_a",
-                                            offset_factor=16,
                                         )
                                         B = Ts.match_tensor(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
@@ -802,9 +829,11 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(B_s0, B_s1),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (B_s0, B_s1)]
+                                                + ((16) * complex_compute_b_offset)
+                                            ),
                                             scope="wmma.matrix_b",
-                                            offset_factor=16,
                                         )
                                         C = Ts.match_tensor(
                                             Conv_reindex_wmma_accumulator[
@@ -813,23 +842,28 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0_3, C_s1_3),
+                                            layout=T.TileLayout(
+                                                T.S[(16, 16) : (C_s0_3, C_s1_3)]
+                                                + ((16) * complex_compute_c_offset_3)
+                                            ),
                                             scope="wmma.accumulator",
-                                            offset_factor=16,
                                         )
+                                        A_1_pattern = T.meta_var(match_shape_stride_pattern(A_1.ty))
+                                        B_pattern = T.meta_var(match_shape_stride_pattern(B.ty))
+                                        C_pattern = T.meta_var(match_shape_stride_pattern(C.ty))
                                         T.gpu_mma_sync(
                                             C.data,
-                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
-                                            + C.ty.elem_offset % C_s0_3 // 16,
+                                            C_pattern.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C_pattern.elem_offset % C_s0_3 // 16,
                                             A_1.data,
-                                            A_1.ty.elem_offset // A_s0_2 // 16 * (A_s0_2 // 16)
-                                            + A_1.ty.elem_offset % A_s0_2 // 16,
+                                            A_1_pattern.elem_offset // A_s0_2 // 16 * (A_s0_2 // 16)
+                                            + A_1_pattern.elem_offset % A_s0_2 // 16,
                                             B.data,
-                                            B.ty.elem_offset // B_s0 // 16 * (B_s0 // 16)
-                                            + B.ty.elem_offset % B_s0 // 16,
+                                            B_pattern.elem_offset // B_s0 // 16 * (B_s0 // 16)
+                                            + B_pattern.elem_offset % B_s0 // 16,
                                             C.data,
-                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
-                                            + C.ty.elem_offset % C_s0_3 // 16,
+                                            C_pattern.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C_pattern.elem_offset % C_s0_3 // 16,
                                         )
                         for ax0_0, ax1_0 in T.grid(2, 2):
                             with Ts.sblock("Conv_reindex_wmma.accumulator_o"):
@@ -849,24 +883,29 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(A_s0_3, A_s1_3),
+                                    layout=T.TileLayout(
+                                        T.S[(16, 16) : (A_s0_3, A_s1_3)]
+                                        + ((16) * complex_compute_a_1_offset_3)
+                                    ),
                                     scope="wmma.accumulator",
-                                    offset_factor=16,
                                 )
                                 C = Ts.match_tensor(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0_4, C_s1_4),
-                                    offset_factor=16,
+                                    layout=T.TileLayout(
+                                        T.S[(16, 16) : (C_s0_4, C_s1_4)]
+                                        + ((16) * complex_compute_c_offset_4)
+                                    ),
                                 )
+                                A_1_pattern = T.meta_var(match_shape_stride_pattern(A_1.ty))
                                 T.gpu_store_matrix_sync(
                                     A_1.data,
                                     16,
                                     16,
                                     16,
-                                    A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
-                                    + A_1.ty.elem_offset % A_s0_3 // 16,
+                                    A_1_pattern.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
+                                    + A_1_pattern.elem_offset % A_s0_3 // 16,
                                     C.ptr_to([0] * len(C.shape)),
                                     C_s0_4,
                                     "row_major",

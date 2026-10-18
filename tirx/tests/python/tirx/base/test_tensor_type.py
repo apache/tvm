@@ -37,18 +37,18 @@ def test_tensor_pointer_type_derived_from_dtype_and_scope():
 
 @pytest.mark.parametrize("scope", ["global", "shared", tvm_tirx.runtime.MemoryScope("local")])
 def test_tensor_type_constructor_scope_order(scope):
-    direct = tvm_tirx.tirx.TensorType((4, 8), "float32", scope, (16, 1), 4, 64, 2)
-    scripted = T.Tensor((4, 8), "float32", scope, (16, 1), 4, 64, 2)
+    direct = tvm_tirx.tirx.TensorType(
+        (4, 8), "float32", scope, 64, T.TileLayout(T.S[(4, 8) : (16, 1)] + 4)
+    )
+    scripted = T.Tensor((4, 8), "float32", scope, 64, T.TileLayout(T.S[(4, 8) : (16, 1)] + 4))
     declared = tvm_tirx.tirx.Var(
         "tensor",
         tvm_tirx.tirx.TensorType(
             (4, 8),
             "float32",
             scope=scope,
-            strides=(16, 1),
-            elem_offset=4,
+            layout=tvm_tirx.tirx.layout.TileLayout(tvm_tirx.tirx.layout.S[(4, 8) : (16, 1)] + (4)),
             data_alignment=64,
-            offset_factor=2,
         ),
     )
     tvm_tirx.ir.assert_structural_equal(direct, scripted)
@@ -86,7 +86,14 @@ def test_tensor_ptr_to():
     m = tvm_tirx.tirx.Var("m", "int32")
     n = tvm_tirx.tirx.Var("n", "int32")
     tensor = tvm_tirx.tirx.Var(
-        "tensor", tvm_tirx.tirx.TensorType((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (m, n),
+            "float32",
+            layout=tvm_tirx.tirx.layout.TileLayout(
+                tvm_tirx.tirx.layout.S[(m, n) : [n + 1, 1]] + (7)
+            ),
+        ),
     )
     pointer = tensor.ptr_to([2, 3])
     assert pointer.op.name == "tirx.address_of"
@@ -131,10 +138,8 @@ def test_tensor_type_and_projection(dtype, scope):
 
 
 def test_tensor_type_default_offset():
-    tensor = tvm_tirx.tirx.Var(
-        "tensor", tvm_tirx.tirx.TensorType((8,), "float32", elem_offset=None)
-    )
-    assert int(tensor.ty.elem_offset) == 0
+    tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType((8,), "float32"))
+    assert tensor.ty.layout is None
 
 
 @pytest.mark.parametrize(
@@ -259,15 +264,17 @@ def test_tensor_scope_receiver_validation():
 @pytest.mark.parametrize("alignment", [-1, 0, 64])
 def test_tensor_type_construction_offsets_and_alignment(alignment):
     ty = tvm_tirx.tirx.TensorType(
-        (), "float32", data_alignment=alignment, byte_offset=16, strides=()
+        (), "float32", data_alignment=alignment, layout=T.TileLayout(T.S[()] + 4)
     )
     tensor = tvm_tirx.ir.Var("scalar", ty)
     assert list(tensor.shape) == []
-    assert tensor.layout is None
-    assert int(tensor.elem_offset) == 4
-    assert int(tensor.byte_offset) == 16
+    assert int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0)) == 4
+    assert int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0)) == 4
+    assert (
+        int(tensor.layout.apply(*([0] * len(tensor.shape)), shape=tensor.shape).get("m", 0) * 4)
+        == 16
+    )
     assert tensor.data_alignment == 64
-    assert tensor.offset_factor == 1
 
 
 if __name__ == "__main__":

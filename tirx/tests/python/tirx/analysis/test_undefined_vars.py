@@ -62,7 +62,12 @@ def test_decl_tensor_elem_offset_is_use():
     n = tirx.Var("n", "int32")
     data_ptr = tirx.Var("buf_data", PtrType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
-    buf = tirx.Var("buf", tirx.TensorType((n,), "float32", data=data_ptr, elem_offset=elem_off))
+    buf = tirx.Var(
+        "buf",
+        tirx.TensorType(
+            (n,), "float32", data=data_ptr, layout=tirx.TileLayout(tirx.layout.S[(n,)] + (elem_off))
+        ),
+    )
 
     body = tvm_tirx.ir.Evaluate(tvm_tirx.ir.TensorLoad(buf, [0]))
     decl = tvm_tirx.ir.Bind(

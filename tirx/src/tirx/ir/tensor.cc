@@ -402,35 +402,26 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
 // The tensor offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices,
-                                                bool inner) const {
+ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices) const {
   TVM_FFI_ICHECK_EQ(shape.size(), input_indices.size())
       << "TensorType is " << shape.size() << "-dimensional, cannot be indexed with the "
       << input_indices.size() << "-dimensional indices provided.";
 
-  if (strides.size()) {
-    TVM_FFI_ICHECK_EQ(this->strides.size(), input_indices.size())
-        << "If strides are defined, "
-        << "the index's dimensionality must match the dimensionality of the index given.";
-  }
-
-  PrimExpr output_index = 0;
   sym::Analyzer ana;
-
-  for (size_t i = 0; i < input_indices.size(); i++) {
-    if (strides.size()) {
-      output_index = output_index + input_indices[i] * strides[i];
-    } else {
-      output_index = output_index * this->shape[i] + input_indices[i];
+  if (layout.has_value()) {
+    auto mapped = layout.value()->Apply(input_indices, shape);
+    if (mapped.empty() && shape.empty()) {
+      return {IntImm(DefaultIndexType(), 0)};
     }
-
-    if (i > 0) {
-      output_index = MergeMulMod(ana.get(), output_index);
-    }
+    TVM_FFI_CHECK(mapped.size() == 1 && mapped.find("m") != mapped.end(), ValueError)
+        << "Tensor indexing requires a memory-only layout";
+    PrimExpr offset = mapped["m"];
+    return SimplifyArray(ana.get(), {offset});
   }
-
-  if (elem_offset.defined() && !IsZero(elem_offset) && !inner) {
-    output_index = output_index + elem_offset;
+  PrimExpr output_index = 0;
+  for (size_t i = 0; i < input_indices.size(); ++i) {
+    output_index = output_index * shape[i] + input_indices[i];
+    if (i > 0) output_index = MergeMulMod(ana.get(), output_index);
   }
 
   return SimplifyArray(ana.get(), {output_index});

@@ -357,7 +357,10 @@ def test_tensor_load_store():
     assert isinstance(s, tvm_tirx.ir.TensorStore)
 
     tensor = tvm_tirx.tirx.Var(
-        "tensor", tvm_tirx.tirx.TensorType((4, 8), "float32", elem_offset=100)
+        "tensor",
+        tvm_tirx.tirx.TensorType(
+            (4, 8), "float32", layout=tvm_tirx.tirx.TileLayout(tvm_tirx.tirx.layout.S[(4, 8)] + 100)
+        ),
     )
     tvm_tirx.ir.assert_structural_equal(
         tensor[2, 3].indices,
