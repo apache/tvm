@@ -382,14 +382,24 @@ void UpdateSpecializeVarMap(const Function& func, const Var& param, const Tensor
   }
   auto specific = MatchShapeStridePattern(specific_buf.ty());
   auto original = MatchShapeStridePattern(buf_to_specialize.ty());
-  TVM_FFI_CHECK(specific.has_value() && original.has_value(), ValueError)
-      << "Tensor specialization requires shape-aligned strided memory layouts";
-  auto new_strides = specific.value().get<1>();
-  auto old_strides = original.value().get<1>();
-  for (size_t i = 0; i < old_strides.size(); ++i) {
-    build_var_mapping(new_strides[i], old_strides[i]);
+  if (specific.has_value() && original.has_value()) {
+    auto new_strides = specific.value().get<1>();
+    auto old_strides = original.value().get<1>();
+    for (size_t i = 0; i < old_strides.size(); ++i) {
+      build_var_mapping(new_strides[i], old_strides[i]);
+    }
+    build_var_mapping(specific.value().get<2>(), original.value().get<2>());
+  } else {
+    // Split and composed layouts need not have one iterator per logical dimension.
+    // Apply the shape bindings before comparing their geometry, without treating
+    // independent variables in the two layouts as interchangeable.
+    auto mutator = ffi::make_object<FunctionSpecializer>(*var_map);
+    ffi::Optional<Layout> layout = buf_to_specialize.ty()->layout;
+    auto mapped = mutator->Mutate(ffi::AnyView(layout), InplaceMode::kDisallow);
+    layout = std::move(mapped).ValueOrUnchanged(layout).cast<ffi::Optional<Layout>>();
+    TVM_FFI_CHECK(ffi::StructuralEqual()(layout, specific_buf.ty()->layout), ValueError)
+        << "Tensor specialization has incompatible layouts after shape specialization";
   }
-  build_var_mapping(specific.value().get<2>(), original.value().get<2>());
   // The specializer distinguishes a concrete tensor constraint (which keeps
   // the parameter) from another function parameter (which aliases it).
   build_var_mapping(specific_buf, buf_to_specialize);

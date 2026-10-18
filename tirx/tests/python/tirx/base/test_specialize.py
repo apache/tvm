@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
-# ruff: noqa: F401
 
 from __future__ import annotations
 
@@ -255,6 +254,75 @@ def test_specialize_mem_copy():
     # partially specialized
     func = mem_copy.specialize({q: n})
     assert_structural_equal_ignore_global_symbol(func, mem_copy_m_n_p_n)
+
+
+@pytest.mark.parametrize("composed", [False, True])
+def test_specialize_split_layout(composed):
+    n = T.dynamic("n", "int32")
+
+    def layout(extent):
+        tile = T.TileLayout(T.S[(extent, 2, 2)] + 4 * extent)
+        return T.ComposeLayout(1, 2, 2, tile) if composed else tile
+
+    @T.function
+    def before(A: T.Tensor((n, 4), "float32", layout=layout(n)), n: n):
+        for i, j in T.grid(n, 4):
+            A[i, j] = T.float32(1)
+
+    @T.function
+    def expected(A: T.Tensor((8, 4), "float32", layout=layout(8))):
+        for i, j in T.grid(8, 4):
+            A[i, j] = T.float32(1)
+
+    specific = tvm_tirx.tirx.Var("specific", T.Tensor((8, 4), "float32", layout=layout(8)))
+    after = before.specialize({before.params[0]: specific})
+    assert_structural_equal_ignore_global_symbol(after, expected)
+
+
+@pytest.mark.parametrize("difference", ["stride", "offset", "axis", "replica", "swizzle"])
+def test_specialize_split_layout_rejects_incompatible_geometry(difference):
+    n = T.dynamic("n", "int32")
+
+    @T.function
+    def before(A: T.Tensor((n, 4), "float32", layout=T.TileLayout(T.S[(n, 2, 2)]))):
+        A[0, 0] = T.float32(1)
+
+    shard = [T.Iter(8, 4, "m"), T.Iter(2, 2, "m"), T.Iter(2, 1, "m")]
+    offset, replica = {}, []
+    if difference == "stride":
+        shard[0] = T.Iter(8, 8, "m")
+    elif difference == "offset":
+        offset = {"m": 1}
+    elif difference == "axis":
+        shard[0] = T.Iter(8, 4, "tx")
+    elif difference == "replica":
+        replica = [T.Iter(2, 32, "m")]
+    layout = T.TileLayout.from_iters(shard, replica, offset)
+    if difference == "swizzle":
+        layout = T.ComposeLayout(1, 2, 2, layout)
+    specific = tvm_tirx.tirx.Var("specific", T.Tensor((8, 4), "float32", layout=layout))
+    with pytest.raises(ValueError, match="incompatible layouts"):
+        before.specialize({before.params[0]: specific})
+
+
+def test_specialize_split_layout_preserves_free_variable_identity():
+    n, stride = T.dynamic("n", "int32"), T.dynamic("stride", "int32")
+
+    @T.function
+    def before(
+        A: T.Tensor((n, 4), "float32", layout=T.TileLayout(T.S[(n, 2, 2) : (stride, 2, 1)])),
+        s: stride,
+    ):
+        A[0, 0] = T.float32(1)
+
+    def specific(value):
+        layout = T.TileLayout(T.S[(8, 2, 2) : (value, 2, 1)])
+        return tvm_tirx.tirx.Var("specific", T.Tensor((8, 4), "float32", layout=layout))
+
+    after = before.specialize({before.params[0]: specific(stride)})
+    assert after.params[0].ty.layout.shard[0].stride.same_as(stride)
+    with pytest.raises(ValueError, match="incompatible layouts"):
+        before.specialize({before.params[0]: specific(T.dynamic("stride", "int32"))})
 
 
 def test_specialize_recursive_load():
