@@ -155,9 +155,9 @@ TVM_TIRX_DLL bool IsContiguous(const TensorType& tensor);
 inline ffi::Optional<ffi::Tuple<ffi::Array<PrimExpr>, ffi::Array<PrimExpr>, PrimExpr>>
 MatchShapeStridePattern(const TensorType& tensor) {
   ffi::Array<PrimExpr> strides;
-  PrimExpr offset = IntImm(DefaultIndexType(), 0);
+  PrimExpr offset = IntImm(tensor->DefaultIndexType(), 0);
   if (!tensor->layout.has_value()) {
-    PrimExpr stride = IntImm(tensor->shape.empty() ? DefaultIndexType() : tensor->shape[0].ty(), 1);
+    PrimExpr stride = IntImm(tensor->DefaultIndexType(), 1);
     strides = ffi::Array<PrimExpr>(tensor->shape.size(), stride);
     for (size_t i = tensor->shape.size(); i > 0; --i) {
       strides.Set(i - 1, stride);

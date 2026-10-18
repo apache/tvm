@@ -199,7 +199,8 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
     if not _is_memory_tile(layout, buf.ty.shape):
         raise ValueError("DLTensor packing requires a shape-aligned strided memory layout")
     stride_exprs = [it.stride for it in layout.shard]
-    origin = layout.offset.get(Axis.m, const(0, "int64"))
+    index_type = buf.ty.shape[0].ty if buf.ty.shape else "int64"
+    origin = layout.offset.get(Axis.m, const(0, index_type))
     contiguous = _ffi_api.IsContiguous(buf.ty)
     strides = (
         Call(

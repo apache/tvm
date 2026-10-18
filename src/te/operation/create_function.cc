@@ -777,10 +777,9 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(tirx::DefaultIndexType(), 0);
       if (auto offset_var =
               tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().as<PrimVar>()) {
-        var_map.insert_or_assign(offset_var.value().get(), zero_offset);
+        var_map.insert_or_assign(offset_var.value().get(), IntImm(offset_var.value().ty(), 0));
       }
       ffi::ObjectPtr<TensorTypeNode> type =
           ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
