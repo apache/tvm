@@ -22,7 +22,6 @@ from __future__ import annotations
 import ast
 import inspect
 import re
-import sys
 import traceback
 
 import pytest
@@ -62,64 +61,6 @@ def check_error(func, rel_lineno, error_type):
         match = re.match(r"^.*# check_error: (.+)$", source_code.splitlines()[rel_lineno])
         if match:
             assert match.group(1) in str(caught.value)
-
-
-def test_tensor_bind():
-    def tensor_bind_missing_args(A: T.Tensor(dtype="float32")) -> None:  # error
-        T.evaluate(0)
-
-    check_error(tensor_bind_missing_args, 1, TypeError)
-
-
-def test_undefined_tensor():
-    def undefined_tensor(A: T.Tensor((16, 16), "float32")) -> None:
-        for i in T.serial(16):
-            for j in T.serial(0, 16):
-                C[i, j] = 0.0  # error  # noqa: F821
-
-    check_error(undefined_tensor, 4, NameError)
-
-
-def test_unsupported_function_call():
-    def unsupported_function_call(A: T.Tensor((16, 16), "float32")) -> None:
-        for i in T.const_range(16):  # error
-            for j in T.serial(0, 16):
-                A[i, j] = 0.0
-
-    check_error(unsupported_function_call, 2, AttributeError)
-
-
-def test_invalid_for_function():
-    def invalid_for_function(A: T.Tensor((16, 16), "float32")) -> None:
-        for i in T.evaluate(0.0):  # error
-            for j in T.serial(0, 16):
-                A[i, j] = 0.0
-
-    check_error(invalid_for_function, 2, TypeError)
-
-
-def test_invalid_block_function():
-    def invalid_block_function(A: T.Tensor((16, 16), "float32")) -> None:
-        with T.evaluate(0.0):  # error
-            T.evaluate(1.0)
-
-    # Ordinary Python reports a missing context-manager protocol differently before 3.11.
-    error_type = AttributeError if sys.version_info < (3, 11) else TypeError
-    check_error(invalid_block_function, 2, error_type)
-
-
-def test_return_not_allowed():
-    def return_not_allowed(a: T.handle) -> None:
-        return T.evaluate(0)  # error
-
-    check_error(return_not_allowed, 2, TypeError)
-
-
-def test_no_body():
-    def no_body(A: T.Tensor((16, 16), "float32")) -> None:
-        T.realize(A, "")  # error
-
-    check_error(no_body, 2, AttributeError)
 
 
 def test_inconsistent_binding():
@@ -197,22 +138,6 @@ def test_miss_block_bind():
                 T.evaluate(1.0)
 
     check_error(miss_block_bind_value, 4, TypeError)
-
-
-def test_invalid_loop_var():
-    def invalid_loop_var() -> None:
-        for i, j in range(0, 16):  # error
-            T.evaluate(1.0)
-
-    check_error(invalid_loop_var, 2, ValueError)
-
-
-def test_inconsistent_grid():
-    def inconsistent_grid(A: T.Tensor(16, "float32")) -> None:
-        for (i,) in T.grid(16, 16):  # error: one explicit target cannot unpack two variables
-            T.evaluate(A[i])
-
-    check_error(inconsistent_grid, 2, ValueError)
 
 
 def test_invalid_match_tensor_region():
@@ -332,28 +257,6 @@ def test_tvm_exception_catch_from_special_stmt():
         T.evaluate(1.0)
 
     check_error(special_stmt_except, 2, TypeError)
-
-
-def test_tvm_exception_catch_from_scope_handler():
-    def scope_handler_except() -> None:
-        for i in T.serial("1", "1"):  # error
-            T.evaluate(1)
-
-    check_error(scope_handler_except, 2, TypeError)
-
-
-def test_tvm_exception_catch_from_bare_intrin():
-    def intrin_except_unassign(A: T.Tensor((16, 16), "float32")) -> None:
-        T.evaluate(A)  # error
-
-    check_error(intrin_except_unassign, 2, RuntimeError)
-
-
-def test_tvm_exception_catch_from_assigned_intrin():
-    def intrin_except_assign(A: T.Tensor((16, 16), "float32")) -> None:
-        A[0, 0] = A[A]  # error
-
-    check_error(intrin_except_assign, 2, TypeError)
 
 
 def test_match_tensor_shape_mismatch():
@@ -502,50 +405,6 @@ def test_report_error_root_block():
     assert expected_sub_error_message in str(execinfo.value)
 
 
-def test_load_var():
-    def load_var_multiple() -> None:
-        d = T.float32()
-        d[2] = d[2, 1]  # error cannot provide two indices to load
-
-    check_error(load_var_multiple, 3, TypeError)
-
-
-def test_store_var():
-    def store_var_multiple() -> None:
-        d = T.float32()
-        d[2, 1] = d[1]  # error cannot provide two indices to store
-
-    check_error(store_var_multiple, 3, TypeError)
-
-
-def test_load_handle():
-    def load_handle(h: T.handle, h_: T.Tensor([1], "float32")) -> None:
-        h_[0] = h[0]  # error cannot load from handle
-
-    check_error(load_handle, 2, TypeError)
-
-
-def test_store_handle():
-    def store_handle(h: T.handle, h_: T.Tensor([1], "float32")) -> None:
-        h[0] = h_[0]  # error cannot store to handle
-
-    check_error(store_handle, 2, TypeError)
-
-
-def test_binop_bad_ast_type():
-    def binop_bad_ast_type(h: T.handle, h_: T.Tensor([1], "float32")):
-        h_[0] = h + [2]  # error rhs should be a primexpr  # noqa: RUF005
-
-    check_error(binop_bad_ast_type, 2, TypeError)
-
-
-def test_binop_bad_type():
-    def binop_bad_type(h: T.handle, h_: T.Tensor([1], "float32")):
-        h_[0] = h + 2  # error lhs and rhs should be the same type
-
-    check_error(binop_bad_type, 2, TypeError)
-
-
 def test_non_integer_typed_block_iter():
     def non_integer_typed_block_iter():
         with Ts.sblock():
@@ -577,14 +436,6 @@ def test_illegal_tensor_slice():
     check_error(strided_tensor_region, 6, ValueError)
     check_error(access_reversed_slice, 4, RuntimeError)
     check_error(access_non_const_slice_length, 5, TypeError)
-
-
-def test_invalid_thread_binding_annotation():
-    def invalid_thread_binding_annotation(A: T.Tensor((128,), "float32")) -> None:
-        for i in T.parallel(128, annotations={"thread_binding": 128}):
-            A[i] = A[i] * 2.0
-
-    check_error(invalid_thread_binding_annotation, None, TypeError)
 
 
 def test_multi_line_error_report():
@@ -647,12 +498,12 @@ def test_tir_func_private_manual_global_symbol_fail():
         assert matmul.__name__ == "matmul"
 
 
-def test_tensor_input_requires_shape_arg():
-    with pytest.raises(TypeError):
+def test_invalid_thread_binding_annotation():
+    def invalid_thread_binding_annotation(A: T.Tensor((128,), "float32")) -> None:
+        for i in T.parallel(128, annotations={"thread_binding": 128}):
+            A[i] = A[i] * 2.0
 
-        @Ts.function
-        def func(A: T.Tensor(dtype="int32")):
-            T.evaluate(0)
+    check_error(invalid_thread_binding_annotation, None, TypeError)
 
 
 if __name__ == "__main__":

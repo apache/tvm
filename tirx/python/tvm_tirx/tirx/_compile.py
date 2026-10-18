@@ -160,6 +160,8 @@ def _codegen_host_and_device(
     for dev_mod in device_modules:
         if dev_mod is not None:
             mhost.import_module(dev_mod)
+    for external_mod in host_mod.get_attr("external_mods") or []:
+        mhost.import_module(external_mod)
     return mhost
 
 

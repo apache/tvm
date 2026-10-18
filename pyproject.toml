@@ -214,7 +214,6 @@ unfixable = []
 "python/tvm/relax/frontend/tflite/tflite_frontend.py" = ["E501"]
 "python/tvm/relax/transform/legalize_ops/nn.py" = ["E501"]
 # TIRx parser and lowering tests intentionally retain unused IR bindings.
-"tests/python/tirx/**/*.py" = ["F841"]
 "tirx/tests/python/tirx/**/*.py" = ["F841"]
 
 [tool.ruff.lint.isort]
@@ -233,7 +232,7 @@ docstring-code-line-length = "dynamic"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-verbosity = 1
 test-requires = ["pytest", "numpy"]
-test-command = "pytest -vvs {project}/tests/python/all-platform-minimal-test"
+test-command = "pytest -vvs {project}/tirx/tests/python/codegen/llvm/test_minimal.py"
 
 [tool.cibuildwheel.linux]
 repair-wheel-command = "auditwheel repair --exclude libtvm_tirx_compiler.so --exclude libtvm_runtime.so --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so --exclude 'libcuda.so.*' --exclude 'libcudart.so.*' --exclude 'libnvrtc.so.*' --exclude 'libnvrtc-builtins.so.*' -w {dest_dir} {wheel}"

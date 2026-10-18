@@ -17,10 +17,8 @@
 import numpy as np
 import pytest
 
-import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
 
@@ -33,17 +31,15 @@ def test_fp8_float32_roundtrip(dtype):
         pytest.skip(f"ml_dtypes does not provide {dtype}")
     np_dtype = getattr(ml_dtypes, dtype)
 
-    @Ts.function
+    @T.function
     def roundtrip(
         A: T.Tensor((128,), dtype),
         intermediate: T.Tensor((128,), "float32"),
         B: T.Tensor((128,), dtype),
     ):
         for i in range(128):
-            with Ts.sblock("roundtrip"):
-                vi = Ts.axis.spatial(128, i)
-                intermediate[vi] = A[vi]
-                B[vi] = intermediate[vi]
+            intermediate[i] = A[i]
+            B[i] = intermediate[i]
 
     source = np.random.default_rng(0).standard_normal(128).astype(np_dtype)
     tensors = [
@@ -51,5 +47,5 @@ def test_fp8_float32_roundtrip(dtype):
         tvm_tirx.runtime.tensor(np.zeros(128, dtype="float32")),
         tvm_tirx.runtime.tensor(np.zeros(128, dtype=np_dtype)),
     ]
-    tvm.compile(roundtrip, target="llvm")(*tensors)
+    tvm_tirx.tirx.compile(roundtrip, target="llvm")(*tensors)
     np.testing.assert_equal(tensors[2].numpy(), source.astype("float32").astype(np_dtype))

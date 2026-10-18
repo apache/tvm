@@ -14,20 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
-import re
 import subprocess
 import tempfile
 
 import numpy as np
 import pytest
 
-import tvm
 import tvm_tirx
-from tvm.s_tir import script as Ts
-from tvm_tirx import codegen
+import tvm_tirx.testing
 from tvm_tirx.script import tirx as T
+from tvm_tirx.support import cc
 from tvm_tirx.testing import env
 
 
@@ -47,8 +44,8 @@ def sve_device_vector_length():
         o_path = f"{tmp_dir}/out.o"
         with open(c_path, "w") as f:
             f.write(c_code)
-        tvm_tirx.support.cc.create_executable(o_path, c_path, ["-march=native"])
-        out = subprocess.check_output(o_path, shell=True).strip().decode()
+        cc.create_executable(o_path, c_path, ["-march=native"])
+        out = subprocess.check_output([o_path]).strip().decode()
 
     return int(out)
 
@@ -59,12 +56,12 @@ def test_scalable_div(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm_tirx.cpu(0)
 
-    @Ts.function
+    @T.function
     def my_func(A: T.Tensor((1,), "int32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[0] = T.Div(10000, 4 * T.vscale())
 
-    mod = tvm.compile(my_func, target=target)
+    mod = tvm_tirx.tirx.compile(my_func, target=target)
 
     A_nd = tvm_tirx.runtime.tensor(np.empty((1,), dtype="int32"), device=dev)
     mod(A_nd)
@@ -80,12 +77,12 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     num_elements = sve_device_vector_length // 32
     dev = tvm_tirx.cpu(0)
 
-    @Ts.function
+    @T.function
     def my_func(A: T.Tensor((num_elements,), "float32"), B: T.Tensor((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
-    mod = tvm.compile(my_func, target=target)
+    mod = tvm_tirx.tirx.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype("float32")
     B_np = np.zeros((num_elements,)).astype("float32")
@@ -105,13 +102,13 @@ def test_scalable_loop_bound(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     dev = tvm_tirx.cpu(0)
 
-    @Ts.function
+    @T.function
     def my_func(A: T.Tensor((num_elements,), "float32"), B: T.Tensor((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         for i in T.serial(0, 4 * T.vscale()):
             B[i] = A[i]
 
-    mod = tvm.compile(my_func, target=target)
+    mod = tvm_tirx.tirx.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype(dtype)
     B_np = np.zeros((num_elements,)).astype(dtype)
@@ -128,12 +125,12 @@ def test_scalable_broadcast(sve_device_vector_length):
     num_elements = sve_device_vector_length // 32
     dev = tvm_tirx.cpu(0)
 
-    @Ts.function
+    @T.function
     def my_func(A: T.Tensor((num_elements,), "float32")):
         T.func_attr({"global_symbol": "my_module", "tirx.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 
-    mod = tvm.compile(my_func, target=target)
+    mod = tvm_tirx.tirx.compile(my_func, target=target)
 
     A_np = np.zeros((num_elements,)).astype("float32")
     A_nd = tvm_tirx.runtime.tensor(A_np, device=dev)

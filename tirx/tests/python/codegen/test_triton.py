@@ -14,19 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
-import sys
-
 import numpy as np
 import pytest
 
-import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm import relax
-from tvm.relax import script as R
-from tvm.relax.frontend import nn
-from tvm.s_tir import script as Ts
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
@@ -44,7 +36,7 @@ else:
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_tir_triton_integration():
+def test_triton_call_kernel():
     @triton.jit
     def add_kernel(
         x_ptr,  # *Pointer* to first input vector.
@@ -66,11 +58,10 @@ def test_tir_triton_integration():
     BLOCK_SIZE = 64
 
     add_m = T.dynamic("m", "int64")
-    main_m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Module:
-        @Ts.function
+        @T.function
         def add(
             x: T.Tensor((add_m,), "float32"),
             y: T.Tensor((add_m,), "float32"),
@@ -78,28 +69,16 @@ def test_tir_triton_integration():
         ) -> None:
             T.func_attr({"global_symbol": "add"})
 
-            with Ts.sblock("root"):
-                Ts.reads(x[0:add_m], y[0:add_m])
-                Ts.writes(output[0:add_m])
-                T.call_kernel(
-                    add_kernel,
-                    (T.ceildiv(add_m, BLOCK_SIZE),),
-                    x.data,
-                    y.data,
-                    output.data,
-                    add_m,
-                    BLOCK_SIZE,
-                    num_warps=8,
-                )
-
-        @R.function
-        def main(x: R.Tensor((main_m,), "float32"), y: R.Tensor((main_m,), "float32")):
-            with R.dataflow():
-                output = R.call_tir(
-                    Module.add, [x, y], ty_args=[relax.TensorType((main_m,), "float32")]
-                )
-                R.output(output)
-            return output
+            T.call_kernel(
+                add_kernel,
+                (T.ceildiv(add_m, BLOCK_SIZE),),
+                x.data,
+                y.data,
+                output.data,
+                add_m,
+                BLOCK_SIZE,
+                num_warps=8,
+            )
 
     # Triton omits constexpr arguments and appends global scratch, plus profile
     # scratch starting in 3.5. This kernel requires no scratch allocation.
@@ -112,38 +91,36 @@ def test_tir_triton_integration():
 
     @I.ir_module
     class Parsed:
-        @Ts.function
+        @T.function
         def add(
             x: T.Tensor((m,), "float32"),
             y: T.Tensor((m,), "float32"),
             output: T.Tensor((m,), "float32"),
         ):
-            with Ts.sblock("root"):
-                Ts.reads(x[0:m], y[0:m])
-                Ts.writes(output[0:m])
-                T.call_packed(
-                    "add_kernel",
-                    x.data,
-                    y.data,
-                    output.data,
-                    m,
-                    *scratch_args,
-                    256,
-                    (m + T.int64(64) - T.int64(1)) // T.int64(64),
-                )
+            T.call_packed(
+                "add_kernel",
+                x.data,
+                y.data,
+                output.data,
+                m,
+                *scratch_args,
+                256,
+                (m + T.int64(64) - T.int64(1)) // T.int64(64),
+            )
 
     tvm_tirx.ir.assert_structural_equal(Module["add"], Parsed["add"])
     assert len(Module.get_attr("external_mods")) == 1
 
     with tvm_tirx.target.Target("cuda"):
-        lib = tvm.compile(Module)
+        lib = tvm_tirx.tirx.compile(Module)
 
     def run_and_check():
         device = tvm_tirx.cuda(0)
         x_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
         y_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
         output_np = x_nd.numpy() + y_nd.numpy()
-        output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
+        output_nd = tvm_tirx.runtime.empty((256,), "float32", device)
+        lib["add"](x_nd, y_nd, output_nd)
         tvm_tirx.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
 
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)

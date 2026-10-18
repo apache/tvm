@@ -88,7 +88,7 @@ jobs:
       - name: Test
         shell: bash -l {0}
         run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
+          python -m pytest -v tirx/tests/python/codegen/llvm/test_minimal.py
           tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
@@ -142,5 +142,5 @@ jobs:
       - name: Test
         shell: cmd /C call {0}
         run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test tests/python/script
+          python -m pytest -v tirx/tests/python/codegen/llvm/test_minimal.py
           tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script

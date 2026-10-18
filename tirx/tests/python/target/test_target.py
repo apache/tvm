@@ -19,10 +19,8 @@ import json
 import pytest
 import tvm_ffi
 
-import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm.s_tir import script as Ts
 from tvm_tirx.target import Target
 from tvm_tirx.testing import env
 
@@ -431,19 +429,20 @@ def test_target_from_device_opencl(input_form):
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_module_dict_from_deserialized_targets():
     target = Target("llvm")
 
     from tvm_tirx.script import tirx as T
 
-    @Ts.function
+    @T.function
     def func():
         T.evaluate(0)
 
     func = func.with_attr("Target", target)
     target2 = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(target))
     mod = tvm_tirx.IRModule({"main": func})
-    lib = tvm.compile(mod, target=target2)
+    lib = tvm_tirx.tirx.compile(mod, target=target2)
     lib["func"]()
 
 

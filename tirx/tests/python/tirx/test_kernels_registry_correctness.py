@@ -27,9 +27,13 @@ import pytest
 
 from tvm_tirx.testing import env
 
-_WORKSPACE_TIRX_KERNELS = Path(__file__).resolve().parents[4] / "tirx-kernels"
-if _WORKSPACE_TIRX_KERNELS.exists():
-    sys.path.insert(0, str(_WORKSPACE_TIRX_KERNELS))
+_TIRX_ROOT = Path(__file__).resolve().parents[3]
+# Accept a sibling of either the parent TVM checkout or standalone TIRx checkout.
+for _workspace in (_TIRX_ROOT.parent.parent, _TIRX_ROOT.parent):
+    _WORKSPACE_TIRX_KERNELS = _workspace / "tirx-kernels"
+    if _WORKSPACE_TIRX_KERNELS.exists():
+        sys.path.insert(0, str(_WORKSPACE_TIRX_KERNELS))
+        break
 
 kernel_registry = pytest.importorskip("tirx_kernels.registry")
 kernel_runner = pytest.importorskip("tirx_kernels.runner")

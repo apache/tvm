@@ -18,9 +18,8 @@
 import pytest
 import tvm_ffi
 
-import tvm
 import tvm_tirx
-from tvm import te, topi
+import tvm_tirx.testing
 from tvm_tirx.ir import TensorRegion
 from tvm_tirx.ir.prim import expr_deep_equal
 from tvm_tirx.script import tirx as T
@@ -39,15 +38,6 @@ def test_expr_constructor():
     x = tvm_tirx.tirx.Var(name="xx", ty="float32")
     assert isinstance(x, tvm_tirx.tirx.Var)
     assert x.name == "xx"
-
-    lhs, rhs = tvm_tirx.tirx.Var("lhs", "int32"), tvm_tirx.tirx.Var("rhs", "int32")
-    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm_tirx.tirx.const(0, "int32")])
-    with pytest.raises(TypeError, match="te.CommReducer"):
-        tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
-    x = tvm.te.Reduce(combiner, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
-    assert isinstance(x, tvm.te.Reduce)
-    assert x.combiner.same_as(combiner)
-    assert x.value_index == 0
 
     x = tvm_tirx.ir.FloatImm("float32", 1.0)
     assert isinstance(x, tvm_tirx.ir.FloatImm)
@@ -262,29 +252,14 @@ def test_tensor_region_type_is_singleton():
     assert lhs.ty.same_as(rhs.ty)
 
 
-def test_tensor_region_is_not_arithmetic_operand():
-    int_region = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([4], "int32"))[0:4]
-    with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
-        tvm.s_tir.IterVar((0, 4), "i", tvm.s_tir.IterVar.DataPar) + int_region
-
-
 def test_operator_base_categories_have_primitive_type():
     var = tvm_tirx.tirx.Var("x", "int32")
     tensor = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([4], "float32"))
-    lhs, rhs = tvm_tirx.tirx.Var("lhs", "int32"), tvm_tirx.tirx.Var("rhs", "int32")
-    combiner = tvm.te.CommReducer([lhs], [rhs], [lhs + rhs], [tvm_tirx.tirx.const(0, "int32")])
     expressions = [
         tvm_tirx.ir.IntImm("int32", 1),
         tvm_tirx.tirx.Add(var, 1),
         tvm_tirx.tirx.LT(var, 1),
         tvm_tirx.tirx.And(var < 1, var < 2),
-        tvm.te.Reduce(
-            combiner,
-            [1],
-            [tvm.s_tir.IterVar((0, 1), "i", tvm.s_tir.IterVar.CommReduce)],
-            None,
-            0,
-        ),
         tvm_tirx.tirx.Cast("float32", var),
         tvm_tirx.tirx.Select(var < 1, var, 1),
         tvm_tirx.ir.TensorLoad(tensor, [0]),
@@ -369,13 +344,6 @@ def test_math_unary_constructor_requires_float_dtype():
 
     y = tvm_tirx.tirx.Var("y", "float32")
     assert tvm_tirx.tirx.tan(y).ty == tvm_tirx.ir.PrimType("float32")
-
-
-def test_topi_tan_requires_float_dtype():
-    x = te.placeholder((2, 2), dtype="int32", name="x")
-
-    with pytest.raises(TypeError, match=r"prim\.tan only supports floating-point inputs"):
-        topi.tan(x)
 
 
 def test_math_unary_constructor_preserves_bfloat16():

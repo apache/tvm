@@ -23,7 +23,6 @@ from tvm_ffi import get_global_func
 import tvm_tirx
 import tvm_tirx.script
 import tvm_tirx.testing
-from tvm import s_tir
 from tvm_tirx import ir, tirx
 from tvm_tirx import tirx as tir
 from tvm_tirx.ir import Range, TensorRegion, TensorRegionType, assert_structural_equal
@@ -74,11 +73,10 @@ def test_config_extension_passthrough():
     assert _script(tirx.Var("Custom", "int32"), cfg) == "Custom_1"
 
 
-@pytest.mark.parametrize("key", ["tirx.prefix", "tirx.prefix", "relax.prefix", "s_tir.prefix"])
 @pytest.mark.parametrize("value", ["2prefix", 17])
 @pytest.mark.parametrize("nested", [False, True])
-def test_config_validates_dialect_prefixes(key, value, nested):
-    config = {key: value}
+def test_config_validates_tirx_prefix(value, nested):
+    config = {"tirx.prefix": value}
     if nested:
         config = {"extra_config": config}
     with pytest.raises((RuntimeError, TypeError)):
@@ -87,16 +85,14 @@ def test_config_validates_dialect_prefixes(key, value, nested):
 
 @pytest.mark.parametrize(
     "prefixes",
-    [{}, {"tirx.prefix": "CustomT", "relax.prefix": "CustomR", "s_tir.prefix": "CustomTs"}],
+    [{}, {"tirx.prefix": "CustomT"}],
 )
-def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
-    tir_prefix = prefixes.get("tirx.prefix", "T")
-    relax_prefix = prefixes.get("relax.prefix", "R")
-    for name in [tir_prefix, relax_prefix, prefixes.get("s_tir.prefix", "Ts")]:
-        var = tirx.Var(name, "int32")
-        assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
-            f'{name}_1 = {tir_prefix}.dynamic("{name}", dtype="int32")\n{name}_1'
-        )
+def test_config_reserves_tirx_prefix_before_variable_definition(prefixes):
+    name = prefixes.get("tirx.prefix", "T")
+    var = tirx.Var(name, "int32")
+    assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
+        f'{name}_1 = {name}.dynamic("{name}", dtype="int32")\n{name}_1'
+    )
 
 
 @pytest.mark.parametrize(
@@ -438,17 +434,6 @@ a
     )
 
 
-def test_iter_var():
-    a = s_tir.IterVar((0, 8), "a", iter_type=s_tir.IterVar.DataPar)
-    _assert_print(
-        a,
-        """
-a = T.dynamic("a", dtype="int32")
-Ts.iter_var(a, T.Range(0, 8), "DataPar", "")
-""",
-    )
-
-
 def test_string_imm():
     s = tvm_tirx.ir.StringImm("str")
     _assert_print(s, '"str"')
@@ -623,18 +608,6 @@ def test_call():
         obj,
         """
 T.atan(T.float32(1.0))
-""",
-    )
-
-
-def test_comm_reducer():
-    from tvm.s_tir.script import ir_builder as SB
-
-    obj = SB.comm_reducer(lambda x, y: x + y, identity=[TB.float32(0)])
-    _assert_print(
-        obj,
-        """
-Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 """,
     )
 

@@ -465,3 +465,18 @@ def test_eager_and_deferred_nodes_keep_nested_locations_and_receipts():
     assert_structural_equal(result.loc, ir.CallSiteLoc(callee, caller))
     assert receipt.value.same_as(result.body[0])
     assert_structural_equal(receipt.value.loc, ir.CallSiteLoc(explicit, caller))
+
+
+def test_nesting_parsing():
+    class dummy:
+        pass
+
+    for i in range(1):
+
+        @tvm_tirx.script.ir_module
+        class Module:
+            @T.function
+            def impl(
+                A: T.Tensor((12, 196, 64), "float32"),
+            ) -> None:
+                T.evaluate(0)

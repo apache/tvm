@@ -21,7 +21,6 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
 import tvm_tirx
 from tvm_tirx import tirx
 from tvm_tirx.ir.transform import PassContext
@@ -103,7 +102,7 @@ def test_return_const():
 
 
 def test_return_accepts_expr_and_roundtrips():
-    value = tvm.relax.ShapeExpr([2, 3])
+    value = tvm_tirx.ir.Tuple([tirx.const(2, "int32"), tirx.const(3, "int32")])
     loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("return_test"), 1, 1, 1, 9)
     stmt = tvm_tirx.ir.Return(value, loc)
 
