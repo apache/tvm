@@ -26,12 +26,40 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/type.h>
 
+#include <memory>
 #include <utility>
 
 namespace tvm::tirx {
+
+bool IsContiguous(const TensorType& tensor) {
+  if (!tensor->layout.has_value()) return true;
+  const auto* tile = tensor->layout.as<TileLayoutNode>();
+  if (!tile || !tile->replica.empty()) return false;
+  static const Axis memory_axis = Axis::Get("m");
+  for (const auto& [axis, offset] : tile->offset) {
+    if (axis != memory_axis) return false;
+  }
+  prim::ExprDeepEqual deep_equal;
+  std::unique_ptr<sym::Analyzer> analyzer;
+  auto equal = [&](const PrimExpr& lhs, const PrimExpr& rhs) {
+    if (deep_equal(lhs, rhs)) return true;
+    if (!analyzer) analyzer = std::make_unique<sym::Analyzer>();
+    return (*analyzer)->CanProveEqual(lhs, rhs);
+  };
+  PrimExpr stride =
+      IntImm(tile->shard.empty() ? PrimType::Int(64) : tile->shard.back()->stride.ty(), 1);
+  for (size_t i = tile->shard.size(); i > 0; --i) {
+    const auto& iter = tile->shard[i - 1];
+    if (iter->axis != memory_axis) return false;
+    if (!prim::IsOne(iter->extent) && !equal(iter->stride, stride)) return false;
+    stride = stride * iter->extent;
+  }
+  return true;
+}
 
 bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
@@ -144,6 +172,7 @@ TensorType::TensorType(ffi::Array<PrimExpr> shape, PrimType dtype, runtime::Memo
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorTypeNode::RegisterReflection();
+  refl::GlobalDef().def("tirx.IsContiguous", IsContiguous);
   refl::TypeAttrDef<TensorTypeNode>()
       .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorTypeVisit>())
       .attr(ffi::type_attr::kStructuralMutate,

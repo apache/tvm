@@ -200,7 +200,7 @@ def _pack_tensor(buf, loc: Location = UNKNOWN_LOC):
         raise ValueError("DLTensor packing requires a shape-aligned strided memory layout")
     stride_exprs = [it.stride for it in layout.shard]
     origin = layout.offset.get(Axis.m, const(0, "int64"))
-    contiguous = _ffi_api.IsContiguous(buf.ty.layout)
+    contiguous = _ffi_api.IsContiguous(buf.ty)
     strides = (
         Call(
             "tirx.stack_make_shape",

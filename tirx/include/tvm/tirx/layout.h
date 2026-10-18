@@ -215,15 +215,6 @@ class TileLayout : public Layout {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
 };
 
-/*!
- * \brief Whether a layout describes contiguous row-major memory, irrespective of its origin.
- *
- * An absent layout is contiguous. Tile layouts may have arbitrary strides on unit
- * extents, but no replicas or non-memory axes. Other layout forms return false.
- * Structural equality handles ordinary strides; symbolic proof is used only as a fallback.
- */
-TVM_TIRX_DLL bool IsContiguous(const ffi::Optional<Layout>& layout);
-
 // ComposeLayout
 class ComposeLayoutNode : public LayoutNode {
  public:

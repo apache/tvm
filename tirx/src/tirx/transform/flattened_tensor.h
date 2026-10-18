@@ -44,7 +44,7 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor) {
     for (const auto& iter : tile->shard) {
       span = span + (iter->extent - 1) * iter->stride;
     }
-    if (IsContiguous(tensor.ty()->layout)) {
+    if (IsContiguous(tensor.ty())) {
       output_shape.Set(0, PrimExpr(1));
       for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
     } else {

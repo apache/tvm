@@ -384,7 +384,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
   if (!is_result) {
     if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
       bool regular_contiguous =
-          tirx::IsContiguous(tensor->layout) &&
+          tirx::IsContiguous(ffi::GetRef<tirx::TensorType>(tensor)) &&
           tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor)).has_value();
       TVM_FFI_CHECK(regular_contiguous, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "

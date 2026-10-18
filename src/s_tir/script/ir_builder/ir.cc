@@ -72,7 +72,10 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
           shape[i], source_strides[source_strides.size() - shape.size() + i], memory_axis));
     }
     auto inferred = tvm::tirx::TileLayout(std::move(shard), {}, {});
-    if (!tvm::tirx::IsContiguous(inferred)) layout = std::move(inferred);
+    if (!tvm::tirx::IsContiguous(
+            tvm::tirx::TensorType(shape, dtype, storage_scope, align, inferred))) {
+      layout = std::move(inferred);
+    }
   }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, align, layout));
   TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)

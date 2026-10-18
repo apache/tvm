@@ -787,7 +787,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       if (type->layout.has_value()) {
         auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
         type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
-        if (tirx::IsContiguous(type->layout)) type->layout = std::nullopt;
+        if (tirx::IsContiguous(TensorType(type))) type->layout = std::nullopt;
       }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);

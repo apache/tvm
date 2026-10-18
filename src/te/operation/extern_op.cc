@@ -61,7 +61,7 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
       TVM_FFI_ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i].shape()[dim]));
     }
-    TVM_FFI_ICHECK(tirx::IsContiguous(input_placeholders[i].ty()->layout))
+    TVM_FFI_ICHECK(tirx::IsContiguous(input_placeholders[i].ty()))
         << "External inputs require contiguous strides";
   }
   n->inputs = std::move(inputs);

@@ -132,6 +132,15 @@ class TensorType : public Type {
 };
 
 /*!
+ * \brief Whether a tensor describes contiguous row-major memory, irrespective of its origin.
+ *
+ * An absent layout is contiguous. Tile layouts may have arbitrary strides on unit
+ * extents, but no replicas or non-memory axes. Other layout forms return false.
+ * Structural equality handles ordinary strides; symbolic proof is used only as a fallback.
+ */
+TVM_TIRX_DLL bool IsContiguous(const TensorType& tensor);
+
+/*!
  * \brief Match a tensor's shape-aligned strided memory representation.
  *
  * Returns (shape, strides, element offset). An absent layout yields contiguous
