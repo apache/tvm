@@ -57,26 +57,6 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
-  if (!layout.has_value()) {
-    const auto& source = region->source.as_or_throw<TensorVar>();
-    auto pattern = tvm::tirx::MatchShapeStridePattern(source.ty());
-    TVM_FFI_CHECK(pattern.has_value(), ValueError)
-        << "S-TIR match sources require a regular memory layout";
-    const auto& source_strides = pattern.value().get<1>();
-    TVM_FFI_CHECK(shape.size() <= source_strides.size(), ValueError)
-        << "Match tensor rank exceeds its source rank";
-    static const auto memory_axis = tvm::tirx::Axis::Get("m");
-    ffi::Array<tvm::tirx::Iter> shard;
-    for (size_t i = 0; i < shape.size(); ++i) {
-      shard.push_back(tvm::tirx::Iter(
-          shape[i], source_strides[source_strides.size() - shape.size() + i], memory_axis));
-    }
-    auto inferred = tvm::tirx::TileLayout(std::move(shard), {}, {});
-    if (!tvm::tirx::IsContiguous(
-            tvm::tirx::TensorType(shape, dtype, storage_scope, align, inferred))) {
-      layout = std::move(inferred);
-    }
-  }
   TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, align, layout));
   TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
       << "S-TIR tensors require a regular memory layout without swizzles or thread axes";

@@ -258,11 +258,15 @@ class MatchTensorLower : public StmtExprMutator {
     // Step 2.3. Check and update the alias's physical strides.
     TVM_FFI_ICHECK(source->region.size() >= tensor.shape().size());
     int offset = source->region.size() - tensor.shape().size();
-    auto target_strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
-    auto source_strides = tvm::tirx::MatchShapeStridePattern(source_tensor.ty()).value().get<1>();
-    for (size_t i = 0; i < tensor.shape().size(); ++i) {
-      Bind(target_strides[i], source_strides[i + offset],
-           tensor->name + ".strides_" + std::to_string(i));
+    // An unspecified alias layout inherits the source region's physical strides.
+    // Explicit layouts instead constrain (or bind) those strides.
+    if (tensor.ty()->layout.has_value()) {
+      auto target_strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
+      auto source_strides = tvm::tirx::MatchShapeStridePattern(source_tensor.ty()).value().get<1>();
+      for (size_t i = 0; i < tensor.shape().size(); ++i) {
+        Bind(target_strides[i], source_strides[i + offset],
+             tensor->name + ".strides_" + std::to_string(i));
+      }
     }
 
     // Step 2.4. Check and update shape
