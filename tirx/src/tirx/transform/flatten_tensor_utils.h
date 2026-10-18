@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file flattened_tensor.h
+ * \file flatten_tensor_utils.h
  * \brief Physical tensor view construction for layout lowering.
  */
-#ifndef TVM_TIRX_TRANSFORM_FLATTENED_TENSOR_H_
-#define TVM_TIRX_TRANSFORM_FLATTENED_TENSOR_H_
+#ifndef TVM_TIRX_TRANSFORM_FLATTEN_TENSOR_UTILS_H_
+#define TVM_TIRX_TRANSFORM_FLATTEN_TENSOR_UTILS_H_
 
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/expr.h>
@@ -31,43 +31,28 @@
 namespace tvm {
 namespace tirx {
 
-// SplitCoord leaves its leading quotient unbounded by the declared tile extent.
-// Normalize that extent to the tensor domain before bounding or canonicalizing it.
-TVM_FFI_INLINE TileLayout TileForTensorDomain(const TileLayout& tile,
-                                              const ffi::Array<PrimExpr>& shape,
-                                              const sym::Analyzer& analyzer) {
-  if (tile->shard.empty()) return tile;
-  PrimExpr size = IntImm(shape.empty() ? PrimType::Int(64) : shape[0].ty(), 1);
-  for (size_t i = shape.size(); i > 0; --i) size = size * shape[i - 1];
-  PrimExpr tail = IntImm(tile->shard.back()->extent.ty(), 1);
-  for (size_t i = tile->shard.size(); i > 1; --i) tail = tail * tile->shard[i - 1]->extent;
-  PrimExpr declared = tail * tile->shard[0]->extent;
-  if (prim::ExprDeepEqual()(size, declared) || analyzer->CanProveEqual(size, declared)) return tile;
-  auto shard = tile->shard;
-  const auto& outer = shard[0];
-  shard.Set(0,
-            Iter(analyzer->Simplify(floordiv(size + tail - 1, tail)), outer->stride, outer->axis));
-  return TileLayout(shard, tile->replica, tile->offset);
-}
-
-TVM_FFI_INLINE Layout LayoutForTensorDomain(const Layout& layout, const ffi::Array<PrimExpr>& shape,
-                                            const sym::Analyzer& analyzer) {
-  if (auto tile = layout.as<TileLayout>()) {
-    return TileForTensorDomain(tile.value(), shape, analyzer);
-  }
-  if (auto compose = layout.as<ComposeLayout>()) {
-    // A bare swizzle already applies to the entire tensor domain. Its tile
-    // describes the swizzle period, rather than a bound on logical coordinates.
-    if (compose.value()->tile_layout->IsTrivial()) return layout;
-    auto result = compose.value();
-    result.CopyOnWrite()->tile_layout = TileForTensorDomain(result->tile_layout, shape, analyzer);
-    return result;
-  }
-  return layout;
-}
-
-TVM_FFI_INLINE PrimExpr TensorMemorySpan(const TensorVar& tensor, const sym::Analyzer& analyzer) {
-  Layout layout = LayoutForTensorDomain(tensor.ty()->layout.value(), tensor.shape(), analyzer);
+/*!
+ * \brief Compute a conservative required backing-storage bound in elements.
+ *
+ * Bounds the memory axis "m" of a layout describing the actual tensor domain.
+ * The bound includes stride gaps, memory-axis replicas, and memory-axis offsets;
+ * it is neither a logical element count nor necessarily the minimum storage size.
+ * Hardware-thread axes do not contribute, so distributed layouts give per-thread
+ * storage. Swizzled layouts round up to whole blocks covering the bits the swizzle
+ * may change, conservatively including padding.
+ *
+ * \param tensor Tensor with a TileLayout or ComposeLayout, valid nonnegative strides
+ * and nonzero logical/tile extents. The layout must describe the tensor domain;
+ * mismatched tile domains are not resized or extended. A bare swizzle describes
+ * a period and uses the tensor shape for its domain. Borrowed views may have
+ * nonzero memory offsets.
+ * \param analyzer Analyzer used to simplify the bound.
+ * \return Required storage bound measured from memory-axis zero, in tensor elements,
+ * not bytes. This computes geometry only; it does not validate allocation policy.
+ */
+TVM_FFI_INLINE PrimExpr ComputeTensorMemorySize(const TensorVar& tensor,
+                                                const sym::Analyzer& analyzer) {
+  const Layout& layout = tensor.ty()->layout.value();
   if (const auto* tile = layout.as<TileLayoutNode>()) {
     return analyzer->Simplify(tile->GetSpan(ffi::String("m")));
   }
@@ -86,8 +71,30 @@ TVM_FFI_INLINE PrimExpr TensorMemorySpan(const TensorVar& tensor, const sym::Ana
   return analyzer->Simplify(span);
 }
 
-// A changed type requires a fresh variable. Callers bind that variable to a
-// decl_tensor over the source's physical pointer when using it as a view.
+/*!
+ * \brief Construct a one-dimensional physical tensor variable without allocating storage.
+ *
+ * The result preserves name, dtype, scope, alignment, and source location, and has
+ * no layout. Its shape covers the physical footprint, including stride gaps and
+ * conservative padding where needed. General layouts use ComputeTensorMemorySize,
+ * including memory-axis offsets and excluding hardware-thread axes. Without a
+ * layout, the shape is the logical element count.
+ *
+ * Callers bind a changed variable to a decl_tensor over the source pointer for a
+ * borrowed view, and preserve any relative origin in that binding's geometry.
+ * Allocation callers apply their own per-thread/backend storage contract; this
+ * helper neither allocates nor rejects borrowed strided or offset views.
+ *
+ * \param tensor Tensor to flatten, assuming valid nonnegative strides and nonzero
+ * logical/tile extents, with any layout describing the actual tensor domain.
+ * \param analyzer Optional analyzer; a fresh analyzer is used when absent.
+ * \param fold_origin For shape-aligned regular strides, include the memory origin
+ * in the extent for absolute flat indexing. Otherwise the caller retains that
+ * origin separately. General layouts already use an absolute bound regardless
+ * of this flag.
+ * \return Fresh physical tensor variable, or tensor itself if it is already
+ * one-dimensional with no layout.
+ */
 TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor,
                                          ffi::Optional<sym::Analyzer> analyzer = std::nullopt,
                                          bool fold_origin = false) {
@@ -115,7 +122,7 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor,
       }
     }
   } else if (tile || tensor.ty()->layout.as<ComposeLayoutNode>()) {
-    output_shape.Set(0, TensorMemorySpan(tensor, ana));
+    output_shape.Set(0, ComputeTensorMemorySize(tensor, ana));
   } else {
     for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
   }
@@ -132,4 +139,4 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor,
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIRX_TRANSFORM_FLATTENED_TENSOR_H_
+#endif  // TVM_TIRX_TRANSFORM_FLATTEN_TENSOR_UTILS_H_

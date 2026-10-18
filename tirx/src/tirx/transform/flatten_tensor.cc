@@ -34,7 +34,7 @@
 
 #include <unordered_set>
 
-#include "flattened_tensor.h"
+#include "flatten_tensor_utils.h"
 #include "ir_utils.h"
 
 namespace tvm {

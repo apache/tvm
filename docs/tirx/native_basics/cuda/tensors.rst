@@ -129,9 +129,10 @@ each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
     B_ptr[(((i * 8) + j) + 64)] = ...;   // layout origin 64:   i*8 + j + 64
     B_ptr[((i * 16) + j)]       = ...;   // row stride 16:    i*16 + j
 
-For nonzero shapes and non-negative strides, allocation footprints cover the
-maximum mapped memory address. A declaration over a borrowed pointer remains
-responsible for the storage that pointer addresses.
+Layouts must describe the actual tensor domain; lowering does not resize or
+extend mismatched tile extents. For nonzero shapes and non-negative strides,
+allocation footprints cover the maximum mapped memory address. A declaration
+over a borrowed pointer remains responsible for the storage that pointer addresses.
 
 Shared memory
 -------------

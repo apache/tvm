@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../tirx/transform/flattened_tensor.h"
+#include "../../../tirx/transform/flatten_tensor_utils.h"
 
 namespace tvm {
 namespace tirx {
@@ -189,7 +189,7 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
     } else if (is_alloc && (buf.ty()->layout.as<TileLayoutNode>() ||
                             buf.ty()->layout.as<ComposeLayoutNode>())) {
       type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
-      type->shape = {TensorMemorySpan(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
+      type->shape = {ComputeTensorMemorySize(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
       type->layout = std::nullopt;
     } else {
       flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_), /*fold_origin=*/true);
@@ -277,7 +277,6 @@ class TrainiumLayoutApplier : public tirx::StmtExprMutatorWithAnalyzer {
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
-      layout = LayoutForTensorDomain(layout, tensor.shape(), ffi::GetRef<sym::Analyzer>(analyzer_));
       auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};

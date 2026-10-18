@@ -41,7 +41,7 @@
 #include <utility>
 #include <vector>
 
-#include "flattened_tensor.h"
+#include "flatten_tensor_utils.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -191,7 +191,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     if (is_alloc &&
         (buf.ty()->layout.as<TileLayoutNode>() || buf.ty()->layout.as<ComposeLayoutNode>())) {
       type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
-      type->shape = {TensorMemorySpan(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
+      type->shape = {ComputeTensorMemorySize(buf, ffi::GetRef<sym::Analyzer>(analyzer_))};
       type->layout = std::nullopt;
     } else {
       flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
@@ -276,7 +276,6 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         auto tile = layout.as_or_throw<TileLayout>();
         layout = TileLayout(tile->shard, tile->replica, {});
       }
-      layout = LayoutForTensorDomain(layout, tensor.shape(), ffi::GetRef<sym::Analyzer>(analyzer_));
       auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
       if (res.empty() && tensor.shape().empty()) {
         return {IntImm(tensor.ty()->DefaultIndexType(), 0)};
