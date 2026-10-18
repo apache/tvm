@@ -140,8 +140,9 @@ The generic pipeline explicitly composes two independently usable passes:
   finite CUDA index calls inside ordinary ``Bind`` statements.
 - **``LowerTensorLayouts``** then runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed tensor access into concrete physical address arithmetic
-  (``addr = data + elem_offset + layout.apply(coord)``), flattens the tensors,
-  and removes tensor offsets that have been folded into the resulting views.
+  (``addr = data + layout.apply(coord, shape=shape)["m"]``, in elements),
+  flattens the tensors, and accounts for the layout's memory origin exactly once
+  in the resulting view or its access indices.
 
 A backend can pair ``TileDispatch`` with its own layout lowering, such as
 Trainium's ``LowerTrainiumLayout``. The generic pipeline inserts ``PrintIR``
