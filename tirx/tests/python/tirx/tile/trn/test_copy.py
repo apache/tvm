@@ -64,10 +64,9 @@ def test_instruction_generator_compact_global_layout():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.parametrize("strides", [(3, 1), (1, 2)])
-def test_parameter_stride_contract(strides):
+def test_parameter_stride_contract():
     """Physical index lowering must preserve the host's DLTensor stride checks."""
-    layout = TileLayout(S[(2, 2) : strides])
+    layout = TileLayout(S[(2, 2) : (3, 1)])
 
     @T.function
     def copy(
@@ -82,66 +81,12 @@ def test_parameter_stride_contract(strides):
     # Execute the lowered scalar accesses and packed wrapper on the host, without
     # requiring a Trainium device or compiling Trainium-specific instructions.
     lib = tvm_tirx.tirx.compile(lowered, target="llvm")
-    data = (
-        np.arange(6, dtype="float32").reshape(2, 3)[:, :2]
-        if strides == (3, 1)
-        else np.arange(4, dtype="float32").reshape(2, 2).T
-    )
+    data = np.arange(6, dtype="float32").reshape(2, 3)[:, :2]
     result = tvm_tirx.runtime.empty((2, 2), "float32")
     lib(data, result)
     np.testing.assert_array_equal(result.numpy(), data)
     with pytest.raises(ValueError, match="strides"):
         lib(np.ascontiguousarray(data), result)
-
-
-@pytest.mark.parametrize("shape", [(0, 2), (2, 0)])
-def test_empty_memory_layout_allocation(shape):
-    layout = TileLayout(S[shape : (3, 1)])
-
-    @T.function
-    def empty():
-        A = T.alloc_tensor(ty_args=[T.Tensor(shape, "float32", layout=layout)])
-        T.evaluate(0)
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "empty"})
-        A = T.alloc_tensor(ty_args=[T.Tensor((0,), "float32")])
-        T.evaluate(0)
-
-    mod = tvm_tirx.IRModule({"main": empty})
-    lowered = tvm_tirx.backend.trn.transform.LowerTrainiumLayout()(mod)
-    assert_structural_equal(lowered["main"], expected)
-
-
-@pytest.mark.parametrize("allocate", [False, True])
-@pytest.mark.parametrize("reverse", [False, True])
-def test_memory_origin_footprint(allocate, reverse):
-    layout = TileLayout(S[(4,) : (-1,)] + 3) if reverse else TileLayout(S[(4,)] + 8)
-    index = 0 if reverse else 3
-    extent = 4 if reverse else 12
-    address = 3 if reverse else 11
-
-    @T.function
-    def before(data: T.handle("float32")):
-        if T.constexpr(allocate):
-            A = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32", layout=layout)])
-        else:
-            A = T.decl_tensor(data, ty_args=[T.Tensor((4,), "float32", layout=layout)])
-        A[index] = T.float32(1)
-
-    @T.function
-    def expected(data: T.handle("float32")):
-        T.func_attr({"global_symbol": "before"})
-        if T.constexpr(allocate):
-            A = T.alloc_tensor(ty_args=[T.Tensor((extent,), "float32")])
-        else:
-            A = T.decl_tensor(data, ty_args=[T.Tensor((extent,), "float32")])
-        A[address] = T.float32(1)
-
-    mod = tvm_tirx.IRModule({"main": before})
-    lowered = tvm_tirx.backend.trn.transform.LowerTrainiumLayout()(mod)
-    assert_structural_equal(lowered["main"], expected)
 
 
 def test_simple_copy():

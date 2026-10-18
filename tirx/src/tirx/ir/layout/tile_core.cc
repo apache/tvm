@@ -223,17 +223,11 @@ PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
   PrimExpr result = 1;
   auto filter = [&](const Axis& axis) { return AxisMatchesFilter(axis, axis_name); };
 
-  // A reversed iterator reaches its maximum address at coordinate zero.
-  // Keep unknown signs explicit so a valid symbolic reverse view cannot underallocate.
   for (const auto& iter : shard) {
-    if (filter(iter->axis)) {
-      result += (iter->extent - 1) * tvm::max(iter->stride, IntImm(iter->stride.ty(), 0));
-    }
+    if (filter(iter->axis)) result += (iter->extent - 1) * iter->stride;
   }
   for (const auto& iter : replica) {
-    if (filter(iter->axis)) {
-      result += (iter->extent - 1) * tvm::max(iter->stride, IntImm(iter->stride.ty(), 0));
-    }
+    if (filter(iter->axis)) result += (iter->extent - 1) * iter->stride;
   }
   for (const auto& [axis, off] : offset) {
     if (filter(axis)) result += off;
@@ -242,11 +236,6 @@ PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
 }
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(PrimExpr coord) const {
-  if (std::any_of(shard.begin(), shard.end(),
-                  [](const Iter& iter) { return prim::IsZero(iter->extent); })) {
-    return Apply(
-        shard.Map([](const Iter& iter) -> PrimExpr { return IntImm(iter->extent.ty(), 0); }));
-  }
   return Apply(SplitCoord(coord, GetShardShape()));
 }
 
@@ -254,13 +243,6 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
                                                       const ffi::Array<PrimExpr>& shape) const {
   TVM_FFI_ICHECK_EQ(coord.size(), shape.size())
       << "ValueError: The size of coord and shape should be equal";
-  // An empty coordinate domain has no accesses. Keep an inert mapping without
-  // dividing by its zero extents while lowering a zero-trip loop body.
-  if (std::any_of(shape.begin(), shape.end(),
-                  [](const PrimExpr& extent) { return prim::IsZero(extent); })) {
-    return Apply(
-        shard.Map([](const Iter& iter) -> PrimExpr { return IntImm(iter->extent.ty(), 0); }));
-  }
   // Group-first path: if this layout can be regrouped by ``shape`` (the input
   // coord's shape), each input dim ``d`` corresponds to a contiguous sub-range
   // of the grouped shard given by ``seps[d]..seps[d+1]``. Splitting

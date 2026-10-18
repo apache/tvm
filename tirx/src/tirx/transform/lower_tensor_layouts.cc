@@ -210,10 +210,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
     // Keep a regular view's origin in its flat memory layout. Allocations have
     // already included that origin in their span and use absolute indices.
     if (!is_alloc) {
-      const auto* tile = buf.ty()->layout.as<TileLayoutNode>();
-      bool nonnegative =
-          !tile || HasNonnegativeStrides(tile, ffi::GetRef<sym::Analyzer>(analyzer_));
-      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value() && nonnegative) {
+      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value()) {
         PrimExpr origin = pattern.value().get<2>();
         origin = analyzer_->canonical_simplify(
             StmtExprMutator::Mutate(ffi::AnyView(origin), InplaceMode::kDisallow)

@@ -28,8 +28,6 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 
-#include <algorithm>
-
 namespace tvm {
 namespace tirx {
 
@@ -38,7 +36,7 @@ namespace tirx {
 TVM_FFI_INLINE TileLayout TileForTensorDomain(const TileLayout& tile,
                                               const ffi::Array<PrimExpr>& shape,
                                               const sym::Analyzer& analyzer) {
-  if (tile->shard.empty() || std::any_of(shape.begin(), shape.end(), prim::IsZero)) return tile;
+  if (tile->shard.empty()) return tile;
   PrimExpr size = IntImm(shape.empty() ? PrimType::Int(64) : shape[0].ty(), 1);
   for (size_t i = shape.size(); i > 0; --i) size = size * shape[i - 1];
   PrimExpr tail = IntImm(tile->shard.back()->extent.ty(), 1);
@@ -68,18 +66,7 @@ TVM_FFI_INLINE Layout LayoutForTensorDomain(const Layout& layout, const ffi::Arr
   return layout;
 }
 
-// Relative flat indices are safe only when no stride can move before the origin.
-TVM_FFI_INLINE bool HasNonnegativeStrides(const TileLayoutNode* tile,
-                                          const sym::Analyzer& analyzer) {
-  if (tile->IsContiguous(analyzer)) return true;
-  return std::all_of(tile->shard.begin(), tile->shard.end(),
-                     [&](const Iter& iter) { return analyzer->CanProve(iter->stride >= 0); });
-}
-
 TVM_FFI_INLINE PrimExpr TensorMemorySpan(const TensorVar& tensor, const sym::Analyzer& analyzer) {
-  if (std::any_of(tensor.shape().begin(), tensor.shape().end(), prim::IsZero)) {
-    return IntImm(tensor.ty()->DefaultIndexType(), 0);
-  }
   Layout layout = LayoutForTensorDomain(tensor.ty()->layout.value(), tensor.shape(), analyzer);
   if (const auto* tile = layout.as<TileLayoutNode>()) {
     return analyzer->Simplify(tile->GetSpan(ffi::String("m")));
@@ -109,23 +96,19 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& tensor,
   ffi::Array<PrimExpr> output_shape{1};
   const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
   bool explicit_strides = tile && MatchShapeStridePattern(tensor.ty()).has_value();
-  bool empty = std::any_of(tensor.shape().begin(), tensor.shape().end(), prim::IsZero);
-  if (empty) {
-    output_shape.Set(0, IntImm(tensor.ty()->DefaultIndexType(), 0));
-  } else if (explicit_strides) {
-    // Preserve the outer stride footprint while covering either stride direction.
+  if (explicit_strides) {
+    // Preserve the outer stride footprint and cover every addressed element.
     PrimExpr span = 1;
     for (const auto& iter : tile->shard) {
-      span = span + (iter->extent - 1) * tvm::max(iter->stride, IntImm(iter->stride.ty(), 0));
+      span = span + (iter->extent - 1) * iter->stride;
     }
     if (tile->IsContiguous(ana)) {
       for (const auto& extent : tensor.shape()) output_shape.Set(0, output_shape[0] * extent);
     } else {
       output_shape.Set(0, tvm::max(tile->shard[0]->stride * tensor.shape()[0], span));
     }
-    if (fold_origin || !HasNonnegativeStrides(tile, ana)) {
-      // Absolute flat indices include the origin. A potentially reversed layout
-      // also folds it, avoiding negative relative indices in the flattened view.
+    if (fold_origin) {
+      // Absolute flat indices include the origin.
       static const Axis memory_axis = Axis::Get("m");
       if (auto origin = tile->offset.Get(memory_axis)) {
         output_shape.Set(0, output_shape[0] + origin.value());

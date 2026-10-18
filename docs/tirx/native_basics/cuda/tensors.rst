@@ -129,12 +129,9 @@ each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
     B_ptr[(((i * 8) + j) + 64)] = ...;   // layout origin 64:   i*8 + j + 64
     B_ptr[((i * 16) + j)]       = ...;   // row stride 16:    i*16 + j
 
-Allocation footprints cover the maximum mapped memory address. A reversed
-layout must still keep every access within its backing storage: for example,
-shape ``(4,)``, stride ``-1`` and origin ``3`` address elements ``3, 2, 1, 0``.
-Increasing an allocation's upper bound does not make negative absolute indices
-valid. A declaration over a borrowed pointer remains responsible for the
-storage that pointer addresses.
+For nonzero shapes and non-negative strides, allocation footprints cover the
+maximum mapped memory address. A declaration over a borrowed pointer remains
+responsible for the storage that pointer addresses.
 
 Shared memory
 -------------
