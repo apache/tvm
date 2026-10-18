@@ -25,8 +25,10 @@
 #define TVM_TIRX_TYPE_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>
@@ -56,9 +58,8 @@ inline PrimType DefaultIndexType() {
  */
 class TensorTypeNode : public TypeNode {
  public:
-  explicit TensorTypeNode(ffi::UnsafeInit tag) : elem_offset(tag) {}
-
-  explicit TensorTypeNode(PrimExpr elem_offset) : elem_offset(std::move(elem_offset)) {}
+  explicit TensorTypeNode(ffi::UnsafeInit) {}
+  TensorTypeNode() = default;
 
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
@@ -71,20 +72,8 @@ class TensorTypeNode : public TypeNode {
    * generators.
    */
   ffi::Array<PrimExpr> shape;
-  /*!
-   * \brief The strides of each dimension
-   *  This can be an empty array, indicating array is contiguous
-   */
-  ffi::Array<PrimExpr> strides;
-  /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  PrimExpr elem_offset;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
-  /*!
-   * \brief Factor of elem_offset field,
-   *  elem_offset is guaranteed to be multiple of offset_factor.
-   */
-  int offset_factor;
   /*! \brief The layout of the tensor */
   ffi::Optional<Layout> layout;
 
@@ -94,16 +83,21 @@ class TensorTypeNode : public TypeNode {
         .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("dtype", &TensorTypeNode::dtype)
         .def_ro("scope", &TensorTypeNode::scope, refl::DefaultValue(runtime::MemoryScope::Global()))
-        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(ffi::Array<PrimExpr>()))
-        .def_ro("elem_offset", &TensorTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefSimple(),
-                refl::DefaultValue(IntImm(tvm::tirx::DefaultIndexType(), 0)))
         .def_ro("data_alignment", &TensorTypeNode::data_alignment,
                 refl::DefaultValue(static_cast<int>(runtime::kAllocAlignment)))
-        .def_ro("offset_factor", &TensorTypeNode::offset_factor, refl::DefaultValue(1))
         .def_ro("layout", &TensorTypeNode::layout, refl::DefaultValue(nullptr));
   }
+
+  /*!
+   * \brief Whether the layout is provably equivalent to implicit row-major storage.
+   *
+   * An absent layout returns true. Explicit layouts must have zero origin and
+   * contiguous memory-only tiles covering exactly the tensor shape, without replicas.
+   * Equivalent split tiles and arbitrary strides on unit extents are accepted.
+   * Deep expression equality is tried before symbolic proof. A supplied analyzer
+   * retains its constraints; otherwise one is created only on the first proof fallback.
+   */
+  TVM_TIRX_DLL bool HasDefaultLayout(ffi::Optional<sym::Analyzer> analyzer = std::nullopt) const;
 
   /*! \return preferred index type for this tensor node */
   PrimType DefaultIndexType() const {
@@ -126,10 +120,8 @@ class TensorTypeNode : public TypeNode {
    * float16x4 elements in a tensor of type float16x4.)
    *
    * \param index The index to be accessed.
-   * \param inner Ignore the elem_offset, return inner offset only
    */
-  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index,
-                                               bool inner = false) const;
+  TVM_TIRX_DLL ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index) const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorType", TensorTypeNode, TypeNode);
 };
@@ -140,9 +132,7 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_TIRX_DLL TensorType(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                          runtime::MemoryScope scope = {}, ffi::Array<PrimExpr> strides = {},
-                          ffi::Optional<PrimExpr> elem_offset = std::nullopt,
-                          int data_alignment = 0, int offset_factor = 0,
+                          runtime::MemoryScope scope = {}, int data_alignment = 0,
                           ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
@@ -152,6 +142,49 @@ class TensorType : public Type {
     data_ = std::move(n);
   }
 };
+
+/*!
+ * \brief Match a tensor's shape-aligned strided memory representation.
+ *
+ * Returns (shape, strides, element offset). An absent layout yields contiguous
+ * row-major strides and zero offset. A TileLayout must have one memory iterator
+ * per shape dimension, no replicas, and only a memory-axis offset. Other layouts
+ * or mismatched extents return nullopt. Strides are always actual expressions;
+ * an empty stride array means rank zero, not an implicit compact contract.
+ *
+ * ExprDeepEqual preserves variable identity without remapping or symbolic proofs,
+ * avoiding the overhead and broader equivalences of general structural matching.
+ */
+inline ffi::Optional<ffi::Tuple<ffi::Array<PrimExpr>, ffi::Array<PrimExpr>, PrimExpr>>
+MatchShapeStridePattern(const TensorType& tensor) {
+  ffi::Array<PrimExpr> strides;
+  PrimExpr offset = IntImm(tensor->DefaultIndexType(), 0);
+  if (!tensor->layout.has_value()) {
+    PrimExpr stride = IntImm(tensor->DefaultIndexType(), 1);
+    strides = ffi::Array<PrimExpr>(tensor->shape.size(), stride);
+    for (size_t i = tensor->shape.size(); i > 0; --i) {
+      strides.Set(i - 1, stride);
+      stride = stride * tensor->shape[i - 1];
+    }
+  } else {
+    const auto* tile = tensor->layout.as<TileLayoutNode>();
+    if (!tile || !tile->replica.empty() || tile->shard.size() != tensor->shape.size()) {
+      return std::nullopt;
+    }
+    prim::ExprDeepEqual equal;
+    static const Axis memory_axis = Axis::Get("m");
+    for (size_t i = 0; i < tile->shard.size(); ++i) {
+      if (tile->shard[i]->axis != memory_axis || !equal(tile->shard[i]->extent, tensor->shape[i]))
+        return std::nullopt;
+      strides.push_back(tile->shard[i]->stride);
+    }
+    for (const auto& [axis, value] : tile->offset) {
+      if (axis != memory_axis) return std::nullopt;
+      offset = value;
+    }
+  }
+  return ffi::Tuple(tensor->shape, std::move(strides), std::move(offset));
+}
 
 /*!
  * \brief The type of tensor map.

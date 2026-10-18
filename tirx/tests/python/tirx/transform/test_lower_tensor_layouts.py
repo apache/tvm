@@ -1011,7 +1011,12 @@ def test_lower_decl_tensor_pointer():
             T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
             buf = T.alloc_tensor(ty_args=[T.Tensor([1024], "uint8", scope="shared.dyn")])
             A = T.decl_tensor(
-                buf.data, ty_args=[T.Tensor([128], "float16", elem_offset=32, data=buf.data)]
+                buf.data,
+                ty_args=[
+                    T.Tensor(
+                        [128], "float16", layout=T.TileLayout(T.S[[128]] + (32)), data=buf.data
+                    )
+                ],
             )
             T.evaluate(A.ptr_to([64]))
 
@@ -1030,7 +1035,12 @@ def test_lower_decl_tensor_pointer():
                 A = T.decl_tensor(
                     buf.data,
                     ty_args=[
-                        T.Tensor((128,), "float16", elem_offset=32, scope="shared.dyn", layout=None)
+                        T.Tensor(
+                            (128,),
+                            "float16",
+                            scope="shared.dyn",
+                            layout=T.TileLayout(T.S[(128,)] + 32),
+                        )
                     ],
                 )
                 T.address_of(A[64])
@@ -1052,7 +1062,12 @@ def test_lower_decl_tensor_pointer():
                 A = T.decl_tensor(
                     buf.data,
                     ty_args=[
-                        T.Tensor((128,), T.float16, scope="shared.dyn", elem_offset=T.int64(32))
+                        T.Tensor(
+                            (128,),
+                            T.float16,
+                            scope="shared.dyn",
+                            layout=T.TileLayout(T.S[(128,)] + 32),
+                        )
                     ],
                 )
                 T.address_of(A[64])
@@ -1210,7 +1225,7 @@ def test_lower_tensor_offset():
             A = T.alloc_tensor(ty_args=[T.Tensor([64, 64], "float16", scope="local")])
             A0 = T.decl_tensor(
                 A.ptr_to([32, 32]),
-                ty_args=[T.Tensor([64], "float16", elem_offset=0, data=A.ptr_to([32, 32]))],
+                ty_args=[T.Tensor([64], "float16", data=A.ptr_to([32, 32]))],
             )
             T.evaluate(T.address_of(A0[32]))
 
@@ -1226,7 +1241,7 @@ def test_lower_tensor_offset():
                 A = T.alloc_local((4096,), "float16", layout=None)
                 A0 = T.decl_tensor(
                     T.address_of(A[2080]),
-                    ty_args=[T.Tensor((64,), "float16", elem_offset=0, scope="local", layout=None)],
+                    ty_args=[T.Tensor((64,), "float16", scope="local", layout=None)],
                 )
                 T.address_of(A0[32])
 
@@ -1263,9 +1278,7 @@ def test_lower_alloc_decl_tensor_outside_of_parser():
             self.A = T.alloc_local([1], "float16")
             self.B = T.alloc_local([1], "float16")
             self.C = T.bind(
-                T.decl_tensor(
-                    smem, ty_args=[T.Tensor([1], "float16", elem_offset=0, scope="shared.dyn")]
-                )
+                T.decl_tensor(smem, ty_args=[T.Tensor([1], "float16", scope="shared.dyn")])
             )
 
     @register_mutable_decl("TestMutableCells.int_var1")
@@ -1314,7 +1327,7 @@ def test_lower_alloc_decl_tensor_outside_of_parser():
             B = T.alloc_local((1,), "float16", layout=None)
             C = T.decl_tensor(
                 smem.data,
-                ty_args=[T.Tensor((1,), "float16", elem_offset=0, scope="shared.dyn", layout=None)],
+                ty_args=[T.Tensor((1,), "float16", scope="shared.dyn", layout=None)],
             )
             A[0] = T.float16(1)
             B[0] = T.float16(2)

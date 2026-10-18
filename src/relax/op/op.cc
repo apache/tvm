@@ -383,11 +383,13 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
   if (type.as<PtrTypeNode>()) return AnyType();
   if (!is_result) {
     if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
-      bool default_layout =
-          !tensor->layout.has_value() ||
-          ffi::StructuralEqual()(tensor->layout.value(),
-                                 tirx::TileLayoutNode::DefaultLayout(tensor->shape));
-      TVM_FFI_CHECK(default_layout, TypeError)
+      bool regular =
+          tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor)).has_value();
+      const auto* tile = tensor->layout.as<tirx::TileLayoutNode>();
+      // Runtime origin matching is handled separately by the native call boundary.
+      bool regular_contiguous =
+          regular && (!tensor->layout.has_value() || (tile && tile->IsContiguous()));
+      TVM_FFI_CHECK(regular_contiguous, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;
       TVM_FFI_CHECK(IsGlobalMemoryScope(tensor->scope), TypeError)
@@ -517,20 +519,21 @@ void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& 
 }
 
 void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
+  if (!tensor->layout.has_value()) return;
   sym::Analyzer analyzer;
-  TVM_FFI_CHECK(!analyzer->CanProve(tensor->elem_offset != 0), TypeError)
+  auto pattern = tirx::MatchShapeStridePattern(ffi::GetRef<tirx::TensorType>(tensor));
+  TVM_FFI_CHECK(pattern.has_value(), TypeError)
+      << "R.call_tir requires a regular memory destination layout";
+  PrimExpr origin = pattern.value().get<2>();
+  auto strides = pattern.value().get<1>();
+  TVM_FFI_CHECK(!analyzer->CanProve(origin != 0), TypeError)
       << "R.call_tir allocates fresh destinations with zero element offset";
-  if (!tensor->strides.empty()) {
-    PrimExpr compact_stride =
-        IntImm(tensor->shape.empty() ? PrimType::Int(64)
-                                     : tensor->shape.back()->ty.as_or_throw<PrimType>(),
-               1);
-    for (size_t i = tensor->shape.size(); i > 0; --i) {
-      TVM_FFI_CHECK(!analyzer->CanProve(tensor->strides[i - 1] != compact_stride), TypeError)
-          << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
-          << i - 1;
-      compact_stride = compact_stride * tensor->shape[i - 1];
-    }
+  PrimExpr compact_stride = IntImm(tirx::DefaultIndexType(), 1);
+  for (size_t i = tensor->shape.size(); i > 0; --i) {
+    TVM_FFI_CHECK(!analyzer->CanProve(strides[i - 1] != compact_stride), TypeError)
+        << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
+        << i - 1;
+    compact_stride = compact_stride * tensor->shape[i - 1];
   }
 }
 

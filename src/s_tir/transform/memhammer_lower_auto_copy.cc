@@ -30,6 +30,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/target/target.h>
+#include <tvm/tirx/type.h>
 
 #include <array>
 #include <stack>
@@ -182,7 +183,15 @@ class AutoPadder {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
-        b->strides = strides;
+        static const auto memory_axis = tvm::tirx::Axis::Get("m");
+        ffi::Array<tvm::tirx::Iter> shard;
+        for (size_t i = 0; i < b->shape.size(); ++i) {
+          shard.push_back(tvm::tirx::Iter(b->shape[i], strides[i], memory_axis));
+        }
+        ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+        if (b->layout.has_value())
+          offset = b->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+        b->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
         TensorVar new_tensor = TensorVar(tensor->name, TensorType(std::move(b)), tensor->loc);
         result.push_back(new_tensor);
         padded_tensor_map_.Set(tensor, new_tensor);

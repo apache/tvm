@@ -55,10 +55,8 @@ class TensorType(Type):
     dtype: PrimType
     scope: MemoryScope
     shape: list
-    strides: list
-    elem_offset: tvm_tirx.ir.Expr
     data_alignment: int
-    offset_factor: int
+
     layout: object | None
 
     def __init__(
@@ -66,24 +64,17 @@ class TensorType(Type):
         shape,
         dtype,
         scope=_SCOPE_GLOBAL,
-        strides=None,
-        elem_offset=None,
         align=0,
-        offset_factor=0,
         layout=None,
         *,
         data=None,
-        byte_offset=None,
         loc: Location = UNKNOWN_LOC,
         data_alignment=None,
     ):
         """Construct a tensor access contract.
 
-        An omitted element offset is zero in the configured index dtype,
-        independent of shape and offset_factor. Integer offsets use that dtype;
-        explicitly typed expressions retain theirs. Pass a symbolic offset explicitly
-        when the contract permits a variable starting position. ``align`` remains a
-        compatibility spelling for ``data_alignment``.
+        Strides and element offsets are described by ``layout``.
+        ``align`` is an alias for ``data_alignment``.
         """
         from tvm_tirx.ir.type import _normalize_type
         from tvm_tirx.script.ir_builder.base import MISSING, at
@@ -97,10 +88,6 @@ class TensorType(Type):
         dtype = _normalize_type(dtype)
         if not isinstance(dtype, PrimType):
             raise TypeError("Tensor dtype must be a primitive type")
-        if elem_offset is not None and byte_offset is not None:
-            raise ValueError("elem_offset and byte_offset cannot be set at the same time")
-        if byte_offset is not None:
-            elem_offset = byte_offset * 8 // tvm_ffi.dtype(dtype.dtype).bits
         if data_alignment is None:
             data_alignment = align
         elif align not in (0, data_alignment):
@@ -114,7 +101,8 @@ class TensorType(Type):
         if layout is MISSING:
             layout = None
         if layout == "default":
-            layout = TileLayout(S[shape])
+            default = TileLayout(S[shape])
+            layout = default
         elif layout is not None and not isinstance(layout, Layout):
             raise TypeError("layout must be a Layout, None, or 'default'")
         self.__init_handle_by_constructor__(
@@ -122,10 +110,7 @@ class TensorType(Type):
             shape,
             dtype,
             scope,
-            () if strides is None else strides,
-            elem_offset,
             data_alignment,
-            offset_factor,
             layout,
             loc if isinstance(loc, Location) else UNKNOWN_LOC,
         )
@@ -142,16 +127,21 @@ class TensorType(Type):
     __expr_properties__: ClassVar[dict[str, Callable]] = {
         "scope": lambda ty, expr: lambda: ty._scope(expr),
         "shape": _tensor_type_field("shape"),
-        "strides": _tensor_type_field("strides"),
-        "elem_offset": _tensor_type_field("elem_offset"),
         "data_alignment": _tensor_type_field("data_alignment"),
-        "offset_factor": _tensor_type_field("offset_factor"),
         "layout": _tensor_type_field("layout"),
         "data": lambda ty, expr: ty._data(expr),
         "dtype": lambda ty, expr: ty._dtype(expr),
-        "byte_offset": lambda ty, expr: ty._byte_offset(expr),
         "sub": lambda ty, expr: ty._sub(expr),
     }
+
+    def has_default_layout(self, analyzer=None) -> bool:
+        """Whether the layout matches implicit row-major storage with zero origin.
+
+        Equivalent split tiles are accepted when their extent covers this shape.
+        An optional analyzer supplies existing bindings and constraints; otherwise
+        symbolic analysis is initialized only when structural equality is insufficient.
+        """
+        return _ffi_api.TensorTypeHasDefaultLayout(self, analyzer)
 
     def effective_layout(self):
         """Return the explicit layout or infer a compact global layout.
@@ -165,19 +155,8 @@ class TensorType(Type):
         if self.scope != _SCOPE_GLOBAL:
             raise ValueError(f"An explicit layout is required for {self.scope} tensors")
 
-        from tvm_tirx.sym import Analyzer
-
         from .layout import S, TileLayout
 
-        analyzer = Analyzer()
-        expected = 1
-        if self.strides:
-            for extent, stride in reversed(list(zip(self.shape, self.strides))):
-                if not analyzer.can_prove_equal(extent, 1) and not analyzer.can_prove_equal(
-                    stride, expected
-                ):
-                    raise ValueError("An explicit layout is required for noncompact global tensors")
-                expected = analyzer.simplify(expected * extent)
         return TileLayout(S[tuple(self.shape)])
 
     def _scope(self, expr):
@@ -283,10 +262,6 @@ class TensorType(Type):
     def _dtype(self, expr):
         _check_tensor_property_receiver(self, expr)
         return self.dtype.dtype
-
-    def _byte_offset(self, expr):
-        _check_tensor_property_receiver(self, expr)
-        return self.elem_offset * tvm_ffi.dtype(self.dtype).bits // 8
 
     def _sub(self, expr):
         _check_tensor_property_receiver(self, expr)

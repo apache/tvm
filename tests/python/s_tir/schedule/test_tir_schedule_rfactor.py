@@ -481,7 +481,7 @@ def rowsum_zero_dim(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -
 
 @Ts.function
 def rowsum_zero_dim_rfactor(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
-    B_rf = Ts.sblock_alloc_tensor([128], elem_offset=T.int64(0))
+    B_rf = Ts.sblock_alloc_tensor([128])
 
     for i in range(128):
         with Ts.sblock("B_rf"):

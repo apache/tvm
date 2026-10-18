@@ -28,7 +28,7 @@ from tvm_ffi import get_global_func
 
 import tvm_tirx
 from tvm import s_tir
-from tvm.s_tir import Schedule
+from tvm.s_tir import Schedule, match_shape_stride_pattern
 from tvm.s_tir.schedule import SBlockRV
 from tvm_tirx import ir, tirx
 from tvm_tirx.ir import TensorRegion
@@ -446,14 +446,11 @@ def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
 def _tensor_region_offset(region):
     """Linear element offset of a region's first element."""
     tensor = region.source
-    offset = 0
+    pattern = match_shape_stride_pattern(tensor.ty)
+    assert pattern is not None
+    offset = pattern.elem_offset
     for axis, bounds in enumerate(region.region):
-        if tensor.strides:
-            offset += bounds.min * tensor.strides[axis]
-        else:
-            offset = offset * tensor.shape[axis] + bounds.min
-    if not (isinstance(tensor.elem_offset, tvm_tirx.ir.IntImm) and tensor.elem_offset.value == 0):
-        offset += tensor.elem_offset
+        offset += bounds.min * pattern.strides[axis]
     return tvm_tirx.sym.Analyzer().simplify(offset)
 
 

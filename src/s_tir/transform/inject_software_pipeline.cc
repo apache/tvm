@@ -33,6 +33,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include <map>
 #include <unordered_set>
@@ -303,10 +304,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
       TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
       if (auto replacement = VarRemapGet(tensor).as<TensorVar>()) {
         TensorVar new_tensor = replacement.value();
-        PrimExpr stride = new_tensor.strides().empty() ? PrimExpr(1) : new_tensor.strides()[0];
-        if (new_tensor.strides().empty()) {
-          for (const PrimExpr& extent : tensor.shape()) stride = stride * extent;
-        }
+        PrimExpr stride = tvm::tirx::MatchShapeStridePattern(new_tensor.ty()).value().get<1>()[0];
         if ((scope_mma_matrixA && tensor.scope() == *scope_mma_matrixA) ||
             (scope_mma_matrixB && tensor.scope() == *scope_mma_matrixB)) {
           // These logical matrix allocations are distributed over a warp.
@@ -565,11 +563,21 @@ class PipelineRewriter : public StmtExprMutator {
   TensorVar RewriteAllocTensor(const TensorVar& tensor, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_tensor =
         ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    auto strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
     new_tensor->shape.insert(new_tensor->shape.begin(), PrimExpr(num_versions));
-    if (new_tensor->strides.size()) {
-      TVM_FFI_ICHECK(new_tensor->strides.size() + 1 == new_tensor->shape.size());
-      PrimExpr stride_0 = new_tensor->strides[0] * new_tensor->shape[1];
-      new_tensor->strides.insert(new_tensor->strides.begin(), stride_0);
+    if (new_tensor->layout.has_value()) {
+      TVM_FFI_ICHECK(strides.size() + 1 == new_tensor->shape.size());
+      PrimExpr stride_0 = strides[0] * new_tensor->shape[1];
+      strides.insert(strides.begin(), stride_0);
+      static const auto memory_axis = tvm::tirx::Axis::Get("m");
+      ffi::Array<tvm::tirx::Iter> shard;
+      for (size_t i = 0; i < new_tensor->shape.size(); ++i) {
+        shard.push_back(tvm::tirx::Iter(new_tensor->shape[i], strides[i], memory_axis));
+      }
+      ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+      if (new_tensor->layout.has_value())
+        offset = new_tensor->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+      new_tensor->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
     }
     return TensorVar(tensor->name, TensorType(std::move(new_tensor)), tensor->loc);
   }

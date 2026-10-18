@@ -35,6 +35,7 @@
 #include <tvm/sym/int_set.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/type.h>
 
 #include <numeric>
 #include <stack>
@@ -822,7 +823,23 @@ Stmt TensorCompactorCompact(
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);
-    n->strides = std::move(strides);
+    if (strides.empty()) {
+      if (n->layout.has_value()) {
+        auto tile = n->layout.value().as_or_throw<tvm::tirx::TileLayout>();
+        n->layout = tvm::tirx::TileLayout(tvm::tirx::TileLayoutNode::DefaultLayout(n->shape)->shard,
+                                          {}, tile->offset);
+      }
+    } else {
+      static const auto memory_axis = tvm::tirx::Axis::Get("m");
+      ffi::Array<tvm::tirx::Iter> shard;
+      for (size_t i = 0; i < n->shape.size(); ++i) {
+        shard.push_back(tvm::tirx::Iter(n->shape[i], strides[i], memory_axis));
+      }
+      ffi::Map<tvm::tirx::Axis, PrimExpr> offset;
+      if (n->layout.has_value())
+        offset = n->layout.value().as_or_throw<tvm::tirx::TileLayout>()->offset;
+      n->layout = tvm::tirx::TileLayout(std::move(shard), {}, std::move(offset));
+    }
     alloc_info.new_tensor = TensorVar(tensor->name, TensorType(std::move(n)), tensor->loc);
     alloc_info.region = region;
     tensor_info.emplace(tensor, std::move(alloc_info));

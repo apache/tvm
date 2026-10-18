@@ -65,12 +65,6 @@ class TensorVar : public Var {
   /*! \brief Return the primitive element type. */
   PrimType dtype() const { return ty()->dtype; }
 
-  /*! \brief Return explicit strides, or an empty array for a compact tensor. */
-  const ffi::Array<PrimExpr>& strides() const { return ty()->strides; }
-
-  /*! \brief Return the offset in tensor elements. */
-  const PrimExpr& elem_offset() const { return ty()->elem_offset; }
-
   /*! \brief Project the physical pointer established by the definition site. */
   Expr data() const { return Call(ty()->DataPtrType(), tensor_data_ptr_op(), {*this}); }
 

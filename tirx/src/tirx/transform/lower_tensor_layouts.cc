@@ -67,7 +67,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
       storage_lower->tensor_aliases_.Set(tensor.value(), tensor.value());
       TensorVar flattened = storage_lower->GetFlattenedTensor(tensor.value());
       TensorVar source = tensor.value();
-      if (source.ty()->layout.has_value()) {
+      if (source.ty()->layout.has_value() && source.ty()->HasDefaultLayout(ana)) {
         auto type = ffi::make_object<TensorTypeNode>(*source.ty().get());
         type->layout = std::nullopt;
         source = TensorVar(source->name, TensorType(std::move(type)), source->loc);
@@ -212,7 +212,7 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         flattened = buf;
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
         type->shape = {ana->Simplify(mem_span)};
-        type->strides = {};
+        type->layout = std::nullopt;
       } else if (auto compose = buf.ty()->layout.as<ComposeLayoutNode>()) {
         // A swizzle permutes addresses, so the logical element count is not
         // the allocation footprint of a strided view. Round the underlying
@@ -231,13 +231,13 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
         }
         type = ffi::make_object<TensorTypeNode>(*buf.ty().get());
         type->shape = {analyzer_->Simplify(mem_span)};
-        type->strides = {};
+        type->layout = std::nullopt;
       } else {
-        flattened = FlattenedTensor(buf);
+        flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
         type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
       }
     } else {
-      flattened = FlattenedTensor(buf);
+      flattened = FlattenedTensor(buf, ffi::GetRef<sym::Analyzer>(analyzer_));
       type = ffi::make_object<TensorTypeNode>(*flattened.ty().get());
     }
     // Remap variables the pass has already rebuilt (a shape may load from
@@ -249,17 +249,23 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                      .ValueOrUnchanged(type->shape[i])
                      .as_or_throw<PrimExpr>()));
     }
-    for (size_t i = 0; i < type->strides.size(); ++i) {
-      type->strides.Set(
-          i, StmtExprMutator::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
-                 .ValueOrUnchanged(type->strides[i])
-                 .as_or_throw<PrimExpr>());
-    }
     type->layout = std::nullopt;
-    type->elem_offset =
-        StmtExprMutator::Mutate(ffi::AnyView(buf.elem_offset()), InplaceMode::kDisallow)
-            .ValueOrUnchanged(buf.elem_offset())
-            .as_or_throw<PrimExpr>();
+    // Keep a regular view's origin in its flat memory layout. Allocations have
+    // already included that origin in their span and use absolute indices.
+    if (!is_alloc) {
+      if (auto pattern = MatchShapeStridePattern(buf.ty()); pattern.has_value()) {
+        PrimExpr origin = pattern.value().get<2>();
+        origin = analyzer_->canonical_simplify(
+            StmtExprMutator::Mutate(ffi::AnyView(origin), InplaceMode::kDisallow)
+                .ValueOrUnchanged(origin)
+                .as_or_throw<PrimExpr>());
+        if (!prim::IsZero(origin)) {
+          static const auto memory_axis = Axis::Get("m");
+          type->layout =
+              TileLayout({Iter(type->shape[0], 1, memory_axis)}, {}, {{memory_axis, origin}});
+        }
+      }
+    }
     if (ffi::StructuralEqual()(buf.ty(), TensorType(type))) {
       return buf;
     }
@@ -302,11 +308,25 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
-      auto res = tensor.ty()->layout.value()->Canonicalize()->Apply(indices, tensor.shape());
+      auto layout = tensor.ty()->layout.value();
+      layout = StmtExprMutator::Mutate(ffi::AnyView(layout), InplaceMode::kDisallow)
+                   .ValueOrUnchanged(layout)
+                   .as_or_throw<Layout>();
+      auto flat = GetFlattenedTensor(tensor);
+      auto pattern = MatchShapeStridePattern(flat.ty()).value();
+      if (!prim::IsZero(pattern.get<2>())) {
+        // The flat view retains this origin, so only lower its relative indices.
+        auto tile = layout.as_or_throw<TileLayout>();
+        layout = TileLayout(tile->shard, tile->replica, {});
+      }
+      auto res = layout->Canonicalize()->Apply(indices, tensor.shape());
+      if (res.empty() && tensor.shape().empty()) {
+        return {IntImm(tensor.ty()->DefaultIndexType(), 0)};
+      }
       TVM_FFI_ICHECK_EQ(res.size(), 1) << "Expected a single element offset";
       return {analyzer_->Simplify((*res.begin()).second)};
     }
-    auto flattened_indices = tensor.ty()->ElemOffset(indices, true);
+    auto flattened_indices = tensor.ty()->ElemOffset(indices);
     TVM_FFI_ICHECK_EQ(flattened_indices.size(), 1) << "Expected a single element offset";
     return {analyzer_->Simplify(flattened_indices[0])};
   }

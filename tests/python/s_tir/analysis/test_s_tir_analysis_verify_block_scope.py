@@ -89,7 +89,7 @@ def test_block_match_tensor_defines_symbolic_variables():
                     B = Ts.match_tensor(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
                         dtype="float32",
-                        elem_offset=elem_offset,
+                        layout=T.TileLayout(T.S[(16, 16) : (256, 1)] + elem_offset),
                     )
 
                     B[i, j] = elem_offset

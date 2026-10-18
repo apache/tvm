@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import tvm_tirx
 import tvm_tirx.testing
-from tvm.s_tir import SBlock
+from tvm.s_tir import SBlock, match_shape_stride_pattern
 from tvm.s_tir import script as Ts
 from tvm_tirx.ir import Var
 from tvm_tirx.script import tirx as T
@@ -100,8 +100,7 @@ def test_match_tensor():
                 shape=(128, 128),
                 dtype="float32",
                 # s and e should be remapped
-                strides=[s, s],
-                elem_offset=e,
+                layout=T.TileLayout(T.S[(128, 128) : [s, s]] + (e)),
             )
             for i, j in T.grid(128, 128):
                 with Ts.sblock("B"):
@@ -126,13 +125,15 @@ def test_match_tensor():
     matched_tensor1 = block1.match_tensors[0].tensor
     matched_tensor2 = block2.match_tensors[0].tensor
     # Stride var s should be remapped
-    assert matched_tensor1.strides[0] != matched_tensor2.strides[0]
-    assert matched_tensor1.strides[1] != matched_tensor2.strides[1]
+    matched_tensor1_pattern = match_shape_stride_pattern(matched_tensor1.ty)
+    matched_tensor2_pattern = match_shape_stride_pattern(matched_tensor2.ty)
+    assert matched_tensor1_pattern.strides[0] != matched_tensor2_pattern.strides[0]
+    assert matched_tensor1_pattern.strides[1] != matched_tensor2_pattern.strides[1]
     # s should be only remapped once
-    assert matched_tensor1.strides[0] == matched_tensor1.strides[1]
-    assert matched_tensor2.strides[0] == matched_tensor2.strides[1]
+    assert matched_tensor1_pattern.strides[0] == matched_tensor1_pattern.strides[1]
+    assert matched_tensor2_pattern.strides[0] == matched_tensor2_pattern.strides[1]
     # Element-offset var e should be remapped
-    assert matched_tensor1.elem_offset != matched_tensor2.elem_offset
+    assert matched_tensor1_pattern.elem_offset != matched_tensor2_pattern.elem_offset
 
 
 def test_undefined_tensor():

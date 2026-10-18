@@ -102,13 +102,13 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
         q: T.Tensor((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
-        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (q_indptr_elem_offset))),  # [batch_size + 1]
         k: T.Tensor((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
         v: T.Tensor((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
-        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
-        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset),  # [batch_size + 1]
-        mask: T.Tensor((tree_size, 2), 'int32', elem_offset=mask_elem_offset),  # [mn_indptr[batch_size]]
+        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (kv_indptr_elem_offset))),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Tensor((qo_len,), 'int32', layout=T.TileLayout(T.S[(qo_len,)] + (q_rope_position_elem_offset))),  # [total_q_len]
+        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (mn_indptr_elem_offset))),  # [batch_size + 1]
+        mask: T.Tensor((tree_size, 2), 'int32', layout=T.TileLayout(T.S[(tree_size, 2)] + (mask_elem_offset))),  # [mn_indptr[batch_size]]
         output: T.Tensor((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
         lse: T.Tensor((qo_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
@@ -284,13 +284,13 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches
         q: T.Tensor((qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        q_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (q_indptr_elem_offset))), # [batch_size + 1]
         k: T.Tensor((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
         v: T.Tensor((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
-        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset), # [batch_size + 1]
-        mask: T.Tensor((tree_size, 2), 'int32', elem_offset=mask_elem_offset), # [mn_indptr[batch_size]]
+        kv_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (kv_indptr_elem_offset))), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Tensor((qo_len,), 'int32', layout=T.TileLayout(T.S[(qo_len,)] + (q_rope_position_elem_offset))), # [total_q_len]
+        mn_indptr: T.Tensor((batch_size_plus_1,), 'int32', layout=T.TileLayout(T.S[(batch_size_plus_1,)] + (mn_indptr_elem_offset))), # [batch_size + 1]
+        mask: T.Tensor((tree_size, 2), 'int32', layout=T.TileLayout(T.S[(tree_size, 2)] + (mask_elem_offset))), # [mn_indptr[batch_size]]
         output: T.Tensor((qo_len, h_q, d), dtype), # [total_len, h_q, d]
         lse: T.Tensor((qo_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
@@ -599,21 +599,21 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
     @Ts.function
     def tree_attn_paged_kv_cpu(
         q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (q_indptr_elem_offset))), # [batch_size + 1]
         pages: T.Tensor((max_num_pages, 2, h_kv, 16, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (page_indptr_elem_offset))), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', layout=T.TileLayout(T.S[(batch_size,)] + (k_rope_pos_offset_elem_offset))), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', layout=T.TileLayout(T.S[(total_len,)] + (q_rope_position_elem_offset))), # [total_len]
         output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
         lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
-        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
+        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (tree_order_indptr_elem_offset))),  # [batch_size + 1]
+        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', layout=T.TileLayout(T.S[(total_tree_order_len, 2)] + (tree_order_elem_offset))),  # [total_len, 2]
     ):
         T.func_attr({"global_symbol": global_symbol})
 
@@ -774,21 +774,21 @@ def tree_attn_with_paged_kv_cache(
     @Ts.function
     def tree_attn_paged_kv(
         q: T.Tensor((total_len, h_q, d), dtype),  # [total_len, h_q, d]
-        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (q_indptr_elem_offset))),  # [batch_size + 1]
         pages: T.Tensor((max_num_pages, 2, h_kv, 16, d), dtype),  # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset),  # [batch_size + 1]
-        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),  # [nnz_pages]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (page_indptr_elem_offset))),  # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))),  # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
-        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', layout=T.TileLayout(T.S[(batch_size,)] + (k_rope_pos_offset_elem_offset))),  # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', layout=T.TileLayout(T.S[(total_len,)] + (q_rope_position_elem_offset))),  # [total_len]
         output: T.Tensor((total_len, h_q, d), dtype),  # [total_len, h_q, d]
         lse: T.Tensor((total_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
-        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
+        tree_order_indptr: T.Tensor((batch_size + 1,), 'int32', layout=T.TileLayout(T.S[(batch_size + 1,)] + (tree_order_indptr_elem_offset))),  # [batch_size + 1]
+        tree_order: T.Tensor((total_tree_order_len, 2), 'int32', layout=T.TileLayout(T.S[(total_tree_order_len, 2)] + (tree_order_elem_offset))),  # [total_len, 2]
     ):
         # pylint: disable=unused-variable, too-many-branches
         T.func_attr({"global_symbol": global_symbol})

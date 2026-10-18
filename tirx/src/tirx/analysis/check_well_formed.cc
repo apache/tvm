@@ -24,9 +24,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <algorithm>
@@ -255,13 +257,21 @@ class WellFormednessVerifier : public StmtExprVisitor {
       };
       ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(tensor.shape()[i], walk);
     }
-    for (size_t i = 0; i < tensor.strides().size(); ++i) {
-      if (auto var = tensor.strides()[i].as<Var>()) {
-        define_if_needed(var.value(), field->Attr("strides")->ArrayItem(i));
+    if (const auto* tile = tensor.ty()->layout.as<TileLayoutNode>();
+        tile && MatchShapeStridePattern(tensor.ty()).has_value()) {
+      auto site = field->Attr("layout");
+      for (size_t i = 0; i < tile->shard.size(); ++i) {
+        if (auto var = tile->shard[i]->stride.as<Var>()) {
+          define_if_needed(var.value(), site->Attr("shard")->ArrayItem(i)->Attr("stride"));
+        }
       }
-    }
-    if (auto var = tensor.elem_offset().as<Var>()) {
-      define_if_needed(var.value(), field->Attr("elem_offset"));
+      for (const auto& [axis, offset] : tile->offset) {
+        auto walk = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          define_if_needed(var, site->Attr("offset"));
+          return ffi::WalkResult::Advance();
+        };
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(offset, walk);
+      }
     }
   }
 

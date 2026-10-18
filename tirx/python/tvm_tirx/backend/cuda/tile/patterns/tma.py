@@ -125,11 +125,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
     # checked at the same coordinates, without folding or permuting its axes.
     layout = ty.layout
     if layout is None:
-        strides = (
-            list(ty.strides)
-            if ty.strides
-            else [prod(ty.shape[i + 1 :]) for i in range(tensor_rank)]
-        )
+        strides = [prod(ty.shape[i + 1 :]) for i in range(tensor_rank)]
         base = {"m": sum(i * s for i, s in zip(starts, strides))}
     else:
         base = layout.apply(*starts, shape=ty.shape)
@@ -164,7 +160,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
         ctx.require(strides[-1] == channels, "TMA W stride must equal one interleave slice")
     alignment = 32 if packed or interleave == 2 else 16
     ctx.require(
-        (base["m"] + ty.elem_offset) * bits % (8 * alignment) == 0,
+        base["m"] * bits % (8 * alignment) == 0,
         f"TMA global origin requires {alignment}-byte alignment",
     )
     for stride in strides[:-1]:

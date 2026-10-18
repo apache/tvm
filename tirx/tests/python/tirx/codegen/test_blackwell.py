@@ -569,19 +569,20 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         lane_id = T.cuda.lane_id()
         tx = T.cuda.thread_idx('x')
         dyn = T.alloc_tensor(ty_args=[T.Tensor((dyn_smem_bytes,), "uint8", scope="shared")])
-        tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared", elem_offset=0)
+        tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared")
         A_smem = T.decl_tensor(
-            dyn.data,
-            ty_args=[T.Tensor((M, K), a_type, elem_offset=256, layout=A_layout, data=dyn.data)],
+            T.ptr_byte_offset(dyn.data, 512, ty=T.Ptr(a_type, "shared")),
+            ty_args=[T.Tensor((M, K), a_type, layout=A_layout, data=dyn.data)],
         )
         B_smem = T.decl_tensor(
-            dyn.data,
+            T.ptr_byte_offset(dyn.data, (256 + M * K) * 2, ty=T.Ptr(b_type, "shared")),
             ty_args=[
-                T.Tensor((N, K), b_type, elem_offset=256 + M * K, layout=B_layout, data=dyn.data)
+                T.Tensor((N, K), b_type, layout=B_layout, data=dyn.data)
             ],
         )
         bar = T.decl_tensor(
-            dyn.data, ty_args=[T.Tensor((1,), "uint64", scope="shared", elem_offset=8)]
+            dyn.data, ty_args=[T.Tensor((1,), "uint64", scope="shared",
+                layout=T.TileLayout(T.S[(1,)] + (8)))]
         )
 
         reg = T.alloc_tensor(ty_args=[T.Tensor((N,), d_type, scope="local")])

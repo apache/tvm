@@ -309,10 +309,14 @@ def test_take_backward():
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
+    expected_rxplaceholder_offset = T.dynamic("expected_rxplaceholder_offset", "int64")
+    expected_rxplaceholder_1_offset = T.dynamic("expected_rxplaceholder_1_offset", "int64")
+    expected_rxplaceholder_2_offset = T.dynamic("expected_rxplaceholder_2_offset", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), "float32",  layout=T.TileLayout(T.S[(T.int64(3), T.int64(2), T.int64(5))] + (expected_rxplaceholder_offset))), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32",  layout=T.TileLayout(T.S[(T.int64(3), T.int64(4), T.int64(5))] + (expected_rxplaceholder_1_offset))), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32',  layout=T.TileLayout(T.S[(T.int64(2),)] + (expected_rxplaceholder_2_offset))), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
@@ -352,10 +356,14 @@ def test_take_backward_symbolic():
     n_main = T.dynamic("n", "int64")
     i_main = T.dynamic("i", "int64")
 
+    expected_rxplaceholder_offset_1 = T.dynamic("expected_rxplaceholder_offset_1", "int64")
+    expected_rxplaceholder_1_offset_1 = T.dynamic("expected_rxplaceholder_1_offset_1", "int64")
+    expected_rxplaceholder_2_offset_1 = T.dynamic("expected_rxplaceholder_2_offset_1", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), "float32", offset_factor=1, elem_offset=T.int64()), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((m_take_backward, n_take_backward), "float32")):
+        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), "float32",  layout=T.TileLayout(T.S[(m_take_backward, i_take_backward)] + (expected_rxplaceholder_offset_1))), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), "float32",  layout=T.TileLayout(T.S[(m_take_backward, n_take_backward)] + (expected_rxplaceholder_1_offset_1))), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32',  layout=T.TileLayout(T.S[(i_take_backward,)] + (expected_rxplaceholder_2_offset_1))), out_buf: T.Tensor((m_take_backward, n_take_backward), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):

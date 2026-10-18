@@ -255,8 +255,7 @@ def MakePackedAPI():
     `TensorType`.  This pass consumes those annotations to generate
     arguments that implement the packed based TVM FFI API.
 
-    For static shapes, the `TensorType::shape`, `TensorType::strides`,
-    and `TensorType::elem_offset` fields are used to
+    For static shapes, the tensor shape and layout are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm_tirx.runtime.tensor` argument.  (e.g. A
     Function that accepts a tensor of shape `[16,32]` validates that

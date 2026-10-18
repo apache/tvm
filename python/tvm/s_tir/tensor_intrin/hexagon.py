@@ -29,10 +29,23 @@ def generate_dma_load_intrin(
 ):
     """Generator of dma_load intrins"""
 
+    sync_dma_load_desc_a_offset = T.dynamic("sync_dma_load_desc_a_offset", "int32")
+    sync_dma_load_desc_c_offset = T.dynamic("sync_dma_load_desc_c_offset", "int32")
+
     @Ts.function
     def sync_dma_load_desc(
-        A: T.Tensor(size, dtype, offset_factor=1, elem_offset=T.int32(), scope="global"),
-        C: T.Tensor(size, dtype, offset_factor=1, elem_offset=T.int32(), scope="global.vtcm"),
+        A: T.Tensor(
+            size,
+            dtype,
+            layout=T.TileLayout(T.S[size] + (sync_dma_load_desc_a_offset)),
+            scope="global",
+        ),
+        C: T.Tensor(
+            size,
+            dtype,
+            layout=T.TileLayout(T.S[size] + (sync_dma_load_desc_c_offset)),
+            scope="global.vtcm",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:size])
@@ -42,10 +55,23 @@ def generate_dma_load_intrin(
                     vii = Ts.axis.remap("S", [i])
                     C[vii] = A[vii]
 
+    sync_dma_load_impl_a_offset = T.dynamic("sync_dma_load_impl_a_offset", "int32")
+    sync_dma_load_impl_c_offset = T.dynamic("sync_dma_load_impl_c_offset", "int32")
+
     @Ts.function
     def sync_dma_load_impl(
-        A: T.Tensor(size, dtype, offset_factor=1, elem_offset=T.int32(), scope="global"),
-        C: T.Tensor(size, dtype, offset_factor=1, elem_offset=T.int32(), scope="global.vtcm"),
+        A: T.Tensor(
+            size,
+            dtype,
+            layout=T.TileLayout(T.S[size] + (sync_dma_load_impl_a_offset)),
+            scope="global",
+        ),
+        C: T.Tensor(
+            size,
+            dtype,
+            layout=T.TileLayout(T.S[size] + (sync_dma_load_impl_c_offset)),
+            scope="global.vtcm",
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:size])
@@ -78,11 +104,36 @@ def generate_dma_load_intrin(
 
 
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
+    dot_product_32x4_u8u8i32_desc_a_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_desc_a_offset", "int32"
+    )
+    dot_product_32x4_u8u8i32_desc_b_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_desc_b_offset", "int32"
+    )
+    dot_product_32x4_u8u8i32_desc_c_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_desc_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x4_u8u8i32_desc(
-        A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 4), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (4,),
+            "uint8",
+            layout=T.TileLayout(T.S[(4,)] + (dot_product_32x4_u8u8i32_desc_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 4),
+            "uint8",
+            layout=T.TileLayout(T.S[(32, 4)] + (dot_product_32x4_u8u8i32_desc_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x4_u8u8i32_desc_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -93,11 +144,36 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
+    dot_product_32x4_u8u8i32_vrmpy_a_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_vrmpy_a_offset", "int32"
+    )
+    dot_product_32x4_u8u8i32_vrmpy_b_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_vrmpy_b_offset", "int32"
+    )
+    dot_product_32x4_u8u8i32_vrmpy_c_offset = T.dynamic(
+        "dot_product_32x4_u8u8i32_vrmpy_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x4_u8u8i32_vrmpy(
-        A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 4), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (4,),
+            "uint8",
+            layout=T.TileLayout(T.S[(4,)] + (dot_product_32x4_u8u8i32_vrmpy_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 4),
+            "uint8",
+            layout=T.TileLayout(T.S[(32, 4)] + (dot_product_32x4_u8u8i32_vrmpy_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x4_u8u8i32_vrmpy_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -121,11 +197,36 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
+    dot_product_32x4_u8i8i32_desc_a_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_desc_a_offset", "int32"
+    )
+    dot_product_32x4_u8i8i32_desc_b_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_desc_b_offset", "int32"
+    )
+    dot_product_32x4_u8i8i32_desc_c_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_desc_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x4_u8i8i32_desc(
-        A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 4), "int8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (4,),
+            "uint8",
+            layout=T.TileLayout(T.S[(4,)] + (dot_product_32x4_u8i8i32_desc_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 4),
+            "int8",
+            layout=T.TileLayout(T.S[(32, 4)] + (dot_product_32x4_u8i8i32_desc_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x4_u8i8i32_desc_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -136,11 +237,36 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
+    dot_product_32x4_u8i8i32_vrmpy_a_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_vrmpy_a_offset", "int32"
+    )
+    dot_product_32x4_u8i8i32_vrmpy_b_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_vrmpy_b_offset", "int32"
+    )
+    dot_product_32x4_u8i8i32_vrmpy_c_offset = T.dynamic(
+        "dot_product_32x4_u8i8i32_vrmpy_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x4_u8i8i32_vrmpy(
-        A: T.Tensor((4,), "uint8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 4), "int8", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (4,),
+            "uint8",
+            layout=T.TileLayout(T.S[(4,)] + (dot_product_32x4_u8i8i32_vrmpy_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 4),
+            "int8",
+            layout=T.TileLayout(T.S[(32, 4)] + (dot_product_32x4_u8i8i32_vrmpy_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x4_u8i8i32_vrmpy_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -164,11 +290,36 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
+    dot_product_32x2_i16i16i32_desc_a_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_desc_a_offset", "int32"
+    )
+    dot_product_32x2_i16i16i32_desc_b_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_desc_b_offset", "int32"
+    )
+    dot_product_32x2_i16i16i32_desc_c_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_desc_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x2_i16i16i32_desc(
-        A: T.Tensor((2,), "int16", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 2), "int16", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (2,),
+            "int16",
+            layout=T.TileLayout(T.S[(2,)] + (dot_product_32x2_i16i16i32_desc_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 2),
+            "int16",
+            layout=T.TileLayout(T.S[(32, 2)] + (dot_product_32x2_i16i16i32_desc_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x2_i16i16i32_desc_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:2], B[0:32, 0:2])
@@ -179,11 +330,36 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], ty="int32") * T.cast(B[vi, vk], ty="int32")
 
+    dot_product_32x2_i16i16i32_vdmpy_a_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_vdmpy_a_offset", "int32"
+    )
+    dot_product_32x2_i16i16i32_vdmpy_b_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_vdmpy_b_offset", "int32"
+    )
+    dot_product_32x2_i16i16i32_vdmpy_c_offset = T.dynamic(
+        "dot_product_32x2_i16i16i32_vdmpy_c_offset", "int32"
+    )
+
     @Ts.function
     def dot_product_32x2_i16i16i32_vdmpy(
-        A: T.Tensor((2,), "int16", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        B: T.Tensor((32, 2), "int16", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
-        C: T.Tensor((32,), "int32", offset_factor=1, elem_offset=T.int32(), scope=mem_scope),
+        A: T.Tensor(
+            (2,),
+            "int16",
+            layout=T.TileLayout(T.S[(2,)] + (dot_product_32x2_i16i16i32_vdmpy_a_offset)),
+            scope=mem_scope,
+        ),
+        B: T.Tensor(
+            (32, 2),
+            "int16",
+            layout=T.TileLayout(T.S[(32, 2)] + (dot_product_32x2_i16i16i32_vdmpy_b_offset)),
+            scope=mem_scope,
+        ),
+        C: T.Tensor(
+            (32,),
+            "int32",
+            layout=T.TileLayout(T.S[(32,)] + (dot_product_32x2_i16i16i32_vdmpy_c_offset)),
+            scope=mem_scope,
+        ),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:2], B[0:32, 0:2])

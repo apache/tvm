@@ -37,6 +37,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/type.h>
 
 #include "../schedule/analysis.h"
 #include "../schedule/utils.h"
@@ -154,10 +155,10 @@ ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_ten
   for (const TensorVar& tensor : reduction_tensors) {
     ffi::String name = is_cross_thread_tensor ? "cross" : "in";
     name = name + "_thread_" + tensor->name;
-    new_tensors.push_back(TensorVar(
-        name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(), scope_local,
-                         /*strides=*/{IntImm::Int32(1)}, /*elem_offset=*/std::nullopt,
-                         /*data_alignment=*/0, /*offset_factor=*/0)));
+    new_tensors.push_back(
+        TensorVar(name, TensorType(/*shape=*/{IntImm::Int32(1)}, /*dtype=*/tensor.dtype(),
+                                   scope_local, /*data_alignment=*/0,
+                                   tvm::tirx::TileLayoutNode::DefaultLayout({IntImm::Int32(1)}))));
   }
   return new_tensors;
 }

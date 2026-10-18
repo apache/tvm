@@ -276,8 +276,6 @@ class Region:
 
     def physical(self, atom, repeat=None):
         result = dict(self.layout.apply(*self.indices(atom, repeat), shape=self.ty.shape))
-        if self.ty.scope != MemoryScope("tmem"):
-            result["m"] = result.get("m", 0) + self.ty.elem_offset
         return {key: self.ctx.analyzer.simplify(value) for key, value in result.items()}
 
     def memory(self, atom):
@@ -357,7 +355,7 @@ class Region:
         if self.ty.scope != MemoryScope("local"):
             raise ValueError(f"{self.name}: scalar values must be in registers")
         if self.raw is None:
-            span = self.layout.span("m") + self.ty.elem_offset
+            span = self.layout.span("m")
             self.raw = Var(
                 "tile_" + self.name,
                 T.Tensor((span,), str(self.dtype), scope="local", layout="default"),

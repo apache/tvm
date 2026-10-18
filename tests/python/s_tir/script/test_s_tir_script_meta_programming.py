@@ -553,16 +553,32 @@ def test_func_call():
         thread_id = (i % 8) * 4 + (j % 8) // 2
         return thread_id, (j // 8) * 4 + (i // 8) * 2 + (j % 2)
 
+    mma_sync_m16n16k16_desc_a_offset = T.dynamic("mma_sync_m16n16k16_desc_a_offset", "int32")
+    mma_sync_m16n16k16_desc_b_offset = T.dynamic("mma_sync_m16n16k16_desc_b_offset", "int32")
+    mma_sync_m16n16k16_desc_c_offset = T.dynamic("mma_sync_m16n16k16_desc_c_offset", "int32")
+
     @Ts.function
     def mma_sync_m16n16k16_desc(
         A: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_a_offset))),
+            scope="warp",
         ),
         B: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_b_offset))),
+            scope="warp",
         ),
         C: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_c_offset))),
+            scope="warp",
         ),
     ) -> None:
         with Ts.sblock("root"):
@@ -586,16 +602,38 @@ def test_func_call():
                         A[indices_A[0], indices_A[1]] * B[indices_B[0], indices_B[1]]
                     )
 
+    mma_sync_m16n16k16_desc_manual_a_offset = T.dynamic(
+        "mma_sync_m16n16k16_desc_manual_a_offset", "int32"
+    )
+    mma_sync_m16n16k16_desc_manual_b_offset = T.dynamic(
+        "mma_sync_m16n16k16_desc_manual_b_offset", "int32"
+    )
+    mma_sync_m16n16k16_desc_manual_c_offset = T.dynamic(
+        "mma_sync_m16n16k16_desc_manual_c_offset", "int32"
+    )
+
     @Ts.function
     def mma_sync_m16n16k16_desc_manual(
         A: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_manual_a_offset))),
+            scope="warp",
         ),
         B: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_manual_b_offset))),
+            scope="warp",
         ),
         C: T.Tensor(
-            (32, 8), "float16", align=64, offset_factor=16, elem_offset=T.int32(), scope="warp"
+            (32, 8),
+            "float16",
+            align=64,
+            layout=T.TileLayout(T.S[(32, 8)] + ((16) * (mma_sync_m16n16k16_desc_manual_c_offset))),
+            scope="warp",
         ),
     ) -> None:
         with Ts.sblock("root"):

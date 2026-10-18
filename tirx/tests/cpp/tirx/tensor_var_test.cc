@@ -45,8 +45,8 @@ TEST(TensorVar, CheckedViewPreservesOrdinaryVariableIdentity) {
   EXPECT_TRUE(tensor.ty().same_as(type));
   EXPECT_TRUE(tensor.shape().same_as(type->shape));
   EXPECT_TRUE(tensor.dtype().same_as(type->dtype));
-  EXPECT_TRUE(tensor.strides().empty());
-  EXPECT_TRUE(prim::IsZero(tensor.elem_offset()));
+  EXPECT_EQ(MatchShapeStridePattern(tensor.ty()).value().get<1>().size(), 1);
+  EXPECT_TRUE(prim::IsZero(MatchShapeStridePattern(tensor.ty()).value().get<2>()));
   EXPECT_EQ(tensor.scope(), type->scope);
   EXPECT_TRUE(tensor == TensorVar(var));
   Var scalar("scalar", PrimType::Int(32));
@@ -69,7 +69,6 @@ TEST(TensorVar, RebuiltTypeRetainsMetadataWithFreshIdentity) {
   EXPECT_EQ(rebuilt->name, original->name);
   EXPECT_TRUE(rebuilt->loc.same_as(original->loc));
   EXPECT_EQ(rebuilt.ty()->data_alignment, runtime::kAllocAlignment);
-  EXPECT_EQ(rebuilt.ty()->offset_factor, 1);
   EXPECT_FALSE(rebuilt.ty()->layout.has_value());
 }
 
@@ -81,7 +80,7 @@ TEST(TensorVar, PreferredIndexTypeUsesShapeOrConfiguredDefault) {
   EXPECT_EQ(DefaultIndexType().bits(), 32);
 #endif
   EXPECT_TRUE(scalar->DefaultIndexType().same_as(DefaultIndexType()));
-  EXPECT_TRUE(scalar->elem_offset.ty().same_as(DefaultIndexType()));
+  EXPECT_TRUE(MatchShapeStridePattern(scalar).value().get<2>().ty().same_as(DefaultIndexType()));
   for (int bits : {32, 64}) {
     PrimType index_type = PrimType::Int(bits);
     TensorType tensor({IntImm(index_type, 16)});

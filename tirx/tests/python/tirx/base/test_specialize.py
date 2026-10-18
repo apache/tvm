@@ -133,15 +133,23 @@ def element_wise_128_n(A: T.Tensor((128, n), "float32"), C: T.Tensor((128, n), "
         C[i, j] = B[i, j] + 1.0
 
 
-mem_copy_m = T.int32()
+mem_copy_m = T.dynamic("mem_copy_m", "int32")
 
-mem_copy_n = T.int32()
+mem_copy_n = T.dynamic("mem_copy_n", "int32")
 
 
 @T.function
 def mem_copy(
-    A: T.Tensor((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
-    B: T.Tensor((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
+    A: T.Tensor(
+        (mem_copy_m, mem_copy_n),
+        "float32",
+        layout=T.TileLayout(T.S[(mem_copy_m, mem_copy_n) : [p, 1]] + (q)),  # noqa: F821
+    ),
+    B: T.Tensor(
+        (mem_copy_m, mem_copy_n),
+        "float32",
+        layout=T.TileLayout(T.S[(mem_copy_m, mem_copy_n) : [p, 1]] + (q)),  # noqa: F821
+    ),
     m: mem_copy_m,
     n: mem_copy_n,
     p: T.int32,
@@ -153,16 +161,16 @@ def mem_copy(
 
 @T.function
 def mem_copy_16_16_8_4(
-    A: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)),
-    B: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)),
+    A: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [8, 1]] + (T.int32(4)))),
+    B: T.Tensor((16, 16), "float32", layout=T.TileLayout(T.S[(16, 16) : [8, 1]] + (T.int32(4)))),
 ) -> None:
     for i, j in T.grid(16, 16):
         B[i, j] = A[i, j]
 
 
-mem_copy_m_n_p_n_m = T.int32()
+mem_copy_m_n_p_n_m = T.dynamic("mem_copy_m_n_p_n_m", "int32")
 
-mem_copy_m_n_p_n_n = T.int32()
+mem_copy_m_n_p_n_n = T.dynamic("mem_copy_m_n_p_n_n", "int32")
 
 
 @T.function
@@ -170,14 +178,16 @@ def mem_copy_m_n_p_n(
     A: T.Tensor(
         (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
         "float32",
-        strides=[p, 1],  # noqa: F821
-        elem_offset=mem_copy_m_n_p_n_n,
+        layout=T.TileLayout(
+            T.S[(mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n) : [p, 1]] + (mem_copy_m_n_p_n_n)  # noqa: F821
+        ),
     ),
     B: T.Tensor(
         (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
         "float32",
-        strides=[p, 1],  # noqa: F821
-        elem_offset=mem_copy_m_n_p_n_n,
+        layout=T.TileLayout(
+            T.S[(mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n) : [p, 1]] + (mem_copy_m_n_p_n_n)  # noqa: F821
+        ),
     ),
     m: mem_copy_m_n_p_n_m,
     n: mem_copy_m_n_p_n_n,
@@ -230,7 +240,11 @@ def test_specialize_mem_copy():
             a: tvm_tirx.tirx.Var(
                 "tensor",
                 tvm_tirx.tirx.TensorType(
-                    (16, 16), "float32", strides=[8, 1], elem_offset=T.int32(4)
+                    (16, 16),
+                    "float32",
+                    layout=tvm_tirx.tirx.layout.TileLayout(
+                        tvm_tirx.tirx.layout.S[(16, 16) : [8, 1]] + (T.int32(4))
+                    ),
                 ),
             )
         }
@@ -290,7 +304,7 @@ def test_specialize_decl_tensor():
 
 
 def test_specialize_preserves_decl_tensor_alias():
-    before_n = T.int32()
+    before_n = T.dynamic("before_n", "int32")
 
     @T.function(private=True)
     def before(A: T.Tensor((before_n,), "int32"), n: before_n):

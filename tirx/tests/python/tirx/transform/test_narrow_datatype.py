@@ -89,12 +89,8 @@ def test_symbolic_extent(dtype):
     class Expected:
         @T.function
         def main(A: T.handle("float32"), B: T.handle("float32"), m: scalar, n: scalar):
-            A_buf = T.decl_tensor(
-                A, ty_args=[T.Tensor((m * n,), "float32", data=A, elem_offset=T.int32(0))]
-            )
-            B_buf = T.decl_tensor(
-                B, ty_args=[T.Tensor((m * n,), "float32", data=B, elem_offset=T.int32(0))]
-            )
+            A_buf = T.decl_tensor(A, ty_args=[T.Tensor((m * n,), "float32", data=A)])
+            B_buf = T.decl_tensor(B, ty_args=[T.Tensor((m * n,), "float32", data=B)])
             for i in T.serial(m):
                 for j in T.serial(n):
                     B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)

@@ -25,6 +25,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -46,15 +47,15 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 
 /******** Tensor Related ********/
 TensorVar WithScope(const TensorVar& tensor, runtime::MemoryScope scope) {
-  TensorType new_type(tensor.shape(), tensor.dtype(), scope, tensor.strides(), tensor.elem_offset(),
-                      tensor.ty()->data_alignment, tensor.ty()->offset_factor, tensor.ty()->layout);
-  return TensorVar(tensor->name + "_" + scope.name(), new_type, tensor->loc);
+  auto type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+  type->scope = scope;
+  return TensorVar(tensor->name + "_" + scope.name(), TensorType(std::move(type)), tensor->loc);
 }
 
 TensorVar WithDType(const TensorVar& tensor, PrimType dtype) {
-  TensorType new_type(tensor.shape(), dtype, tensor.scope(), tensor.strides(), tensor.elem_offset(),
-                      tensor.ty()->data_alignment, tensor.ty()->offset_factor, tensor.ty()->layout);
-  return TensorVar(tensor->name, new_type, tensor->loc);
+  auto type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+  type->dtype = dtype;
+  return TensorVar(tensor->name, TensorType(std::move(type)), tensor->loc);
 }
 
 ffi::Array<TensorRegion> ReplaceTensor(ffi::Array<TensorRegion> regions, const TensorVar& source,

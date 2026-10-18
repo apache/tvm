@@ -35,6 +35,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/type.h>
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
@@ -755,7 +756,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   return body;
 }
 
-Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
+Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info,
+                              sym::AnalyzerObj* analyzer) {
   // Step 1. Check all inputs are visited before and update var_map.
   std::unordered_map<const VarNode*, Expr> var_map;
   std::unordered_map<const VarNode*, TensorVar> input_tensor_map;
@@ -776,13 +778,18 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(placeholder.elem_offset().ty(), 0);
-      if (auto offset_var = placeholder.elem_offset().as<PrimVar>()) {
-        var_map.insert_or_assign(offset_var.value().get(), zero_offset);
+      if (auto offset_var =
+              tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().as<PrimVar>()) {
+        var_map.insert_or_assign(offset_var.value().get(), IntImm(offset_var.value().ty(), 0));
       }
       ffi::ObjectPtr<TensorTypeNode> type =
           ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
-      type->elem_offset = zero_offset;
+      if (type->layout.has_value()) {
+        auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
+        type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
+        if (type->HasDefaultLayout(ffi::GetRef<sym::Analyzer>(analyzer)))
+          type->layout = std::nullopt;
+      }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
       info->root_alloc.push_back(output_tir_tensor);
@@ -886,7 +893,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     root_stmts->push_back(GenerateStmtFromCompute(compute_op.value(), info, analyzer));
   } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
-    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
+    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info, analyzer));
   } else {
     TVM_FFI_ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                           << "Only te.placeholder and te.compute are allowed for now.";

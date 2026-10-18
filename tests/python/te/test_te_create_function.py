@@ -258,9 +258,9 @@ off3 = T.dynamic("off3", "int32")
 
 @Ts.function
 def tir_extern(
-    A: T.Tensor((128, 128), "float32", elem_offset=off1),
-    B: T.Tensor((128, 128), "float32", elem_offset=off2),
-    C: T.Tensor((128, 128), "float32", elem_offset=off3),
+    A: T.Tensor((128, 128), "float32", layout=T.TileLayout(T.S[(128, 128)] + (off1))),
+    B: T.Tensor((128, 128), "float32", layout=T.TileLayout(T.S[(128, 128)] + (off2))),
+    C: T.Tensor((128, 128), "float32", layout=T.TileLayout(T.S[(128, 128)] + (off3))),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -318,15 +318,23 @@ def te_extern_epilogue():
     return [A, B, D]
 
 
+tir_extern_epilogue_a_offset = T.dynamic("tir_extern_epilogue_a_offset", "int32")
+tir_extern_epilogue_b_offset = T.dynamic("tir_extern_epilogue_b_offset", "int32")
+
+
 @Ts.function
 def tir_extern_epilogue(
-    A: T.Tensor((4, 3), "float32", offset_factor=1, elem_offset=T.int32()),
-    B: T.Tensor((3, 2), "float32", offset_factor=1, elem_offset=T.int32()),
+    A: T.Tensor(
+        (4, 3), "float32", layout=T.TileLayout(T.S[(4, 3)] + (tir_extern_epilogue_a_offset))
+    ),
+    B: T.Tensor(
+        (3, 2), "float32", layout=T.TileLayout(T.S[(3, 2)] + (tir_extern_epilogue_b_offset))
+    ),
     D: T.Tensor((4, 2), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
-    C = Ts.sblock_alloc_tensor((4, 2), elem_offset=0, offset_factor=1)
+    C = Ts.sblock_alloc_tensor((4, 2))
     with Ts.sblock("C"):
         Ts.reads()
         Ts.writes()
@@ -814,12 +822,29 @@ def test_extern_with_explicit_buffer_access():
         )
         return [A, B, P, C]
 
+    tir_extern_a_offset = T.dynamic("tir_extern_a_offset", "int32")
+    tir_extern_b_offset = T.dynamic("tir_extern_b_offset", "int32")
+    tir_extern_p_offset = T.dynamic("tir_extern_p_offset", "int32")
+    tir_extern_c_offset = T.dynamic("tir_extern_c_offset", "int32")
+
     @Ts.function
     def tir_extern(
-        A: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
-        B: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
-        P: T.Tensor([1], dtype="float32", offset_factor=1, elem_offset=T.int32()),
-        C: T.Tensor([128, 128], dtype="float32", offset_factor=1, elem_offset=T.int32()),
+        A: T.Tensor(
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_a_offset)),
+        ),
+        B: T.Tensor(
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_b_offset)),
+        ),
+        P: T.Tensor([1], dtype="float32", layout=T.TileLayout(T.S[[1]] + (tir_extern_p_offset))),
+        C: T.Tensor(
+            [128, 128],
+            dtype="float32",
+            layout=T.TileLayout(T.S[[128, 128]] + (tir_extern_c_offset)),
+        ),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

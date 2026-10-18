@@ -200,11 +200,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
     TensorVar tensor = load->source.as_or_throw<tvm::tirx::TensorVar>();
     if (tensor.same_as(store->dest.as_or_throw<TensorVar>()) &&
-        ArrayDeepEqual(load->indices, store->indices) &&
-        prim::ExprDeepEqual()(tensor.elem_offset(),
-                              store->dest.as_or_throw<TensorVar>().elem_offset()) &&
-        ArrayDeepEqual(tensor.shape(), store->dest.as_or_throw<TensorVar>().shape()) &&
-        ArrayDeepEqual(tensor.strides(), store->dest.as_or_throw<TensorVar>().strides())) {
+        ArrayDeepEqual(load->indices, store->indices)) {
       return Evaluate(0);
     }
   }

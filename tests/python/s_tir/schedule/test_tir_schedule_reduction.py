@@ -86,8 +86,8 @@ def matmul_decompose0(
 
 @Ts.function
 def matmul_decompose1(
-    A: T.Tensor([32, 4, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([32, 4], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([32, 4, 128], "float32", align=64),
+    B: T.Tensor([32, 4], "float32", align=64),
 ) -> None:
     for i0 in T.serial(0, 32):
         with Ts.sblock("blockized_B_init"):
@@ -108,9 +108,9 @@ def matmul_decompose1(
 
 @Ts.function
 def matmul_decompose2(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", align=64),
+    B: T.Tensor([128, 128], "float32", align=64),
+    C: T.Tensor([128, 128], "float32", align=64),
 ) -> None:
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("update_init"):
@@ -138,9 +138,9 @@ def matmul_decompose_fail3(
 
 @Ts.function
 def matmul_decompose4(
-    A: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
-    C: T.Tensor([128, 128], "float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], "float32", align=64),
+    B: T.Tensor([128, 128], "float32", align=64),
+    C: T.Tensor([128, 128], "float32", align=64),
 ) -> None:
     # body
     with Ts.sblock("root"):
@@ -446,7 +446,7 @@ def test_decompose_reduction_drops_mixed_rfactor_bound():
     class Expected:
         @Ts.function
         def main(A: T.Tensor((20,), "float32"), B: T.Tensor((), "float32")):
-            B_rf = Ts.sblock_alloc_tensor((16,), elem_offset=T.int64(0))
+            B_rf = Ts.sblock_alloc_tensor((16,))
             for k_1_init in range(16):
                 with Ts.sblock("B_rf_init"):
                     vk_1 = Ts.axis.spatial(16, k_1_init)

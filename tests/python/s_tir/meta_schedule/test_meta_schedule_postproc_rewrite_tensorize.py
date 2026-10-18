@@ -144,6 +144,17 @@ class Conv2dNCHWcVNNIModuleTiled:
                         )
 
 
+conv2dnchwcvnnimoduletensorized_a_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_a_offset", "int32"
+)
+conv2dnchwcvnnimoduletensorized_b_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_b_offset", "int32"
+)
+conv2dnchwcvnnimoduletensorized_c_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_c_offset", "int32"
+)
+
+
 @tvm_tirx.script.ir_module
 class Conv2dNCHWcVNNIModuleTensorized:
     @Ts.function
@@ -218,39 +229,31 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         ],
                         [4],
                         dtype="uint8",
-                        offset_factor=1,
+                        layout=T.TileLayout(T.S[[4]] + (conv2dnchwcvnnimoduletensorized_a_offset)),
                     )
                     B = Ts.match_tensor(
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                         [16, 4],
                         dtype="int8",
-                        offset_factor=1,
+                        layout=T.TileLayout(
+                            T.S[[16, 4]] + (conv2dnchwcvnnimoduletensorized_b_offset)
+                        ),
                     )
                     C = Ts.match_tensor(
                         conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16],
                         [16],
                         dtype="int32",
-                        offset_factor=1,
+                        layout=T.TileLayout(T.S[[16]] + (conv2dnchwcvnnimoduletensorized_c_offset)),
                     )
-                    A_u8x4 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.uint8x4, scope="local", elem_offset=T.int32(0))]
-                    )
+                    A_u8x4 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.uint8x4, scope="local")])
                     A_u8x4[0] = A[T.Ramp(0, 1, 4)]
-                    A_i32 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32, scope="local", elem_offset=T.int32(0))]
-                    )
+                    A_i32 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local")])
                     A_i32[0] = T.reinterpret(A_u8x4[0], ty="int32")
-                    B_i8x64 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int8x64, scope="local", elem_offset=T.int32(0))]
-                    )
+                    B_i8x64 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int8x64, scope="local")])
                     B_i8x64[0] = B[0, T.Ramp(0, 1, 64)]
-                    B_i32x16 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))]
-                    )
+                    B_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local")])
                     B_i32x16[0] = T.reinterpret(B_i8x64[0], ty="int32x16")
-                    C_i32x16 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))]
-                    )
+                    C_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local")])
                     C_i32x16[0] = C[T.Ramp(0, 1, 16)]
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
@@ -351,6 +354,11 @@ class DenseDP4ATiled:
                             compute[v0, v1] = compute_local[v0, v1]
 
 
+densedp4atensorized_a_offset = T.dynamic("densedp4atensorized_a_offset", "int32")
+densedp4atensorized_b_offset = T.dynamic("densedp4atensorized_b_offset", "int32")
+densedp4atensorized_c_offset = T.dynamic("densedp4atensorized_c_offset", "int32")
+
+
 @tvm_tirx.script.ir_module
 class DenseDP4ATensorized:
     @Ts.function
@@ -434,7 +442,7 @@ class DenseDP4ATensorized:
                                     dtype="int8",
                                     scope="shared",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[4]] + (densedp4atensorized_a_offset)),
                                 )
                                 B = Ts.match_tensor(
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
@@ -442,7 +450,7 @@ class DenseDP4ATensorized:
                                     dtype="int8",
                                     scope="shared",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[4]] + (densedp4atensorized_b_offset)),
                                 )
                                 C = Ts.match_tensor(
                                     compute_local[i, j],
@@ -450,7 +458,7 @@ class DenseDP4ATensorized:
                                     dtype="int32",
                                     scope="local",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[1]] + (densedp4atensorized_c_offset)),
                                 )
                                 C[0] = C[0] + T.call_pure_extern(
                                     "__dp4a", A[T.ramp(0, 1, 4)], B[T.ramp(0, 1, 4)], 0, ty="int32"

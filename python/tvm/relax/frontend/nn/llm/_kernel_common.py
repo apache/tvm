@@ -139,9 +139,9 @@ def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_wind
 
 def _length_info_buffer(batch_size, sliding_window, elem_offset):
     return (
-        T.Tensor( (3, batch_size), "int32", elem_offset=elem_offset)
+        T.Tensor( (3, batch_size), "int32", layout=T.TileLayout(T.S[(3, batch_size)] + (elem_offset)))
         if sliding_window
-        else T.Tensor( (batch_size,), "int32", elem_offset=elem_offset)
+        else T.Tensor( (batch_size,), "int32", layout=T.TileLayout(T.S[(batch_size,)] + (elem_offset)))
     )
 
 def _get_kv_chunk_len(num_pages, page_size, seq_id, length_info, sliding_window):
