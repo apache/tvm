@@ -17,7 +17,7 @@
 # pylint: disable=unrecognized-inline-option
 """Function data types."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 import tvm_ffi
 
@@ -27,7 +27,6 @@ from tvm_tirx.ir import BaseFunc, Scriptable, SeqStmt, Stmt, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
-from .expr import Expr
 
 
 @tvm_ffi.register_object("tirx.Function")
@@ -106,63 +105,6 @@ class Function(BaseFunc, Scriptable):
             attrs=self.attrs,
             loc=loc,
         )
-
-    def specialize(self, param_map: Mapping[Var, Expr | Var]):
-        """Specialize parameters of Function
-
-        Parameters
-        ----------
-
-        param_map : Mapping[Var, Union[Expr, Var]]
-            The mapping from function params to the instance
-
-        Examples
-        --------
-        We can define a TIRX function with symbolic shape:
-
-        .. code-block:: python
-
-            from __future__ import annotations
-
-            @T.function
-            def mem_copy(
-                A: T.Tensor((m, n), "float32"),
-                B: T.Tensor((m, n), "float32"),
-                m: T.int32,
-                n: T.int32,
-            ) -> None:
-
-                for i, j in T.grid(m, n):
-                    B[i, j] = A[i, j]
-
-        Then we can make it specialized with given shapes or tensors.
-
-        .. code-block:: python
-
-            a, _, m, n = mem_copy.params
-            tensor = tirx.Var("tensor", tirx.TensorType((16, 16), "float32"))
-            func = mem_copy.specialize({a: tensor})
-            # or
-            func = mem_copy.specialize({n: 16, m: 16})
-
-        The specialized function:
-
-        .. code-block:: python
-
-            @T.function
-            def mem_copy_16_16(
-                A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
-            ) -> None:
-
-                for i, j in T.grid(16, 16):
-                    B[i, j] = A[i, j]
-
-        Returns
-        -------
-        func : Function
-            The new function with parameter specialized
-        """
-        return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
 def renew_def(func: Function) -> Function:

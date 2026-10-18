@@ -25,7 +25,6 @@
 #define TVM_TIRX_FUNCTION_H_
 
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/cow.h>
@@ -70,9 +69,7 @@ class FunctionNode : public BaseFuncNode {
 
   bool SEqual(const FunctionNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    // `ty` is derived from the fields below.  Function transformations update
-    // those source fields without maintaining this redundant cache eagerly.
-    // Remove this exception once all Function mutation paths recompute `ty`.
+    // `ty` is derived from the signature; compare its source fields directly.
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
@@ -139,43 +136,6 @@ class Function : public BaseFunc {
  * \return The function with fresh variable definitions.
  */
 TVM_TIRX_DLL Function RenewDef(Function func);
-
-/*!
- * \brief Specialize parameters of Function.
- * \param func The Function to be specialized.
- * \param param_map The mapping from function params to the instance.
- * \return The new function with parameter specialized.
- * \note We can define a TIRx function with symbolic shape:
- *
- * \code{.py}
- *  from __future__ import annotations
- *
- *  @T.function
- *  def mem_copy(A: T.Tensor((m, n), "float32"), B: T.Tensor((m, n), "float32"),
- *               m: T.int32, n: T.int32) -> None:
- *      for i, j in T.grid(m, n):
- *          B[i, j] = A[i, j]
- * \endcode
- *
- * Then we can make it specialized with given shapes or tensors.
- *
- * \code{.py}
- *  a, _, m, n = mem_copy.params
- *  func = mem_copy.specialize({a: tirx.decl_tensor((16, 16))})
- *  # or
- *  func = mem_copy.specialize({n: 16, m: 16})
- * \endcode
- *
- * \code{.py}
- *  @T.function
- *  def mem_copy_16_16(A: T.Tensor((16, 16), "float32"),
- *                     B: T.Tensor((16, 16), "float32")) -> None:
- *      for i, j in T.grid(16, 16):
- *          B[i, j] = A[i, j]
- * \endcode
- */
-TVM_TIRX_DLL Function Specialize(Function func,
-                                 const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
 
 /*!
  * \brief Function specific attribute names.
