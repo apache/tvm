@@ -27,28 +27,28 @@ def test_basic():
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
-            z1 = T.bind(1)
-            z2 = T.bind(2)
+            z1 = 1
+            z2 = 2
             B[i1] = z1 + z2
-            x = T.bind(1)
-            y = T.bind(1)
-            a = T.bind((x + y) + (z1 + z2))
-            b = T.bind((x + y) + z3)
+            x = 1
+            y = 1
+            a = (x + y) + (z1 + z2)
+            b = (x + y) + z3
             B[i2] = a + b
 
     @tvm_tirx.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
-            z1 = T.bind(1)
-            z2 = T.bind(2)
-            cse_v1 = T.bind(z1 + z2)
+            z1 = 1
+            z2 = 2
+            cse_v1 = z1 + z2
             B[i1] = cse_v1
-            x = T.bind(1)
-            y = T.bind(1)
-            cse_v2 = T.bind(x + y)
-            a = T.bind(cse_v2 + cse_v1)
-            b = T.bind(cse_v2 + z3)
+            x = 1
+            y = 1
+            cse_v2 = x + y
+            a = cse_v2 + cse_v1
+            b = cse_v2 + z3
             B[i2] = a + b
 
     after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
@@ -67,7 +67,7 @@ def test_if_single_branch():
             y: T.int32,
             z: T.int32,
         ):
-            b = T.bind(1)
+            b = 1
             if b:
                 B[i1] = y + z
                 B[i2] = y + z
@@ -85,9 +85,9 @@ def test_if_single_branch():
             y: T.int32,
             z: T.int32,
         ):
-            b = T.bind(1)
+            b = 1
             if b:
-                cse_v1 = T.bind(y + z)
+                cse_v1 = y + z
                 B[i1] = cse_v1
                 B[i2] = cse_v1
             else:
@@ -109,7 +109,7 @@ def test_if_both_branches():
             y: T.int32,
             z: T.int32,
         ):
-            b = T.bind(1)
+            b = 1
             if b:
                 B[i1] = y + z
                 B[i2] = y
@@ -127,8 +127,8 @@ def test_if_both_branches():
             y: T.int32,
             z: T.int32,
         ):
-            b = T.bind(1)
-            cse_v1 = T.bind(y + z)
+            b = 1
+            cse_v1 = y + z
             if b:
                 B[i1] = cse_v1
                 B[i2] = y
@@ -168,8 +168,8 @@ def test_cascade():
             y: T.int32,
             z: T.int32,
         ):
-            cse_v2 = T.bind(x + y)
-            cse_v1 = T.bind(cse_v2 + z)
+            cse_v2 = x + y
+            cse_v1 = cse_v2 + z
             B[i1] = cse_v1
             B[i2] = cse_v1
             B[i3] = cse_v2
@@ -183,7 +183,7 @@ def test_no_duplication():
     class Before:
         @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
-            a = T.bind(x + (y + z))
+            a = x + (y + z)
             T.evaluate(a)
 
     Expected = Before
@@ -206,9 +206,9 @@ def test_deterministic():
     class Expected:
         @T.function
         def main(B: T.Tensor((4,), "int32"), x: T.int32):
-            cse_v1 = T.bind(x + 1)
+            cse_v1 = x + 1
             B[0] = cse_v1
-            cse_v2 = T.bind(x + 2)
+            cse_v2 = x + 2
             B[1] = cse_v2
             B[2] = cse_v1
             B[3] = cse_v2
@@ -235,7 +235,7 @@ def test_for_loop():
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
-                cse_v1 = T.bind(y + z)
+                cse_v1 = y + z
                 B[i] = cse_v1
                 B[i + 10] = cse_v1
 
@@ -256,7 +256,7 @@ def test_for_hoist():
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
-            cse_v1 = T.bind(y + z)
+            cse_v1 = y + z
             B[0] = cse_v1
             for i in range(10):
                 B[i + 1] = cse_v1
@@ -309,7 +309,7 @@ def test_nested_if():
             z: T.int32,
         ):
             if c1:
-                cse_v1 = T.bind(y + z)
+                cse_v1 = y + z
                 if c2:
                     B[0] = cse_v1
                 else:
@@ -347,9 +347,9 @@ def test_multi_independent():
             c: T.int32,
             d: T.int32,
         ):
-            cse_v1 = T.bind(a + b)
+            cse_v1 = a + b
             B[0] = cse_v1
-            cse_v2 = T.bind(c + d)
+            cse_v2 = c + d
             B[1] = cse_v2
             B[2] = cse_v1
             B[3] = cse_v2
@@ -370,7 +370,7 @@ def test_if_condition():
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
-            cse_v1 = T.bind(y + z)
+            cse_v1 = y + z
             if cse_v1 > 0:
                 B[0] = cse_v1
 
@@ -414,7 +414,7 @@ def test_no_single_use_binding():
             y: T.int32,
             z: T.int32,
         ):
-            cse_v1 = T.bind((x + y) + z)
+            cse_v1 = (x + y) + z
             B[0] = cse_v1
             B[1] = cse_v1
 
@@ -434,7 +434,7 @@ def test_for_extent_lift():
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
-            cse_v1 = T.bind(y + z)
+            cse_v1 = y + z
             for i in range(cse_v1):
                 B[i] = cse_v1
 
@@ -461,7 +461,7 @@ def test_loop_var_expr_stays_inside():
             B: T.Tensor((50,), "int32"),
         ):
             for i in range(10):
-                cse_v1 = T.bind(i * 4)
+                cse_v1 = i * 4
                 A[cse_v1] = B[cse_v1]
 
     after = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
@@ -497,7 +497,7 @@ def test_let_value_cse():
         @T.function
         def main(B: T.Tensor((10,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
-                cse_v1 = T.bind(y + z)
+                cse_v1 = y + z
                 B[i] = cse_v1 + T.Let(x + 1, where={x: cse_v1})
 
     After = tvm_tirx.tirx.transform.CommonSubexprElim()(Before)
@@ -598,15 +598,15 @@ def test_shared_subtree_stays_ssa():
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32):
-            value = T.bind(i1 + i2)
-            twice = T.bind(value * 2)
+            value = i1 + i2
+            twice = value * 2
             B[i1] = twice
-            thrice = T.bind(value * 3)
+            thrice = value * 3
             B[i2] = thrice
-            value2 = T.bind(i1 + i2)
-            twice2 = T.bind(value2 * 2)
+            value2 = i1 + i2
+            twice2 = value2 * 2
             B[i1] = twice2
-            thrice2 = T.bind(value * 3)
+            thrice2 = value * 3
             B[i2] = thrice2
 
     unrolled = tvm_tirx.tirx.transform.UnrollLoop()(Before)
