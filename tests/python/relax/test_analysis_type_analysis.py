@@ -691,7 +691,9 @@ def _generate_tir_var_test_cases():
     yield func, [n, m], [n, m]
 
 
-tir_var_test_case = tvm_tirx.testing.parameter(*_generate_tir_var_test_cases())
+@pytest.fixture(params=[*_generate_tir_var_test_cases()], scope="session")
+def tir_var_test_case(request):
+    return request.param
 
 
 def test_tir_vars_in_type(tir_var_test_case):
@@ -728,8 +730,14 @@ def test_collect_symbolic_var_from_tensor_shape():
     assert free_vars == {n, p, q}
 
 
-param_type = tvm_tirx.testing.parameter("shape_expr")
-param_order = tvm_tirx.testing.parameter("definition_first", "usage_first")
+@pytest.fixture(params=["shape_expr"], scope="session")
+def param_type(request):
+    return request.param
+
+
+@pytest.fixture(params=["definition_first", "usage_first"], scope="session")
+def param_order(request):
+    return request.param
 
 
 def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):

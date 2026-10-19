@@ -172,7 +172,13 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_tir_schedule_creation():

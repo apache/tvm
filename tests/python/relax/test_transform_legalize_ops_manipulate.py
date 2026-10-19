@@ -23,6 +23,7 @@ from tvm import relax
 from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
 from tvm.s_tir import script as Ts
+from tvm.testing import device_enabled
 from tvm_tirx.ir import TupleType as _TupleType
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
@@ -1645,7 +1646,7 @@ def test_scatter_elements_symbolic():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_scatter_elements_gpu():
     """scatter_elements lowered for GPU must build"""
     target = "cuda"
@@ -1922,7 +1923,7 @@ def test_scatter_nd():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_scatter_nd_gpu():
     """scatter_nd lowered for GPU must build"""
     target = "cuda"

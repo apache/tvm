@@ -180,7 +180,12 @@ def test_sample_perfect_tile_composite():
     verify_trace_roundtrip(sch, mod=elementwise)
 
 
-use_sugared_block = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_sugared_block(request):
+    return request.param
 
 
 def test_sample_compute_location(use_sugared_block):

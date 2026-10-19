@@ -61,7 +61,7 @@ ffi::Module VulkanFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, f
  *   - Registry hit (USE_VULKAN=ON build) → real `VulkanModuleObj` returned.
  *   - Registry miss (USE_VULKAN=OFF build) → `VulkanFallbackModuleObj`
  *     returned.
- *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
+ *   - `TVM_TIRX_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI
  *     box).
  */
@@ -69,7 +69,7 @@ inline ffi::Module VulkanModuleCreateWithFallback(ffi::Map<ffi::String, ffi::Byt
                                                   ffi::String fmt,
                                                   ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                                   ffi::Map<ffi::String, ffi::String> source) {
-  if (tvm::support::GetEnv<bool>("TVM_COMPILE_FORCE_FALLBACK", false)) {
+  if (tvm::support::GetEnv<bool>("TVM_TIRX_COMPILE_FORCE_FALLBACK", false)) {
     return VulkanFallbackModuleCreate(std::move(smap), std::move(fmt), std::move(fmap),
                                       std::move(source));
   }

@@ -146,7 +146,7 @@ The generic pipeline explicitly composes two independently usable passes:
 
 A backend can pair ``TileDispatch`` with its own layout lowering, such as
 Trainium's ``LowerTrainiumLayout``. The generic pipeline inserts ``PrintIR``
-between dispatch and layout lowering when ``TVM_PRINT_AFTER_TIRX_DISPATCH_OPS``
+between dispatch and layout lowering when ``TVM_TIRX_PRINT_AFTER_DISPATCH_OPS``
 is set.
 
 After both passes the module remains a ``tvm.tirx.Function``, but contains no

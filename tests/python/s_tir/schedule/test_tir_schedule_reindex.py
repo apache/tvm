@@ -281,8 +281,20 @@ def matmul_unit_dim_reindex_write(
             C[v0, v1] = C_reindex[v0, v1]
 
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
-use_tensor_name = tvm_tirx.testing.parameter(by_dict={"tensor_index": False, "tensor_name": True})
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
+
+
+@pytest.fixture(
+    params=[pytest.param(False, id="tensor_index"), pytest.param(True, id="tensor_name")],
+    scope="session",
+)
+def use_tensor_name(request):
+    return request.param
 
 
 def test_reindex_read_basic(use_block_name, use_tensor_name):

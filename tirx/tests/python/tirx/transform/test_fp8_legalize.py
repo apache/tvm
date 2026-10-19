@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm_tirx
 import tvm_tirx.script
 import tvm_tirx.testing
@@ -202,8 +204,14 @@ def get_after_storage_legalize(dtype: str, promote_dtype: str):
     return After
 
 
-dtype = tvm_tirx.testing.parameter("float8_e4m3fn", "float8_e5m2")
-promote_dtype = tvm_tirx.testing.parameter("float16", "float32")
+@pytest.fixture(params=["float8_e4m3fn", "float8_e5m2"], scope="session")
+def dtype(request):
+    return request.param
+
+
+@pytest.fixture(params=["float16", "float32"], scope="session")
+def promote_dtype(request):
+    return request.param
 
 
 def test_fp8_compute_legalize(dtype, promote_dtype):

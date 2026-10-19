@@ -14,74 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Thin capability probes for test gating.
-
-This module exposes small ``has_*`` predicates that report whether the
-current environment can run a given feature.  They are meant to be used
-with plain pytest markers and ``skipif``::
-
-    import pytest
-    import tvm_tirx.testing
-
-    @pytest.mark.gpu
-    @pytest.mark.skipif(not tvm_tirx.testing.env.has_cuda(), reason="need cuda")
-    def test_my_cuda_kernel():
-        ...
-
-Each probe's expensive query (device lookup, ``nvcc`` subprocess, libinfo)
-is memoized with :func:`functools.cache`, so it runs at most once per
-process even though ``skipif`` evaluates the predicate at import time for
-every decorated test.  Probes never raise: when support is absent they
-return ``False`` (or a zero version tuple) rather than propagating an
-error out of collection.
-
-Three kinds of probe live here:
-
-* **runtime device** probes (``has_cuda``, ``has_gpu`` …) ask whether a
-  usable device of a given kind is present;
-* **build-support** probes (``has_cudnn`` …, ``build_flag_enabled`` …) ask whether
-  an optional library was compiled into the runtime;
-* **version / capability** probes (``has_cuda_compute``,
-  ``has_nvcc_version`` …) ask about a finer capability of a present device
-  or toolchain.
-"""
+"""Local runtime, device, and compiler capability probes."""
 
 import functools
-import os
 
 import tvm_ffi
 
 import tvm_tirx
 
 __all__ = [
-    "build_flag_enabled",
     "cuda_arch",
-    "has_adreno_opencl",
     # cpu features
     "has_cpu_feature",
-    "has_cublas",
     # runtime device
     "has_cuda",
     "has_cuda_arch",
     # version / capability
     "has_cuda_compute",
     "has_cudagraph",
-    # build support
-    "has_cudnn",
     "has_gpu",
-    # toolchain / environment
-    "has_hexagon",
-    "has_hexagon_toolchain",
-    "has_hipblas",
     "has_llvm",
     "has_llvm_min_version",
     "has_matrixcore",
     "has_metal",
     "has_multi_gpu",
-    "has_nccl",
     "has_nvcc_version",
     "has_nvptx",
-    "has_nvshmem",
     "has_opencl",
     "has_rocm",
     "has_vulkan",
@@ -101,89 +59,6 @@ def _device_exists(kind: str, index: int = 0) -> bool:
 
 
 @functools.cache
-def build_flag_enabled(flag: str) -> bool:
-    """Return whether an optional build flag (e.g. ``USE_CUTLASS``) is on.
-
-    A flag counts as enabled unless it is explicitly disabled, so library
-    flags carrying a path (rather than a boolean) still register as present.
-    Callers gate via ``@pytest.mark.skipif(not env.build_flag_enabled("USE_X"), ...)``.
-    """
-    try:
-        value = tvm_tirx.support.libinfo().get(flag, "OFF")
-        return str(value).lower() not in ("off", "false", "0")
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
-DEFAULT_TEST_TARGETS = [
-    "llvm",
-    "cuda",
-    "nvptx",
-    {"kind": "vulkan", "from_device": 0},
-    "opencl",
-    {"kind": "opencl", "device": "mali"},
-    {"kind": "opencl", "device": "intel_graphics"},
-    "metal",
-    "rocm",
-    "hexagon",
-]
-
-
-def _parse_target_entry(entry):
-    """Parse a target entry from TVM_TEST_TARGETS env var.
-
-    Entries can be plain kind names (e.g. "llvm") or JSON dicts
-    (e.g. '{"kind": "opencl", "device": "mali"}').
-    """
-    entry = entry.strip()
-    if entry.startswith("{"):
-        import json  # pylint: disable=import-outside-toplevel
-
-        return json.loads(entry)
-    return entry
-
-
-def _tvm_test_targets():
-    target_str = os.environ.get("TVM_TEST_TARGETS", "").strip()
-    if target_str:
-        # De-duplicate while preserving order. dict items can't be hashed
-        # directly, so use their str() form as the dedup key.
-        targets = []
-        seen = set()
-        for t in target_str.split(";"):
-            t = t.strip()
-            if not t:
-                continue
-            parsed = _parse_target_entry(t)
-            key = str(parsed)
-            if key in seen:
-                continue
-            seen.add(key)
-            targets.append(parsed)
-        return targets
-
-    return DEFAULT_TEST_TARGETS
-
-
-@functools.cache
-def _target_enabled(kind: str) -> bool:
-    """True if ``kind`` is selected by ``TVM_TEST_TARGETS`` (or the default set).
-
-    Honors the ``TVM_TEST_TARGETS`` opt-out, so CI can exclude a flaky
-    backend (e.g. opencl) via ``TVM_TEST_TARGETS`` and have its tests skip
-    even when a device is physically present.
-    """
-    try:
-        for target in _tvm_test_targets():
-            k = target["kind"] if isinstance(target, dict) else str(target).split()[0]
-            if k == kind:
-                return True
-        return False
-    except Exception:  # pylint: disable=broad-except
-        return True  # fail open: the device check still gates
-
-
-@functools.cache
 def _runtime_enabled(kind: str) -> bool:
     """True if the runtime was built with support for target ``kind``.
 
@@ -197,55 +72,46 @@ def _runtime_enabled(kind: str) -> bool:
         return False
 
 
-def _device_usable(kind: str) -> bool:
-    """True if ``kind`` is enabled for this run and a ``kind`` device exists.
-
-    The TVM_TEST_TARGETS opt-out is checked first so that an excluded backend
-    never probes a (possibly crashy) device.
-    """
-    return _target_enabled(kind) and _device_exists(kind)
-
-
 # --- runtime device probes -------------------------------------------------
 
 
 def has_cuda() -> bool:
-    """True if a CUDA device is present and enabled in TVM_TEST_TARGETS."""
-    return _device_usable("cuda")
+    """True if a CUDA device is present."""
+    return _device_exists("cuda")
 
 
 def has_rocm() -> bool:
-    """True if a ROCm device is present and enabled in TVM_TEST_TARGETS."""
-    return _device_usable("rocm")
+    """True if a ROCm device is present."""
+    return _device_exists("rocm")
 
 
 def has_vulkan() -> bool:
-    """True if a Vulkan device is present and enabled in TVM_TEST_TARGETS."""
-    return _device_usable("vulkan")
+    """True if a Vulkan device is present."""
+    return _device_exists("vulkan")
 
 
 def has_metal() -> bool:
-    """True if a Metal device is present and enabled in TVM_TEST_TARGETS."""
-    return _device_usable("metal")
+    """True if a Metal device is present."""
+    return _device_exists("metal")
 
 
 def has_opencl() -> bool:
-    """True if an OpenCL device is present and enabled in TVM_TEST_TARGETS."""
-    return _device_usable("opencl")
+    """True if an OpenCL device is present."""
+    return _device_exists("opencl")
 
 
 def has_nvptx() -> bool:
     """True if NVPTX is usable: a (CUDA) device, plus the LLVM backend it needs."""
-    return _device_usable("nvptx") and has_llvm()
+    return _device_exists("nvptx") and has_llvm()
 
 
 def has_llvm() -> bool:
-    """True if the LLVM backend was built in and enabled in TVM_TEST_TARGETS.
+    """True if the LLVM backend was built in.
 
     Uses ``tvm_tirx.runtime.enabled`` rather than device existence: ``llvm`` maps to
     the CPU device, which exists even on a ``USE_LLVM=OFF`` build.
     """
-    return _target_enabled("llvm") and _runtime_enabled("llvm")
+    return _runtime_enabled("llvm")
 
 
 def has_gpu() -> bool:
@@ -266,53 +132,6 @@ def has_multi_gpu(count: int = 2) -> bool:
         if all(_device_exists(kind, index) for index in range(count)):
             return True
     return False
-
-
-# --- build-support probes --------------------------------------------------
-#
-# These wrap the optional-library build flags.  Features that extend CUDA /
-# ROCm additionally require the parent device to be present.
-
-
-def has_cudnn() -> bool:
-    """True if cuDNN was built in and a CUDA device is present."""
-    return has_cuda() and build_flag_enabled("USE_CUDNN")
-
-
-def has_cublas() -> bool:
-    """True if cuBLAS was built in and a CUDA device is present."""
-    return has_cuda() and build_flag_enabled("USE_CUBLAS")
-
-
-def has_nccl() -> bool:
-    """True if NCCL was built in and a CUDA device is present."""
-    try:
-        return has_cuda() and (
-            tvm_ffi.get_global_func("runtime.disco.nccl.init_ccl", allow_missing=True) is not None
-        )
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
-def has_hipblas() -> bool:
-    """True if hipBLAS was built in and a ROCm device is present."""
-    return has_rocm() and build_flag_enabled("USE_HIPBLAS")
-
-
-@functools.cache
-def has_nvshmem() -> bool:
-    """True if the disco NVSHMEM runtime is available (requires CUDA).
-
-    Probes the runtime global function rather than the ``USE_NVSHMEM`` build
-    flag, since the flag can be set in builds that do not ship the runtime.
-    """
-    try:
-        return has_cuda() and (
-            tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", allow_missing=True)
-            is not None
-        )
-    except Exception:  # pylint: disable=broad-except
-        return False
 
 
 # --- version / capability probes -------------------------------------------
@@ -442,41 +261,6 @@ def has_cudagraph() -> bool:
         return has_cuda() and bool(nvcc.have_cudagraph())
     except Exception:  # pylint: disable=broad-except
         return False
-
-
-# --- toolchain / environment probes ----------------------------------------
-
-
-@functools.cache
-def has_hexagon_toolchain() -> bool:
-    """True if the Hexagon toolchain is available for compilation."""
-    try:
-        return (
-            _runtime_enabled("llvm")
-            and "hexagon" in tvm_tirx.codegen.llvm.get_targets()
-            and "HEXAGON_TOOLCHAIN" in os.environ
-        )
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
-@functools.cache
-def has_hexagon() -> bool:
-    """True if Hexagon can both compile and run (toolchain + attached device)."""
-    try:
-        return (
-            _runtime_enabled("hexagon")
-            and has_hexagon_toolchain()
-            and "ANDROID_SERIAL_NUMBER" in os.environ
-        )
-    except Exception:  # pylint: disable=broad-except
-        return False
-
-
-@functools.cache
-def has_adreno_opencl() -> bool:
-    """True if remote Adreno OpenCL testing is configured (RPC_TARGET set)."""
-    return build_flag_enabled("USE_OPENCL") and os.environ.get("RPC_TARGET") is not None
 
 
 # --- cpu feature probes ----------------------------------------------------

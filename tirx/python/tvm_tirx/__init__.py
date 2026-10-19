@@ -76,7 +76,7 @@ if TYPE_CHECKING or not _is_config_mode():
     # support infra
     from . import support
 
-    # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
+    # Side-effect imports: register CUDA/ROCm FFI callbacks at TIRX startup
     from .support import rocm as _rocm, nvcc as _nvcc
 
     def tvm_wrap_excepthook(exception_hook):
@@ -97,16 +97,16 @@ if TYPE_CHECKING or not _is_config_mode():
 
     # Autoload loads built-in and out-of-tree backends. Out-of-tree extensions opt
     # into being loaded automatically at ``import tvm_tirx`` time by declaring an entry
-    # point in the ``tvm.backends`` group:
-    # [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
-    # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
+    # point in the ``tvm_tirx.backends`` group:
+    # [project.entry-points."tvm_tirx.backends"] tvm_foo = "tvm_foo:_autoload".
+    # Autoload can be disabled via ``TVM_TIRX_DEVICE_BACKEND_AUTOLOAD=0``.
     from .backend._autoload_backends import _autoload_backends
 
     _autoload_backends()
 
     # Load the optional ORC JIT extension for its global FFI registrations.  LLVM
     # function lookup reports a targeted installation error if this import fails;
-    # importing TVM itself remains silent for AOT-only workflows.
+    # importing TIRX itself remains silent for AOT-only workflows.
     try:
         import tvm_ffi_orcjit as _tvm_ffi_orcjit
     except Exception:  # pylint: disable=broad-exception-caught

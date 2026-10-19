@@ -86,7 +86,7 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 """,
             str(native_library),
         ],
-        env={**os.environ, "TVM_USE_RUNTIME_LIB": "1"},
+        env={**os.environ, "TVM_TIRX_USE_RUNTIME_LIB": "1"},
         check=True,
     )
 

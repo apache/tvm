@@ -96,7 +96,8 @@ class TestVector(BaseCompare):
     x64 = tvm_tirx.tirx.Var("x", "int64")
     vx = tvm_tirx.tirx.Var("vx", "int32x2")
     vc = tvm_tirx.tirx.Var("vc", "bool")
-    test_case = tvm_tirx.testing.parameter(
+
+    _test_case_params = (
         # Add rules
         TestCase(
             tvm_tirx.ir.prim.vector_expr.Ramp(x, 1, 4) + tvm_tirx.ir.prim.vector_expr.Ramp(y, 2, 4),
@@ -190,7 +191,9 @@ class TestVector(BaseCompare):
             tvm_tirx.ir.prim.vector_expr.Ramp(tdiv(x, 2), 2, tirx.vscale() * 5),
         ),
         TestCase(
-            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8), x.astype("int32x4"), x >= 0
+            tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 1, 1, 4), 8),
+            x.astype("int32x4"),
+            x >= 0,
         ),
         TestCase(
             tdiv(tvm_tirx.ir.prim.vector_expr.Ramp(x * 8 + 15, 1, 4), 8),
@@ -501,6 +504,10 @@ class TestVector(BaseCompare):
         ),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestSelect(BaseCompare):
     x, y, z = (
@@ -509,7 +516,7 @@ class TestSelect(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         # Add rules
         TestCase(
             tvm_tirx.tirx.Select(x < 0, y, 0) + tvm_tirx.tirx.Select(x < 0, 1, z),
@@ -534,6 +541,10 @@ class TestSelect(BaseCompare):
         TestCase(tvm_tirx.tirx.Select(x > 0, y + 1, y + 1), y + 1),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestCancellation(BaseCompare):
     var_int8 = tirx.Var("var_int8", "int8")
@@ -543,7 +554,7 @@ class TestCancellation(BaseCompare):
     var_uint32 = tirx.Var("var_uint32", "uint32")
     var_uint64 = tirx.Var("var_uint64", "uint64")
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(tirx.const(5, "int64") - tirx.const(5, "int64"), tirx.const(0, "int64")),
         TestCase(tirx.const(5, "uint8") - tirx.const(5, "uint8"), tirx.const(0, "uint8")),
         TestCase(var_int8 - var_int8, tirx.const(0, "int8")),
@@ -574,6 +585,10 @@ class TestCancellation(BaseCompare):
         TestCase(tirx.NE(var_uint64, var_uint64), tirx.const(False, "bool")),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestAddIndex(BaseCompare):
     x, y, z = (
@@ -582,7 +597,7 @@ class TestAddIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(x + (y - x), y),
         TestCase(x - (y + 1) + (y + 1), x),
         TestCase((x - 10) + (10 - z), x - z),
@@ -626,6 +641,10 @@ class TestAddIndex(BaseCompare):
         TestCase(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2)),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestSubIndex(BaseCompare):
     x, y, z = (
@@ -634,7 +653,7 @@ class TestSubIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(x + y - y, x),
         TestCase(x + y - x, y),
         TestCase(x - (y + x), 0 - y),
@@ -725,6 +744,10 @@ class TestSubIndex(BaseCompare):
         TestCase(fld(y - z, 3) * 6 - 2 * y, (0 - flm(y - z, 3) - z) * 2),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestMulIndex(BaseCompare):
     x, y, z = (
@@ -732,13 +755,19 @@ class TestMulIndex(BaseCompare):
         tvm_tirx.tirx.Var("y", "int32"),
         tvm_tirx.tirx.Var("z", "int32"),
     )
-    test_case = tvm_tirx.testing.parameter(
-        TestCase((x + 2) * 3, x * 3 + 6),
-        TestCase((x * 2) * 3, x * 6),
-        TestCase(tvm_tirx.tirx.min(x, y) * tvm_tirx.tirx.max(x, y), x * y),
-        TestCase(tvm_tirx.tirx.max(x, y) * tvm_tirx.tirx.min(x, y), x * y),
-        TestCase((x - y) * (-2), (y - x) * 2),
+
+    @pytest.fixture(
+        params=[
+            TestCase((x + 2) * 3, x * 3 + 6),
+            TestCase((x * 2) * 3, x * 6),
+            TestCase(tvm_tirx.tirx.min(x, y) * tvm_tirx.tirx.max(x, y), x * y),
+            TestCase(tvm_tirx.tirx.max(x, y) * tvm_tirx.tirx.min(x, y), x * y),
+            TestCase((x - y) * (-2), (y - x) * 2),
+        ],
+        scope="session",
     )
+    def test_case(self, request):
+        return request.param
 
 
 class TestDivIndex(BaseCompare):
@@ -749,7 +778,7 @@ class TestDivIndex(BaseCompare):
     )
     non_negative = [x >= 0, y >= 0, z >= 0]
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(tdiv(x, x), 1),
         TestCase(tdiv(tdiv(x, 2), 3), tdiv(x, 6)),
         TestCase(tdiv(tdiv(x, 2) + 1, 3), tdiv(x + 2, 6), non_negative),
@@ -757,17 +786,25 @@ class TestDivIndex(BaseCompare):
         TestCase(tdiv(x * 4, 2), x * 2),
         TestCase(tdiv(x * 4 + y, 2), x * 2 + tdiv(y, 2), non_negative),
         TestCase(
-            tdiv(tvm_tirx.tirx.min(x * 6, y), 2), tvm_tirx.tirx.min(x * 3, tdiv(y, 2)), non_negative
+            tdiv(tvm_tirx.tirx.min(x * 6, y), 2),
+            tvm_tirx.tirx.min(x * 3, tdiv(y, 2)),
+            non_negative,
         ),
         TestCase(
-            tdiv(tvm_tirx.tirx.max(x * 6, y), 2), tvm_tirx.tirx.max(x * 3, tdiv(y, 2)), non_negative
+            tdiv(tvm_tirx.tirx.max(x * 6, y), 2),
+            tvm_tirx.tirx.max(x * 3, tdiv(y, 2)),
+            non_negative,
         ),
         TestCase(tdiv(y + x * 4, 2), tdiv(y, 2) + x * 2, non_negative),
         TestCase(
-            tdiv(tvm_tirx.tirx.min(y, x * 6), 2), tvm_tirx.tirx.min(tdiv(y, 2), x * 3), non_negative
+            tdiv(tvm_tirx.tirx.min(y, x * 6), 2),
+            tvm_tirx.tirx.min(tdiv(y, 2), x * 3),
+            non_negative,
         ),
         TestCase(
-            tdiv(tvm_tirx.tirx.max(y, x * 6), 2), tvm_tirx.tirx.max(tdiv(y, 2), x * 3), non_negative
+            tdiv(tvm_tirx.tirx.max(y, x * 6), 2),
+            tvm_tirx.tirx.max(tdiv(y, 2), x * 3),
+            non_negative,
         ),
         # 3-operands
         TestCase(tdiv(x * 6 + y + z, 2), x * 3 + tdiv(y + z, 2), non_negative),
@@ -789,6 +826,10 @@ class TestDivIndex(BaseCompare):
         TestCase(tdiv(y + z * x, z), tdiv(y, z) + x, non_negative),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestFloordivIndex(BaseCompare):
     x, y, z = (
@@ -797,7 +838,7 @@ class TestFloordivIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(fld(fld(x, 2), 3), fld(x, 6)),
         TestCase(fld(fld(x, 2) + 1, 3), fld(x + 2, 6)),
         TestCase(fld(x - flm(x, 21), 21), fld(x, 21)),
@@ -846,6 +887,10 @@ class TestFloordivIndex(BaseCompare):
         TestCase(fld(x * 128 + y * 4 + z, 512), fld(x, 4), [y >= 0, y < 32, z >= 0, z < 4]),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestModIndex(BaseCompare):
     x, y, nx, ny, z = (
@@ -856,7 +901,7 @@ class TestModIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         # TODO(Lunderberg): Loosen these preconditions.  When there's
         # a single term whose factor is divisible by the denominator,
         # the sign of the argument doesn't matter.
@@ -884,6 +929,10 @@ class TestModIndex(BaseCompare):
         TestCase(tmod(x + ny * (-10), -2), tmod(x, 2), [x >= 0, ny <= 0]),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestFloormodIndex(BaseCompare):
     x, y, z = (
@@ -892,7 +941,7 @@ class TestFloormodIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(flm(x * 10, 2), 0),
         TestCase(flm(x * 9600, 6400), flm(x * 3200, 6400)),
         TestCase(flm(x * 10 + y, 2), flm(y, 2)),
@@ -915,6 +964,10 @@ class TestFloormodIndex(BaseCompare):
         # TestCase(flm(x * 10 + 1 + y * 2 + 2, 2), 1),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestFloorModTwo(BaseCompare):
     """Special-case simplifications for FloorMod(expr,2)
@@ -936,7 +989,8 @@ class TestFloorModTwo(BaseCompare):
         tvm_tirx.tirx.Var("y", "int32"),
         tvm_tirx.tirx.Var("z", "int32"),
     )
-    test_case = tvm_tirx.testing.parameter(
+
+    _test_case_params = (
         # Removing offsets from floormod
         TestCase(flm(x, 2) + flm(x + 1, 2), 1),
         TestCase(flm(x + 1, 2) + flm(x, 2), 1),
@@ -958,6 +1012,10 @@ class TestFloorModTwo(BaseCompare):
         TestCase(flm(x + 1, 2) * 8192, flm(x + 1, 2) * 8192, [x >= 0, x < 2]),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestFloorModPadded(BaseCompare):
     """Special-case simplifications for divisibility proof
@@ -965,7 +1023,8 @@ class TestFloorModPadded(BaseCompare):
     """
 
     x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
-    test_case = tvm_tirx.testing.parameter(
+
+    _test_case_params = (
         TestCase(flm(x - flm(x, 9), 9), 0),
         TestCase(flm(x - flm(x, -9), 9), 0),
         TestCase(flm(x + flm(-x, 9), 9), 0),
@@ -974,6 +1033,10 @@ class TestFloorModPadded(BaseCompare):
         TestCase(flm(x - flm(x, -y), y), 0),
         TestCase(flm(x + flm(-x, y), y), 0),
     )
+
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
 
 
 def test_uint_floormod_const_fold():
@@ -994,7 +1057,8 @@ class TestFloorModUnsigned(BaseCompare):
     x = tirx.Var("x", "uint32")
     y = tirx.Var("y", "uint32")
     z = tirx.Var("z", "int32")
-    test_case = tvm_tirx.testing.parameter(
+
+    _test_case_params = (
         TestCase(
             flm(x * tirx.const(8, "uint32"), tirx.const(4, "uint32")), tirx.const(0, "uint32")
         ),
@@ -1005,15 +1069,22 @@ class TestFloorModUnsigned(BaseCompare):
         ),
         TestCase(
             flm(
-                x * tirx.const(32, "uint32") + y * tirx.const(8, "uint32"), tirx.const(8, "uint32")
+                x * tirx.const(32, "uint32") + y * tirx.const(8, "uint32"),
+                tirx.const(8, "uint32"),
             ),
             tirx.const(0, "uint32"),
         ),
         # Non-power-of-two divisor must NOT simplify (unsigned wraparound
         # changes residues mod c2).
         TestCase(
-            flm(x * tirx.const(16, "uint32") + (z * 4).astype("uint32"), tirx.const(12, "uint32")),
-            flm(x * tirx.const(16, "uint32") + (z * 4).astype("uint32"), tirx.const(12, "uint32")),
+            flm(
+                x * tirx.const(16, "uint32") + (z * 4).astype("uint32"),
+                tirx.const(12, "uint32"),
+            ),
+            flm(
+                x * tirx.const(16, "uint32") + (z * 4).astype("uint32"),
+                tirx.const(12, "uint32"),
+            ),
         ),
         # The pre-existing x * c1 % c2 -> 0 rule is pow2-guarded: c2=12 must
         # not fold to 0 (e.g. x=2^29 wraps: uint32(x*12)=2^31, and 2^31 % 12 = 8).
@@ -1032,6 +1103,10 @@ class TestFloorModUnsigned(BaseCompare):
         ),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestMinIndex(BaseCompare):
     x, y, z = (
@@ -1039,7 +1114,8 @@ class TestMinIndex(BaseCompare):
         tvm_tirx.tirx.Var("y", "int32"),
         tvm_tirx.tirx.Var("z", "int32"),
     )
-    test_case = tvm_tirx.testing.parameter(
+
+    _test_case_params = (
         # const int bound
         TestCase(tvm_tirx.tirx.min(tmod(x, 2), tmod(y, 2) + 10), tmod(x, 2)),
         TestCase(tvm_tirx.tirx.min(flm(x, 2), flm(y, 2) + 10), flm(x, 2)),
@@ -1078,7 +1154,8 @@ class TestMinIndex(BaseCompare):
         TestCase(
             tvm_tirx.tirx.min(
                 tvm_tirx.tirx.min(
-                    tvm_tirx.tirx.min(tvm_tirx.tirx.min(tvm_tirx.tirx.min(x, y), z), x * 2), z * 2
+                    tvm_tirx.tirx.min(tvm_tirx.tirx.min(tvm_tirx.tirx.min(x, y), z), x * 2),
+                    z * 2,
                 ),
                 y,
             ),
@@ -1134,7 +1211,8 @@ class TestMinIndex(BaseCompare):
         ),
         TestCase(tvm_tirx.tirx.min(tdiv(x, 10), tdiv(y, 10)), tdiv(tvm_tirx.tirx.min(x, y), 10)),
         TestCase(
-            tvm_tirx.tirx.min(tdiv(x, (-10)), tdiv(y, (-10))), tdiv(tvm_tirx.tirx.max(x, y), (-10))
+            tvm_tirx.tirx.min(tdiv(x, (-10)), tdiv(y, (-10))),
+            tdiv(tvm_tirx.tirx.max(x, y), (-10)),
         ),
         # floor div
         TestCase(tvm_tirx.tirx.min(fld(x + 3, 4) * 4, x), x),
@@ -1156,6 +1234,10 @@ class TestMinIndex(BaseCompare):
         ),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestMaxIndex(BaseCompare):
     x, y, z = (
@@ -1164,10 +1246,11 @@ class TestMaxIndex(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         # Identical operands simplify even when they contain an opaque call.
         TestCase(
-            tvm_tirx.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4), x + tirx.vscale() * 4
+            tvm_tirx.tirx.max(x + tirx.vscale() * 4, x + tirx.vscale() * 4),
+            x + tirx.vscale() * 4,
         ),
         # const int bound
         TestCase(tvm_tirx.tirx.max(tmod(x, 2), tmod(y, 2) + 10), tmod(y, 2) + 10),
@@ -1207,7 +1290,8 @@ class TestMaxIndex(BaseCompare):
         TestCase(
             tvm_tirx.tirx.max(
                 tvm_tirx.tirx.max(
-                    tvm_tirx.tirx.max(tvm_tirx.tirx.max(tvm_tirx.tirx.max(x, y), z), x * 2), z * 2
+                    tvm_tirx.tirx.max(tvm_tirx.tirx.max(tvm_tirx.tirx.max(x, y), z), x * 2),
+                    z * 2,
                 ),
                 y,
             ),
@@ -1251,7 +1335,8 @@ class TestMaxIndex(BaseCompare):
         # truc div
         TestCase(tvm_tirx.tirx.max(tdiv(x, 10), tdiv(y, 10)), tdiv(tvm_tirx.tirx.max(x, y), 10)),
         TestCase(
-            tvm_tirx.tirx.max(tdiv(x, (-10)), tdiv(y, (-10))), tdiv(tvm_tirx.tirx.min(x, y), (-10))
+            tvm_tirx.tirx.max(tdiv(x, (-10)), tdiv(y, (-10))),
+            tdiv(tvm_tirx.tirx.min(x, y), (-10)),
         ),
         TestCase(tvm_tirx.tirx.max(tdiv(x + 3, 4) * 4, x), tdiv(x + 3, 4) * 4),
         # floordiv
@@ -1264,6 +1349,10 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm_tirx.tirx.max(x, fld(x, 4) * 4), x),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestComparisons(BaseCompare):
     x, y, z = (
@@ -1272,7 +1361,7 @@ class TestComparisons(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         # const int bound
         TestCase((tmod(x, 2) + 10).equal(0), tvm_tirx.tirx.const(0, "bool")),
         TestCase(tvm_tirx.tirx.NE(tmod(x, 2) + 10, 0), tvm_tirx.tirx.const(1, "bool")),
@@ -1453,7 +1542,9 @@ class TestComparisons(BaseCompare):
         TestCase(x + y >= -10, tvm_tirx.tirx.const(1, "bool"), [x >= 0, y >= -10]),
         TestCase(z - 5 <= y + 10, tvm_tirx.tirx.const(1, "bool"), [z <= 5, y >= -10]),
         TestCase(
-            tvm_tirx.tirx.all(x > -1, z <= x + 5), tvm_tirx.tirx.const(1, "bool"), [x >= 0, z <= 5]
+            tvm_tirx.tirx.all(x > -1, z <= x + 5),
+            tvm_tirx.tirx.const(1, "bool"),
+            [x >= 0, z <= 5],
         ),
         TestCase(x * y <= 0, tvm_tirx.tirx.const(1, "bool"), [x >= 0, y <= 0]),
         TestCase((x + 1) * (y - 1) < 0, tvm_tirx.tirx.const(1, "bool"), [x >= 0, y <= 0]),
@@ -1461,6 +1552,10 @@ class TestComparisons(BaseCompare):
         TestCase(x * 6 <= -3, tvm_tirx.tirx.const(0, "bool"), x >= 0),
         TestCase(tmod(y - 1, 3) == 0, tmod(y + (-1), 3) == 0),
     )
+
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
 
 
 class TestLogical(BaseCompare):
@@ -1470,7 +1565,7 @@ class TestLogical(BaseCompare):
         tvm_tirx.tirx.Var("z", "int32"),
     )
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(
             tvm_tirx.tirx.And(tvm_tirx.tirx.EQ(x, y), tvm_tirx.tirx.NE(x, y)),
             tvm_tirx.tirx.const(False, "bool"),
@@ -1480,7 +1575,8 @@ class TestLogical(BaseCompare):
             tvm_tirx.tirx.const(False, "bool"),
         ),
         TestCase(
-            tvm_tirx.tirx.And(x > 1, tvm_tirx.tirx.Not(x > 1)), tvm_tirx.tirx.const(False, "bool")
+            tvm_tirx.tirx.And(x > 1, tvm_tirx.tirx.Not(x > 1)),
+            tvm_tirx.tirx.const(False, "bool"),
         ),
         TestCase(tvm_tirx.tirx.And(x <= y, y < x), tvm_tirx.tirx.const(False, "bool")),
         TestCase(tvm_tirx.tirx.And(y < x, x <= y), tvm_tirx.tirx.const(False, "bool")),
@@ -1527,14 +1623,23 @@ class TestLogical(BaseCompare):
         ),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestLet(BaseCompare):
     x, y = tvm_tirx.tirx.Var("x", "int32"), tvm_tirx.tirx.Var("y", "int32")
     z = tvm_tirx.tirx.Let(x, 1, x + 1)
 
-    test_case = tvm_tirx.testing.parameter(
-        TestCase(z + z, 4),
+    @pytest.fixture(
+        params=[
+            TestCase(z + z, 4),
+        ],
+        scope="session",
     )
+    def test_case(self, request):
+        return request.param
 
 
 class TestCast(BaseCompare):
@@ -1552,14 +1657,22 @@ class TestCast(BaseCompare):
                             tvm_tirx.tirx.const(i, dtype1),
                         )
 
-    test_case = tvm_tirx.testing.parameter(*_generate_tests())
+    @pytest.fixture(params=[*_generate_tests()], scope="session")
+    def test_case(self, request):
+        return request.param
 
 
 class TestShiftLeft(BaseCompare):
     z = tvm_tirx.tirx.LShift(tvm_tirx.tirx.const(1, "int32"), tvm_tirx.tirx.const(10, "int32"))
-    test_case = tvm_tirx.testing.parameter(
-        TestCase(z, tvm_tirx.tirx.const(1 << 10, "int32")),
+
+    @pytest.fixture(
+        params=[
+            TestCase(z, tvm_tirx.tirx.const(1 << 10, "int32")),
+        ],
+        scope="session",
     )
+    def test_case(self, request):
+        return request.param
 
 
 class TestBitwiseConstants(BaseCompare):
@@ -1580,34 +1693,46 @@ class TestBitwiseConstants(BaseCompare):
             tvm_tirx.tirx.const(2, "int32"),
         )
 
-    test_case = tvm_tirx.testing.parameter(*_generate_tests())
+    @pytest.fixture(params=[*_generate_tests()], scope="session")
+    def test_case(self, request):
+        return request.param
 
 
 class TestDivZero(BaseCompare):
     ramp = tvm_tirx.ir.prim.vector_expr.Ramp(1, 1, 2)
     broadcast = tvm_tirx.ir.prim.vector_expr.Broadcast(0, 2)
 
-    test_case = tvm_tirx.testing.parameter(
-        TestCase(tvm_tirx.tirx.Div(ramp, broadcast), RuntimeError),
-        TestCase(tvm_tirx.tirx.Mod(ramp, broadcast), RuntimeError),
-        TestCase(tvm_tirx.tirx.FloorDiv(ramp, broadcast), RuntimeError),
-        TestCase(tvm_tirx.tirx.FloorMod(ramp, broadcast), RuntimeError),
+    @pytest.fixture(
+        params=[
+            TestCase(tvm_tirx.tirx.Div(ramp, broadcast), RuntimeError),
+            TestCase(tvm_tirx.tirx.Mod(ramp, broadcast), RuntimeError),
+            TestCase(tvm_tirx.tirx.FloorDiv(ramp, broadcast), RuntimeError),
+            TestCase(tvm_tirx.tirx.FloorMod(ramp, broadcast), RuntimeError),
+        ],
+        scope="session",
     )
+    def test_case(self, request):
+        return request.param
 
 
 class TestSubBufferload(BaseCompare):
     buf = tvm_tirx.tirx.Var("tensor", tvm_tirx.tirx.TensorType([1], "float32"))
     load = tvm_tirx.ir.TensorLoad(buf, [0])
 
-    test_case = tvm_tirx.testing.parameter(
-        TestCase(load - load, 0.0),
+    @pytest.fixture(
+        params=[
+            TestCase(load - load, 0.0),
+        ],
+        scope="session",
     )
+    def test_case(self, request):
+        return request.param
 
 
 class TestIfThenElse(BaseCompare):
     x = tvm_tirx.tirx.Var("x", "int32")
 
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(
             tvm_tirx.tirx.if_then_else(x < 5, tvm_tirx.tirx.if_then_else(x > 1, 1, 0), 0),
             tvm_tirx.tirx.if_then_else(
@@ -1620,9 +1745,13 @@ class TestIfThenElse(BaseCompare):
         ),
     )
 
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
+
 
 class TestCLZ(BaseCompare):
-    test_case = tvm_tirx.testing.parameter(
+    _test_case_params = (
         TestCase(
             tvm_tirx.tirx.call_intrin("prim.clz", 0, ty="int32"),
             T.int32(32),
@@ -1656,6 +1785,10 @@ class TestCLZ(BaseCompare):
             T.int32(56),
         ),
     )
+
+    @pytest.fixture(params=_test_case_params, scope="session")
+    def test_case(self, request):
+        return request.param
 
 
 if __name__ == "__main__":

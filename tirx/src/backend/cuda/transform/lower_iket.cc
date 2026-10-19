@@ -1183,7 +1183,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 
 bool IketEnabled(const IRModule& module) {
   if (module->HasNonzeroAttr(tvm::backend::cuda::attr::kIKetEnabled.name)) return true;
-  const char* child_enable = std::getenv("TVM_IKET_INJECTED_CHILD_ENABLE");
+  const char* child_enable = std::getenv("TVM_TIRX_IKET_INJECTED_CHILD_ENABLE");
   const char* injection = std::getenv("CUDA_INJECTION64_PATH");
   const char* injection_config = std::getenv("IKET_INJECTION_CONFIG");
   if (!injection_config || injection_config[0] == '\0') {

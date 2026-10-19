@@ -1646,7 +1646,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(const PrimType& t, int i, const std::stri
 // Python postproc hook rewrite it, and hands the source bytes off to the
 // fallback-aware module factory.  The factory may JIT to PTX/cubin via
 // `tvm_callback_cuda_compile` when
-// USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_COMPILE_FORCE_FALLBACK is
+// USE_CUDA=ON; on USE_CUDA=OFF builds (or when TVM_TIRX_COMPILE_FORCE_FALLBACK is
 // set), it returns a `CUDAFallbackModuleObj` carrying the raw source for
 // later cross-compile.
 ffi::Module BuildCUDA(IRModule mod, Target target) {

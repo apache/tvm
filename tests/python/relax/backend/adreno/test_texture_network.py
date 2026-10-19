@@ -35,6 +35,7 @@ from tvm.relax import script as R
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
@@ -43,7 +44,7 @@ TARGETS = [tvm_tirx.target.Target("qcom/adreno-opencl-texture")]
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(TARGETS[0]), reason="opencl not enabled")
+@pytest.mark.skipif(not device_enabled(TARGETS[0]), reason="opencl not enabled")
 def test_network_resnet():
     target = TARGETS[0]
 

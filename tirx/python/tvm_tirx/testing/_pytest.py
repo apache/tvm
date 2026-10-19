@@ -118,7 +118,7 @@ def pytest_runtest_setup(item):
 def _source_codegen_without_cuda(monkeypatch):
     # CPU-only source checks must not depend on a CUDA compiler being installed.
     if not env.has_cuda():
-        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+        monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
 
 
 @pytest.fixture(autouse=True)

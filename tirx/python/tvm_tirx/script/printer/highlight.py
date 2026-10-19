@@ -51,7 +51,7 @@ def cprint(
     https://pygments.org/styles/
 
     The default pygmentize style can also be set with the environment
-    variable "TVM_PYGMENTIZE_STYLE".
+    variable "TVM_TIRX_PYGMENTIZE_STYLE".
     """
     if hasattr(printable, "script") and callable(getattr(printable, "script")):
         printable = printable.script()
@@ -200,7 +200,7 @@ def _get_pygments_style(
     if style is not None:
         return style
 
-    style_from_environment = os.environ.get("TVM_PYGMENTIZE_STYLE", "").strip()
+    style_from_environment = os.environ.get("TVM_TIRX_PYGMENTIZE_STYLE", "").strip()
     if style_from_environment:
         return style_from_environment
 

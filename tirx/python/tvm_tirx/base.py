@@ -31,8 +31,8 @@ from . import libinfo
 # ----------------------------
 
 # Whether only the runtime library is loaded (runtime-only wheel, or
-# ``TVM_USE_RUNTIME_LIB=1``). Set during library loading below.
-_RUNTIME_ONLY = os.environ.get("TVM_USE_RUNTIME_LIB") == "1"
+# ``TVM_TIRX_USE_RUNTIME_LIB=1``). Set during library loading below.
+_RUNTIME_ONLY = os.environ.get("TVM_TIRX_USE_RUNTIME_LIB") == "1"
 
 # Handles of the core libraries actually loaded, keyed by basename
 # (e.g. ``{"tvm_runtime": <CDLL>, "tvm_tirx_compiler": <CDLL>}``). Downstream /

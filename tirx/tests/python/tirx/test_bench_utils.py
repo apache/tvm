@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for tvm_tirx.tirx.bench utilities."""
+"""Tests for tvm_tirx.testing.bench utilities."""
 
 import importlib
 import inspect
@@ -23,12 +23,12 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-pytest.importorskip("triton")  # tvm.tirx.bench imports triton.profiler
+pytest.importorskip("triton")  # tvm_tirx.testing.bench imports triton.profiler
 
 from tvm_tirx.testing import env
-from tvm_tirx.tirx.bench import DistributedBenchContext, bench
+from tvm_tirx.testing.bench import DistributedBenchContext, bench
 
-bench_module = importlib.import_module("tvm_tirx.tirx.bench")
+bench_module = importlib.import_module("tvm_tirx.testing.bench")
 
 
 class _FakeStream:

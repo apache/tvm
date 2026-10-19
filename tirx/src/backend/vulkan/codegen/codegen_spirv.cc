@@ -670,14 +670,15 @@ spirv::Value CodeGenSPIRV::Dispatch_(const TensorLoadNode* op) {
   Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>();
   PrimExpr prim_index = op->indices[0];
 
-  PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
-  if (desired_read_type == PrimType::Bool()) {
-    desired_read_type = boolean_storage_type_.WithLanes(desired_read_type.lanes());
-  }
-
   auto it = storage_info_.find(buffer_var.get());
   TVM_FFI_ICHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
+
+  PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
+  // Local allocations retain OpTypeBool; external boolean buffers use byte storage.
+  if (desired_read_type == PrimType::Bool() && info.element_type != PrimType::Bool()) {
+    desired_read_type = boolean_storage_type_.WithLanes(desired_read_type.lanes());
+  }
   info.CheckContentType(desired_read_type, prim_index.ty().lanes());
 
   spirv::SType content_type = builder_->GetSType(info.element_type);
@@ -696,8 +697,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const TensorLoadNode* op) {
     spirv::Value index = MakeValue(vec_index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
     spirv::Value loaded = builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
-    // OpTypeBool have no physical address/storage.  Here, cast from
-    // the storage type to an OpTypeBool.
+    // Convert externally stored bytes back to bool. Native bool loads are unchanged.
     if (op->ty.as_or_throw<PrimType>() == PrimType::Bool()) {
       auto spirv_bool = builder_->GetSType(PrimType::Bool());
       loaded = builder_->Cast(spirv_bool, loaded);

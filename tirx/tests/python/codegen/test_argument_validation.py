@@ -31,8 +31,12 @@ import tvm_tirx.testing
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
+
 # Parameterize over both LLVM and C backends
-codegen_target = tvm_tirx.testing.parameter("llvm", "c")
+@pytest.fixture(params=["llvm", "c"], scope="session")
+def codegen_target(request):
+    return request.param
+
 
 # ── Argument count errors ────────────────────────────────────
 

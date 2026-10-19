@@ -101,7 +101,14 @@ def element_wise_subregion_match_set_dtype(A: T.Tensor((128, 128), "float32"), C
             B_subregion1 = Ts.match_tensor(B[vi, vj], (), "float16", layout=T.TileLayout(T.S[()] + (element_wise_subregion_match_set_dtype_b_subregion1_offset)))
             C[vi, vj] = T.cast(B_subregion1[()], ty="float32") + 1.0
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
+
 
 def test_set_dtype(use_block_name):
     func = element_wise

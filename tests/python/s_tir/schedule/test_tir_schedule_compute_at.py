@@ -1052,7 +1052,13 @@ def static_bound_after_compute_at(A: T.Tensor((32, 1), "float32"), C: T.Tensor((
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_compute_at_two_elementwise(use_block_name):

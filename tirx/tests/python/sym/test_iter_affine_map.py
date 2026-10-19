@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import pytest
+
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.script import tirx as T
@@ -1112,14 +1114,17 @@ class TestPadding:
     fld = tvm_tirx.tirx.floordiv
     flm = tvm_tirx.tirx.floormod
 
-    positive_test_case = tvm_tirx.testing.parameter(
+    _positive_test_case_params = (
         # left padding only, offset divisible
         ({y: 192}, {fld(64 + y, 32): (6, 2, 1), flm(64 + y, 32): (32, 0, 1)}, "bijective"),
         # left padding only, offset non-divisible
         ({y: 176}, {fld(80 + y, 32): (6, 2, 1)}),
         ({y: 176}, {flm(fld(80 + y, 2), 16): (16, 0, 1), flm(80 + y, 2): (2, 0, 1)}),
         # right padding only, offset divisible
-        ({x: 5, y: 4}, {fld(x * 32 + y * 8, 16): (10, 0, 1), flm(x * 32 + y * 8, 16): (2, 0, 8)}),
+        (
+            {x: 5, y: 4},
+            {fld(x * 32 + y * 8, 16): (10, 0, 1), flm(x * 32 + y * 8, 16): (2, 0, 8)},
+        ),
         # right padding only, offset non-divisible
         ({x: 26}, {fld(x, 15): (2, 0, 1)}),
         ({x: 26}, {flm(fld(x, 3), 5): (5, 0, 1), flm(x, 3): (3, 0, 1)}),
@@ -1150,7 +1155,11 @@ class TestPadding:
         ),
     )
 
-    negative_test_case = tvm_tirx.testing.parameter(
+    @pytest.fixture(params=_positive_test_case_params, scope="session")
+    def positive_test_case(self, request):
+        return request.param
+
+    _negative_test_case_params = (
         # left padding only, offset non-divisible
         ({y: 176}, {fld(80 + y, 32), flm(80 + y, 32)}),
         ({y: 176}, {fld(80 + y, 32), fld(80 + y, 4)}),
@@ -1173,6 +1182,10 @@ class TestPadding:
         # (x % c1) // c2 is not proved as surjective if c1 % c2 != 0
         ({x: 255}, {fld(flm(x, 255), 16)}),
     )
+
+    @pytest.fixture(params=_negative_test_case_params, scope="session")
+    def negative_test_case(self, request):
+        return request.param
 
     def test_padding(self, positive_test_case):
         iter_extent, mapped_iterators, *args = positive_test_case

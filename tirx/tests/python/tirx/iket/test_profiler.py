@@ -46,7 +46,7 @@ ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_0_or
 def _source_codegen_without_cuda(monkeypatch):
     # Metadata and source checks do not require an installed CUDA compiler.
     if not env.has_cuda():
-        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+        monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
 
 
 @T.function
@@ -448,7 +448,7 @@ def test_regular_lowering_strips_annotations_and_tokens():
 def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch, config_env):
     monkeypatch.delenv("IKET_INJECTION_CONFIG", raising=False)
     monkeypatch.delenv("SMODEL_INJECTION_CONFIG", raising=False)
-    monkeypatch.setenv("TVM_IKET_INJECTED_CHILD_ENABLE", "1")
+    monkeypatch.setenv("TVM_TIRX_IKET_INJECTED_CHILD_ENABLE", "1")
     monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
     monkeypatch.setenv("CUDA_INJECTION64_PATH", "/verified/libsmodel_injection.so")
     monkeypatch.setenv(config_env, "/verified/config.json")
@@ -461,14 +461,14 @@ def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch, co
 
 @pytest.mark.parametrize(
     "missing_env",
-    ("CUDA_INJECTION64_PATH", "config", "TVM_IKET_INJECTED_CHILD_ENABLE"),
+    ("CUDA_INJECTION64_PATH", "config", "TVM_TIRX_IKET_INJECTED_CHILD_ENABLE"),
 )
 @pytest.mark.parametrize("config_env", ["IKET_INJECTION_CONFIG", "SMODEL_INJECTION_CONFIG"])
 def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env, config_env):
     monkeypatch.delenv("IKET_INJECTION_CONFIG", raising=False)
     monkeypatch.delenv("SMODEL_INJECTION_CONFIG", raising=False)
     values = {
-        "TVM_IKET_INJECTED_CHILD_ENABLE": "1",
+        "TVM_TIRX_IKET_INJECTED_CHILD_ENABLE": "1",
         "CUDA_INJECTION64_PATH": "/verified/libsmodel_injection.so",
         config_env: "/verified/config.json",
     }
@@ -737,7 +737,7 @@ def test_extended_payload_compile_only_architectures(arch, capfd):
     not _has_packaged_nvdisasm(), reason="need the pinned nvidia-cuda-nvdisasm distribution"
 )
 def test_native_and_extended_payload_placeholder_sass(monkeypatch, tmp_path):
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
     native_no_payload_source = _cuda_source(_compile(push_pop_kernel))
     native_no_payload_sass = _nvrtc_disassemble(
         native_no_payload_source, tmp_path / "native-no-payload"

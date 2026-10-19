@@ -28,6 +28,7 @@ import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.training.optimizer import SGD, Adam, MomentumSGD
 from tvm.runtime.vm import VirtualMachine
+from tvm.testing import device_enabled
 from tvm_tirx import IRModule
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.testing import assert_allclose
@@ -88,7 +89,7 @@ def _test_optimizer(target, np_func, opt_type, *args, **kwargs):
         (0.01, 0.02),
     ],
 )
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_sgd(lr, weight_decay):
     target = "llvm"
 
@@ -113,7 +114,7 @@ def test_sgd(lr, weight_decay):
         (0.01, 0.9, 0.85, 0.02, True),
     ],
 )
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
     target = "llvm"
 
@@ -147,7 +148,7 @@ def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
         (0.01, (0.8, 0.85), 1e-07, 0.1),
     ],
 )
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_adam(lr, betas, eps, weight_decay):
     target = "llvm"
 

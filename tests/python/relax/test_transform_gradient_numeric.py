@@ -23,6 +23,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.testing.gradient import check_numerical_grads
+from tvm.testing import device_enabled
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.testing import assert_allclose
@@ -38,7 +39,7 @@ def _legalize_and_build(mod, target):
     return vm
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_manual_gradient():
     target = "llvm"
 
@@ -86,7 +87,7 @@ def test_manual_gradient():
         assert_allclose(i.numpy(), j, atol=1e-4)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_mlp_blockbuilder():
     target = "llvm"
     layers, in_size, out_size, hidden_size, batch_size = 3, 5, 5, 5, 4
@@ -143,7 +144,7 @@ def test_mlp_blockbuilder():
     check_numerical_grads(func, [i.numpy() for i in args[1:-1]], [i.numpy() for i in grad])
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_complex():
     target = "llvm"
     cst = relax.const(np.ones((6,)), dtype="float32")
@@ -200,7 +201,7 @@ def test_complex():
     check_numerical_grads(func, [i.numpy() for i in args], [i.numpy() for i in grad])
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_matmul():
     target = "llvm"
 

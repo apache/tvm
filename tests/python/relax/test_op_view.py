@@ -22,6 +22,7 @@ import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
@@ -674,7 +675,7 @@ def test_lower_runtime_builtin_view_with_multiple_updated_fields():
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
 def test_execute_no_op_view(target):
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module
@@ -703,7 +704,7 @@ def test_execute_no_op_view(target):
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
 def test_execute_view_with_new_shape(target):
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module
@@ -732,7 +733,7 @@ def test_execute_view_with_new_shape(target):
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
 def test_execute_view_with_new_byte_offset(target):
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module
@@ -765,7 +766,7 @@ def test_execute_view_with_new_byte_offset(target):
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
 def test_execute_view_with_new_dtype(target):
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module
@@ -794,7 +795,7 @@ def test_execute_view_with_new_dtype(target):
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
 def test_execute_view_with_multiple_updated_fields(target):
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     @I.ir_module

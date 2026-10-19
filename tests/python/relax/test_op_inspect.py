@@ -30,24 +30,40 @@ from tvm_tirx.ir import Op
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
+
 # Parameterization for reading dtype of DLTensor.  Chosen to have
 # multiple distinct type codes, number of lanes, and widths.
-dtype = tvm_tirx.testing.parameter(
-    "int32",
-    "int64",
-    "float32",
-    "float32x4",
-    "bfloat",
-    "float8_e4m3fn",
+@pytest.fixture(
+    params=[
+        "int32",
+        "int64",
+        "float32",
+        "float32x4",
+        "bfloat",
+        "float8_e4m3fn",
+    ],
+    scope="session",
 )
-shape = tvm_tirx.testing.parameter(
-    [],
-    [16],
-    [128, 256],
-    [1] * 64,
-)
+def dtype(request):
+    return request.param
 
-elem_offset = tvm_tirx.testing.parameter(0, 64, 128)
+
+@pytest.fixture(
+    params=[
+        [],
+        [16],
+        [128, 256],
+        [1] * 64,
+    ],
+    scope="session",
+)
+def shape(request):
+    return request.param
+
+
+@pytest.fixture(params=[0, 64, 128], scope="session")
+def elem_offset(request):
+    return request.param
 
 
 def inspect_tensor_field(op_name, *args):
