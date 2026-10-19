@@ -18,9 +18,8 @@
 """Transformation passes for lowering and optimizing tensor-level IR.
 
 Pass factories return callable passes: ``after = PassName()(before)``, where
-``before`` is an IRModule. Examples use ``T`` for ``tvm_tirx.script.tirx`` and
-``I`` for ``tvm_tirx.script.ir``. Body and signature fragments omit their
-surrounding function or module; any additional prerequisites are stated locally.
+``before`` is an IRModule. Each pass example includes a complete input module,
+expected output and invocation.
 """
 # pylint: disable=wildcard-import, invalid-name
 

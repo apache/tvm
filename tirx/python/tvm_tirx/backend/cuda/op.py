@@ -549,12 +549,34 @@ _TCGEN05_CTA_GROUP = (1, 2)
 class TCGen05InstrDescriptorAttrs(Attrs):
     """Static options carried by :func:`tcgen05_encode_instr_descriptor`.
 
-    ``d_dtype``, ``a_dtype`` and ``b_dtype`` name the output and input element
-    types; ``M``, ``N`` and ``K`` give the matrix tile dimensions. ``trans_a``
-    and ``trans_b`` select input transposition. ``n_cta_groups`` is 1 or 2;
-    ``neg_a``, ``neg_b``, ``sat_d`` and ``is_sparse`` select the instruction
-    modifiers. These are call attributes, not runtime descriptor operands;
-    the operator wrapper constructs them from its keyword arguments.
+    Parameters
+    ----------
+    d_dtype : str
+        Element type of the output matrix D.
+    a_dtype : str
+        Element type of the input matrix A.
+    b_dtype : str
+        Element type of the input matrix B.
+    M : int
+        Number of rows in the output tile.
+    N : int
+        Number of columns in the output tile.
+    K : int
+        Reduction dimension of the input tiles.
+    trans_a : bool
+        Whether to transpose A.
+    trans_b : bool
+        Whether to transpose B.
+    n_cta_groups : int
+        Number of CTA groups, 1 (default) or 2.
+    neg_a : bool
+        Whether to negate A; defaults to False.
+    neg_b : bool
+        Whether to negate B; defaults to False.
+    sat_d : bool
+        Whether to saturate D; defaults to False.
+    is_sparse : bool
+        Whether to select sparse MMA; defaults to False.
     """
 
 
@@ -562,12 +584,36 @@ class TCGen05InstrDescriptorAttrs(Attrs):
 class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
     """Static options carried by :func:`tcgen05_encode_instr_descriptor_block_scaled`.
 
-    ``d_dtype``, ``a_dtype`` and ``b_dtype`` name the matrix element types;
-    ``sfa_dtype`` and ``sfb_dtype`` name the scale-factor types. ``M``, ``N``
-    and ``K`` give tile dimensions. ``trans_a``, ``trans_b``, ``n_cta_groups``
-    (1 or 2), ``neg_a``, ``neg_b`` and ``is_sparse`` select instruction
-    modifiers. The operator wrapper constructs these attributes from its
-    keyword arguments; descriptor pointers remain call operands.
+    Parameters
+    ----------
+    d_dtype : str
+        Element type of the output matrix D.
+    a_dtype : str
+        Element type of the input matrix A.
+    b_dtype : str
+        Element type of the input matrix B.
+    sfa_dtype : str
+        Element type of the scale factors for A.
+    sfb_dtype : str
+        Element type of the scale factors for B.
+    M : int
+        Number of rows in the output tile.
+    N : int
+        Number of columns in the output tile.
+    K : int
+        Reduction dimension of the input tiles.
+    trans_a : bool
+        Whether to transpose A.
+    trans_b : bool
+        Whether to transpose B.
+    n_cta_groups : int
+        Number of CTA groups, 1 (default) or 2.
+    neg_a : bool
+        Whether to negate A; defaults to False.
+    neg_b : bool
+        Whether to negate B; defaults to False.
+    is_sparse : bool
+        Whether to select sparse MMA; defaults to False.
     """
 
 

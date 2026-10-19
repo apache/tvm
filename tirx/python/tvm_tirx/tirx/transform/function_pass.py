@@ -95,38 +95,6 @@ def function_pass(
     result : FunctionPass, type, or Callable
         A pass instance for a callback, a pass class for a class, or a decorator
         when ``pass_func`` is omitted.
-
-    Examples
-    --------
-    Create and invoke a pass that adds a function attribute::
-
-        @tvm_tirx.tirx.transform.function_pass(opt_level=0)
-        def mark(func, mod, ctx):
-            return func.with_attr("example", 1)
-
-        after = mark(before)  # before is an IRModule
-
-    TVMScript body fragments for a function in the module:
-
-    .. code-block:: python
-
-        # Before
-        T.evaluate(0)
-        # After
-        T.func_attr({"example": 1})
-        T.evaluate(0)
-
-    The class form allows pass parameters::
-
-        @tvm_tirx.tirx.transform.function_pass(opt_level=0)
-        class Mark:
-            def __init__(self, value):
-                self.value = value
-
-            def transform_function(self, func, mod, ctx):
-                return func.with_attr("example", self.value)
-
-        after = Mark(1)(before)
     """
 
     if opt_level is None:

@@ -125,28 +125,32 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
 class TrnNaiveAllocator:
     """Assign consecutive byte offsets to unaddressed tensor allocations.
 
-    Handles constant-sized ``trn.sbuf``, ``shared``, and ``shared.dyn`` tensors.
-    SBUF sizes count bytes per partition. Existing addresses are preserved and
-    new allocations start after the highest existing allocation end; this
-    simple allocator does not reuse storage based on lifetimes.
+    Handles constant-sized ``trn.sbuf``, ``shared``, and ``shared.dyn`` tensors;
+    SBUF sizes count bytes per partition. New offsets follow existing
+    allocations, without lifetime-based reuse.
 
     Examples
     --------
-    Apply to an IRModule ``mod``::
+    .. code:: python
 
+        import tvm_tirx as tvm
+        from tvm_tirx.script import tirx as T
         from tvm_tirx.backend.trn.transform import TrnNaiveAllocator
 
-        after = TrnNaiveAllocator()(mod)
+        @T.ir_module
+        class Before:
+            @T.function
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
 
-    With no existing addressed allocations, function-body TVMScript changes
-    as follows (``T`` is ``tvm_tirx.script.tirx``)::
+        @T.ir_module
+        class Expected:
+            @T.function
+            def main():
+                A = T.alloc_tensor((0,), ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
 
-        # Before
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
-        # After
-        A = T.alloc_tensor((0,), ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
-
-    A second identical allocation would start at byte offset 16.
+        after = TrnNaiveAllocator()(Before)
+        tvm.ir.assert_structural_equal(after, Expected)
     """
 
     def transform_function(self, func, mod, ctx):

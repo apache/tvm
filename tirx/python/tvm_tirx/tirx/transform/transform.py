@@ -28,19 +28,30 @@ def DecorateDeviceScope():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.DecorateDeviceScope()(before)
-
-    TVMScript body fragments:
 
     .. code-block:: python
 
-        # Before
-        T.evaluate(x)
-        # After
-        with T.region("tirx.device_scope", []):
-            T.evaluate(x)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(x: T.int32):
+                T.evaluate(x)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(x: T.int32):
+                with T.device_scope():
+                    T.evaluate(x)
+
+        def run_pass():
+            return tr.DecorateDeviceScope()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.DecorateDeviceScope()
 
@@ -62,19 +73,29 @@ def Apply(ftransform):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.Apply(lambda f: f.with_attr("example", 1))(before)
-
-    Here the callback adds an attribute; TVMScript body fragments:
 
     .. code-block:: python
 
-        # Before
-        T.evaluate(0)
-        # After
-        T.func_attr({"example": 1})
-        T.evaluate(0)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                pass
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                T.func_attr({"example": 1})
+
+        def run_pass():
+            return tr.Apply(lambda f: f.with_attr("example", 1))(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
 
     # pylint: disable=unused-argument
@@ -105,19 +126,30 @@ def VectorizeLoop(enable_vectorize: bool = True):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.VectorizeLoop()(before)
-
-    TVMScript body fragments for contiguous float32 tensors:
 
     .. code-block:: python
 
-        # Before
-        for i in T.vectorized(4):
-            B[i] = A[i]
-        # After
-        B[T.Ramp(0, 1, 4)] = A[T.Ramp(0, 1, 4)]
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
+                for i in T.vectorized(0, 4):
+                    B[i] = A[i]
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32), B: T.Tensor((4,), T.float32)):
+                B[0:4] = A[T.Ramp(0, 1, 4)]
+
+        def run_pass():
+            return tr.VectorizeLoop()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.VectorizeLoop(enable_vectorize)  # type: ignore
 
@@ -135,24 +167,43 @@ def StorageRewrite():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.StorageRewrite()(before)
-
-    TVMScript allocation fragments when equally sized allocations have
-    non-overlapping lifetimes and the memory scope permits reuse. The omitted
-    uses of ``A`` finish before ``B`` is allocated:
 
     .. code-block:: python
 
-        # Before
-        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
-        # ... all uses of A ...
-        B = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
-        # After
-        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32")])
-        # ... all uses of A ...
-        B = T.decl_tensor(A.data, ty_args=[T.Tensor((128,), "float32")])
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(output: T.Tensor((2,), "float32")):
+                A = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
+                for i in T.serial(4):
+                    A[i] = T.float32(i)
+                output[0] = A[3]
+                B = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
+                for i in T.serial(4):
+                    B[i] = T.float32(i + 1)
+                output[1] = B[3]
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(output: T.Tensor((2,), T.float32)):
+                A = T.alloc_tensor(ty_args=[T.Tensor((4,), T.float32)])
+                for i in range(4):
+                    A[i] = T.Cast("float32", i)
+                output[0] = A[3]
+                A_1 = T.decl_tensor(A.data, ty_args=[T.Tensor((4,), T.float32)])
+                for i_1 in range(4):
+                    A_1[i_1] = T.Cast("float32", i_1 + 1)
+                output[1] = A_1[3]
+
+        def run_pass():
+            return tr.StorageRewrite()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.StorageRewrite()  # type: ignore
 
@@ -170,21 +221,31 @@ def PointerValueTypeRewrite():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.PointerValueTypeRewrite()(before)
-
-    TVMScript fragments for an allocation accessed only through aligned
-    four-lane loads/stores. Other accesses and uses of ``A`` are omitted:
 
     .. code-block:: python
 
-        # Before
-        A = T.alloc_local((16,), "float32")
-        A[T.Ramp(0, 1, 4)] = T.Broadcast(T.float32(1), 4)
-        # After
-        A = T.alloc_local((4,), "float32x4", layout=None)
-        A[0] = T.Broadcast(T.float32(1), 4)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((16,), T.float32, scope="local")])
+                A[0:4] = T.Broadcast(T.float32(1.0), 4)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((4,), T.float32x4, scope="local")])
+                A[0] = T.Broadcast(T.float32(1.0), 4)
+
+        def run_pass():
+            return tr.PointerValueTypeRewrite()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.PointerValueTypeRewrite()  # type: ignore
 
@@ -202,20 +263,31 @@ def UnrollLoop():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.UnrollLoop()(before)
-
-    TVMScript body fragments with the default explicit unrolling enabled:
 
     .. code-block:: python
 
-        # Before
-        for i in T.unroll(2):
-            A[i] = 1
-        # After
-        A[0] = 1
-        A[1] = 1
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((2,), T.int32)):
+                for i in T.unroll(0, 2):
+                    A[i] = 1
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((2,), T.int32)):
+                A[0] = 1
+                A[1] = 1
+
+        def run_pass():
+            return tr.UnrollLoop()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.UnrollLoop()  # type: ignore
 
@@ -230,19 +302,30 @@ def RemoveNoOp():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.RemoveNoOp()(before)
-
-    TVMScript body fragments; the store remains because it has an effect:
 
     .. code-block:: python
 
-        # Before
-        T.evaluate(1)
-        A[0] = 1
-        # After
-        A[0] = 1
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32)):
+                T.evaluate(1)
+                A[0] = 1
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32)):
+                A[0] = 1
+
+        def run_pass():
+            return tr.RemoveNoOp()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.RemoveNoOp()  # type: ignore
 
@@ -257,22 +340,33 @@ def HoistIf():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.HoistIf()(before)
-
-    TVMScript body fragments where ``n`` is invariant in the loop:
 
     .. code-block:: python
 
-        # Before
-        for i in T.serial(4):
-            if n > 0:
-                A[i] = 1
-        # After
-        if 0 < n:
-            for i in T.serial(4):
-                A[i] = 1
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.int32), n: T.int32):
+                for i in range(4):
+                    if n > 0:
+                        A[i] = 1
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.int32), n: T.int32):
+                if 0 < n:
+                    for i in range(4):
+                        A[i] = 1
+
+        def run_pass():
+            return tr.HoistIf()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.HoistIf()
 
@@ -290,20 +384,33 @@ def BF16ComputeLegalize():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.BF16ComputeLegalize()(before)
-
-    TVMScript fragments of an internal temporary used for computation,
-    when the target lacks native BF16 support. Loads from BF16 inputs and
-    stores to BF16 outputs also gain conversion expressions (omitted here):
 
     .. code-block:: python
 
-        # Before
-        B = T.alloc_tensor(ty_args=[T.Tensor((100,), "bfloat16")])
-        # After
-        B = T.alloc_tensor(ty_args=[T.Tensor((100,), "float32")])
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((1,), "bfloat16")])
+                A[0] = T.bfloat16(1)
+                T.evaluate(A[0] + T.bfloat16(2))
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((1,), T.float32)])
+                A[0] = T.float32(1.0)
+                T.evaluate(A[0] + T.float32(2.0))
+
+        def run_pass():
+            return tr.BF16ComputeLegalize()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
@@ -326,20 +433,33 @@ def FP8ComputeLegalize(promote_dtype: str = "float32"):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.FP8ComputeLegalize("float16")(before)
-
-    TVMScript fragments of an internal temporary used for computation,
-    when the target lacks native FP8 support. Input/output conversion
-    expressions are omitted:
 
     .. code-block:: python
 
-        # Before
-        C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float8_e5m2")])
-        # After
-        C = T.alloc_tensor(ty_args=[T.Tensor((100,), "float16")])
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((1,), "float8_e5m2")])
+                A[0] = T.float8_e5m2(1)
+                T.evaluate(A[0] + T.float8_e5m2(2))
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((1,), T.float16)])
+                A[0] = T.float16(1.0)
+                T.evaluate(A[0] + T.float16(2.0))
+
+        def run_pass():
+            return tr.FP8ComputeLegalize("float16")(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.FP8ComputeLegalize(promote_dtype)  # type: ignore
 
@@ -357,23 +477,30 @@ def BF16StorageLegalize():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.BF16StorageLegalize()(before)
-
-    TVMScript signature fragments after compute legalization, on a target
-    without native BF16 support. The unchanged body is omitted:
+    After packed-API lowering, pointer storage uses integer elements.
 
     .. code-block:: python
 
-        # Before
-        @T.function
-        def main(A: T.handle("bfloat16")):
-            ...
-        # After
-        @T.function
-        def main(A: T.handle("uint16")):
-            ...
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Ptr(T.bfloat16)):
+                T.evaluate(0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Ptr(T.uint16)):
+                pass
+
+        def run_pass():
+            return tr.BF16StorageLegalize()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.BF16StorageLegalize()  # type: ignore
 
@@ -391,23 +518,30 @@ def FP8StorageLegalize():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.FP8StorageLegalize()(before)
-
-    TVMScript signature fragments after compute legalization, on a target
-    without native FP8 support. The unchanged body is omitted:
+    After packed-API lowering, pointer storage uses integer elements.
 
     .. code-block:: python
 
-        # Before
-        @T.function
-        def main(A: T.handle("float8_e5m2")):
-            ...
-        # After
-        @T.function
-        def main(A: T.handle("uint8")):
-            ...
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Ptr(T.float8_e5m2)):
+                T.evaluate(0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Ptr(T.uint8)):
+                pass
+
+        def run_pass():
+            return tr.FP8StorageLegalize()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.FP8StorageLegalize()  # type: ignore
 
@@ -422,21 +556,32 @@ def CommonSubexprElim():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.CommonSubexprElim()(before)
-
-    TVMScript body fragments; generated variable names may differ:
 
     .. code-block:: python
 
-        # Before
-        B[0] = x + y
-        B[1] = x + y
-        # After
-        cse_v1 = T.bind(x + y)
-        B[0] = cse_v1
-        B[1] = cse_v1
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(B: T.Tensor((2,), T.int32), x: T.int32, y: T.int32):
+                B[0] = x + y
+                B[1] = x + y
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(B: T.Tensor((2,), T.int32), x: T.int32, y: T.int32):
+                cse_v1: T.let[T.int32] = x + y
+                B[0] = cse_v1
+                B[1] = cse_v1
+
+        def run_pass():
+            return tr.CommonSubexprElim()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.CommonSubexprElim()  # type: ignore
 
@@ -451,18 +596,29 @@ def RenormalizeSplitPattern():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.RenormalizeSplitPattern()(before)
-
-    TVMScript body fragments for integer ``i``; 128 is divisible by 32:
 
     .. code-block:: python
 
-        # Before
-        A[0] = (i % 128) // 32
-        # After
-        A[0] = (i // 32) % 4
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), i: T.int32):
+                A[0] = i % 128 // 32
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), i: T.int32):
+                A[0] = i // 32 % 4
+
+        def run_pass():
+            return tr.RenormalizeSplitPattern()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.RenormalizeSplitPattern()  # type: ignore
 
@@ -477,20 +633,31 @@ def StmtSimplify():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.StmtSimplify()(before)
-
-    TVMScript body fragments; arithmetic is simplified using loop bounds:
 
     .. code-block:: python
 
-        # Before
-        for i in T.serial(4):
-            A[i] = i // 4
-        # After
-        for i in T.serial(4):
-            A[i] = 0
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.int32)):
+                for i in range(4):
+                    A[i] = i // 4
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.int32)):
+                for i in range(4):
+                    A[i] = 0
+
+        def run_pass():
+            return tr.StmtSimplify()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.StmtSimplify()  # type: ignore
 
@@ -508,23 +675,43 @@ def LowerThreadAllreduce():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.LowerThreadAllreduce()(before)
-
-    TVMScript fragments for the degenerate one-thread reduction. Here
-    ``combine = T.Lambda([T.float32, T.float32], lambda x, y: (x + y,))``
-    and ``R`` is a one-element local float32 tensor; the function has a CUDA
-    target. Larger reductions generate shuffles or shared-memory communication:
+    A single participating thread reduces to a direct store.
 
     .. code-block:: python
 
-        # Before
-        with T.launch_thread("threadIdx.x", 1) as tx:
-            T.gpu_thread_allreduce(combine, (T.float32(0),), (A[tx],), True, (R[0],), (tx,))
-        # After
-        with T.launch_thread("threadIdx.x", 1) as tx:
-            R[0] = A[tx]
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.float32)):
+                T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_75"})})
+                R = T.alloc_tensor(ty_args=[T.Tensor((1,), T.float32, scope="local")])
+                with T.launch_thread("threadIdx.x", 1) as tx:
+                    T.gpu_thread_allreduce(
+                        T.Lambda([T.float32, T.float32], lambda arg0, arg1: (arg0 + arg1,)),
+                        (T.float32(0.0),),
+                        (A[tx],),
+                        T.bool(True),
+                        (R[0],),
+                        (tx,),
+                    )
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.float32)):
+                T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_75"})})
+                R = T.alloc_tensor(ty_args=[T.Tensor((1,), T.float32, scope="local")])
+                with T.launch_thread("threadIdx.x", 1) as tx:
+                    R[0] = A[tx]
+
+        def run_pass():
+            return tr.LowerThreadAllreduce()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.LowerThreadAllreduce()
 
@@ -545,27 +732,38 @@ def ConvertSSA():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.ConvertSSA()(before)
-
-    TVMScript body fragments with an explicitly reused variable
-    ``v = T.dynamic("v", "int32")``. Construct the input with
-    ``@I.ir_module(check_well_formed=False)`` because it is deliberately
-    not SSA. Fresh parsed bindings normally need no change:
+    The input deliberately reuses a variable and disables the SSA check.
 
     .. code-block:: python
 
-        # Before
-        T.bind(16, var=v)
-        T.evaluate(v)
-        T.bind(32, var=v)
-        T.evaluate(v)
-        # After
-        v = T.bind(16)
-        T.evaluate(v)
-        v_1 = T.bind(32)
-        T.evaluate(v_1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        v = T.dynamic("v", "int32")
+
+        @I.ir_module(check_well_formed=False)
+        class Before:
+            @T.function(private=True)
+            def main():
+                T.bind(16, var=v)
+                T.evaluate(v)
+                T.bind(32, var=v)
+                T.evaluate(v)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                v: T.let[T.int32] = 16
+                T.evaluate(v)
+                v_1: T.let[T.int32] = 32
+                T.evaluate(v_1)
+
+        def run_pass():
+            return tr.ConvertSSA()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.ConvertSSA()  # type: ignore
 
@@ -592,28 +790,44 @@ def MakePackedAPI():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.MakePackedAPI()(before)
-
-    TVMScript signature fragments for an exported function with a host
-    target. Argument decoding, validation, the compute body and return
-    handling are omitted:
+    An exported no-argument function illustrates the packed-call ABI.
 
     .. code-block:: python
 
-        # Before
-        @T.function
-        def main(A: T.Tensor((16,), "float32")):
-            T.func_attr({"target": T.target("llvm", host="llvm")})
-            ...
-        # After
-        @T.function
-        def main(self_handle: T.Ptr(T.void), args: T.Ptr(T.void),
-                 num_args: T.int32, result: T.Ptr(T.void)) -> T.int32:
-            T.func_attr({"global_symbol": "__tvm_ffi_main", "calling_conv": 1,
-                         "target": T.target("llvm")})
-            ...
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function
+            def main():
+                T.func_attr({"target": T.target("llvm", host="llvm")})
+                T.evaluate(0)
+
+        @I.ir_module
+        class Expected:
+            @T.function
+            def main(
+                self_handle: T.Ptr(T.void),
+                args: T.Ptr(T.void),
+                num_args: T.int32,
+                result: T.Ptr(T.void),
+            ) -> T.int32:
+                T.func_attr({"global_symbol": "__tvm_ffi_main"})
+                T.func_attr({"calling_conv": 1, "target": T.target("llvm")})
+                assert num_args == 0, (
+                    "TypeError",
+                    ["Expected ", "0", " arguments", " when calling:\\n  `", "main()", "`"],
+                )
+                with T.compute_scope("main_compute_"):
+                    pass
+                return 0
+
+        def run_pass():
+            return tr.MakePackedAPI()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.MakePackedAPI()  # type: ignore
 
@@ -632,25 +846,63 @@ def SplitHostDevice():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.SplitHostDevice()(before)
-
-    TVMScript fragments for a function named ``main`` with target
-    ``T.target("cuda", host="llvm")``. Generated function attributes are
-    omitted; the device function receives the region's free variable ``n``:
 
     .. code-block:: python
 
-        # Before: body of main
-        with T.region("tirx.device_scope", []):
-            T.evaluate(n)
-        # After: host body of main
-        T.call_ffi_kernel("main_kernel", n)
-        # After: extracted device function
-        @T.function
-        def main_kernel(n: T.int32):
-            T.evaluate(n)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm")})
+                with T.region("tirx.device_scope", []):
+                    T.evaluate(n)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target(
+                            {
+                                "host": {
+                                    "keys": ["cpu"],
+                                    "kind": "llvm",
+                                    "mtriple": "",
+                                    "tag": "",
+                                },
+                                "keys": ["cuda", "gpu"],
+                                "kind": "cuda",
+                                "max_num_threads": 1024,
+                                "tag": "",
+                                "thread_warp_size": 32,
+                            }
+                        )
+                    }
+                )
+                T.call_ffi_kernel("main_kernel", n)
+
+            @T.function
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "calling_conv": 2,
+                        "target": T.target("cuda"),
+                        "tirx.is_global_func": True,
+                        "tirx.kernel_launch_params": [],
+                        "tirx.noalias": True,
+                    }
+                )
+                T.evaluate(n)
+
+        def run_pass():
+            return tr.SplitHostDevice()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.SplitHostDevice()  # type: ignore
 
@@ -665,20 +917,30 @@ def SkipAssert():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.SkipAssert()(before)
-
-    TVMScript body fragments; no-op cleanup is a separate pass:
 
     .. code-block:: python
 
-        # Before
-        assert n > 0, "positive extent required"
-        A[0] = 1
-        # After
-        T.evaluate(0)
-        A[0] = 1
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), n: T.int32):
+                assert n > 0, ("RuntimeError", ["positive extent required"])
+                A[0] = 1
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), n: T.int32):
+                A[0] = 1
+
+        def run_pass():
+            return tr.SkipAssert()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.SkipAssert()  # type: ignore
 
@@ -696,20 +958,38 @@ def LowerTVMBuiltin():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.LowerTVMBuiltin()(before)
-
-    TVMScript call fragments in an LLVM-targeted function. The generated
-    ``stack_ffi_any`` allocation and argument/result slot initialization
-    are omitted:
 
     .. code-block:: python
 
-        # Before
-        T.call_packed("callback", 1)
-        # After
-        T.call_packed_lowered("callback", stack_ffi_any, 0, 1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                T.func_attr({"target": T.target("llvm")})
+                T.call_packed("callback", 1)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                T.func_attr({"target": T.target("llvm")})
+                stack_ffi_any: T.let[T.Ptr(T.void)] = T.stack_alloca("tvm_ffi_any", 2)
+                T.abi_field_set(stack_ffi_any, 0, 13, 1)
+                T.abi_field_set(stack_ffi_any, 0, 14, 0)
+                T.abi_field_set(stack_ffi_any, 0, 15, T.Cast("int64", 1))
+                T.abi_field_set(stack_ffi_any, 1, 13, 0)
+                T.abi_field_set(stack_ffi_any, 1, 14, 0)
+                T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))
+                T.call_packed_lowered("callback", stack_ffi_any, 0, 1)
+
+        def run_pass():
+            return tr.LowerTVMBuiltin()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.LowerTVMBuiltin()  # type: ignore
 
@@ -727,18 +1007,31 @@ def LowerIntrin():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.LowerIntrin()(before)
-
-    TVMScript body fragments with the function target set to LLVM:
 
     .. code-block:: python
 
-        # Before
-        A[0] = x // 8
-        # After
-        A[0] = T.shift_right(x, 3)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), x: T.int32):
+                T.func_attr({"target": T.target("llvm")})
+                A[0] = x // 8
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((1,), T.int32), x: T.int32):
+                T.func_attr({"target": T.target("llvm")})
+                A[0] = x >> 3
+
+        def run_pass():
+            return tr.LowerIntrin()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.LowerIntrin()  # type: ignore
 
@@ -764,21 +1057,31 @@ def NarrowDataType(target_bits: int):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.NarrowDataType(32)(before)
-
-    TVMScript body fragments for a flat tensor; the bounded loop index
-    and index arithmetic fit in int32:
 
     .. code-block:: python
 
-        # Before
-        for i in T.serial(T.int64(4)):
-            A[i] = T.float32(1)
-        # After
-        for i in T.serial(4):
-            A[i] = T.float32(1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                for i in range(T.int64(0), T.int64(4)):
+                    A[i] = T.float32(1.0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                for i in range(4):
+                    A[i] = T.float32(1.0)
+
+        def run_pass():
+            return tr.NarrowDataType(32)(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.NarrowDataType(target_bits)  # type: ignore
 
@@ -803,21 +1106,31 @@ def ForceNarrowIndexToInt32():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.ForceNarrowIndexToInt32()(before)
-
-    TVMScript body fragments. The caller must ensure that the narrowed
-    indices fit in int32:
 
     .. code-block:: python
 
-        # Before
-        for i in T.serial(T.int64(4)):
-            A[i] = T.float32(1)
-        # After
-        for i in T.serial(4):
-            A[i] = T.float32(1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                for i in range(T.int64(0), T.int64(4)):
+                    A[i] = T.float32(1.0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                for i in range(4):
+                    A[i] = T.float32(1.0)
+
+        def run_pass():
+            return tr.ForceNarrowIndexToInt32()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.ForceNarrowIndexToInt32()  # type: ignore
 
@@ -836,21 +1149,34 @@ def VerifyMemory():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.VerifyMemory()(before)
-
-    This is a validator, so valid IR is unchanged. TVMScript body
-    fragments in a CUDA-targeted function with tensor argument ``A``:
+    Valid device memory accesses are checked without changing the IR.
 
     .. code-block:: python
 
-        # Before
-        with T.launch_thread("threadIdx.x", 4) as tx:
-            A[tx] = T.float32(1)
-        # After: identical
-        with T.launch_thread("threadIdx.x", 4) as tx:
-            A[tx] = T.float32(1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_75"})})
+                with T.launch_thread("threadIdx.x", 4) as tx:
+                    A[tx] = T.float32(1.0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), T.float32)):
+                T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_75"})})
+                with T.launch_thread("threadIdx.x", 4) as tx:
+                    A[tx] = T.float32(1.0)
+
+        def run_pass():
+            return tr.VerifyMemory()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.VerifyMemory()  # type: ignore
 
@@ -868,20 +1194,31 @@ def FlattenTensor():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.FlattenTensor()(before)
-
-    TVMScript body fragments for a compact row-major local tensor:
 
     .. code-block:: python
 
-        # Before
-        A = T.alloc_local((2, 4), "float32")
-        A[1, 2] = T.float32(1)
-        # After
-        A = T.alloc_local((8,), "float32", layout=None)
-        A[6] = T.float32(1)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((2, 4), T.float32, scope="local")])
+                A[1, 2] = T.float32(1.0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((8,), T.float32, scope="local")])
+                A[6] = T.float32(1.0)
+
+        def run_pass():
+            return tr.FlattenTensor()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.FlattenTensor()  # type: ignore
 
@@ -907,19 +1244,29 @@ def BindTarget(target):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.BindTarget(tvm_tirx.target.Target("cuda"))(before)
-
-    TVMScript body fragments for a function without a target attribute:
 
     .. code-block:: python
 
-        # Before
-        T.evaluate(0)
-        # After
-        T.func_attr({"target": T.target("cuda")})
-        T.evaluate(0)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                T.evaluate(0)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                T.func_attr({"target": T.target("cuda")})
+
+        def run_pass():
+            return tr.BindTarget(tvm.target.Target("cuda"))(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.BindTarget(target)  # type: ignore
 
@@ -938,19 +1285,29 @@ def AnnotateEntryFunc():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.AnnotateEntryFunc()(before)
-
-    TVMScript body fragments when the module contains only this function:
 
     .. code-block:: python
 
-        # Before
-        T.evaluate(0)
-        # After
-        T.func_attr({"tirx.is_entry_func": True})
-        T.evaluate(0)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                pass
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                T.func_attr({"tirx.is_entry_func": True})
+
+        def run_pass():
+            return tr.AnnotateEntryFunc()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.AnnotateEntryFunc()  # type: ignore
 
@@ -967,24 +1324,27 @@ def Filter(fcond: Callable):
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        after = tvm_tirx.tirx.transform.Filter(lambda f: False)(before)
-
-    TVMScript module fragments; this predicate removes every TIRx function:
 
     .. code-block:: python
 
-        # Before
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
         @I.ir_module
         class Before:
             @T.function(private=True)
             def main():
                 T.evaluate(0)
-        # After
+
         @I.ir_module
-        class After:
+        class Expected:
             pass
+
+        def run_pass():
+            return tr.Filter(lambda f: False)(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.Filter(fcond)  # type: ignore
 
@@ -1003,26 +1363,45 @@ def TileDispatch():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        with tvm_tirx.target.Target("cuda"):
-            after = tvm_tirx.tirx.transform.TileDispatch()(before)
-
-    TVMScript body fragments showing launch normalization, one part of
-    dispatch. The CUDA backend records the six launch-field names in the
-    region attributes:
+    Dispatch a tile-wide move into a loop of scalar PTX moves.
 
     .. code-block:: python
 
-        # Before
-        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
-        T.evaluate(0)
-        # After
-        with T.device_scope(1, 1, 1, 32, 1, 1, attrs={
-            "cuda.kernel_attrs": {},
-            "cuda.launch_fields": ["grid.x", "grid.y", "grid.z", "block.x", "block.y", "block.z"],
-        }):
-            T.evaluate(0)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_local((4, 1), "float32", layout=T.TileLayout(T.S[(4, 1) : (1, 1)]))
+                T.cuda.tile.apply(T.ptx["mov.b32"], A[:, :], T.float32(0), scope="thread")
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_local((4, 1), "float32", layout=T.TileLayout(T.S[(4, 1) : (1, 1)]))
+                tile_d = T.decl_tensor(
+                    A.data,
+                    ty_args=[
+                        T.Tensor(
+                            (4,),
+                            T.float32,
+                            scope="local",
+                            layout=T.TileLayout(T.S[(4,) : (1,)]),
+                        )
+                    ],
+                )
+                for repeat_0 in T.unroll(0, 4):
+                    T.ptx.mov(tile_d[repeat_0], T.float32(0.0), "b32", "")
+
+        def run_pass():
+            with tvm.target.Target({"kind": "cuda", "arch": "sm_75"}):
+                return tr.TileDispatch()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.TileDispatch()  # type: ignore
 
@@ -1041,22 +1420,40 @@ def LowerTensorLayouts():
 
     Examples
     --------
-    Given an IRModule ``before``::
-
-        with tvm_tirx.target.Target("cuda"):
-            after = tvm_tirx.tirx.transform.LowerTensorLayouts()(before)
-
-    TVMScript body fragments for a layout with gaps. The physical
-    allocation spans offsets 0 through 38, rather than just 12 elements:
 
     .. code-block:: python
 
-        # Before
-        A = T.alloc_tensor(ty_args=[T.Tensor(
-            (3, 4), "uint32", scope="local", layout=T.TileLayout(T.S[(3, 4):(16, 2)]))])
-        A[2, 3] = T.uint32(7)
-        # After
-        A = T.alloc_local((39,), "uint32", layout=None)
-        A[38] = T.uint32(7)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+        from tvm_tirx.tirx import transform as tr
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(
+                    ty_args=[
+                        T.Tensor(
+                            (3, 4),
+                            T.uint32,
+                            scope="local",
+                            layout=T.TileLayout(T.S[(3, 4) : (16, 2)]),
+                        )
+                    ]
+                )
+                A[2, 3] = T.uint32(7)
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((39,), T.uint32, scope="local")])
+                A[38] = T.uint32(7)
+
+        def run_pass():
+            with tvm.target.Target({"kind": "cuda", "arch": "sm_75"}):
+                return tr.LowerTensorLayouts()(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_api.LowerTensorLayouts()  # type: ignore

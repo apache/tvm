@@ -196,42 +196,6 @@ def pass_instrument(pi_cls=None):
     ----------
     pi_cls : class
         Instrument class. See example below.
-
-    Examples
-    --------
-
-    .. code-block:: python
-
-        @tvm_tirx.ir.transform.pass_instrument
-        class SkipPass:
-            def __init__(self, skip_pass_name):
-                self.skip_pass_name = skip_pass_name
-
-            # Uncomment to customize
-            # def enter_pass_ctx(self):
-            #    pass
-
-            # Uncomment to customize
-            # def exit_pass_ctx(self):
-            #    pass
-
-            # If pass name contains keyword, skip it by return False. (return True: not skip)
-            def should_run(self, mod, pass_info):
-                if self.skip_pass_name in pass_info.name:
-                    return False
-                return True
-
-            # Uncomment to customize
-            # def run_before_pass(self, mod, pass_info):
-            #    pass
-
-            # Uncomment to customize
-            # def run_after_pass(self, mod, pass_info):
-            #    pass
-
-        skip_annotate = SkipPass("PrintIR")
-        with tvm_tirx.ir.transform.PassContext(instruments=[skip_annotate]):
-            output = tvm_tirx.ir.transform.PrintIR()(mod)
     """
 
     def create_pass_instrument(pi_cls):
@@ -397,25 +361,6 @@ class Sequential(Pass):
 
     name : Optional[str]
         The name of the sequential pass.
-
-    Examples
-    --------
-    Run two passes on an IRModule ``mod``::
-
-        from tvm_tirx.ir.transform import Sequential
-        from tvm_tirx.tirx.transform import StmtSimplify, RemoveNoOp
-
-        after = Sequential([StmtSimplify(), RemoveNoOp()])(mod)
-
-    The corresponding function-body TVMScript (``T`` is
-    ``tvm_tirx.script.tirx``) can simplify as follows::
-
-        # Before
-        for i in T.serial(4):
-            A[i] = i // 4
-        # After
-        for i in T.serial(4):
-            A[i] = 0
     """
 
     def __init__(self, passes=None, opt_level=0, name="sequential"):
@@ -486,32 +431,6 @@ def module_pass(pass_func=None, opt_level=None, name=None):
         The returned decorator has two behaviors depending on the input:
         A new ModulePass will be returned when we decorate a pass function.
         A new ModulePass class will be returned when we decorate a class type.
-
-    Examples
-    --------
-    Wrap a transformation and apply it to an IRModule ``mod``::
-
-        from tvm_tirx.ir.transform import module_pass
-        from tvm_tirx.tirx.transform import StmtSimplify
-
-        @module_pass(opt_level=0)
-        def simplify(mod, ctx):
-            return StmtSimplify()(mod)
-
-        after = simplify(mod)
-
-    The callback determines the change; the decorator itself only constructs
-    a pass. In this example the function-body TVMScript becomes::
-
-        # Before (T = tvm_tirx.script.tirx)
-        for i in T.serial(4):
-            A[i] = i // 4
-        # After
-        for i in T.serial(4):
-            A[i] = 0
-
-    A decorated class instead defines ``transform_module(self, mod, ctx)``;
-    instantiate that class before calling the resulting pass on a module.
     """
     if opt_level is None:
         raise ValueError("Please provide opt_level for the module pass.")
@@ -546,20 +465,28 @@ def PrintIR(header=""):
 
     Examples
     --------
-    Inspect an IRModule ``mod``::
+    The observation pass returns the module unchanged.
 
-        from tvm_tirx.ir.transform import PrintIR
+    .. code-block:: python
 
-        after = PrintIR("before lowering")(mod)
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
 
-    This is an observation pass. Function-body TVMScript is identical before
-    and after (``T`` is ``tvm_tirx.script.tirx``)::
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main():
+                T.evaluate(0)
 
-        # Before
-        for i in T.serial(4):
-            A[i] = i
-        # After
-        for i in T.serial(4):
-            A[i] = i
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main():
+                T.evaluate(0)
+
+        def run_pass():
+            return tvm.ir.transform.PrintIR("before lowering")(Before)
+
+        tvm.ir.assert_structural_equal(run_pass(), Expected)
     """
     return _ffi_transform_api.PrintIR(header)

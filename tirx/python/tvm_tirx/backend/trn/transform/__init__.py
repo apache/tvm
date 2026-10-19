@@ -31,66 +31,49 @@ _LAZY_TRANSFORMS = {
 def LowerTrainiumLayout():
     """Lower logical tensor accesses to Trainium physical shapes and indices.
 
-    SBUF layouts become partition/free dimensions; PSUM layouts additionally
-    have a bank dimension. Ordinary global memory is flattened. Parameter
-    declarations retain their logical ABI shape while physical views serve
-    lowered accesses. Run after tile dispatch.
+    SBUF uses partition/free dimensions; PSUM adds a bank dimension. Global
+    memory is flattened. Parameter ABI shapes stay logical. Run after tile
+    dispatch.
 
     Examples
     --------
-    Apply to an IRModule ``mod``::
+    .. code:: python
 
+        import tvm_tirx as tvm
+        from tvm_tirx.script import tirx as T
+        from tvm_tirx.backend.trn.axis import P, F
         from tvm_tirx.backend.trn.transform import LowerTrainiumLayout
 
-        after = LowerTrainiumLayout()(mod)
+        @T.ir_module
+        class Before:
+            @T.function
+            def main():
+                T.device_entry()
+                A = T.alloc_tensor(ty_args=[T.Tensor(
+                    (128, 2, 2), "float32", scope="trn.sbuf",
+                    layout=T.TileLayout(T.S[(128, 4):(1 @ P, 1 @ F)]))])
+                A[0, 1, 0] = T.float32(1)
 
-    A local allocation and store change as follows (``T`` is
-    ``tvm_tirx.script.tirx``; ``P`` and ``F`` are from
-    ``tvm_tirx.backend.trn.axis``)::
+        @T.ir_module
+        class Expected:
+            @T.function
+            def main():
+                T.device_entry()
+                A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+                A[0, 2] = T.float32(1)
 
-        # Before
-        A = T.alloc_tensor(ty_args=[T.Tensor(
-            (128, 2, 2), "float32", scope="trn.sbuf",
-            layout=T.TileLayout(T.S[(128, 4):(1 @ P, 1 @ F)]))])
-        A[0, 1, 0] = T.float32(1)
-        # After
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
-        A[0, 2] = T.float32(1)
+        after = LowerTrainiumLayout()(Before)
+        tvm.ir.assert_structural_equal(after, Expected)
     """
     return get_global_func("tirx.backend.trn.transform.LowerTrainiumLayout")()
 
 
 def LowerTIRx():
-    """Run tile dispatch followed by Trainium physical-layout lowering.
+    """Run ``TileDispatch`` followed by ``LowerTrainiumLayout``.
 
-    This two-pass sequence does not allocate private workspaces or assign
-    allocation addresses. When tile instructions need those preparations, run
-    ``TrnPrivateTensorAlloc`` and ``TrnNaiveAllocator`` first, as in the full
-    Trainium pipeline. Tile dispatch needs a Trainium target on the function
-    or in the current target scope.
-
-    Examples
-    --------
-    Apply to a prepared IRModule ``mod``::
-
-        from tvm_tirx.backend.trn.transform import LowerTIRx
-        from tvm_tirx.target import Target
-
-        with Target("aws/trn1/trn1.2xlarge"):
-            after = LowerTIRx()(mod)
-
-    This scalar TVMScript example exercises the layout phase; there are no
-    tile calls to dispatch. ``T`` is ``tvm_tirx.script.tirx``, and ``P``/``F``
-    are from ``tvm_tirx.backend.trn.axis``::
-
-        # Before
-        A = T.alloc_tensor(ty_args=[T.Tensor(
-            (128, 2, 2), "float32", scope="trn.sbuf",
-            layout=T.TileLayout(T.S[(128, 4):(1 @ P, 1 @ F)]))])
-        A[0, 1, 0] = T.float32(1)
-        # After
-        A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
-        A[0, 2] = T.float32(1)
+    Run ``TrnPrivateTensorAlloc`` and ``TrnNaiveAllocator`` first when tiles
+    need workspaces or allocation addresses. Tile dispatch requires a
+    Trainium target on the function or in the current target scope.
     """
     return tvm_tirx.ir.transform.Sequential(
         [tirx.transform.TileDispatch(), LowerTrainiumLayout()],
