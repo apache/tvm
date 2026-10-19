@@ -161,21 +161,21 @@ void RegisterMetalIntrinRules() {
           sig::arg<IntExpr>("lane", "The source thread id."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.metal.simd_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle_up")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.metal.simd_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "simd_shuffle_down")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
   // clang-format on
 }
 

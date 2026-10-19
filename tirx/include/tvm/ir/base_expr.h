@@ -25,9 +25,14 @@
 #define TVM_IR_BASE_EXPR_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/tuple.h>
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/location.h>
@@ -528,7 +533,63 @@ struct TypeTraits<TypedExpr<ExpectedType>>
   }
 };
 
+// Declare these traits before containers such as Array<Expr> and SubscriptSlice instantiate them.
+// Conversion bodies that require literal or tuple nodes are defined in expr.cc.
+// Generic expression arguments accept primitive/string literals and arrays of expressions.
+template <>
+inline constexpr bool use_default_type_traits_v<Expr> = false;
+
+template <>
+struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
+  TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
+  TVM_TIRX_DLL static Expr ConvertFallbackValue(ffi::String value);
+  TVM_TIRX_DLL static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
+};
+
+// Primitive expression arguments also accept bool, integer, and floating-point literals.
+template <>
+inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
+
+template <>
+struct TypeTraits<PrimExpr>
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double> {
+  using Base = ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double>;
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) return PrimExpr::_type_is_nullable;
+    return TypeTraits<TypedExpr<PrimType>>::CheckAnyStrict(src);
+  }
+
+  TVM_TIRX_DLL static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src);
+
+  TVM_FFI_INLINE static std::string TypeStr() { return "ir.PrimExpr"; }
+
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
+  }
+
+  TVM_TIRX_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
+  TVM_TIRX_DLL static PrimExpr ConvertFallbackValue(int64_t value);
+  TVM_TIRX_DLL static PrimExpr ConvertFallbackValue(double value);
+};
+
 }  // namespace ffi
+
+/*! \brief Expression subscripts: point indices or (start, stop, step) slices. */
+using SubscriptSlice = ffi::Array<ffi::Variant<
+    ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
+    PrimExpr>>;
+
+namespace type_attr {
+/*!
+ * \brief Realize a subscript of an expression, dispatched on the type of the expression.
+ *
+ * The callback receives the expression, its point indices or slices, and the source location.
+ * It returns a defined object representing the realized subscription.
+ */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::TypedFunction<ffi::ObjectRef(Expr, SubscriptSlice, Location)>>
+    kExprSubscriptRealizeByTy{"__tvm_expr_subscript_realize__"};
+}  // namespace type_attr
 
 }  // namespace tvm
 

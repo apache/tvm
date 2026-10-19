@@ -272,23 +272,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorTypeMutate>())
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>())
-      .def(tvm::type_attr::kSubscriptExprRealize.name,
-           [](Expr value,
-              ffi::Array<ffi::Variant<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                                 ffi::Optional<PrimExpr>>,
-                                      PrimExpr>>
-                  slice,
-              Location loc) -> ffi::ObjectRef {
-             TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
-                 << "A Relax expression requires exactly one index";
-             auto index = slice[0].as<PrimExpr>();
-             TVM_FFI_CHECK(index.has_value(), TypeError)
-                 << "A Relax expression requires a point index";
-             const auto* imm = index.value().as<IntImmNode>();
-             TVM_FFI_CHECK(imm != nullptr, TypeError)
-                 << "A Relax expression requires a constant integer index";
-             return TupleGetItem(value, imm->value.as<int>().value(), loc);
-           });
+      .attr(tvm::type_attr::kExprSubscriptRealizeByTy,
+            [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
+              TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
+                  << "A Relax expression requires exactly one index";
+              auto index = slice[0].as<PrimExpr>();
+              TVM_FFI_CHECK(index.has_value(), TypeError)
+                  << "A Relax expression requires a point index";
+              const auto* imm = index.value().as<IntImmNode>();
+              TVM_FFI_CHECK(imm != nullptr, TypeError)
+                  << "A Relax expression requires a constant integer index";
+              return TupleGetItem(value, imm->value.as<int>().value(), loc);
+            });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

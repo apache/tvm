@@ -649,8 +649,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorStoreMaybeInplace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
-  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kTensorStoreValidate.name);
-  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kEvaluateValidate.name);
+  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kTensorStoreValidateByTy.name);
 }
 
 // Bind
@@ -1059,12 +1058,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Evaluate
 Evaluate::Evaluate(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
-  static const ffi::reflection::TypeAttrColumn validate_column(
-      tvm::type_attr::kEvaluateValidate.name);
-  if (auto validate = validate_column[value->ty->type_index()]; validate != nullptr) {
-    validate.cast<ffi::Function>()(value);
-  }
-
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
   node->loc = loc;
   data_ = std::move(node);
@@ -1088,11 +1081,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
-  static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidate.name);
-  auto validate = validate_column[dest->ty->type_index()];
-  TVM_FFI_CHECK(validate != nullptr, TypeError)
+  static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidateByTy.name);
+  auto validate =
+      type_attr::kTensorStoreValidateByTy.ValueFrom(validate_column[dest->ty->type_index()]);
+  TVM_FFI_CHECK(validate.has_value(), TypeError)
       << "Type " << dest->ty->GetTypeKey() << " does not support TensorStore";
-  validate.cast<ffi::Function>()(dest, indices, value);
+  validate->CallExpected(dest, indices, value).value();
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
   node->loc = loc;

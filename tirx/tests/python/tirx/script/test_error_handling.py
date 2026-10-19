@@ -203,11 +203,12 @@ def test_tvm_exception_catch_from_scope_handler():
     check_error(scope_handler_except, 2, TypeError)
 
 
-def test_tvm_exception_catch_from_bare_intrin():
-    def intrin_except_unassign(A: T.Tensor((16, 16), "float32")) -> None:
-        T.evaluate(A)  # error
+def test_evaluate_tensor():
+    @T.function
+    def evaluate_tensor(A: T.Tensor((16, 16), "float32")) -> None:
+        T.evaluate(A)
 
-    check_error(intrin_except_unassign, 2, RuntimeError)
+    assert evaluate_tensor.body.seq[0].value.same_as(evaluate_tensor.params[0])
 
 
 def test_tvm_exception_catch_from_assigned_intrin():

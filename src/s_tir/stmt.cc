@@ -69,11 +69,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
       .signature(sig::arg<IntImm>("queue_id"))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kUpdateState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kUpdateState);
   OpDef("s_tir.async_wait", "Wait for committed asynchronous copies.")
       .signature(sig::arg<IntImm>("queue_id"), sig::arg<PrimExpr>("inflight_count"))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kUpdateState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kUpdateState);
 }
 
 namespace {

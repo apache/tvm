@@ -56,8 +56,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (load->indices.empty()) return Type::Missing();
         return nullptr;
       }));
-  refl::TypeAttrDef<LoadSourceTypeNode>().attr(type_attr::kTensorLoadInferType.name,
-                                               FTensorLoadInferType::FromNative<&InferTestLoad>());
+  refl::TypeAttrDef<LoadSourceTypeNode>().native_fn_attr<&InferTestLoad>(
+      type_attr::kTensorLoadInferType);
 }
 
 Var LoadSource() {

@@ -70,9 +70,8 @@ PrimType InferTensorLoadType(const TensorLoadNode* load) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorTypeNode>().attr(
-      type_attr::kTensorLoadInferType.name,
-      FTensorLoadInferType::FromNative<&InferTensorLoadType>());
+  refl::TypeAttrDef<TensorTypeNode>().native_fn_attr<&InferTensorLoadType>(
+      type_attr::kTensorLoadInferType);
 }
 
 }  // namespace tirx

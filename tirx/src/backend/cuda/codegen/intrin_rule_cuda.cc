@@ -289,7 +289,7 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_sync")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque)
       .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_up_sync")
@@ -299,7 +299,7 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_up_sync")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque)
       .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_down_sync")
@@ -309,7 +309,7 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_down_sync")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque)
       .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__shfl_xor_sync")
@@ -319,13 +319,13 @@ void RegisterCudaIntrinRules() {
           sig::arg<IntExpr>("width", "The warp thread width, must be a power of 2."))
       .set_native_fn_attr<&InferTypeReturnArgType<1>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__shfl_xor_sync")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque)
       .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
 
   OpDef("tirx.cuda.__activemask")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::UInt(32))
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "__activemask")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure)
       .set_attr(tvm::backend::cuda::op_attr::kNeedWarpShuffle, true);
   // clang-format on
 }

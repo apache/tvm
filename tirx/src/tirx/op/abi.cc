@@ -61,7 +61,7 @@ const Op& call_extern_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_extern")
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_pure_extern_op() {
@@ -72,7 +72,7 @@ const Op& call_pure_extern_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_pure_extern")
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& call_llvm_intrin_op() {
@@ -83,7 +83,7 @@ const Op& call_llvm_intrin_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_llvm_intrin")
       .signature(sig::arg<IntExpr>("intrin_id", "The intrinsic identifier."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_llvm_pure_intrin_op() {
@@ -94,7 +94,7 @@ const Op& call_llvm_pure_intrin_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_llvm_pure_intrin")
       .signature(sig::arg<IntExpr>("intrin_id", "The intrinsic identifier."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure)
       .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 }
 
@@ -107,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_spirv_pure_glsl450")
       .signature(sig::arg<IntExpr>("intrin_id", "The intrinsic identifier."),
                  sig::var_args<PrimExpr>("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& abi_field_get_op() {
@@ -119,7 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.abi_field_get")
       .signature(sig::arg("arr", "The array."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg<IntExpr>("field", "The field index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kReadState);
 }
 
 const Op& abi_field_set_op() {
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("arr", "The array."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg<IntExpr>("field", "The field index."),
                  sig::arg("value", "The value to use."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kUpdateState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kUpdateState);
 }
 
 const Op& throw_last_error_op() {
@@ -144,7 +144,7 @@ const Op& throw_last_error_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.throw_last_error")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& stack_alloca_op() {
@@ -157,7 +157,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_native_fn_attr<&InferTypeStackAlloca>(tvm::op_attr::kInferType)
       .signature(sig::arg("dtype_str", "The data type name."),
                  sig::arg<IntExpr>("num", "The number of entries."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& stack_make_shape_op() {
@@ -169,7 +169,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.stack_make_shape")
       .set_attr(tvm::op_attr::kFixedReturnType, PtrType(PrimType::Int(64)))
       .signature(sig::var_args<IntExpr>("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& stack_make_dltensor_op() {
@@ -185,7 +185,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),
                  sig::arg("arr_dtype", "The array data type."),
                  sig::arg<IntExpr>("elem_offset", "The element offset."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_packed_op() {
@@ -197,7 +197,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_packed")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -225,7 +225,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("kernel", "The kernel."), sig::var_args("args"),
                  sig::call_attrs<CallFFIKernelAttr>())
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_cpacked_op() {
@@ -237,7 +237,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_cpacked")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_packed_lowered_op() {
@@ -252,7 +252,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args_stack", "The argument stack."),
                  sig::arg<IntExpr>("begin", "The start index."),
                  sig::arg<IntExpr>("end", "The end index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& call_cpacked_lowered_op() {
@@ -267,7 +267,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args_stack", "The argument stack."),
                  sig::arg<IntExpr>("begin", "The start index."),
                  sig::arg<IntExpr>("end", "The end index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -279,7 +279,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("dtype_code_hint", "The data type code hint."),
                  sig::arg<IntExpr>("dtype_bits_hint", "The data type bit-width hint."))
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "TVMBackendAllocWorkspace")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -289,7 +289,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("device_id", "The device index."),
                  sig::arg("ptr", "The pointer."))
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "TVMBackendFreeWorkspace")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 }  // namespace tirx

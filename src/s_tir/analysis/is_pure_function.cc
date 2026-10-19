@@ -105,7 +105,7 @@ class PurityChecker : public StmtExprVisitor {
     static auto op_call_effect = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
-        return static_cast<CallEffectKind>(op_call_effect[opt.value()]);
+        return op_call_effect[opt.value()];
       } else {
         return CallEffectKind::kOpaque;
       }

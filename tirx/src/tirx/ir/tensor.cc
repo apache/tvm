@@ -58,10 +58,6 @@ using namespace tvm::prim;
 
 namespace {
 
-using SubscriptSlice = ffi::Array<ffi::Variant<
-    ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-    PrimExpr>>;
-
 PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Analyzer& analyzer) {
   PrimExpr extent = Range::GetExtentFromBeginEnd(start, stop);
   if (const auto* add = stop.as<AddNode>();
@@ -71,13 +67,7 @@ PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Ana
   return analyzer->Simplify(extent);
 }
 
-ffi::ObjectRef RealizeTensorSubscript(
-    Expr value,
-    ffi::Array<ffi::Variant<
-        ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-        PrimExpr>>
-        slice,
-    Location loc) {
+ffi::ObjectRef RealizeTensorSubscript(Expr value, SubscriptSlice slice, Location loc) {
   TensorVar tensor = value.as_or_throw<TensorVar>();
   TensorType tensor_ty = tensor.ty();
   TVM_FFI_CHECK_LE(slice.size(), tensor_ty->shape.size(), IndexError)
@@ -194,10 +184,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorTypeNode>().def(tvm::type_attr::kSubscriptExprRealize.name,
-                                          RealizeTensorSubscript);
-  refl::TypeAttrDef<TensorRegionTypeNode>().def(tvm::type_attr::kSubscriptExprRealize.name,
-                                                RealizeTensorRegionSubscript);
+  refl::TypeAttrDef<TensorTypeNode>().attr(tvm::type_attr::kExprSubscriptRealizeByTy,
+                                           RealizeTensorSubscript);
+  refl::TypeAttrDef<TensorRegionTypeNode>().attr(tvm::type_attr::kExprSubscriptRealizeByTy,
+                                                 RealizeTensorRegionSubscript);
 }
 
 ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {

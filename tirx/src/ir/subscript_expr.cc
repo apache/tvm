@@ -28,15 +28,11 @@
 
 namespace tvm {
 
-using SubscriptSlice = ffi::Array<ffi::Variant<
-    ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-    PrimExpr>>;
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::EnsureTypeAttrColumn(tvm::type_attr::kSubscriptExprRealize.name);
-  refl::TypeAttrDef<TupleTypeNode>().def(
-      tvm::type_attr::kSubscriptExprRealize.name,
+  refl::EnsureTypeAttrColumn(tvm::type_attr::kExprSubscriptRealizeByTy);
+  refl::TypeAttrDef<TupleTypeNode>().attr(
+      tvm::type_attr::kExprSubscriptRealizeByTy,
       [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
         TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
             << "A tuple expression requires exactly one index";
@@ -51,14 +47,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "ir.SubscriptExprRealize",
       [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
         TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";
-        static refl::TypeAttrColumn realize_column(tvm::type_attr::kSubscriptExprRealize.name);
-        ffi::AnyView packed_realize = realize_column[value->ty->type_index()];
-        TVM_FFI_CHECK(packed_realize != nullptr, TypeError)
+        static refl::TypeAttrColumn realize_column(tvm::type_attr::kExprSubscriptRealizeByTy);
+        auto realize = tvm::type_attr::kExprSubscriptRealizeByTy.ValueFrom(
+            realize_column[value->ty->type_index()]);
+        TVM_FFI_CHECK(realize.has_value(), TypeError)
             << "Type " << value->ty->GetTypeKey() << " does not support subscript";
-        ffi::ObjectRef result =
-            packed_realize.cast<ffi::Function>()(value, slice, loc).cast<ffi::ObjectRef>();
+        ffi::ObjectRef result = (*realize)(value, slice, loc);
         TVM_FFI_CHECK(result.defined(), TypeError)
-            << "__tvm_subscript_expr_realize__ for type " << value->ty->GetTypeKey()
+            << "__tvm_expr_subscript_realize__ for type " << value->ty->GetTypeKey()
             << " returned an undefined object";
         return result;
       });

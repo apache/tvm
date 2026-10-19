@@ -48,7 +48,10 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     if (overrides.count(op.value())) {
       ffi::Any hook = overrides[op.value()];
       if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-        return hook.cast<FDocTranslate>().CallExpected(d, input, destination).value();
+        return op_attr::kDocTranslateOpCall.ValueFrom(hook)
+            .value()
+            .CallExpected(d, input, destination)
+            .value();
       }
       ffi::Any binding = nullptr;
       if (destination) binding = ffi::GetRef<ffi::ObjectRef>(destination);

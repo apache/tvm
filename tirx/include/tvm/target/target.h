@@ -35,12 +35,6 @@
 
 namespace tvm {
 
-namespace backend::attr {
-/*! \brief Optional backend configuration on a Target, distinct from serialized IR/runtime JSON. */
-inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Any>> kBackendConfig{
-    "backend_config"};
-}  // namespace backend::attr
-
 class TargetInternal;
 class Target;
 
@@ -207,6 +201,12 @@ class Target : public ffi::ObjectRef {
    */
   TVM_TIRX_DLL void ExitWithScope();
 };
+
+namespace attr {
+/*! \brief Optional backend configuration on a Target, distinct from serialized IR/runtime JSON. */
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Any>> kBackendConfig{
+    "backend_config"};
+}  // namespace attr
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

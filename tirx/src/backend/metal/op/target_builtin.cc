@@ -44,7 +44,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("value", "The value to use."),
                  sig::arg<IntExpr>("col", "The column index."),
                  sig::arg<IntExpr>("row", "The row index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.metal.simdgroup_load")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -53,7 +53,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg<IntExpr>("col", "The column index."),
                  sig::arg<IntExpr>("row", "The row index."),
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.metal.simdgroup_store")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -62,7 +62,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg<IntExpr>("col", "The column index."),
                  sig::arg<IntExpr>("row", "The row index."),
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.metal.simdgroup_multiply_accumulate")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -71,7 +71,7 @@ void RegisterMetalTargetBuiltins() {
           sig::arg("a", "The A operand."), sig::arg<IntExpr>("index_a", "The A fragment index."),
           sig::arg("b", "The B operand."), sig::arg<IntExpr>("index_b", "The B fragment index."),
           sig::arg("c", "The C operand."), sig::arg<IntExpr>("index_c", "The C fragment index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterMetalTargetBuiltins(); }
