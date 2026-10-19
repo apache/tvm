@@ -849,7 +849,7 @@ def test_rewrite_decl_tensor():
                 D[i] = C[i]
 
     After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.check_well_formed(After)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
@@ -877,7 +877,7 @@ def test_decl_tensor_alias_chain_uses_flat_root():
             D[0] = C[0]
 
     After = tvm_tirx.tirx.transform.StorageRewrite()(Before)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.check_well_formed(After)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 

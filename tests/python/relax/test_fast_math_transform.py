@@ -30,8 +30,7 @@ from tvm_tirx.script import ir as I
 
 def _run_pass_compare_output(Before, Expected):
     fast_mod = FastMathTransform()(Before)
-    if not relax.analysis.check_well_formed(fast_mod):
-        print("IRModule is not well-formed")
+    relax.analysis.check_well_formed(fast_mod)
     assert_structural_equal(Expected, fast_mod)
 
 

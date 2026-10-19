@@ -1275,7 +1275,7 @@ def test_loop_var_does_not_escape_compacted_tensor_extent():
                 tmp[j] = A[j]
 
     after = s_tir.transform.CompactTensorAllocation()(tvm_tirx.IRModule.from_expr(before))
-    assert s_tir.analysis.verify_well_formed(after)
+    s_tir.analysis.check_well_formed(after)
 
 
 class TestCompactSymbolicBound0:

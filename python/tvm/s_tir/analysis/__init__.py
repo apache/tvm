@@ -217,11 +217,17 @@ def assert_pure_function(func: Function) -> bool:
     return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member
 
 
-def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
-    """Verify definitions, tensor loads and S-TIR block boundaries.
+def check_well_formed(obj: Function | IRModule) -> None:
+    """Check whether an S-TIR function or module is well formed.
 
-    Modules may contain both S-TIR and ordinary Functions.  Shared variable
-    identities are checked across function boundaries.  Use the TIRX-specific
-    verifier separately for execution-scope restrictions on ordinary Functions.
+    Parameters
+    ----------
+    obj : Function or IRModule
+        The function or module to check.
+
+    Raises
+    ------
+    RuntimeError
+        If the function or module is not well formed.
     """
-    return _ffi_api.VerifyWellFormed(obj, assert_mode)
+    _ffi_api.CheckWellFormed(obj)

@@ -196,12 +196,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool TileLayoutNode::VerifyWellFormed() const {
-  // 1. Check if the scope is connected
-  if (!GetScope().has_value() && HasThreadAxis()) {
-    return false;
-  }
-  return true;
+void TileLayoutNode::CheckWellFormed() const {
+  TVM_FFI_CHECK(GetScope().has_value() || !HasThreadAxis(), ValueError)
+      << "A tile layout with thread axes must have a connected scope";
 }
 
 PrimExpr TileLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {

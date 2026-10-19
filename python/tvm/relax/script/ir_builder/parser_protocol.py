@@ -158,13 +158,6 @@ def check_well_formed_(function: _relax.Function) -> None:
     ValueError
         If the function fails language variant validation.
 
-    Notes
-    -----
-    See :func:`tvm_tirx.script.ir_builder.parser_protocol.check_well_formed_`
-    for the shared whole-module validation coordinator.
-
-    Validate the completed Relax function. Whole-module cross-function
-    validation is registered separately with the root coordinator.
     """
     from tvm import s_tir
 
@@ -172,21 +165,11 @@ def check_well_formed_(function: _relax.Function) -> None:
         "Program is not well-formed. If this is deliberate, set "
         "check_well_formed=False in the top-level decorator."
     )
-    if not _relax.analysis.check_well_formed(function):
-        raise ValueError(message)
     try:
-        s_tir.analysis.verify_well_formed(_ir.IRModule.from_expr(function))
+        _relax.analysis.check_well_formed(function)
+        s_tir.analysis.check_well_formed(_ir.IRModule.from_expr(function))
     except Exception as error:
         raise ValueError(f"{message}\n{error}") from error
-
-
-def _check_module_well_formed(module: _ir.IRModule) -> None:
-    """Own Relax whole-module validation, including cross-function references."""
-    if not _relax.analysis.check_well_formed(module):
-        raise ValueError(
-            "Program is not well-formed. If this is deliberate, set "
-            "check_well_formed=False in the top-level decorator."
-        )
 
 
 # --------------------------------------

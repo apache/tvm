@@ -1269,7 +1269,7 @@ def test_tuple_projection_merging():
 
     after = relax.transform.MergeCompositeFunctions()(Before)
     assert get_codegen_regions(after) == {"fused_split_subtract_compiler_A": "compiler_A"}
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     region = next(
         func
@@ -1340,7 +1340,7 @@ def test_tuple_projection_preserves_real_cycle_boundary():
         "fused_foreign_relu_compiler_B": "compiler_B",
         "fused_split_compiler_A": "compiler_A",
     }
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
 
 def test_tuple_projection_rejects_escaping_tuple():
@@ -1384,7 +1384,7 @@ def test_tuple_projection_rejects_escaping_tuple():
         "fused_relu_compiler_A": "compiler_A",
         "fused_split_compiler_A": "compiler_A",
     }
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     bindings = [binding for block in after["main"].body.blocks for binding in block.bindings]
     split_result = next(

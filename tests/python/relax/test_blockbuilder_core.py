@@ -715,9 +715,10 @@ def test_finalize_public_private_name_conflict():
         bb.emit_func_output((gv0, gv1))
 
     mod = bb.get()
-    assert not rx.analysis.check_well_formed(mod)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
     mod_final = bb.finalize()
-    rx.analysis.well_formed(mod_final)
+    rx.analysis.check_well_formed(mod_final)
 
     # relax function call
     bb = rx.BlockBuilder()
@@ -734,9 +735,10 @@ def test_finalize_public_private_name_conflict():
         bb.emit_func_output(gv0)
 
     mod = bb.get()
-    assert not rx.analysis.check_well_formed(mod)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
     mod_final = bb.finalize()
-    rx.analysis.well_formed(mod_final)
+    rx.analysis.check_well_formed(mod_final)
 
 
 def test_emit_nested_seqexpr_in_binding_block():
@@ -846,7 +848,8 @@ def test_emit_ill_formed_nested_seqexpr_in_dataflow_block():
 
     output = bb.finalize()["func"]
 
-    assert not rx.analysis.check_well_formed(tvm_tirx.ir.IRModule.from_expr(output))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(tvm_tirx.ir.IRModule.from_expr(output))
 
 
 def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
@@ -883,7 +886,7 @@ def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
 
     output = bb.finalize()["func"]
 
-    rx.analysis.well_formed(tvm_tirx.ir.IRModule.from_expr(output))
+    rx.analysis.check_well_formed(tvm_tirx.ir.IRModule.from_expr(output))
 
     @R.function(private=True)
     def expected() -> R.Tensor((), dtype="int64"):

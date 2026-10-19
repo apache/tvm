@@ -29,7 +29,6 @@ from .op import *
 from .parser_protocol import *
 from .parser_protocol import (
     __tvm_value_if__,
-    _check_module_well_formed,
     supports_mutable_declarations,
 )
 

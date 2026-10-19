@@ -721,7 +721,7 @@ def test_data_dependent_reshape():
             return gv
     # fmt: on
 
-    relax.analysis.well_formed(DDReshape)
+    relax.analysis.check_well_formed(DDReshape)
     mod = relax.transform.DecomposeOpsForInference()(DDReshape)
     out_mod = relax.transform.LegalizeOps()(mod)
 

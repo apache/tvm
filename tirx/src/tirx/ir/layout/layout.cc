@@ -33,7 +33,7 @@ ffi::Map<ffi::String, PrimExpr> LayoutNode::Apply(const ffi::Array<PrimExpr>& co
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   auto def = refl::GlobalDef();
-  def.def("tirx.LayoutVerifyWellFormed", [](Layout layout) { return layout->VerifyWellFormed(); });
+  def.def("tirx.LayoutCheckWellFormed", [](Layout layout) { return layout->CheckWellFormed(); });
   def.def("tirx.LayoutGetSize", [](Layout layout, ffi::Optional<ffi::String> axis_name) {
     return layout->GetSize(axis_name);
   });

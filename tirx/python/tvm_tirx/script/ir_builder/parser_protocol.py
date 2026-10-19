@@ -244,49 +244,6 @@ def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
     raise NotImplementedError
 
 
-def check_well_formed_(module: _ir.IRModule) -> None:
-    """Validate a completed module after every body has been finalized.
-
-    Parameters
-    ----------
-    module : IRModule
-        Completed native module, including all resolved forward references and mixed-
-        language variant members.
-
-    Returns
-    -------
-    None
-        No value or mutation; success means the existing native validators accepted the
-        program.
-
-    Notes
-    -----
-    Requires completed IR, with no active construction frame. Root coordination
-    invokes opaque whole-module hooks supplied by language variant initialization through
-    tvm_tirx.script.register_module_validator. Each hook owns concrete types, eligibility
-    and cross-function validation, including captured/preexisting members. No source
-    decorator inventory selects the hooks. Validator exceptions propagate unchanged;
-    an empty hook list raises RuntimeError instead of establishing validity.
-    check_well_formed=False omits the generated call entirely.
-
-    .. code:: python
-
-        # Source
-        @I.ir_module
-        class Module:
-            pass
-        # Generated builder, after module frame exit
-        I.check_well_formed_(module)
-    """
-    from tvm_tirx.script import _MODULE_VALIDATORS
-
-    validators = tuple(_MODULE_VALIDATORS)
-    if not validators:
-        raise RuntimeError("No completed-module validators are registered")
-    for validator in validators:
-        validator(module)
-
-
 # --------------------------------------
 # Bindings
 # --------------------------------------

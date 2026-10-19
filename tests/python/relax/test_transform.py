@@ -398,7 +398,7 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
         builder.emit_func_output(out)
 
     after = relax.transform.CallTIRRewrite()(builder.get())
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
     func = after["main"]
     block = func.body.blocks[0]
 

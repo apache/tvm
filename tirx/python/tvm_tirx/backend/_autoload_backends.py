@@ -62,7 +62,7 @@ def _autoload_backends() -> None:
     if not _RUNTIME_ONLY:
         _load_builtin_backends()
 
-    # Out-of-tree extensions opt into being loaded automatically at ``import tvm`` time
+    # Out-of-tree extensions opt into being loaded automatically at ``import tvm_tirx`` time
     # by declaring an entry point in the ``tvm_tirx.backends`` group:
     # [project.entry-points."tvm_tirx.backends"] tvm_foo = "tvm_foo:_autoload".
     # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.

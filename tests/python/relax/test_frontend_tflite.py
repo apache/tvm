@@ -5148,7 +5148,7 @@ def test_broadcast_to_dynamic_shape():
         buffers=[_build_buffer(builder)],
     )
     mod = _load_model_from_buffer(model)
-    relax.analysis.well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     shape_binding, result_binding = mod["main"].body.blocks[0].bindings
     assert not isinstance(shape_binding.var, relax.DataflowVar)

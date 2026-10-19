@@ -2245,7 +2245,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     root,
                 )
             )
-        if check_well_formed:
+        if check_well_formed and not is_module:
             # -------------------- Pattern --------------------
             # Python source:
             #     @X.function
@@ -2256,12 +2256,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             #     result = builder.get()
             #     X.check_well_formed_(result)
             # -------------------------------------------------
-            # Module syntax selects I.check_well_formed_ instead, after all bodies complete.
-            namespace = (
-                self.module.ir_prefix
-                if is_module
-                else self._function_namespace(root, self.read_function_metadata(root)[0])
-            )
+            namespace = self._function_namespace(root, self.read_function_metadata(root)[0])
             statements.append(
                 ast.copy_location(
                     ast.Expr(
