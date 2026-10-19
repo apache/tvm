@@ -17,7 +17,7 @@
 # under the License.
 
 # pylint: disable=redefined-builtin, wildcard-import
-"""Utility Python functions for TVM testing"""
+"""TIRX test utilities and local capability probes."""
 
 from ._ffi_api import (
     echo,

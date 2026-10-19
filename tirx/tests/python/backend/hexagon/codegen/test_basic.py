@@ -24,9 +24,9 @@ from tvm_ffi import register_global_func
 
 import tvm_tirx
 import tvm_tirx.testing
+from tvm_tirx.backend.hexagon.linker import has_hexagon_toolchain
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
-from tvm_tirx.testing import env
 
 
 @pytest.fixture(autouse=True)
@@ -47,7 +47,7 @@ def register_linker():
         register_global_func(name, original_linker, override=True)
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
+@pytest.mark.skipif(not has_hexagon_toolchain(), reason="need hexagon toolchain")
 def test_basic():
     target = tvm_tirx.target.Target("qcom/hexagon-v66")
 
@@ -69,7 +69,7 @@ def test_basic():
     assert vadds, asm
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
+@pytest.mark.skipif(not has_hexagon_toolchain(), reason="need hexagon toolchain")
 def test_llvm_target_features():
     target = tvm_tirx.target.Target("qcom/hexagon-v66")
 
@@ -88,7 +88,7 @@ def test_llvm_target_features():
     assert fs  # Check that it's non-empty
 
 
-@pytest.mark.skipif(not env.has_hexagon(), reason="need hexagon")
+@pytest.mark.skipif(not has_hexagon_toolchain(), reason="need hexagon toolchain")
 def test_llvm_options():
     target = tvm_tirx.target.Target(
         {

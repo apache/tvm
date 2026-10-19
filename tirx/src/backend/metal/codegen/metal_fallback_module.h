@@ -62,7 +62,7 @@ ffi::Module MetalFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, ff
  *     returned.
  *   - Registry miss (USE_METAL=OFF build) → `MetalFallbackModuleObj`
  *     returned.
- *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
+ *   - `TVM_TIRX_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI
  *     box).
  */
@@ -70,7 +70,7 @@ inline ffi::Module MetalModuleCreateWithFallback(ffi::Map<ffi::String, ffi::Byte
                                                  ffi::String fmt,
                                                  ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                                  ffi::Map<ffi::String, ffi::String> source) {
-  if (tvm::support::GetEnv<bool>("TVM_COMPILE_FORCE_FALLBACK", false)) {
+  if (tvm::support::GetEnv<bool>("TVM_TIRX_COMPILE_FORCE_FALLBACK", false)) {
     return MetalFallbackModuleCreate(std::move(smap), std::move(fmt), std::move(fmap),
                                      std::move(source));
   }

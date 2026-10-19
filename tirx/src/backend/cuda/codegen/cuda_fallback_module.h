@@ -60,14 +60,14 @@ ffi::Module CUDAFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *
  *   - Registry hit (USE_CUDA=ON build) → real `CUDAModuleObj` returned.
  *   - Registry miss (USE_CUDA=OFF build) → `CUDAFallbackModuleObj` returned.
- *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
+ *   - `TVM_TIRX_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless of
  *     registry state (used by per-backend fallback tests on a USE_X=ON CI
  *     box).
  */
 inline ffi::Module CUDAModuleCreateWithFallback(ffi::Bytes code, ffi::String fmt,
                                                 ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                                 ffi::Map<ffi::String, ffi::String> source) {
-  if (tvm::support::GetEnv<bool>("TVM_COMPILE_FORCE_FALLBACK", false)) {
+  if (tvm::support::GetEnv<bool>("TVM_TIRX_COMPILE_FORCE_FALLBACK", false)) {
     return CUDAFallbackModuleCreate(std::move(code), std::move(fmt), std::move(fmap),
                                     std::move(source));
   }

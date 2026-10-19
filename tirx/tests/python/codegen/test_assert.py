@@ -22,7 +22,10 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.script import tirx as T
 
-codegen_target = tvm_tirx.testing.parameter("llvm", "c")
+
+@pytest.fixture(params=["llvm", "c"], scope="session")
+def codegen_target(request):
+    return request.param
 
 
 def test_assert_runtime_error(codegen_target):

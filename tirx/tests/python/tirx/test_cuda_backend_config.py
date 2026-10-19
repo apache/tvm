@@ -360,7 +360,7 @@ def test_serialized_config_replays_in_fresh_process(tmp_path, monkeypatch, fallb
         x = T.cuda.thread_idx("x")
         B[x] = A[x] * T.float32(0.5)
 
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1" if fallback else "0")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1" if fallback else "0")
     config = {
         "cuda": {
             "arch": env.cuda_arch(0),
@@ -398,7 +398,7 @@ np.testing.assert_array_equal(b.numpy(), x * np.float32(0.5))
         }
     )
     script = script.replace("LOAD_TARGET", repr(load_context))
-    environment = dict(os.environ, TVM_COMPILE_FORCE_FALLBACK="0")
+    environment = dict(os.environ, TVM_TIRX_COMPILE_FORCE_FALLBACK="0")
     result = subprocess.run(
         [sys.executable, "-c", script, library], env=environment, text=True, capture_output=True
     )
@@ -491,7 +491,7 @@ def test_device_helpers_are_cloned_per_configuration():
 @pytest.mark.skipif(not tvm_tirx.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("fallback", [False, True])
 def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path, monkeypatch, fallback):
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1" if fallback else "0")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1" if fallback else "0")
     _require_compiler("nvrtc")
     _require_compiler("nvcc")
     import tvm_ffi.cpp
@@ -638,7 +638,7 @@ else:
 """
     path = tmp_path / "generic_cuda.py"
     path.write_text(script)
-    environment = dict(os.environ, CUDA_VISIBLE_DEVICES="", TVM_TEST_TARGETS="llvm;cuda")
+    environment = dict(os.environ, CUDA_VISIBLE_DEVICES="")
     result = subprocess.run(
         [sys.executable, str(path)], env=environment, text=True, capture_output=True
     )
@@ -679,7 +679,7 @@ assert "arch" not in tvm_tirx.target.Target("cuda").attrs
 def test_source_fallback_does_not_invoke_compiler(monkeypatch):
     from tvm_tirx.support import nvcc
 
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
 
     def unavailable(*args, **kwargs):
         raise AssertionError("source fallback must not require a CUDA compiler")
@@ -703,7 +703,7 @@ def test_source_fallback_does_not_invoke_compiler(monkeypatch):
 
 
 def test_identical_entries_share_one_module(monkeypatch):
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
     config = {"cuda": {"arch": "sm_100a", "nvrtc": ["--ftz=false"]}}
 
     @T.function
@@ -723,7 +723,7 @@ def test_identical_entries_share_one_module(monkeypatch):
 
 
 def test_build_snapshots_config_before_passes(monkeypatch):
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
     config = {"cuda": {"arch": "sm_100a", "nvrtc": ["--ftz=false"]}}
 
     @T.function

@@ -63,7 +63,7 @@ ffi::Module WebGPUFallbackModuleCreate(ffi::Map<ffi::String, ffi::Bytes> smap, f
  *     side; wasm runtime registers only the load-from-bytes loader).
  *   - Registry miss → `WebGPUFallbackModuleObj` returned (the canonical
  *     C++ side for WebGPU).
- *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
+ *   - `TVM_TIRX_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
  *     (test hook, no behavioral change here since fallback is always
  *     selected anyway).
  */
@@ -71,7 +71,7 @@ inline ffi::Module WebGPUModuleCreateWithFallback(ffi::Map<ffi::String, ffi::Byt
                                                   ffi::String fmt,
                                                   ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                                   ffi::Map<ffi::String, ffi::String> source) {
-  if (tvm::support::GetEnv<bool>("TVM_COMPILE_FORCE_FALLBACK", false)) {
+  if (tvm::support::GetEnv<bool>("TVM_TIRX_COMPILE_FORCE_FALLBACK", false)) {
     return WebGPUFallbackModuleCreate(std::move(smap), std::move(fmt), std::move(fmap),
                                       std::move(source));
   }

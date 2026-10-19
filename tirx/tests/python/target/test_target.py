@@ -399,17 +399,14 @@ def test_target_from_device_vulkan(input_form):
     def run_and_check():
         dev = tvm_tirx.vulkan()
         target = Target.from_device("vulkan" if input_form == "string" else dev)
-        f_get_target_property = tvm_ffi.get_global_func("device_api.vulkan.get_target_property")
         assert target.kind.name == "vulkan"
         assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
         assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
         assert int(target.attrs["thread_warp_size"]) == dev.warp_size
-        assert target.attrs["supports_float16"] == f_get_target_property(dev, "supports_float16")
-        assert target.attrs["supports_int16"] == f_get_target_property(dev, "supports_int16")
-        assert target.attrs["supports_int8"] == f_get_target_property(dev, "supports_int8")
-        assert target.attrs["supports_16bit_buffer"] == f_get_target_property(
-            dev, "supports_16bit_buffer"
-        )
+        assert target.attrs["supports_float16"] == dev.get_attr("supports_float16")
+        assert target.attrs["supports_int16"] == dev.get_attr("supports_int16")
+        assert target.attrs["supports_int8"] == dev.get_attr("supports_int8")
+        assert target.attrs["supports_16bit_buffer"] == dev.get_attr("supports_16bit_buffer")
 
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 

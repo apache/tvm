@@ -56,7 +56,7 @@ assert "tvm_tirx.backend.cuda.axis" not in sys.modules
 assert "tvm_tirx.backend.trn.axis" not in sys.modules
 """,
         ],
-        env={**os.environ, "TVM_DEVICE_BACKEND_AUTOLOAD": "0"},
+        env={**os.environ, "TVM_TIRX_DEVICE_BACKEND_AUTOLOAD": "0"},
         capture_output=True,
         text=True,
     )

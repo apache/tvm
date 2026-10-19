@@ -16,68 +16,19 @@
 # under the License.
 
 # pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
-"""TVM testing utilities
-
-Organization
-************
-
-This file contains functions expected to be called directly by a user
-while writing unit tests.  Integrations with the pytest framework
-for TVM's own test suite are in ``tests/python/conftest.py``.
-
-Testing Markers
-***************
-
-We use pytest markers to specify the requirements of test functions.
-Currently there is a single distinction that matters for our testing
-environment: does the test require a gpu.  Tests that require a gpu are
-tagged with the ``gpu`` pytest marker -- the only registered marker (see
-the ``markers`` entry in ``pyproject.toml``).  This lets us select the
-gpu subset of tests with ``pytest -m gpu`` (and exclude them on cpu-only
-nodes with ``pytest -m "not gpu"``).
-
-The ``gpu`` marker only controls which testing node a test runs on; it
-does not check whether the required hardware or libraries are actually
-present.  To gate a test on a specific capability, combine the marker
-with a ``skipif`` that consults the memoized environment probes in
-:py:mod:`tvm_tirx.testing.env`:
-
-.. code-block:: python
-
-    @pytest.mark.gpu
-    @pytest.mark.skipif(not tvm_tirx.testing.env.has_cuda(), reason="need cuda")
-    def test_cuda_vectorize_add():
-        ...
-
-There is one ``has_*`` (or ``is_*``) probe per capability -- for example
-:py:func:`tvm_tirx.testing.env.has_gpu`, :py:func:`tvm_tirx.testing.env.has_cuda`,
-and :py:func:`tvm_tirx.testing.env.has_vulkan`.  For optional Python packages,
-prefer ``pytest.importorskip("pkg_name")`` instead of a ``skipif``.
-
-To run a test against a variety of targets, parametrize over ``target`` with
-``@pytest.mark.parametrize("target", [...])`` -- tag GPU targets with
-``pytest.mark.gpu`` so the CI routes them to GPU nodes, and skip an unavailable
-target with ``pytest.mark.skipif(not tvm_tirx.testing.device_enabled(target))``.  The
-set of enabled targets is controlled by the ``TVM_TEST_TARGETS`` environment
-variable, so the CI can run different targets on different testing nodes.
-
-"""
+"""Numerical assertions, device availability, and TIRX test utilities."""
 
 import inspect
-import os
 import sys
 import time
 
 import ml_dtypes
 import numpy as np
 import pytest
-import tvm_ffi
 
 import tvm_tirx
 
 from . import env
-
-SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True):
@@ -95,146 +46,20 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7, verbose=True):
 
 
 def device_enabled(target):
-    """Check if a target should be used when testing.
-
-    Gate a device-specific test on this with
-    ``@pytest.mark.skipif(not tvm_tirx.testing.device_enabled(target))``.
-
-    This allows the user to control which devices they are testing against. In
-    tests, this should be used to check if a device should be used when said
-    device is an optional part of the test.
-
-    Parameters
-    ----------
-    target : str or Dict[str, Any] or tvm_tirx.target.Target
-        Target string to check against
-
-    Returns
-    -------
-    bool
-        Whether or not the device associated with this target is enabled.
-
-    Example
-    -------
-    >>> @pytest.mark.gpu
-    >>> def test_mytest():
-    >>>     for target in ["cuda", "llvm"]:
-    >>>         if device_enabled(target):
-    >>>             test_body...
-
-    Here, `test_body` will only be reached by with `target="cuda"` on gpu test
-    nodes and `target="llvm"` on cpu test nodes.
-    """
+    """Return whether the target's runtime and local device are available."""
     if isinstance(target, dict):
-        target_kind = target["kind"]
+        kind = target["kind"]
     elif hasattr(target, "kind"):
-        target_kind = target.kind.name
+        kind = target.kind.name
     else:
         assert isinstance(target, str), "device_enabled requires a target as a string"
-        # Target strings may include extra flags; only compare the kind.
-        target_kind = target.split(" ")[0]
-    # Check only explicitly selected candidates of the requested kind.  In
-    # particular, an unavailable selection must not silently enable LLVM.
-    for candidate in env._tvm_test_targets():
-        kind = candidate["kind"] if isinstance(candidate, dict) else candidate.split()[0]
-        if kind != target_kind:
-            continue
-        if kind == "hexagon":
-            return env._runtime_enabled("hexagon") and "ANDROID_SERIAL_NUMBER" in os.environ
-        if not env._runtime_enabled(kind):
-            continue
-        if kind == "cuda" and "cudnn" in tvm_tirx.target.Target(candidate).attrs.get("libs", []):
-            exists = tvm_ffi.get_global_func("tvm.contrib.cudnn.exists", allow_missing=True)
-            if env.has_cudnn() and exists is not None and exists():
-                return True
-        elif tvm_tirx.device_from_target(candidate).exist:
-            return True
-    return False
-
-
-slow = pytest.mark.skipif(
-    SKIP_SLOW_TESTS,
-    reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
-)
-
-
-def parameter(*values, ids=None, by_dict=None):
-    """Convenience function to define pytest parametrized fixtures.
-
-    Declaring a variable using ``tvm_tirx.testing.parameter`` will define a
-    parametrized pytest fixture that can be used by test
-    functions. This is intended for cases that have no setup cost,
-    such as strings, integers, tuples, etc.  For cases that have a
-    significant setup cost, use an ordinary pytest fixture
-    instead.
-
-    If a test function accepts multiple parameters defined using
-    ``tvm_tirx.testing.parameter``, then the test will be run using every
-    combination of those parameters.
-
-    The parameter definition applies to all tests in a module.  If a
-    specific test should have different values for the parameter, that
-    test should be marked with ``@pytest.mark.parametrize``.
-
-    Parameters
-    ----------
-    values : Any
-
-       A list of parameter values.  A unit test that accepts this
-       parameter as an argument will be run once for each parameter
-       given.
-
-    ids : List[str], optional
-
-       A list of names for the parameters.  If None, pytest will
-       generate a name from the value.  These generated names may not
-       be readable/useful for composite types such as tuples.
-
-    by_dict : Dict[str, Any]
-
-       A mapping from parameter name to parameter value, to set both the
-       values and ids.
-
-    Returns
-    -------
-    function
-       A function output from pytest.fixture.
-
-    Example
-    -------
-    >>> size = tvm_tirx.testing.parameter(1, 10, 100)
-    >>> def test_using_size(size):
-    >>>     ... # Test code here
-
-    Or
-
-    >>> shape = tvm_tirx.testing.parameter((5,10), (512,1024), ids=['small','large'])
-    >>> def test_using_size(shape):
-    >>>     ... # Test code here
-
-    Or
-
-    >>> shape = tvm_tirx.testing.parameter(by_dict={'small': (5,10), 'large': (512,1024)})
-    >>> def test_using_size(shape):
-    >>>     ... # Test code here
-
-    """
-
-    if by_dict is not None:
-        if values or ids:
-            raise RuntimeError(
-                "Use of the by_dict parameter cannot be used alongside positional arguments"
-            )
-
-        ids, values = zip(*by_dict.items())
-
-    # Optional cls parameter in case a parameter is defined inside a
-    # class scope.
-    @pytest.fixture(params=values, ids=ids, scope="session")
-    def as_fixture(*_cls, request):
-        return request.param
-
-    return as_fixture
+        kind = target.split()[0]
+    if not env._runtime_enabled(kind):
+        return False
+    try:
+        return bool(tvm_tirx.device_from_target(target).exist)
+    except Exception:  # pylint: disable=broad-except
+        return False
 
 
 def identity_after(x, sleep):

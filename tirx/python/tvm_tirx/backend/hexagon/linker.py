@@ -16,11 +16,13 @@
 # under the License.
 """Hexagon shared-library linking and custom linker registration."""
 
+import functools
 import os
 from pathlib import Path
 
 import tvm_ffi
 
+import tvm_tirx
 from tvm_tirx.ir import StringImm
 from tvm_tirx.support import cc
 
@@ -110,3 +112,16 @@ def link_shared(so_name, objs, extra_args=None):
         cc=linker,
     )
     return 0
+
+
+@functools.cache
+def has_hexagon_toolchain() -> bool:
+    """True if the Hexagon toolchain is available for compilation."""
+    try:
+        return (
+            tvm_tirx.runtime.enabled("llvm")
+            and "hexagon" in tvm_tirx.codegen.llvm.get_targets()
+            and "HEXAGON_TOOLCHAIN" in os.environ
+        )
+    except Exception:  # pylint: disable=broad-except
+        return False

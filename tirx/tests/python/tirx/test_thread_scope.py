@@ -132,7 +132,7 @@ def test_cross_backend_scopes_are_rejected_at_each_boundary():
 
 def test_runtime_only_import_and_removed_interfaces():
     env = os.environ.copy()
-    env["TVM_USE_RUNTIME_LIB"] = "1"
+    env["TVM_TIRX_USE_RUNTIME_LIB"] = "1"
     subprocess.run(
         [
             sys.executable,
