@@ -125,8 +125,9 @@ class InstructionGenerator:
         region = []
         changed = False
         for r in tensor_region.region:
-            bound = self.analyzer.const_int_bound(Range.get_extent(r.begin, r.end))
-            if not self.analyzer.can_prove_equal(bound.max_value, Range.get_extent(r.begin, r.end)):
+            extent = self.analyzer.simplify(Range.get_extent(r.begin, r.end))
+            bound = self.analyzer.const_int_bound(extent)
+            if not self.analyzer.can_prove_equal(bound.max_value, extent):
                 changed = True
             region.append(Range.from_min_extent(r.begin, bound.max_value))
         if changed:
