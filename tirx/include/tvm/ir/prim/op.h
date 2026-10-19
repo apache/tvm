@@ -30,6 +30,239 @@
 #include <type_traits>
 #include <utility>
 namespace tvm {
+
+/*!
+ * \brief add operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief subtraction operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief negation.
+ *
+ * \param a input.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator-(PrimExpr a);
+
+/*!
+ * \brief multiplication operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief division operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief left shift operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief right shift operator
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief greater
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief greater_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief less
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief less_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief not_equal
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief and
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_TIRX_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief or
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_TIRX_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief not
+ *
+ * \param a left operand
+ * \return The result expression.
+ * \note This operator does eager constant folding.
+ */
+TVM_TIRX_DLL PrimExpr operator!(PrimExpr a);
+
+/*!
+ * \brief take bitwise and of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise or of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise xor of two values
+ *
+ * \param a left operand
+ * \param b right operand
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
+
+/*!
+ * \brief take bitwise negation of two values
+ *
+ * \param a the input expression.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_TIRX_DLL PrimExpr operator~(PrimExpr a);
+
+/*! \brief Add an expression in place. */
+inline PrimExpr operator+=(PrimExpr& a, PrimExpr b) {
+  a = a + b;
+  return a;
+}
+
+/*! \brief Subtract an expression in place. */
+inline PrimExpr operator-=(PrimExpr& a, PrimExpr b) {
+  a = a - b;
+  return a;
+}
+
+/*! \brief Multiply an expression in place. */
+inline PrimExpr operator*=(PrimExpr& a, PrimExpr b) {
+  a = a * b;
+  return a;
+}
+
 namespace prim {
 
 /*!
@@ -565,12 +798,6 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc) {
 }  // namespace prim
 
 // additional const expression overloading
-#define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc) \
-  inline PrimExpr Name(PrimExpr& a, PrimExpr b) {   \
-    a = OpFunc(a, b);                               \
-    return a;                                       \
-  }
-
 #define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)                                                \
   inline PrimExpr Name(const PrimExpr& a, float b) { return Name(a, PrimExpr(b)); }              \
   inline PrimExpr Name(float a, const PrimExpr& b) { return Name(PrimExpr(a), b); }              \
@@ -621,9 +848,6 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc) {
     return Name(prim::MakeConst(b.ty(), a), b, loc);                            \
   }
 
-TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
-TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator-=, operator-);
-TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator*=, operator*);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator+);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator-);
 TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(operator*);

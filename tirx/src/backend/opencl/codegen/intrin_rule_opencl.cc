@@ -22,6 +22,7 @@
  * \brief OpenCL intrinsic rules.
  */
 #include <tvm/codegen/intrin_rule.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/attr.h>

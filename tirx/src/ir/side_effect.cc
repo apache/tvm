@@ -35,8 +35,9 @@ CallEffectKind SideEffect(const Expr& expr) {
       expr,
       [&](const CallNode* node,
           ffi::StructuralVisitorObj* visitor) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
-        auto effect = static_cast<CallEffectKind>(
-            effects.get(node->op, static_cast<TCallEffectKind>(CallEffectKind::kOpaque)));
+        auto effect = static_cast<CallEffectKind>(effects.get(
+            node->op,
+            static_cast<decltype(op_attr::kCallEffectKind)::ValueType>(CallEffectKind::kOpaque)));
         kind = std::max(kind, std::min(effect, CallEffectKind::kUpdateState));
         if (kind == CallEffectKind::kUpdateState) return ffi::VisitInterrupt();
         return visitor->DefaultVisitExpected(node);

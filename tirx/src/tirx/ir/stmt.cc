@@ -45,7 +45,8 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
 
-void ValidateTensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value) {
+void ValidateTensorStore(const Expr& dest, const ffi::Array<PrimExpr>& indices,
+                         const PrimExpr& value) {
   TensorType type = dest->ty.as_or_throw<TensorType>();
   TVM_FFI_ICHECK_EQ(type->shape.size(), indices.size())
       << "Destination " << dest << " is " << type->shape.size()
@@ -95,18 +96,12 @@ void ValidateTensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
   }
 }
 
-void ValidateTensorEvaluate(Expr value) {
-  TVM_FFI_ICHECK(!value->IsInstance<VarNode>())
-      << "A tensor variable cannot be used as a scalar Evaluate value; "
-      << "use tensor.data to evaluate its physical pointer";
-}
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
-  refl::TypeAttrDef<TensorTypeNode>()
-      .def(tvm::type_attr::kTensorStoreValidate.name, ValidateTensorStore)
-      .def(tvm::type_attr::kEvaluateValidate.name, ValidateTensorEvaluate);
+  refl::TypeAttrDef<TensorTypeNode>().native_fn_attr<&ValidateTensorStore>(
+      type_attr::kTensorStoreValidateByTy);
 }
 
 }  // namespace tirx

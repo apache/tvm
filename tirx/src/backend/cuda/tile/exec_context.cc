@@ -24,6 +24,7 @@
 #include "exec_context.h"
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 
