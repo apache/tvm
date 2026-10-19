@@ -732,7 +732,8 @@ def ConvertSSA():
 
     Examples
     --------
-    The input deliberately reuses a variable and disables the SSA check.
+    The input uses explicit ``T.Bind`` statements to reuse a variable and disables
+    the SSA check. Ordinary parsed assignments create distinct variable bindings.
 
     .. code-block:: python
 
@@ -746,18 +747,18 @@ def ConvertSSA():
         class Before:
             @T.function(private=True)
             def main():
-                T.bind(16, var=v)
+                T.Bind(v, 16)
                 T.evaluate(v)
-                T.bind(32, var=v)
+                T.Bind(v, 32)
                 T.evaluate(v)
 
         @I.ir_module
         class Expected:
             @T.function(private=True)
             def main():
-                v: T.let[T.int32] = 16
+                v = 16
                 T.evaluate(v)
-                v_1: T.let[T.int32] = 32
+                v_1 = 32
                 T.evaluate(v_1)
 
         def run_pass():

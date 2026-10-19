@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Shared statement nodes and sequence helpers."""
+"""Shared statement nodes."""
 
 from collections.abc import Mapping, Sequence
 from enum import IntEnum
@@ -38,7 +38,9 @@ class Bind(Stmt):
     """Bind node.
 
     Bind a variable to a value in the enclosing scope.
-    Bind has no body field.
+    Parsed TVMScript normally creates bindings with ordinary assignments. Use
+    explicit ``T.Bind(var, value)`` when constructing a binding for an existing
+    variable. Bind has no body field.
     The bound variable is visible in all subsequent statements
     within the same enclosing scope (SeqStmt, ForNode.body, etc.).
 
@@ -125,7 +127,7 @@ class ForKind(IntEnum):
 
 @tvm_ffi.register_object("ir.For")
 class For(Stmt):
-    """Iterate from ``min`` while below ``min + extent``, incrementing by ``step``.
+    """Iterate from ``begin`` while below ``end``, incrementing by ``step``.
 
     Parameters
     ----------
