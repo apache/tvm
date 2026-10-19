@@ -109,7 +109,14 @@ def element_wise_invalid_annotation(
                     Ts.writes([C[vi_1, vj_1]])
                     C[vi_1, vj_1] = B[vi_1, vj_1] + T.float32(1)
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
+
 
 def test_storage_align(use_block_name):
     func = element_wise

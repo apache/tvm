@@ -147,7 +147,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     assert captured["cwd"] == cwd
     assert captured["timeout"] == 12.5
     assert captured["env"]["IKET_TEST_ENV"] == "present"
-    assert captured["env"]["TVM_IKET_INJECTED_CHILD_ENABLE"] == "1"
+    assert captured["env"]["TVM_TIRX_IKET_INJECTED_CHILD_ENABLE"] == "1"
     assert os.environ["IKET_TEST_ENV"] == "inherited"
     assert result.output_dir == target
     assert result.command == (sys.executable, "workload.py")

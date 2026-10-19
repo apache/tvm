@@ -27,7 +27,7 @@ import pytest
 import tvm_tirx.testing
 from tvm.contrib import tvmjs
 
-dtype = tvm_tirx.testing.parameter(
+_dtype_params = (
     "int8",
     "int16",
     "int32",
@@ -42,6 +42,11 @@ dtype = tvm_tirx.testing.parameter(
     "float8_e4m3fn",
     "float8_e5m2",
 )
+
+
+@pytest.fixture(params=_dtype_params, scope="session")
+def dtype(request):
+    return request.param
 
 
 def test_save_load_float8(dtype):

@@ -28,6 +28,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm.relax import script as R
 from tvm.s_tir import script as Ts
+from tvm.testing import env as tvm_env
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
@@ -35,7 +36,7 @@ from tvm_tirx.testing import env
 
 @pytest.mark.gpu
 @pytest.mark.skipif(tvm.runtime.disco is None, reason="disco runtime is not available")
-@pytest.mark.skipif(not env.has_nccl(), reason="need nccl")
+@pytest.mark.skipif(not tvm_env.has_nccl(), reason="need nccl")
 @pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple gpus")
 def test_callback():
     """Simulate lazy loading of parameters in a callback

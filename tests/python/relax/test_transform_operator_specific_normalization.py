@@ -31,7 +31,10 @@ from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T
 
-define_normalization = tvm_tirx.testing.parameter(True)
+
+@pytest.fixture(params=[True], scope="session")
+def define_normalization(request):
+    return request.param
 
 
 @pytest.fixture

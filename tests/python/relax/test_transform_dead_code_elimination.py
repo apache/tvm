@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F841
 
 import pytest
 
@@ -197,7 +197,9 @@ def test_unused_relax_func():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-provide_entry_func_name = tvm_tirx.testing.parameter(True, False)
+@pytest.fixture(params=[True, False], scope="session")
+def provide_entry_func_name(request):
+    return request.param
 
 
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):

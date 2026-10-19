@@ -25,7 +25,10 @@ from tvm.relax import script as R
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
-axis = tvm_tirx.testing.parameter(0, 1)
+
+@pytest.fixture(params=[0, 1], scope="session")
+def axis(request):
+    return request.param
 
 
 @pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")

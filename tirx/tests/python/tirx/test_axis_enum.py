@@ -59,7 +59,7 @@ def test_axis_unknown_name_and_json_roundtrip():
 
 def test_axis_runtime_only_import():
     env = os.environ.copy()
-    env["TVM_USE_RUNTIME_LIB"] = "1"
+    env["TVM_TIRX_USE_RUNTIME_LIB"] = "1"
     subprocess.run(
         [
             sys.executable,

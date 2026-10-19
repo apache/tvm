@@ -23,8 +23,8 @@ import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.testing import env as tvm_env
 from tvm_tirx.ir import TupleType as _TupleType
-from tvm_tirx.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -90,7 +90,7 @@ class Conv2dx2:
 
 
 pytestmark = [
-    pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass"),
+    pytest.mark.skipif(not tvm_env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass"),
 ]
 
 

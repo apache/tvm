@@ -89,7 +89,7 @@ def test_runtime_tensor_allocation():
 
 
 def test_runtime_only_registration():
-    env = {**os.environ, "TVM_USE_RUNTIME_LIB": "1"}
+    env = {**os.environ, "TVM_TIRX_USE_RUNTIME_LIB": "1"}
     subprocess.run(
         [
             sys.executable,
@@ -134,8 +134,8 @@ def test_opencl_memory_scope_registration_load_order(load_order):
         pytest.skip("Compiler library is not available")
     env = {
         **os.environ,
-        "TVM_USE_RUNTIME_LIB": "1" if load_order == "runtime_only" else "0",
-        "TVM_DEVICE_BACKEND_AUTOLOAD": "0",
+        "TVM_TIRX_USE_RUNTIME_LIB": "1" if load_order == "runtime_only" else "0",
+        "TVM_TIRX_DEVICE_BACKEND_AUTOLOAD": "0",
     }
     subprocess.run(
         [

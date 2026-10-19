@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
+from tvm.testing import env as tvm_env
 from tvm_tirx.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
@@ -46,7 +47,7 @@ def reset_seed():
 
 pytestmark = [
     pytest.mark.gpu,
-    pytest.mark.skipif(not env.has_cublas(), reason="need cublas"),
+    pytest.mark.skipif(not tvm_env.has_cublas(), reason="need cublas"),
 ]
 
 

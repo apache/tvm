@@ -23,6 +23,7 @@ import tvm_ffi
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.contrib.pickle_memoize import memoize
+from tvm.testing import env as tvm_env
 from tvm_tirx.testing import env
 
 
@@ -78,7 +79,7 @@ def verify_group_gemm(
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
+@pytest.mark.skipif(not tvm_env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_group_gemm_sm90():
@@ -123,7 +124,7 @@ def test_group_gemm_sm90():
     )
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
+@pytest.mark.skipif(not tvm_env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_group_gemm_sm100():
@@ -307,7 +308,7 @@ def blockwise_bmm(
     return o_np
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
+@pytest.mark.skipif(not tvm_env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_gemm():
@@ -351,7 +352,7 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
+@pytest.mark.skipif(not tvm_env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fp8_e4m3_groupwise_scaled_bmm():

@@ -130,7 +130,9 @@ def setup_test():
     return mod, inputs, reference_exec
 
 
-entry_func_name = tvm_tirx.testing.parameter("main", "func")
+@pytest.fixture(params=["main", "func"], scope="session")
+def entry_func_name(request):
+    return request.param
 
 
 @pytest.mark.gpu

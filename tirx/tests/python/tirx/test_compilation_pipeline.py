@@ -49,9 +49,9 @@ def test_explicit_tile_pass_order_and_diagnostic(monkeypatch, capfd, print_after
     from tvm_tirx.tirx.compilation_pipeline import tirx_pipeline
 
     if print_after_dispatch is None:
-        monkeypatch.delenv("TVM_PRINT_AFTER_TIRX_DISPATCH_OPS", raising=False)
+        monkeypatch.delenv("TVM_TIRX_PRINT_AFTER_DISPATCH_OPS", raising=False)
     else:
-        monkeypatch.setenv("TVM_PRINT_AFTER_TIRX_DISPATCH_OPS", print_after_dispatch)
+        monkeypatch.setenv("TVM_TIRX_PRINT_AFTER_DISPATCH_OPS", print_after_dispatch)
 
     @T.function
     def kernel(A: T.Tensor((2, 4), "float32", layout="default")):

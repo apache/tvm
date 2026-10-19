@@ -34,7 +34,7 @@ from tvm_tirx.testing import env
 @pytest.fixture
 def cuda_source(monkeypatch):
     # Source generation needs neither NVSHMEM headers nor a CUDA device.
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
 
     def generate(function):
         target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})

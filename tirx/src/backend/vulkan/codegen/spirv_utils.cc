@@ -143,7 +143,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
     SPIRVShader shader = cg.BuildFunction(f, entry);
 
-    if (auto path = std::getenv("TVM_VULKAN_DEBUG_SHADER_SAVEPATH")) {
+    if (auto path = std::getenv("TVM_TIRX_VULKAN_DEBUG_SHADER_SAVEPATH")) {
       if (*path) {
         std::stringstream ss;
         ss << path << "/" << f_name << "_";
@@ -157,7 +157,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
       }
     }
 
-    if (!support::GetEnv<bool>("TVM_VULKAN_DISABLE_SHADER_VALIDATION", false)) {
+    if (!support::GetEnv<bool>("TVM_TIRX_VULKAN_DISABLE_SHADER_VALIDATION", false)) {
       spirv_tools.ValidateShader(shader.data);
     }
 

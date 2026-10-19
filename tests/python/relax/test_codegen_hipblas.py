@@ -20,7 +20,7 @@ import pytest
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
-from tvm_tirx.testing import env
+from tvm.testing import env as tvm_env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -43,7 +43,7 @@ def reset_seed():
 
 pytestmark = [
     pytest.mark.gpu,
-    pytest.mark.skipif(not env.has_hipblas(), reason="need hipblas"),
+    pytest.mark.skipif(not tvm_env.has_hipblas(), reason="need hipblas"),
 ]
 
 

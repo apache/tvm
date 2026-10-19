@@ -1142,7 +1142,7 @@ def test_device_host_call_same_func(*, backend_config):
 
 def test_thread_return(monkeypatch, *, backend_config):
     if not env.has_cuda():
-        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+        monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
 
     @I.ir_module
     class Module:

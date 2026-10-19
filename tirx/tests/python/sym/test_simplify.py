@@ -38,7 +38,7 @@ def test_simplify_reshape_flattened_index():
     )
 
 
-dtype = tvm_tirx.testing.parameter(
+_dtype_params = (
     "uint8",
     "uint16",
     "uint32",
@@ -51,6 +51,11 @@ dtype = tvm_tirx.testing.parameter(
     "float32",
     "float64",
 )
+
+
+@pytest.fixture(params=_dtype_params, scope="session")
+def dtype(request):
+    return request.param
 
 
 def test_can_prove_self_identity(dtype):

@@ -236,7 +236,7 @@ def test_typed_buffer_bindings(monkeypatch, alignment):
         B[0] = alias[0]
         storage[0] = T.uint32(0)
 
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
     target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_80"})
     source = tvm_ffi.get_global_func("target.build.cuda")(
         tvm_tirx.IRModule.from_expr(main), target
@@ -278,7 +278,7 @@ def test_vector_pointer_preserves_packed_offset(monkeypatch):
     )
     lowered = tvm_tirx.tirx.transform.LowerIntrin()(tvm_tirx.IRModule.from_expr(func))
 
-    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    monkeypatch.setenv("TVM_TIRX_COMPILE_FORCE_FALLBACK", "1")
     source = tvm_ffi.get_global_func("target.build.cuda")(lowered, target).inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
 

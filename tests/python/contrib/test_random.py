@@ -124,7 +124,7 @@ def test_normal():
 def test_random_fill(target):
     """Tests random_fill function"""
     if not tvm_tirx.testing.device_enabled(target):
-        pytest.skip("target is unavailable or excluded by TVM_TEST_TARGETS")
+        pytest.skip("target is unavailable")
     if not tvm_ffi.get_global_func("tvm.contrib.random.random_fill", True):
         pytest.skip("random_fill is not built")
     dev = tvm_tirx.device_from_target(target)
