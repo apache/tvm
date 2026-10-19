@@ -271,6 +271,15 @@ def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
     instances, or generates constructors. Call it again after loading additional
     bindings to fill missing names or replace generated root aliases with dialect
     aliases. Module-local provenance distinguishes generated aliases from exports.
+
+    Parameters
+    ----------
+    namespace : str
+        Registered type-key namespace to expose, such as ``"tirx"``. Its type
+        aliases take precedence over root ``"ir"`` aliases with the same name.
+    target_module : str or types.ModuleType
+        Module receiving the aliases, or its name in ``sys.modules``. The
+        module must already be loaded when passed by name.
     """
     module = sys.modules[target_module] if isinstance(target_module, str) else target_module
     exports = vars(module)

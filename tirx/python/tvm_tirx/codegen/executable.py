@@ -328,7 +328,19 @@ class Executable:
 
 
 def load_static_library(path, func_names):
-    """Load the .o library at path which implements functions with func_names.
-    Unlike the generic load_module the result will remain as a static_library
-    and will not be relinked on-the-fly into a .so library."""
+    """Load an object file as a static library module without relinking it.
+
+    Parameters
+    ----------
+    path : str
+        Path to the object file (``.o``) to load.
+    func_names : Sequence[str]
+        Names of the functions implemented by the object file.
+
+    Returns
+    -------
+    module : tvm_ffi.Module
+        Static library module that can be imported into another module for
+        linking during export. It is not converted to a shared library here.
+    """
     return _ffi_api.ModuleLoadStaticLibrary(path, func_names)
