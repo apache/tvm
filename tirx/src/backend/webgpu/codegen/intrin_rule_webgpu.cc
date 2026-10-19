@@ -187,21 +187,21 @@ void RegisterWebGPUIntrinRules() {
           sig::arg<IntExpr>("lane", "The source thread id."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffle")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleUp")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>( tvm::op_attr::kInferType)
       .set_attr(tvm::tirx::op_attr::kGlobalSymbol, "subgroupShuffleDown")
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
   // clang-format on
 }
 

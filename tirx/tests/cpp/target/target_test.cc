@@ -27,11 +27,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TargetKindDef("TestTargetKind")
       .set_default_device_type(kDLCPU)
       .def_option<bool>("my_bool")
-      .def_option<ffi::Map<ffi::String, ffi::Any>>(backend::attr::kBackendConfig.name);
+      .def_option<ffi::Map<ffi::String, ffi::Any>>(attr::kBackendConfig.name);
 }
 
 TEST(TargetCreation, TypedBackendConfig) {
-  constexpr auto key = backend::attr::kBackendConfig;
+  constexpr auto key = attr::kBackendConfig;
   using Config = decltype(key)::ValueType;
   Config fallback{{"cuda", Config{{"arch", ffi::String("sm_80")}}}};
   Target absent("TestTargetKind");

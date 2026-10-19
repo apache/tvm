@@ -249,119 +249,6 @@ class FloatImm : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
 
-namespace ffi {
-// Type traits to enable automatic conversion into IntImm, Integer, and Bool
-// when called through the FFI
-template <>
-inline constexpr bool use_default_type_traits_v<IntImm> = false;
-
-// specialize to enable implicit conversion from const char*
-template <>
-struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
-  TVM_FFI_INLINE static IntImm ConvertFallbackValue(int64_t value) {
-    auto value_ty =
-        (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
-            ? PrimType::Int(64)
-            : PrimType::Int(32);
-    return IntImm(value_ty, value);
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<FloatImm> = false;
-
-template <>
-struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
-  TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
-    return FloatImm(PrimType::Float(32), value);
-  }
-};
-template <>
-inline constexpr bool use_default_type_traits_v<tvm::StringImm> = false;
-
-template <>
-struct TypeTraits<tvm::StringImm>
-    : public ObjectRefWithFallbackTraitsBase<tvm::StringImm, ffi::String> {
-  TVM_FFI_INLINE static tvm::StringImm ConvertFallbackValue(ffi::String value) {
-    return tvm::StringImm(value);
-  }
-};
-
-// define automatic conversion from bool, int64_t, double to PrimExpr
-template <>
-inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
-
-template <>
-struct TypeTraits<PrimExpr>
-    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double> {
-  using Base = ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double>;
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return PrimExpr::_type_is_nullable;
-    return TypeTraits<TypedExpr<PrimType>>::CheckAnyStrict(src);
-  }
-
-  TVM_FFI_INLINE static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src) {
-    // A required expression cannot accept None.
-    if (src->type_index == TypeIndex::kTVMFFINone) return std::nullopt;
-    return Base::TryCastFromAnyView(src);
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.PrimExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(StrictBool value) {
-    return IntImm::Bool(value);
-  }
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(int64_t value) {
-    return TypeTraits<IntImm>::ConvertFallbackValue(value);
-  }
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(double value) {
-    return TypeTraits<FloatImm>::ConvertFallbackValue(value);
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<IntExpr> = false;
-
-template <>
-struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int64_t> {
-  using Base = ObjectRefWithFallbackTraitsBase<IntExpr, int64_t>;
-
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (!Base::CheckAnyStrict(src)) return false;
-    if (src->type_index == TypeIndex::kTVMFFINone) return true;
-    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
-    const auto* ty = expr->ty.as<PrimTypeNode>();
-    return ty != nullptr && ty->dtype.lanes == 1 &&
-           (ty->dtype.code == kDLInt || ty->dtype.code == kDLUInt);
-  }
-
-  TVM_FFI_INLINE static IntExpr ConvertFallbackValue(int64_t value) {
-    return TypeTraits<PrimExpr>::ConvertFallbackValue(value).as_or_throw<IntExpr>();
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.IntExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-};
-
-// Generic Expr arguments accept primitive/string literals and arrays of expressions.
-template <>
-inline constexpr bool use_default_type_traits_v<Expr> = false;
-
-template <>
-struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
-  TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
-  TVM_FFI_INLINE static Expr ConvertFallbackValue(ffi::String value) { return StringImm(value); }
-  static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
-};
-}  // namespace ffi
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -391,18 +278,6 @@ class Tuple : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
-
-// Use ordinary inline: array elements recursively invoke this conversion.
-inline std::optional<Expr> ffi::TypeTraits<Expr>::TryCastFromAnyView(const TVMFFIAny* src) {
-  if (auto value =
-          ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String>::TryCastFromAnyView(src)) {
-    return value;
-  }
-  if (auto fields = ffi::TypeTraits<ffi::Array<Expr>>::TryCastFromAnyView(src)) {
-    return tvm::Tuple(std::move(*fields));
-  }
-  return std::nullopt;
-}
 
 /*! \brief Get the index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
@@ -463,11 +338,15 @@ class TensorLoadNode : public ExprNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorLoad", TensorLoadNode, ExprNode);
 };
 
+namespace type_attr {
 /*!
  * \brief Infer a load's primitive result type from its populated source, indices and location.
  * \note The callback must derive the result from those inputs, not the unpublished result type.
  */
-using FTensorLoadInferType = ffi::reflection::NativeFunctionView<PrimType(const TensorLoadNode*)>;
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<PrimType(const TensorLoadNode*)>>
+    kTensorLoadInferType{"__tvm_tensor_load_infer_type__"};
+}  // namespace type_attr
 
 /*! \brief Managed reference to TensorLoadNode. */
 class TensorLoad : public PrimExpr {
@@ -486,220 +365,6 @@ class TensorLoad : public PrimExpr {
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorLoadNode);
 };
-
-/*!
- * \brief add operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief subtraction operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief negation.
- *
- * \param a input.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator-(PrimExpr a);
-
-/*!
- * \brief multiplication operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief division operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief left shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief right shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief greater
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief greater_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief less
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief less_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief not_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief and
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_TIRX_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief or
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_TIRX_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief not
- *
- * \param a left operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_TIRX_DLL PrimExpr operator!(PrimExpr a);
-
-/*!
- * \brief take bitwise and of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief take bitwise or of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief take bitwise xor of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
-
-/*!
- * \brief take bitwise negation of two values
- *
- * \param a the input expression.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_TIRX_DLL PrimExpr operator~(PrimExpr a);
 
 /*!
  * \brief A local variable in the IR.
@@ -1008,6 +673,11 @@ class Call : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
+namespace op_attr {
+/*! \brief The runtime effect of an operator call. */
+inline constexpr ffi::reflection::AttrKey<CallEffectKind> kCallEffectKind{"TCallEffectKind"};
+}  // namespace op_attr
+
 /*! \brief range over one dimension */
 class RangeNode : public ffi::Object {
  public:
@@ -1134,12 +804,75 @@ TVM_TIRX_DLL CallEffectKind SideEffect(const Expr& expr);
 namespace ffi {
 
 template <>
-inline constexpr bool use_default_type_traits_v<TensorRegion> = false;
+inline constexpr bool use_default_type_traits_v<IntExpr> = false;
 
 template <>
-struct TypeTraits<TensorRegion> : public ObjectRefWithFallbackTraitsBase<TensorRegion, TensorLoad> {
-  TVM_TIRX_DLL static TensorRegion ConvertFallbackValue(TensorLoad value);
+struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int64_t> {
+  using Base = ObjectRefWithFallbackTraitsBase<IntExpr, int64_t>;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (!Base::CheckAnyStrict(src)) return false;
+    if (src->type_index == TypeIndex::kTVMFFINone) return true;
+    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
+    const auto* ty = expr->ty.as<PrimTypeNode>();
+    return ty != nullptr && ty->dtype.lanes == 1 &&
+           (ty->dtype.code == kDLInt || ty->dtype.code == kDLUInt);
+  }
+
+  TVM_FFI_INLINE static IntExpr ConvertFallbackValue(int64_t value) {
+    return TypeTraits<PrimExpr>::ConvertFallbackValue(value).as_or_throw<IntExpr>();
+  }
+
+  TVM_FFI_INLINE static std::string TypeStr() { return "ir.IntExpr"; }
+
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
+  }
 };
+
+template <>
+inline constexpr bool use_default_type_traits_v<tvm::StringImm> = false;
+
+template <>
+struct TypeTraits<tvm::StringImm>
+    : public ObjectRefWithFallbackTraitsBase<tvm::StringImm, ffi::String> {
+  TVM_FFI_INLINE static tvm::StringImm ConvertFallbackValue(ffi::String value) {
+    return tvm::StringImm(value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<IntImm> = false;
+
+template <>
+struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
+  TVM_FFI_INLINE static IntImm ConvertFallbackValue(int64_t value) {
+    auto value_ty =
+        (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+            ? PrimType::Int(64)
+            : PrimType::Int(32);
+    return IntImm(value_ty, value);
+  }
+};
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, IntImmNode> = true;
+
+template <>
+inline constexpr bool use_default_type_traits_v<FloatImm> = false;
+
+template <>
+struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
+  TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
+    return FloatImm(PrimType::Float(32), value);
+  }
+};
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, FloatImmNode> = true;
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, TensorLoadNode> = true;
 
 template <>
 inline constexpr bool use_default_type_traits_v<PrimVar> = false;
@@ -1180,28 +913,14 @@ struct TypeTraits<PrimVar> : public ObjectRefTypeTraitsBase<PrimVar> {
 };
 
 template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, IntImmNode> = true;
+inline constexpr bool use_default_type_traits_v<TensorRegion> = false;
+
 template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, FloatImmNode> = true;
-template <>
-inline constexpr bool object_ref_contains_v<PrimExpr, TensorLoadNode> = true;
+struct TypeTraits<TensorRegion> : public ObjectRefWithFallbackTraitsBase<TensorRegion, TensorLoad> {
+  TVM_TIRX_DLL static TensorRegion ConvertFallbackValue(TensorLoad value);
+};
 
 }  // namespace ffi
-
-namespace op_attr {
-/*! \brief Use integer to record the kind. */
-inline constexpr ffi::reflection::AttrKey<int64_t> kCallEffectKind{"TCallEffectKind"};
-}  // namespace op_attr
-
-// Compatibility names; new callers can deduce the value type from the key.
-using TCallEffectKind = decltype(op_attr::kCallEffectKind)::ValueType;
-
-namespace type_attr {
-inline constexpr ffi::reflection::AttrKey<FTensorLoadInferType> kTensorLoadInferType{
-    "__tvm_tensor_load_infer_type__"};
-inline constexpr ffi::reflection::AttrKey<ffi::Function> kSubscriptExprRealize{
-    "__tvm_subscript_expr_realize__"};
-}  // namespace type_attr
 
 }  // namespace tvm
 

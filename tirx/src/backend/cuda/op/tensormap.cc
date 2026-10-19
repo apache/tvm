@@ -63,7 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .signature(sig::arg("descriptor", "The descriptor."), sig::arg("data", "The input data."),
                  sig::var_args<PrimExpr>("args"), sig::call_attrs<TensorMapEncodeTiledAttr>())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 }  // namespace cuda

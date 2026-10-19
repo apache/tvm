@@ -35,26 +35,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("src_ptr", "The source pointer."),
                  sig::arg<IntExpr>("src_offset", "The source offset."),
                  sig::arg<IntExpr>("dst_stride", "The destination stride."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.cuda.mma_fill")
       .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
                  sig::arg("local_ptr", "The local pointer."),
                  sig::arg<IntExpr>("offset", "The offset."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.ptx_legacy.ldmatrix")
       .signature(sig::arg("trans"), sig::arg<IntExpr>("num"), sig::arg("dtype"),
                  sig::arg("local_ptr"), sig::arg<IntExpr>("local_offset"), sig::arg("smem_ptr"),
                  sig::arg<IntExpr>("smem_offset"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
   OpDef("tirx.ptx_legacy.mma")
       .signature(sig::arg("shape"), sig::arg("a_layout"), sig::arg("b_layout"), sig::arg("a_dtype"),
                  sig::arg("b_dtype"), sig::arg("c_dtype"), sig::arg("a_ptr"),
                  sig::arg<IntExpr>("a_offset"), sig::arg("b_ptr"), sig::arg<IntExpr>("b_offset"),
                  sig::arg("acc_ptr"), sig::arg<IntExpr>("c_offset"), sig::arg("saturate"),
                  sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 }  // namespace tirx
