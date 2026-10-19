@@ -123,6 +123,36 @@ def _allocate_missing_tensors(stmt, alloc_pool_start: int):
 
 @function_pass(opt_level=0, name="TrnNaiveAllocator")
 class TrnNaiveAllocator:
+    """Assign consecutive byte offsets to unaddressed tensor allocations.
+
+    Handles constant-sized ``trn.sbuf``, ``shared``, and ``shared.dyn`` tensors;
+    SBUF sizes count bytes per partition. New offsets follow existing
+    allocations, without lifetime-based reuse.
+
+    Examples
+    --------
+    .. code:: python
+
+        import tvm_tirx as tvm
+        from tvm_tirx.script import tirx as T
+        from tvm_tirx.backend.trn.transform import TrnNaiveAllocator
+
+        @T.ir_module
+        class Before:
+            @T.function
+            def main():
+                A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+
+        @T.ir_module
+        class Expected:
+            @T.function
+            def main():
+                A = T.alloc_tensor((0,), ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+
+        after = TrnNaiveAllocator()(Before)
+        tvm.ir.assert_structural_equal(after, Expected)
+    """
+
     def transform_function(self, func, mod, ctx):
         alloc_pool_start = _get_alloc_pool_start(func.body)
         new_body = _allocate_missing_tensors(func.body, alloc_pool_start)

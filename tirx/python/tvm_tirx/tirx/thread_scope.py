@@ -28,8 +28,10 @@ from . import _ffi_api
 class ThreadScope(Enum, Scriptable, type_key="tirx.ThreadScope", init=False):
     """A registered thread scope, queried by its qualified backend.scope name.
 
-    Backend and hierarchy rank are enum attributes. The registration index
-    does not determine the hierarchy.
+    Obtain a tag with ``ThreadScope.get("cuda.warp")``, for example; unknown
+    names raise an error. ``backend`` identifies its owner and ``rank`` orders
+    the hierarchy, with smaller ranks denoting wider scopes. The registration
+    index does not determine the hierarchy.
     """
 
     @classmethod

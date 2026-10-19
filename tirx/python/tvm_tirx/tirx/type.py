@@ -26,12 +26,16 @@ from . import _ffi_api
 
 @tvm_ffi.register_object("tirx.TensorMapType")
 class TensorMapType(Type):
-    """TensorMapType used in the low-level TIR.
+    """The type of a tensor-map descriptor used by backend memory operations.
+
+    A pointer to this type represents descriptor storage, rather than a tensor's
+    element data. The descriptor's shape and layout are defined by the operations
+    that create it, not by fields on this type.
 
     Parameters
     ----------
-    loc : tvm_tirx.ir.Location
-        The loc information.
+    loc : tvm_tirx.ir.Location, optional
+        The source location of the type.
     """
 
     def __init__(self, loc: Location = UNKNOWN_LOC):

@@ -31,24 +31,23 @@ from . import _ffi_api
 
 @tvm_ffi.register_object("tirx.Function")
 class Function(BaseFunc, Scriptable):
-    """A function declaration expression.
+    """A TIRx function definition or declaration.
+
+    The function's ``ty`` is a FuncType derived from parameter types and
+    ``ret_type``. A present body is normalized to a SeqStmt.
 
     Parameters
     ----------
-    params: List[Union[tvm_tirx.tirx.Var, tvm_tirx.tirx.Var]]
-        List of input parameters to the function.
-
-    body: Stmt | Sequence[Stmt] | None
-        The body of the function, or None for a declaration.
-
-    ret_type: tvm_tirx.ir.Type
-        The return type annotation of the function.
-
-    attrs: Optional[tvm.Attrs]
-        Attributes of the function, can be None
-
+    params : list[tvm_tirx.ir.Var]
+        Input parameters, in calling order.
+    body : Stmt or Sequence[Stmt] or None
+        The function body, or None for a declaration without an implementation.
+    ret_type : tvm_tirx.ir.Type, optional
+        The return type; defaults to MissingType until supplied or inferred.
+    attrs : tvm_tirx.ir.DictAttrs, optional
+        Function attributes, empty by default.
     loc : Location, optional
-        The location of this itervar in the source code.
+        The source location of the function.
     """
 
     body: SeqStmt | None
@@ -83,7 +82,7 @@ class Function(BaseFunc, Scriptable):
         )  # type: ignore
 
     def with_body(self, new_body: Stmt | Sequence[Stmt] | None, loc: Location = UNKNOWN_LOC):
-        """Create a new Function with the same set signatures but a new body.
+        """Create a function with the same parameters, return type, and attributes but a new body.
 
         Parameters
         ----------
@@ -91,7 +90,7 @@ class Function(BaseFunc, Scriptable):
             The new body, or None for a declaration.
 
         loc : Location, optional
-            The location of this itervar in the source code.
+            The source location of the function.
 
         Returns
         -------

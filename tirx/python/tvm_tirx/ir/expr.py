@@ -52,7 +52,12 @@ def _convert_subscript_index(index):
 
 @tvm_ffi.register_object("ir.Expr")
 class Expr(Node):
-    """Base class of all the expressions."""
+    """Base class of typed IR expressions.
+
+    ``ty`` holds the expression's type, which may be :class:`MissingType` during
+    construction. ``loc`` records its source location. Concrete subclasses define
+    operands and may expose operations through their type.
+    """
 
     loc: Location
     ty: "tvm_tirx.ir.Type"
@@ -498,10 +503,19 @@ class TupleGetItem(_CallableExprWithOp):
 
 @tvm_ffi.register_object("ir.TensorLoad")
 class TensorLoad(_CallableExprWithOp):
-    """An indexed load from an expression source.
+    """Load an element or vector from an indexed expression source.
 
-    The source type's registered inference hook validates the inputs and
-    derives the primitive result type.
+    The source type's registered inference hook validates the inputs and derives
+    the primitive result type.
+
+    Parameters
+    ----------
+    source : Expr
+        The tensor or other expression supporting indexed loads.
+    indices : list[Expr]
+        Indices interpreted by the source type, in dimension order.
+    loc : Location, optional
+        The source location of the load.
     """
 
     source: Expr
@@ -523,7 +537,7 @@ class FloatImm(Constant):
 
     Parameters
     ----------
-    ty : str, DataType or PrimType
+    ty : str, tvm_ffi.dtype or PrimType
         The data type
 
     value : float
@@ -557,7 +571,7 @@ class IntImm(Constant):
 
     Parameters
     ----------
-    ty : str, DataType or PrimType
+    ty : str, tvm_ffi.dtype or PrimType
         The data type
 
     value : int
@@ -602,7 +616,17 @@ class IntImm(Constant):
 
 @tvm_ffi.register_object("ir.GenericConst")
 class GenericConst(_ExprCallable, Constant):
-    """A literal payload with an explicit expression type."""
+    """A literal payload with an explicit expression type.
+
+    Parameters
+    ----------
+    ty : Type
+        The type assigned to the literal.
+    value : object
+        The payload, convertible to an FFI value.
+    loc : Location, optional
+        The source location of the literal.
+    """
 
     def __init__(self, ty: "tvm_tirx.ir.Type", value, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GenericConst, ty, value, loc)
@@ -631,7 +655,15 @@ class DataTypeImm(Constant):
 
 @tvm_ffi.register_object("ir.StringImm")
 class StringImm(Constant):
-    """A string literal with StringType."""
+    """A string literal with :class:`StringType`.
+
+    Parameters
+    ----------
+    value : str
+        The literal text.
+    loc : Location, optional
+        The source location of the literal.
+    """
 
     value: str
 
@@ -662,13 +694,28 @@ class CallEffectKind(IntEnum):
 
 @tvm_ffi.register_object("ir.Call")
 class Call(_CallableExprWithOp):
-    """Core function call node.
+    """Call a registered operator or another callable IR expression.
 
     Omitted or ``None`` keyword-only ``ty`` uses available result inference,
     or a missing type when no deduction is available. Explicit types, including
     ``Type.missing()``, are preserved exactly. Inference errors propagate.
     Construction permits provisional IR; :meth:`validate` checks the operator
     contract explicitly after inputs are ready.
+
+    Parameters
+    ----------
+    op : Expr or str
+        The callee expression, or a registered operator name resolved by ``Op.get``.
+    args : sequence[Expr]
+        Positional value arguments.
+    attrs : Attrs or dict, optional
+        Operator-specific attributes. A dictionary becomes ``DictAttrs``.
+    ty_args : sequence[Type], optional
+        Explicit type arguments, empty by default.
+    loc : Location, optional
+        The source location of the call.
+    ty : Type or str, optional
+        Keyword-only result type; a primitive dtype string is accepted.
     """
 
     op: Expr
@@ -762,15 +809,18 @@ class Var(_CallableExprWithOp):
 
     Parameters
     ----------
-    name : str
-        The name of the variable.
+    name : str, optional
+        The display name. Variables with the same name remain distinct bindings.
 
     ty : Optional[Type or str]
-        The exact type of the variable.  A string denotes a primitive dtype.
+        The variable type, or MissingType when omitted. A string denotes a
+        primitive dtype; ``"handle"`` denotes a pointer to void.
 
     loc : Location, optional
         Location that points to the original source code.
 
+    name_hint : str, optional
+        Keyword-only alternative to ``name``; supply exactly one name spelling.
     """
 
     name: str
@@ -846,7 +896,7 @@ class LambdaExpr(StagingExpr, Scriptable):
     return types.
 
     As a StagingExpr, LambdaExpr is eliminated during compilation and does not
-    remain in executable IR.
+    remain in executable IR. In TVMScript, use ``T.Lambda`` to construct it.
 
     Parameters
     ----------
@@ -883,27 +933,18 @@ class LambdaExpr(StagingExpr, Scriptable):
 
 @tvm_ffi.register_object("ir.Range")
 class Range(Node, Scriptable):
-    """Represent a range in TVM.
+    """A half-open interval stored as ``min`` and ``extent``.
 
-    You do not need to create a Range explicitly.
-    Python lists and tuples will be converted automatically to a Range in API functions.
+    Use :meth:`from_min_extent` when the extent is already known.
 
     Parameters
     ----------
     begin : Expr
-        The begin value of the range when end is not None.
-        Otherwise it is the extent of the range ``[0, begin)``.
-
-    end : Optional[Expr]
-        The end value of the range.
-
+        The lower bound when ``end`` is provided; otherwise the extent of ``[0, begin)``.
+    end : Expr, optional
+        The exclusive upper bound. With two arguments, ``extent`` is ``end - begin``.
     loc : Location, optional
-        The location of this node in the source code.
-
-    Note
-    ----
-    The constructor creates the range `[begin, end)`
-    if the end argument is not None. Otherwise, it creates `[0, begin)`.
+        The source location of the range.
     """
 
     begin: Expr

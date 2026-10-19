@@ -25,14 +25,19 @@ from .core import PassInstrument, pass_instrument
 
 
 class PassTimingInstrument(PassInstrument):
-    """A wrapper to create a passes time instrument that implemented in C++"""
+    """Measure time spent in passes without changing their IR.
+
+    Install in ``PassContext(instruments=[PassTimingInstrument()])`` and call
+    :meth:`render` inside that context to read the accumulated profile.
+    """
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_instrument_api.MakePassTimingInstrument)
 
     @staticmethod
     def render():
-        """Retrieve rendered time profile result
+        """Retrieve the rendered pass timing profile.
+
         Returns
         -------
         string : string
@@ -45,7 +50,7 @@ class PassTimingInstrument(PassInstrument):
 
             timing_inst = PassTimingInstrument()
             with tvm_tirx.ir.transform.PassContext(instruments=[timing_inst]):
-                relax_mod = relax.transform.FuseOps()(relax_mod)
+                mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
                 # before exiting the context, get profile results.
                 profiles = timing_inst.render()
         """
@@ -54,8 +59,23 @@ class PassTimingInstrument(PassInstrument):
 
 @pass_instrument
 class PassPrintingInstrument:
-    """A pass instrument to print if before or
-    print ir after each element of a named pass."""
+    """Print IR before and/or after passes selected by exact pass name.
+
+    Parameters
+    ----------
+    print_before_pass_names : Sequence[str]
+        Pass names whose input IR should be printed.
+    print_after_pass_names : Sequence[str]
+        Pass names whose output IR should be printed.
+
+    Examples
+    --------
+    This observer leaves the IR unchanged::
+
+        observer = PassPrintingInstrument([], ["tirx.StmtSimplify"])
+        with tvm_tirx.ir.transform.PassContext(instruments=[observer]):
+            after = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+    """
 
     def __init__(self, print_before_pass_names, print_after_pass_names):
         self.print_before_pass_names = print_before_pass_names
@@ -72,7 +92,11 @@ class PassPrintingInstrument:
 
 @pass_instrument
 class PrintAfterAll:
-    """Print the name of the pass, the IR, only after passes execute."""
+    """Print pass metadata and output IR after every executed pass.
+
+    Use ``PassContext(instruments=[PrintAfterAll()])`` to observe a pipeline.
+    This instrument does not transform the module.
+    """
 
     def run_after_pass(self, mod, info):
         print(f"After Running Pass: {info}")
@@ -81,7 +105,11 @@ class PrintAfterAll:
 
 @pass_instrument
 class PrintBeforeAll:
-    """Print the name of the pass, the IR, only before passes execute."""
+    """Print pass metadata and input IR before every executed pass.
+
+    Use ``PassContext(instruments=[PrintBeforeAll()])`` to observe a pipeline.
+    This instrument does not transform the module.
+    """
 
     def run_before_pass(self, mod, info):
         print(f"Before Running Pass: {info}")
@@ -90,7 +118,27 @@ class PrintBeforeAll:
 
 @pass_instrument
 class DumpIR:
-    """Dump the IR after the pass runs."""
+    """Write each pass's output TVMScript to a numbered file.
+
+    Files are named ``000_<pass_name>.py``, ``001_<pass_name>.py``, and so on,
+    with unsafe filename characters replaced by underscores. This instrument
+    observes the module without changing it.
+
+    Parameters
+    ----------
+    dump_dir : pathlib.Path or str
+        Output directory, created when the first pass finishes.
+    refresh : bool
+        If true, remove an existing directory only when all of its entries
+        match the numbered dump-file pattern; otherwise preserve it.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        with tvm_tirx.ir.transform.PassContext(instruments=[DumpIR("pass_ir")]):
+            after = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+    """
 
     def __init__(self, dump_dir: Path | str, refresh: bool = False):
         if isinstance(dump_dir, Path):

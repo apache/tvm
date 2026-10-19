@@ -83,7 +83,15 @@ class SourceLoc(Location):
 
 @register_object("ir.CallSiteLoc")
 class CallSiteLoc(Location):
-    """A callee's location together with the location of its caller."""
+    """A callee's source location together with its caller's location.
+
+    Parameters
+    ----------
+    callee : Location
+        The location of the called or inlined code.
+    caller : Location
+        The calling location, which may itself be a CallSiteLoc.
+    """
 
     def __init__(self, callee: Location, caller: Location):
         self.__init_handle_by_constructor__(_ffi_api.CallSiteLoc, callee, caller)

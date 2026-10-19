@@ -33,20 +33,20 @@ from . import _ffi_api
 
 @tvm_ffi.register_object("tirx.IndexMap")
 class IndexMap(tvm_ffi.Object):
-    """A mapping from multi-dimensional indices to another set of multi-dimensional indices
+    """Map input index variables to expressions for output indices.
+
+    Use :meth:`from_func` to derive a map from a Python callable, or supply the
+    input variables and output expressions directly.
 
     Parameters
     ----------
-    initial_indices : List[Var]
-        Variables representing the indices prior to remapping.
-    final_indices : List[Expr]
-        Expressions defining the indices after remapping.
-    inverse_index_map : Union[Callable, Optional[IndexMap]]
-        The optional pre-defined inverse index map.
-        When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
-        Otherwise, the inverse index map will be computed on the fly.
-        It is the user's responsibility to ensure the correctness of the pre-defined inverse
-        index map.
+    initial_indices : list[Var]
+        Bound variables representing the input coordinates, in dimension order.
+    final_indices : list[Expr]
+        Output coordinate expressions in terms of the input variables.
+    inverse_index_map : IndexMap or Callable or None
+        A supplied inverse, or None to compute the inverse when requested. The
+        caller is responsible for correctness of a supplied inverse.
     """
 
     initial_indices: list[Var]

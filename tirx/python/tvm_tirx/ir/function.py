@@ -38,7 +38,12 @@ class CallingConv(IntEnum):
 
 @tvm_ffi.register_object("ir.BaseFunc")
 class BaseFunc(_CallableExprWithOp):
-    """Base class of all functions."""
+    """Base class for callable IR function definitions.
+
+    ``attrs`` stores function metadata as :class:`DictAttrs`. Attribute update
+    methods return a new function, preserving the original. Concrete function
+    classes define the parameters, body, and function type in ``ty``.
+    """
 
     def __bool__(self) -> bool:
         return True
@@ -80,7 +85,7 @@ class BaseFunc(_CallableExprWithOp):
         )
 
     def with_attrs(self, attr_map: DictAttrs | dict[str, tvm_ffi.Object]) -> "BaseFunc":
-        """Copy the IRModule and add the given attribute map to it.
+        """Copy the function and add the given attribute map to it.
         Parameters
         ----------
         attr_map: Union[DictAttrs, Dict[str, tvm_ffi.Object]]
@@ -96,12 +101,12 @@ class BaseFunc(_CallableExprWithOp):
         return _ffi_api.BaseFuncWithAttrs(self, attr_map)
 
     def without_attr(self, attr_key: str) -> "BaseFunc":
-        """Create a new copy of the function with an attribute without provided key.
+        """Copy the function and remove the given attribute key.
 
         Parameters
         ----------
         attr_key : str
-            The attribute key to delete from the attrubte pairs.
+            The attribute key to delete from the attribute pairs.
 
 
         Returns

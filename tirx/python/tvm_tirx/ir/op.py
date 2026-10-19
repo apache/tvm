@@ -32,7 +32,12 @@ from .expr import Expr
 
 @tvm_ffi.register_object("ir.Op")
 class Op(Expr):
-    """Primitive operator in the IR."""
+    """A registered primitive operator used as a :class:`Call` callee.
+
+    Retrieve the shared operator with ``Op.get(name)``. Its registration supplies
+    argument signatures, attributes, validation, and result-type inference;
+    constructing a Call does not itself execute the operator.
+    """
 
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")

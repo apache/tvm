@@ -32,6 +32,13 @@ from .thread_scope import ThreadScope
 
 @tvm_ffi.register_object("tirx.Layout")
 class Layout(tvm_ffi.Object):
+    """Base class for mappings from logical indices to named physical axes.
+
+    Concrete layouts describe memory offsets and thread ownership.
+    :meth:`apply` returns coordinates keyed by axis name; :meth:`size` describes
+    the input size and :meth:`span` the covered output span.
+    """
+
     def check_well_formed(self) -> None:
         """Check whether the layout is well formed.
 
@@ -280,7 +287,22 @@ class _AxisMeta(type(Enum)):
 
 
 class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
-    """Layout axis wrapper."""
+    """A named physical coordinate used by a layout.
+
+    Use ``Axis.get(name)`` or a registered attribute such as ``Axis.m``. Axis
+    metadata identifies memory or thread coordinates and any owning backend;
+    ``value @ axis`` attaches a stride or offset to that coordinate.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        memory = T.Axis.get("m")  # Also available as T.Axis.m.
+        layout = T.TileLayout(T.S[8 : 2 @ memory])
+        assert int(layout.apply(3)["m"]) == 6
+    """
 
     @property
     def name(self) -> str:
@@ -504,7 +526,17 @@ def _to_offset_expr(x: _OffsetExprLike) -> _OffsetExpr:
 
 @tvm_ffi.register_object("tirx.Iter")
 class Iter(tvm_ffi.Object):
-    """A memory layout that tiles data across devices."""
+    """One extent-and-stride factor contributing to a layout axis.
+
+    Parameters
+    ----------
+    extent : Expr
+        Number of positions in this factor.
+    stride : Expr
+        Increment on the output axis for each position.
+    axis : Axis or str
+        Output coordinate receiving the contribution, resolved by name for strings.
+    """
 
     extent: Expr
     stride: Expr
@@ -543,7 +575,29 @@ def _spec_to_iters(pair) -> list:
 
 @tvm_ffi.register_object("tirx.TileLayout")
 class TileLayout(Layout):
-    """A memory layout that tiles data across devices."""
+    """Map logical indices to memory and ownership coordinates using strided factors.
+
+    ``shard`` holds the factors for distinct logical elements; ``replica`` holds
+    factors for copies of those elements. ``offset`` gives an origin per axis.
+    Use :meth:`from_iters` to construct these fields directly.
+
+    Parameters
+    ----------
+    spec : layout specification
+        Compose ``S[shape:stride]`` shard factors, optional ``R[shape:stride]``
+        replica factors, and offsets with ``+``. Integer strides use the memory
+        axis ``m``; ``stride @ Axis.name`` selects another axis. Omitted strides
+        use contiguous row-major memory order.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        layout = T.TileLayout(T.S[4, 8])  # Contiguous 4-by-8 tile.
+        assert int(layout.apply(1, 2)["m"]) == 10
+    """
 
     shard: list[Iter]
     replicate: list[Iter]
@@ -640,12 +694,34 @@ class TileLayout(Layout):
 
 @tvm_ffi.register_object("tirx.ComposeLayout")
 class ComposeLayout(Layout):
-    """A memory layout that swizzles a tile layout.
+    """Apply an XOR swizzle to the memory coordinate of a tile layout.
 
-    ``per_element`` / ``swizzle_len`` / ``atom_len`` / ``swizzle_inner`` carry the
-    swizzle (formerly the standalone ``SwizzleLayout``); ``tile_layout`` is the
-    tiled memory map the swizzle is applied to. A bare swizzle is a
-    ``ComposeLayout`` over a trivial identity tile.
+    All three bit counts must be nonnegative.
+
+    Parameters
+    ----------
+    per_element : int
+        Number of low address bits left unchanged by the swizzle.
+    swizzle_len : int
+        Number of bits in each XOR group; zero disables swizzling.
+    atom_len : int
+        Separation between the bit groups; must be at least ``swizzle_len``.
+    tile_layout : TileLayout
+        The underlying mapping to memory coordinates.
+    swizzle_inner : bool, optional
+        If true, XOR the higher group into the lower group; otherwise XOR the
+        lower group into the higher group. Defaults to true.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        tile = T.TileLayout(T.S[8, 8])
+        layout = T.ComposeLayout(0, 2, 3, tile)
+        # Memory offset 10 becomes 10 ^ ((10 >> 3) & 3) = 11.
+        assert int(layout.apply(1, 2)["m"]) == 11
     """
 
     per_element: int

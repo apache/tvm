@@ -24,7 +24,19 @@ from . import transform as trn_transform
 
 
 def trn_pipeline(*, target=None):
-    """The Trainium pipeline used in tvm_tirx.tirx.compile."""
+    """Construct the Trainium lowering and host/device finalization stages.
+
+    Parameters
+    ----------
+    target : Target or None
+        Target to bind before lowering, or None to retain existing targets.
+
+    Returns
+    -------
+    stages : tuple
+        The lowering ModulePass, host-finalization factory, and
+        device-finalization factory consumed by ``tvm_tirx.tirx.compile``.
+    """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(
@@ -52,7 +64,7 @@ def trn_pipeline(*, target=None):
 
 
 def finalize_device_passes_trn():  # pylint: disable=unused-argument
-    """The finalization passes for the Trainium backend."""
+    """Construct the statement-simplification stage for Trainium device IR."""
     return tvm_tirx.ir.transform.Sequential([tirx.transform.StmtSimplify()])
 
 
