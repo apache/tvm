@@ -33,7 +33,11 @@ from ..thread_scope import ThreadScope
 
 @register_object("tirx.DispatchContext")
 class DispatchContext(tvm_ffi.Object, Scriptable):
-    """DispatchContext node.
+    """Execution context supplied to a tile instruction's lowering callback.
+
+    Carries the target, execution scope and variable bounds used to choose
+    an implementation, together with accumulated allocations and setup
+    statements. Instances are normally supplied by :func:`~tvm_tirx.tirx.transform.TileDispatch`.
 
     Parameters
     ----------
@@ -44,16 +48,29 @@ class DispatchContext(tvm_ffi.Object, Scriptable):
         The execution scope of the dispatch context.
 
     launch_params : Dict[str, Tuple[Var, Expr]]
-        The launch parameters of the dispatch context.
+        Hardware launch tag to ``(index variable, extent)`` pairs.
 
     var_range_map : Dict[Var, Range]
         A map from loop variables to their ranges.
 
+    alloc_only : bool, optional
+        Whether dispatch is collecting allocations rather than emitting the
+        instruction body. Defaults to False.
+
     callbacks : Dict[str, tvm_ffi.Object]
-        The callbacks of the dispatch context.
+        Named callbacks used to request allocations and initialization statements.
 
     shared_state : Dict[str, tvm_ffi.Object]
         Shared state persisting across dispatch calls within a single lowering pass.
+
+    inter, intra : Dict[str, list], optional
+        Per-axis ``[extent, offset]`` pairs for the execution context's inter-team
+        and intra-team views. An empty map means no execution-context tracking
+        is available.
+
+    scope_kind : str, optional
+        Backend-local execution-scope name, such as CUDA's ``kernel``, ``cta``
+        or ``warp``. Empty when unspecified.
     """
 
     target: Target

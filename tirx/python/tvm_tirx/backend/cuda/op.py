@@ -547,12 +547,74 @@ _TCGEN05_CTA_GROUP = (1, 2)
 
 @tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
 class TCGen05InstrDescriptorAttrs(Attrs):
-    """Static options for the dense tcgen05 instruction descriptor."""
+    """Static options carried by :func:`tcgen05_encode_instr_descriptor`.
+
+    Parameters
+    ----------
+    d_dtype : str
+        Element type of the output matrix D.
+    a_dtype : str
+        Element type of the input matrix A.
+    b_dtype : str
+        Element type of the input matrix B.
+    M : int
+        Number of rows in the output tile.
+    N : int
+        Number of columns in the output tile.
+    K : int
+        Reduction dimension of the input tiles.
+    trans_a : bool
+        Whether to transpose A.
+    trans_b : bool
+        Whether to transpose B.
+    n_cta_groups : int
+        Number of CTA groups, 1 (default) or 2.
+    neg_a : bool
+        Whether to negate A; defaults to False.
+    neg_b : bool
+        Whether to negate B; defaults to False.
+    sat_d : bool
+        Whether to saturate D; defaults to False.
+    is_sparse : bool
+        Whether to select sparse MMA; defaults to False.
+    """
 
 
 @tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs")
 class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
-    """Static options for the block-scaled tcgen05 instruction descriptor."""
+    """Static options carried by :func:`tcgen05_encode_instr_descriptor_block_scaled`.
+
+    Parameters
+    ----------
+    d_dtype : str
+        Element type of the output matrix D.
+    a_dtype : str
+        Element type of the input matrix A.
+    b_dtype : str
+        Element type of the input matrix B.
+    sfa_dtype : str
+        Element type of the scale factors for A.
+    sfb_dtype : str
+        Element type of the scale factors for B.
+    M : int
+        Number of rows in the output tile.
+    N : int
+        Number of columns in the output tile.
+    K : int
+        Reduction dimension of the input tiles.
+    trans_a : bool
+        Whether to transpose A.
+    trans_b : bool
+        Whether to transpose B.
+    n_cta_groups : int
+        Number of CTA groups, 1 (default) or 2.
+    neg_a : bool
+        Whether to negate A; defaults to False.
+    neg_b : bool
+        Whether to negate B; defaults to False.
+    is_sparse : bool
+        Whether to select sparse MMA; defaults to False.
+    """
 
 
 _encode_instr_descriptor = _make_op_api(
@@ -1473,7 +1535,22 @@ def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
 
 @tvm_ffi.register_object("tirx.cuda.TensorMapEncodeTiledAttr")
 class TensorMapEncodeTiledAttr(Attrs):
-    """Descriptor dtype and fixed options for tiled tensor-map encoding."""
+    """Fixed options for :func:`tensormap_encode_tiled`.
+
+    Parameters
+    ----------
+    descriptor_dtype : str or tvm_ffi.dtype
+        Tensor element dtype encoded in the descriptor.
+    rank : int
+        Number of tensor dimensions. Dimensions, strides and pointers are
+        separate operands of the encoding call, not fields of this object.
+    interleave, swizzle, l2_promotion, oob_fill : int
+        CUDA tensor-map enum values for the corresponding encoding modes.
+        Each defaults to zero.
+    force_cu_dtype : int
+        Explicit CUDA tensor-map dtype enum, or -1 to derive it from
+        ``descriptor_dtype``.
+    """
 
     def __init__(
         self,

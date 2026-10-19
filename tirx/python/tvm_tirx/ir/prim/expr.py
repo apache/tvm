@@ -27,22 +27,34 @@ from . import _ffi_api as _prim_ffi_api
 
 
 class BinaryOpExpr(ExprWithOp):
+    """Python base class for binary arithmetic and bitwise expressions.
+
+    Concrete nodes store left and right primitive operands in ``a`` and ``b``.
+    """
+
     a: Expr
     b: Expr
 
 
 class CmpExpr(ExprWithOp):
+    """Python base class for comparisons of primitive expressions.
+
+    Concrete nodes compare ``a`` and ``b`` and produce boolean scalar or vector values.
+    """
+
     a: Expr
     b: Expr
 
 
 class LogicalExpr(ExprWithOp):
+    """Python base class for boolean conjunction and disjunction expressions."""
+
     pass
 
 
 @tvm_ffi.register_object("prim.Cast")
 class Cast(ExprWithOp):
-    """Cast expression.
+    """Convert a primitive value to another dtype while preserving its lane count.
 
     Parameters
     ----------
@@ -66,7 +78,7 @@ class Cast(ExprWithOp):
 
 @tvm_ffi.register_object("prim.LShift")
 class LShift(BinaryOpExpr):
-    """Left shift node.
+    """Shift the bits of ``a`` left by ``b`` positions.
 
     Parameters
     ----------
@@ -86,7 +98,7 @@ class LShift(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.RShift")
 class RShift(BinaryOpExpr):
-    """Right shift node.
+    """Shift the bits of ``a`` right by ``b`` positions.
 
     Parameters
     ----------
@@ -106,7 +118,7 @@ class RShift(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.BitwiseAnd")
 class BitwiseAnd(BinaryOpExpr):
-    """Bitwise and node.
+    """Compute the bitwise intersection of ``a`` and ``b``.
 
     Parameters
     ----------
@@ -126,7 +138,7 @@ class BitwiseAnd(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.BitwiseOr")
 class BitwiseOr(BinaryOpExpr):
-    """Bitwise or node.
+    """Compute the bitwise union of ``a`` and ``b``.
 
     Parameters
     ----------
@@ -146,7 +158,7 @@ class BitwiseOr(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.BitwiseXor")
 class BitwiseXor(BinaryOpExpr):
-    """Bitwise xor node.
+    """Compute the bitwise exclusive-or of ``a`` and ``b``.
 
     Parameters
     ----------
@@ -166,7 +178,7 @@ class BitwiseXor(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.BitwiseNot")
 class BitwiseNot(ExprWithOp):
-    """Bitwise not node.
+    """Invert every bit of the input value.
 
     Parameters
     ----------
@@ -185,7 +197,7 @@ class BitwiseNot(ExprWithOp):
 
 @tvm_ffi.register_object("prim.Add")
 class Add(BinaryOpExpr):
-    """Add node.
+    """Add two primitive values, elementwise for vectors.
 
     Parameters
     ----------
@@ -205,7 +217,7 @@ class Add(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Sub")
 class Sub(BinaryOpExpr):
-    """Sub node.
+    """Subtract ``b`` from ``a``, elementwise for vectors.
 
     Parameters
     ----------
@@ -225,7 +237,7 @@ class Sub(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Mul")
 class Mul(BinaryOpExpr):
-    """Mul node.
+    """Multiply two primitive values, elementwise for vectors.
 
     Parameters
     ----------
@@ -245,7 +257,7 @@ class Mul(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Div")
 class Div(BinaryOpExpr):
-    """Div node.
+    """Divide ``a`` by ``b``; integer division truncates toward zero.
 
     Parameters
     ----------
@@ -265,7 +277,7 @@ class Div(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Mod")
 class Mod(BinaryOpExpr):
-    """Mod node.
+    """Compute the remainder of integer division truncated toward zero.
 
     Parameters
     ----------
@@ -285,7 +297,7 @@ class Mod(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.FloorDiv")
 class FloorDiv(BinaryOpExpr):
-    """FloorDiv node.
+    """Divide ``a`` by ``b``, rounding the quotient down toward negative infinity.
 
     Parameters
     ----------
@@ -305,7 +317,7 @@ class FloorDiv(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.FloorMod")
 class FloorMod(BinaryOpExpr):
-    """FloorMod node.
+    """Compute ``a - FloorDiv(a, b) * b``, the remainder of floor division.
 
     Parameters
     ----------
@@ -325,7 +337,7 @@ class FloorMod(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Min")
 class Min(BinaryOpExpr):
-    """Min node.
+    """Choose the smaller of two primitive values, elementwise for vectors.
 
     Parameters
     ----------
@@ -345,7 +357,7 @@ class Min(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.Max")
 class Max(BinaryOpExpr):
-    """Max node.
+    """Choose the larger of two primitive values, elementwise for vectors.
 
     Parameters
     ----------
@@ -365,7 +377,7 @@ class Max(BinaryOpExpr):
 
 @tvm_ffi.register_object("prim.EQ")
 class EQ(CmpExpr):
-    """EQ node.
+    """Compare whether ``a`` equals ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -385,7 +397,7 @@ class EQ(CmpExpr):
 
 @tvm_ffi.register_object("prim.NE")
 class NE(CmpExpr):
-    """NE node.
+    """Compare whether ``a`` differs from ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -405,7 +417,7 @@ class NE(CmpExpr):
 
 @tvm_ffi.register_object("prim.LT")
 class LT(CmpExpr):
-    """LT node.
+    """Compare whether ``a`` is less than ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -425,7 +437,7 @@ class LT(CmpExpr):
 
 @tvm_ffi.register_object("prim.LE")
 class LE(CmpExpr):
-    """LE node.
+    """Compare whether ``a`` is at most ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -445,7 +457,7 @@ class LE(CmpExpr):
 
 @tvm_ffi.register_object("prim.GT")
 class GT(CmpExpr):
-    """GT node.
+    """Compare whether ``a`` is greater than ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -465,7 +477,7 @@ class GT(CmpExpr):
 
 @tvm_ffi.register_object("prim.GE")
 class GE(CmpExpr):
-    """GE node.
+    """Compare whether ``a`` is at least ``b``, elementwise for vectors.
 
     Parameters
     ----------
@@ -485,7 +497,7 @@ class GE(CmpExpr):
 
 @tvm_ffi.register_object("prim.And")
 class And(LogicalExpr):
-    """And node.
+    """Compute the conjunction of two boolean values.
 
     Parameters
     ----------
@@ -505,7 +517,7 @@ class And(LogicalExpr):
 
 @tvm_ffi.register_object("prim.Or")
 class Or(LogicalExpr):
-    """Or node.
+    """Compute the disjunction of two boolean values.
 
     Parameters
     ----------
@@ -528,7 +540,7 @@ class Or(LogicalExpr):
 
 @tvm_ffi.register_object("prim.Not")
 class Not(LogicalExpr):
-    """Not node.
+    """Negate a boolean value, elementwise for vectors.
 
     Parameters
     ----------
@@ -547,7 +559,7 @@ class Not(LogicalExpr):
 
 @tvm_ffi.register_object("prim.Select")
 class Select(ExprWithOp):
-    """Select node.
+    """Select between two values according to a boolean condition.
 
     Note
     ----
@@ -595,7 +607,7 @@ class Select(ExprWithOp):
 
 @tvm_ffi.register_object("prim.Let")
 class Let(ExprWithOp):
-    """Let node.
+    """Bind ``var`` to ``value`` within an expression body and return the body result.
 
     Parameters
     ----------

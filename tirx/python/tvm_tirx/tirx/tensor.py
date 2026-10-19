@@ -44,12 +44,32 @@ def _tensor_type_field(name):
 
 @tvm_ffi.register_object("tirx.TensorType")
 class TensorType(Type):
-    """The structural type carried by an ordinary TIRx tensor variable.
+    """The shape, element type, and storage contract of a TIRx tensor expression.
 
-    Declared expression methods receive the tensor variable as ``expr`` after
-    the type receiver. Access through ``expr.method`` binds both receivers.
-    Read-only expression properties receive the same type and operand through
-    the getters in ``__expr_properties__``.
+    Tensor variables expose the type's properties and operations, such as
+    ``tensor.shape`` and ``tensor.view(...)``. Strides and element offsets are
+    described by ``layout``.
+
+    Parameters
+    ----------
+    shape : sequence[Expr] or Expr
+        Logical dimension extents; a single extent denotes a one-dimensional tensor.
+    dtype : PrimType or str
+        Primitive element type.
+    scope : MemoryScope or str, optional
+        Storage scope, defaulting to global memory.
+    align : int, optional
+        Data-pointer alignment in bytes; zero selects the runtime default.
+    layout : Layout or str, optional
+        Explicit storage mapping. ``"default"`` creates a contiguous row-major
+        layout; None leaves the layout unspecified.
+    data : Expr, optional
+        Keyword-only pointer expression whose PtrType supplies the storage scope.
+        The pointer itself is not stored in TensorType.
+    loc : Location, optional
+        The source location of the type.
+    data_alignment : int, optional
+        Keyword-only spelling of ``align``; both must agree when explicitly set.
     """
 
     dtype: PrimType

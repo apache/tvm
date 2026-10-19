@@ -29,12 +29,52 @@ _LAZY_TRANSFORMS = {
 
 
 def LowerTrainiumLayout():
-    """Lower Trainium layouts to backend physical tensor shapes and indices."""
+    """Lower logical tensor accesses to Trainium physical shapes and indices.
+
+    SBUF uses partition/free dimensions; PSUM adds a bank dimension. Global
+    memory is flattened. Parameter ABI shapes stay logical. Run after tile
+    dispatch.
+
+    Examples
+    --------
+    .. code:: python
+
+        import tvm_tirx as tvm
+        from tvm_tirx.script import tirx as T
+        from tvm_tirx.backend.trn.axis import P, F
+        from tvm_tirx.backend.trn.transform import LowerTrainiumLayout
+
+        @T.ir_module
+        class Before:
+            @T.function
+            def main():
+                T.device_entry()
+                A = T.alloc_tensor(ty_args=[T.Tensor(
+                    (128, 2, 2), "float32", scope="trn.sbuf",
+                    layout=T.TileLayout(T.S[(128, 4):(1 @ P, 1 @ F)]))])
+                A[0, 1, 0] = T.float32(1)
+
+        @T.ir_module
+        class Expected:
+            @T.function
+            def main():
+                T.device_entry()
+                A = T.alloc_tensor(ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+                A[0, 2] = T.float32(1)
+
+        after = LowerTrainiumLayout()(Before)
+        tvm.ir.assert_structural_equal(after, Expected)
+    """
     return get_global_func("tirx.backend.trn.transform.LowerTrainiumLayout")()
 
 
 def LowerTIRx():
-    """Lower TIRx tile op calls for the Trainium backend."""
+    """Run ``TileDispatch`` followed by ``LowerTrainiumLayout``.
+
+    Run ``TrnPrivateTensorAlloc`` and ``TrnNaiveAllocator`` first when tiles
+    need workspaces or allocation addresses. Tile dispatch requires a
+    Trainium target on the function or in the current target scope.
+    """
     return tvm_tirx.ir.transform.Sequential(
         [tirx.transform.TileDispatch(), LowerTrainiumLayout()],
         name="tirx.backend.trn.LowerTIRx",

@@ -21,7 +21,11 @@ import tvm_ffi
 
 @tvm_ffi.register_object("ir.GlobalInfo")
 class GlobalInfo(tvm_ffi.Object):
-    """Base node for all global info that can appear in the IR"""
+    """Base class for module-level information referenced by the IR.
+
+    Concrete subclasses are stored in ``IRModule.global_infos``, a map from names
+    to arrays of global information objects.
+    """
 
     def __eq__(self, other):
         """Compare two global info objects for structural equivalence."""

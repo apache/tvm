@@ -110,12 +110,12 @@ class OpaqueType(Type):
 
 @tvm_ffi.register_object("ir.PrimType")
 class PrimType(Type):
-    """Primitive data type in the low level IR
+    """A primitive scalar or vector data type, including the ``void`` sentinel.
 
     Parameters
     ----------
-    dtype : str
-        The runtime data type relates to the primtype.
+    dtype : str or tvm_ffi.dtype
+        Element kind, bit width, and optional vector lane count, such as ``float32x4``.
     """
 
     def __init__(self, dtype):
@@ -186,7 +186,7 @@ class StringType(Type):
 
 @tvm_ffi.register_object("ir.PtrType")
 class PtrType(Type):
-    """PtrType used in the low-level TIR.
+    """A pointer to an element type in a specified memory scope.
 
     Parameters
     ----------
@@ -228,10 +228,7 @@ class TupleType(Type):
 class FuncType(Type):
     """Function type.
 
-    A function type consists of a list of type parameters to enable
-    the definition of generic functions,
-    a set of type constraints which we omit for the time being,
-    a sequence of argument types, and a return type.
+    Records the argument types in order and a single return type.
 
     Parameters
     ----------
@@ -274,6 +271,15 @@ def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
     instances, or generates constructors. Call it again after loading additional
     bindings to fill missing names or replace generated root aliases with dialect
     aliases. Module-local provenance distinguishes generated aliases from exports.
+
+    Parameters
+    ----------
+    namespace : str
+        Registered type-key namespace to expose, such as ``"tirx"``. Its type
+        aliases take precedence over root ``"ir"`` aliases with the same name.
+    target_module : str or types.ModuleType
+        Module receiving the aliases, or its name in ``sys.modules``. The
+        module must already be loaded when passed by name.
     """
     module = sys.modules[target_module] if isinstance(target_module, str) else target_module
     exports = vars(module)

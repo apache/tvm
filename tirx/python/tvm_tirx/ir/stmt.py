@@ -69,7 +69,7 @@ class Bind(Stmt):
 
 @tvm_ffi.register_object("ir.AssertStmt")
 class AssertStmt(Stmt):
-    """AssertStmt node.
+    """Check a condition and raise the specified error when it is false.
 
     Parameters
     ----------
@@ -110,12 +110,11 @@ class AssertStmt(Stmt):
 
 
 class ForKind(IntEnum):
-    """The kind of the for loop.
+    """Execution semantics of a :class:`For` loop.
 
-    note
-    ----
-    ForKind can change the control flow semantics
-    of the loop and need to be considered in all TIR passes.
+    ``DEFAULT`` executes iterations sequentially; ``PARALLEL`` permits parallel
+    execution. ``VECTORIZED`` requests a vectorized body and ``UNROLLED`` requests
+    unrolling. Transformations must preserve the selected execution semantics.
     """
 
     DEFAULT = 0  # Ordinary loop with sequential iteration semantics.
@@ -126,7 +125,7 @@ class ForKind(IntEnum):
 
 @tvm_ffi.register_object("ir.For")
 class For(Stmt):
-    """For node.
+    """Iterate from ``min`` while below ``min + extent``, incrementing by ``step``.
 
     Parameters
     ----------
@@ -143,7 +142,7 @@ class For(Stmt):
         The required loop step, including a typed one for unit stride.
 
     kind : ForKind
-        The type of the for.
+        Sequential, parallel, vectorized, or unrolled execution semantics.
 
     body : Stmt | Sequence[Stmt]
         The body statement.
@@ -190,7 +189,7 @@ class For(Stmt):
 
 @tvm_ffi.register_object("ir.While")
 class While(Stmt):
-    """While node.
+    """Repeat the body while the condition evaluates to true.
 
     Parameters
     ----------
@@ -267,6 +266,23 @@ class RegionStmt(Stmt):
     evaluated outside the body-parameter scope. Direct construction and JSON
     serialization support result variables; structured script syntax currently
     supports only result-free regions.
+
+    Parameters
+    ----------
+    op : Op or str
+        Registered region operator or its name.
+    args : sequence[Expr]
+        Operands evaluated in the enclosing scope.
+    body_params : sequence[Var]
+        Variables bound for the body according to the operator's contract.
+    attrs : DictAttrs or Mapping or None
+        Operator-specific attributes; None gives an empty map.
+    body : Stmt or Sequence[Stmt]
+        Region body, normalized to SeqStmt.
+    result_vars : sequence[Var], optional
+        Variables defined for subsequent statements, empty by default.
+    loc : Location, optional
+        The source location of the region.
     """
 
     op: Op
@@ -332,7 +348,7 @@ class SeqStmt(Stmt):
 
 @tvm_ffi.register_object("ir.If")
 class If(Stmt):
-    """If node.
+    """Execute one branch according to a boolean condition.
 
     Parameters
     ----------
@@ -371,7 +387,7 @@ class If(Stmt):
 
 @tvm_ffi.register_object("ir.Evaluate")
 class Evaluate(Stmt):
-    """Evaluate node.
+    """Evaluate an expression for its effects and discard its result.
 
     Parameters
     ----------
@@ -391,10 +407,12 @@ class Evaluate(Stmt):
 
 @tvm_ffi.register_object("ir.Break")
 class Break(Stmt):
-    """Break node.
+    """Exit the innermost enclosing loop.
 
     Parameters
     ----------
+    loc : Location, optional
+        The source location of the statement.
     """
 
     def __init__(self, loc: Location = UNKNOWN_LOC) -> None:
@@ -403,7 +421,7 @@ class Break(Stmt):
 
 @tvm_ffi.register_object("ir.Return")
 class Return(Stmt):
-    """Return node.
+    """Exit the enclosing function with a return value.
 
     Parameters
     ----------
@@ -423,10 +441,12 @@ class Return(Stmt):
 
 @tvm_ffi.register_object("ir.Continue")
 class Continue(Stmt):
-    """Continue node.
+    """Skip to the next iteration of the innermost enclosing loop.
 
     Parameters
     ----------
+    loc : Location, optional
+        The source location of the statement.
     """
 
     def __init__(self, loc: Location = UNKNOWN_LOC) -> None:

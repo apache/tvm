@@ -27,12 +27,39 @@ from tvm_tirx.backend.cuda import transform as cuda_transform
 
 
 def default_tir_pipeline(*, target=None):
-    """The default pipeline for TIRx primitive functions."""
+    """Return :func:`tirx_pipeline` with its standard lowering stages.
+
+    Parameters
+    ----------
+    target : tvm_tirx.target.Target or None, optional
+        Target to bind before lowering; None preserves existing function targets.
+
+    Returns
+    -------
+    stages : tuple
+        Lowering pass, host-finalization factory, and device-finalization factory.
+    """
     return tirx_pipeline(target=target)
 
 
 def tirx_pipeline(*, prepare_only=False, target=None):
-    """The TIRX pipeline used in tvm_tirx.tirx.compile"""
+    """Prepare TIRx functions and optionally lower their module-wide ABI.
+
+    Dispatch tile instructions, lower layouts, flatten tensors, simplify indices
+    and loops, and verify memory accesses.
+
+    Parameters
+    ----------
+    prepare_only : bool, optional
+        Stop before :func:`finalize_tir_pipeline` when true. Defaults to false.
+    target : tvm_tirx.target.Target or None, optional
+        Target to bind before lowering; None preserves existing function targets.
+
+    Returns
+    -------
+    stages : tuple
+        Lowering pass, host-finalization factory, and device-finalization factory.
+    """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(
@@ -124,7 +151,16 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
 
 
 def finalize_tir_pipeline():
-    """Lower module-wide calling conventions after all dialects are prepared."""
+    """Split host/device functions, legalize low-precision types and lower the ABI.
+
+    Run after dialect-specific preparation and target binding. Annotates the entry
+    function, lowers CUDA helpers and creates packed entry wrappers where required.
+
+    Returns
+    -------
+    passes : tvm_tirx.ir.transform.Sequential
+        Module-wide finalization passes.
+    """
     return tvm_tirx.ir.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
@@ -141,7 +177,16 @@ def finalize_tir_pipeline():
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
-    """The default finalization passes for TIR backend."""
+    """Lower runtime builtins and target intrinsics in host functions.
+
+    Run after ABI lowering and host/device splitting, with a host target on each
+    function.
+
+    Returns
+    -------
+    passes : tvm_tirx.ir.transform.Sequential
+        Host finalization passes.
+    """
     host_pass_list = [
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
@@ -150,7 +195,16 @@ def finalize_host_passes():  # pylint: disable=unused-argument
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
-    """The default finalization passes for TIR backend."""
+    """Simplify device statements and lower target intrinsics.
+
+    Run after host/device splitting, with a target on each device function.
+    Intrinsic expansion uses the target's registered lowering rules.
+
+    Returns
+    -------
+    passes : tvm_tirx.ir.transform.Sequential
+        Device finalization passes.
+    """
     device_pass_list = [
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
@@ -163,27 +217,40 @@ PIPELINE_MAP = {"default": default_tir_pipeline, "tirx": tirx_pipeline}
 
 
 def register_tir_pipeline(name: str, pipeline_factory) -> None:
-    """Register a factory returning lowering, host, and device finalization passes.
+    """Register a factory returning lowering and host/device finalization stages.
 
     Factories accepting an explicit ``target`` keyword own target binding. They
     must lower S-TIR thread bindings before binding the complete module and
     specializing helpers. Other factories receive inputs with targets already
     bound; they cannot classify calls inside unlowered S-TIR thread bindings.
+
+    Parameters
+    ----------
+    name : str
+        Name used to select the pipeline; replaces any existing registration.
+    pipeline_factory : Callable
+        Factory returning the lowering pass and host/device finalization factories.
     """
 
     PIPELINE_MAP[name] = pipeline_factory
 
 
 def get_tir_pipeline(name: str | None = None, *, target=None, **kwargs):
-    """Get pre-build pipeline by name
+    """Construct a registered pipeline by name.
 
     Parameters
     ----------
-    name : Optional[str]
-        Name of the pipeline
-
-    target : Optional[tvm_tirx.target.Target]
+    name : str or None, optional
+        Registered pipeline name. None selects ``"default"``.
+    target : tvm_tirx.target.Target or None, optional
         Target to bind during lowering, after thread launches become explicit.
+    **kwargs
+        Additional keyword arguments forwarded to the registered factory.
+
+    Returns
+    -------
+    stages : tuple
+        Lowering pass, host-finalization factory, and device-finalization factory.
     """
     if name is None:
         name = "default"
@@ -204,11 +271,15 @@ _LEGACY_TARGET_PREPARERS = []
 
 
 def register_default_tir_pipeline_selector(selector) -> None:
-    """Register a callback returning a pipeline tuple or None for (module, target).
+    """Register a callback selecting a pipeline for a module and target.
 
-    Selectors accepting ``target_to_bind`` pass it to the selected pipeline
-    factory. Existing two-argument selectors inspect the bound module, which is
-    reused by the selected pipeline without binding it a second time.
+    Parameters
+    ----------
+    selector : Callable
+        Callback accepting ``(module, target)`` and returning a pipeline tuple or
+        None to try the next selector. Callbacks accepting ``target_to_bind`` pass
+        it to the selected factory; other callbacks inspect the bound module,
+        which is reused without binding it a second time.
     """
     _DEFAULT_PIPELINE_SELECTORS.append(selector)
 
@@ -219,7 +290,23 @@ def get_default_tir_pipeline(
     *,
     target_to_bind: tvm_tirx.target.Target | None = None,
 ):
-    """Get the default pipeline for the input module and target."""
+    """Select the default pipeline for the input module and target.
+
+    Parameters
+    ----------
+    target : tvm_tirx.target.Target or None
+        Target supplied to dialect selectors to choose the pipeline.
+    mod : tvm_tirx.ir.IRModule or None, optional
+        Module inspected by dialect selectors. None uses the default registration.
+    target_to_bind : tvm_tirx.target.Target or None, optional
+        Target to bind during lowering; None preserves existing function targets.
+
+    Returns
+    -------
+    stages : tuple
+        Selected lowering pass, host-finalization factory, and device-finalization
+        factory. Falls back to the ``"default"`` registration if no selector matches.
+    """
     original_mod = mod
     prepared_mod = None
     remaining_target = target_to_bind

@@ -22,10 +22,11 @@ import tvm_ffi._ffi_api as _tvm_ffi_api
 
 @tvm_ffi.register_object("ir.Attrs")
 class Attrs(tvm_ffi.Object):
-    """Attribute node, which is mainly use for defining attributes of operators.
+    """Base class for structured operator and function attributes.
 
-    Used by function registered in python side, such as compute, schedule and alter_layout.
-    Attrs is passed as the first argument to these functions.
+    Concrete subclasses declare named fields exposed through attribute access or
+    ``attrs["field"]``. Use :func:`make_node` to construct a registered attribute
+    type by its type key and fields.
     """
 
     def __getitem__(self, item):
@@ -34,7 +35,12 @@ class Attrs(tvm_ffi.Object):
 
 @tvm_ffi.register_object("ir.DictAttrs")
 class DictAttrs(Attrs):
-    """Dictionary attributes."""
+    """A string-keyed attribute map for functions, modules, and calls.
+
+    Construct with ``DictAttrs(dict={"key": value})`` or
+    ``make_node("ir.DictAttrs", key=value)``. Entries are available through
+    indexing, :meth:`get`, and attribute access; ``dict`` holds the underlying map.
+    """
 
     def keys(self):
         """Get list of names in the attribute.
