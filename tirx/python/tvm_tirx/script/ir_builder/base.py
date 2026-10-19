@@ -297,8 +297,9 @@ class AlreadyEmitted(Generic[_T]):
     Parameters
     ----------
     value : T
-        Native result retained without copying or emitting it. Operator APIs
+        Native result retained without copying or emitting it. Void operator APIs
         wrap their original Call; statement APIs wrap the emitted statement.
+        Allocation APIs wrap the bound Var or its scalar TensorLoad view.
 
     Attributes
     ----------

@@ -33,7 +33,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+            tmp = T.bind_(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
 
     with pytest.raises(ValueError):
 
@@ -50,8 +50,8 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
     class Holder:
         def __init__(self, external):
             self.external = external
-            self.buf = T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")])
-            self.scalar = T.local_scalar("int32")
+            self.buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")]))
+            self.scalar = T.bind_(T.local_scalar("int32"))
             instances.append(self)
 
     @T.function(private=True)
@@ -84,6 +84,23 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
     assert len(instances) == 2
     assert instances[0].external.same_as(instances[1].external)
     assert_structural_equal(test, expected)
+
+
+def test_profiler_constructor_owns_each_allocation_once():
+    pytest.importorskip("torch")
+    from tvm_tirx.testing.bench import CudaProfiler
+
+    @T.function(private=True)
+    def function(buffer: T.Tensor((32,), "uint64")):
+        profiler = CudaProfiler(buffer, 1, 1)
+        T.evaluate(
+            profiler.profiler_tag[0] + T.cast(profiler.profiler_write_offset[0], ty="uint64")
+        )
+
+    first, second, _ = function.body.seq
+    assert first.var.name == "profiler_tag"
+    assert second.var.name == "profiler_write_offset"
+    assert first.value.op.name == second.value.op.name == "tirx.alloc_tensor"
 
 
 def from_source(code):

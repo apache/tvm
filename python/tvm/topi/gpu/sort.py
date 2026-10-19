@@ -112,17 +112,23 @@ def _odd_even_sort(
         start = bx * block_size
 
         # Tensor declarations without data allocate their storage.
-        tmp_keys_swap = T.alloc_tensor(
-            ty_args=[T.Tensor([block_size], keys_swap.dtype, scope="shared")]
+        tmp_keys_swap = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([block_size], keys_swap.dtype, scope="shared")])
         )
-        temp_keys = T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
-        temp_cond1 = T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
-        temp_cond2 = T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
+        temp_keys = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")]))
+        temp_cond1 = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
+        )
+        temp_cond2 = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
+        )
         if values_swap is not None:
-            tmp_values_swap = T.alloc_tensor(
-                ty_args=[T.Tensor([block_size], values_swap.dtype, scope="shared")]
+            tmp_values_swap = T.bind_(
+                T.alloc_tensor(ty_args=[T.Tensor([block_size], values_swap.dtype, scope="shared")])
             )
-            temp_values = T.alloc_tensor(ty_args=[T.Tensor([1], values_swap.dtype, scope="local")])
+            temp_values = T.bind_(
+                T.alloc_tensor(ty_args=[T.Tensor([1], values_swap.dtype, scope="local")])
+            )
 
         # Copy data to scratch space
         base_idx = by_val * size * axis_mul_after + bz
@@ -414,10 +420,10 @@ def _sort_common(
         step_count,
         even,
     ):
-        first_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        last_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        i_buf_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        j_buf_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
+        first_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        last_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        i_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        j_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
         first = first_buf
         last = last_buf
         i_buf = i_buf_buf
@@ -481,12 +487,16 @@ def _sort_common(
         step_count,
         even,
     ):
-        outer_first_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        outer_last_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        first_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        last_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        i_buf_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
-        j_buf_buf = T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
+        outer_first_buf = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
+        )
+        outer_last_buf = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
+        )
+        first_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        last_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        i_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        j_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
         outer_first = outer_first_buf
         outer_last = outer_last_buf
         first = first_buf

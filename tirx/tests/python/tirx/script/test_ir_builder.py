@@ -25,7 +25,7 @@ import tvm_tirx.testing
 from tvm_tirx import tirx
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.ir.location import SourceLoc, SourceName
-from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.script.ir_builder import AlreadyEmitted, IRBuilder
 from tvm_tirx.tirx.layout import S, TileLayout
 from tvm_tirx.tirx.script import ir_builder as T
 
@@ -47,20 +47,69 @@ def test_alloc_tensor_builder_boundary():
     with IRBuilder() as ib:
         with ib.with_loc(loc):
             raw = tvm_tirx.ir.Call("tirx.alloc_tensor", [], ty_args=[tensor_type])
-            tensor = T.alloc_tensor(ty_args=[tensor_type], annotations={"alignment": 16})
-            assert isinstance(tensor, tvm_tirx.ir.Var)
+            receipt = T.alloc_tensor(ty_args=[tensor_type], annotations={"alignment": 16})
+            assert isinstance(receipt, AlreadyEmitted)
+            tensor = T.bind_(receipt, name="tensor", ty=tensor_type, value_loc=loc)
+            assert tensor.same_as(receipt.value)
             assert T.bind_(tensor, name="alias").same_as(tensor)
-            T.emit_(tensor)
+            assert tensor.name == "tensor"
+            T.emit_(receipt)
             with pytest.raises(ValueError):
-                T.decl_mutable_cell_(tensor, ty=T.Tensor((8,), "int32", scope="local"))
+                T.decl_mutable_cell_(receipt, ty=T.Tensor((8,), "int32", scope="local"))
     binding = ib.get()
     assert isinstance(binding, tvm_tirx.ir.Bind)
     assert binding.var.same_as(tensor)
     assert binding.var.ty.same_as(tensor_type)
+    assert binding.var.loc.same_as(loc)
     assert not binding.value.same_as(raw)
     assert binding.value.attrs["alignment"].value == 16
     assert binding.loc.same_as(loc)
     assert binding.value.loc.same_as(loc)
+
+
+@pytest.mark.parametrize(
+    "producer,scalar",
+    [
+        (lambda: T.alloc_local((4,), "int32"), False),
+        (lambda: T.alloc_shared((4,), "int32"), False),
+        (lambda: T.smem((4,), "int32"), False),
+        (lambda: T.tmem((4,), "int32"), False),
+        (lambda: T.alloc_scalar("int32", "local"), True),
+        (lambda: T.local_scalar("int32"), True),
+        (lambda: T.shared_scalar("int32"), True),
+        (
+            lambda: T.decl_scalar(
+                "int32", tvm_tirx.ir.Var("data", tvm_tirx.ir.PtrType("int32", "local")), "local"
+            ),
+            True,
+        ),
+    ],
+)
+def test_allocation_convenience_receipts(producer, scalar):
+    with IRBuilder() as ib:
+        receipt = producer()
+        assert isinstance(receipt, AlreadyEmitted)
+        value = T.bind_(receipt, name="storage")
+        assert value.same_as(receipt.value)
+        assert isinstance(value, tvm_tirx.ir.TensorLoad if scalar else tvm_tirx.ir.Var)
+        assert T.decl_mutable_cell_(receipt, ty=value.ty, name="storage").same_as(value)
+        T.emit_(receipt)
+    binding = ib.get()
+    assert isinstance(binding, tvm_tirx.ir.Bind)
+    assert binding.var.same_as(value.source if scalar else value)
+    assert binding.var.name == "storage"
+
+
+def test_binding_preserves_void_and_statement_receipts():
+    with IRBuilder() as ib:
+        void = T.call_extern("side_effect", ty="void")
+        statement = T.evaluate(1)
+        for receipt in (void, statement):
+            assert isinstance(receipt, AlreadyEmitted)
+            assert T.bind_(receipt) is receipt
+            assert T.bind_(receipt, ty=T.int32) is receipt
+            T.emit_(receipt)
+    assert len(ib.get().seq) == 2
 
 
 def test_alloc_tensor_parsed_identity():
@@ -405,12 +454,14 @@ def test_concrete_mutable_scalar(declare):
     with IRBuilder() as ib:
         with T.function():
             if declare:
-                owner = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="local")])
-                scalar = T.decl_scalar(
-                    "int32", owner.data, "local", layout=T.TileLayout(T.S[(1,)] + (2))
+                owner = T.bind_(T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="local")]))
+                scalar = T.bind_(
+                    T.decl_scalar(
+                        "int32", owner.data, "local", layout=T.TileLayout(T.S[(1,)] + (2))
+                    )
                 )
             else:
-                scalar = T.alloc_scalar("int32", "local")
+                scalar = T.bind_(T.alloc_scalar("int32", "local"))
             assert type(scalar) is tvm_tirx.ir.TensorLoad
             named = T.decl_mutable_cell_(scalar, name="counter")
             assert named.same_as(scalar)
@@ -443,13 +494,15 @@ def test_local_scalar_initialization_and_assign():
     with IRBuilder() as ib:
         with T.function():
             with ib.with_loc(loc):
-                scalar = T.local_scalar("int32", 2, name="counter", annotations=annotations)
-                uninitialized = T.local_scalar()
+                scalar = T.bind_(
+                    T.local_scalar("int32", 2, name="counter", annotations=annotations)
+                )
+                uninitialized = T.bind_(T.local_scalar())
                 receipt = T.assign(scalar, 3)
                 assert isinstance(receipt, AlreadyEmitted)
                 T.emit_(receipt)
                 source_receipt = T.assign(scalar.source, 4)
-                global_tensor = T.alloc_tensor(ty_args=[T.Tensor((2,), "int32")])
+                global_tensor = T.bind_(T.alloc_tensor(ty_args=[T.Tensor((2,), "int32")]))
                 indexed_receipt = T.assign(global_tensor[1], 5)
                 for invalid in (tirx.Var("immutable", "int32"), scalar + 1, global_tensor):
                     with pytest.raises(TypeError, match="scalar storage"):
@@ -539,7 +592,7 @@ def test_ir_builder_tir_allocate():
     with IRBuilder() as ib:
         with T.function():
             T.func_name_("test")
-            buf = T.alloc_tensor(ty_args=[T.Tensor([10], "float32", scope="local")])
+            buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([10], "float32", scope="local")]))
             T.evaluate(1)
 
     # the allocate generated by IRBuilder
@@ -558,7 +611,7 @@ def test_ir_builder_tir_decl_tensor():
     with IRBuilder() as ib:
         with T.function():
             T.func_name_("test")
-            buf = T.alloc_tensor(ty_args=[T.Tensor([128, 128], "float32")])
+            buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([128, 128], "float32")]))
             T.evaluate(1)
 
     # the decl_tensor generated by IRBuilder

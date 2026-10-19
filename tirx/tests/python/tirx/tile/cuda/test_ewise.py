@@ -95,7 +95,7 @@ def _shared_case(input, operation, src_dtype, dst_dtype, bias_type=None, target=
     def allocate_output(source):
         if in_place:
             return source
-        return T.alloc_shared(shape, dst_dtype, layout=layout)
+        return T.bind_(T.alloc_shared(shape, dst_dtype, layout=layout))
 
     @T.function
     def kernel(

@@ -60,8 +60,8 @@ class PipelineState:
     """
 
     def __init__(self, depth: int, phase=None):
-        self.stage = T.local_scalar("int32")
-        self.phase = T.local_scalar("int32")
+        self.stage = T.bind_(T.local_scalar("int32"))
+        self.phase = T.bind_(T.local_scalar("int32"))
         self.depth = depth
         if phase is not None:
             self.init(phase)
@@ -93,7 +93,7 @@ def _map_addr_into_cta(ptr, rank):
     the enclosing frame explicitly or it is discarded, and the scratch it
     writes into has to be declared in this scope to bind into the Function.
     """
-    mapped = T.alloc_local([1], "uint32")
+    mapped = T.bind_(T.alloc_local([1], "uint32"))
     T.evaluate(
         T.ptx.mapa.shared__cluster.u32(
             mapped[0], T.cuda.cvta_generic_to_shared(ptr), T.uint32(rank)
@@ -113,7 +113,7 @@ def _map_buffer_into_cta(ptr, rank, depth):
     from tvm_tirx.tirx import Var as TIRVar  # pylint: disable=import-outside-toplevel
 
     ptr_ty = PtrType(PrimType("uint64"), "shared")
-    mapped = T.alloc_local([1], "uint64")
+    mapped = T.bind_(T.alloc_local([1], "uint64"))
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
     T.emit_(T.Bind(remote_ptr, T.reinterpret(mapped[0], ty=ptr_ty)))

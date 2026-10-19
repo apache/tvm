@@ -243,12 +243,12 @@ def test_alloc_apis():
         def __init__(self, Ta, inner_pool):
             self.Ta = Ta
             self.inner_pool = inner_pool
-            self.Tb = T.shared_scalar("float16")
-            self.idx = T.local_scalar("int32")
-            self.inner_pool2 = T.decl_scalar(
+            self.Tb = T.bind_(T.shared_scalar("float16"))
+            self.idx = T.bind_(T.local_scalar("int32"))
+            self.inner_pool2 = T.bind_(T.decl_scalar(
                 "float16", self.inner_pool.data, "shared.dyn",
                 layout=T.TileLayout(T.S[(1,)] + 5),
-            )
+            ))
 
         @T.inline
         def init(self):
@@ -1212,8 +1212,10 @@ def test_tensor_factored_views():
     """Splitting and selecting logical factors preserves the physical mapping."""
     with IRBuilder():
         with Tx_builder.function():
-            A = Tx_builder.alloc_tensor(
-                ty_args=[T.Tensor((3, 64, 512), "float16", scope="shared", layout="default")]
+            A = Tx_builder.bind_(
+                Tx_builder.alloc_tensor(
+                    ty_args=[T.Tensor((3, 64, 512), "float16", scope="shared", layout="default")]
+                )
             )
             w = tvm_tirx.tirx.Var("w", "int32")
             B = A.view(3, 4, 4, 4, 512).sub[:, :, w].view(3, 16, 512)

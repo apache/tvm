@@ -30,9 +30,9 @@ class BaseTileScheduler:
     """Base class for tile schedulers with common state and macros."""
 
     def __init__(self, prefix: str):
-        self.m_idx = T.local_scalar("int32")
-        self.n_idx = T.local_scalar("int32")
-        self.linear_idx = T.local_scalar("int32")
+        self.m_idx = T.bind_(T.local_scalar("int32"))
+        self.n_idx = T.bind_(T.local_scalar("int32"))
+        self.linear_idx = T.bind_(T.local_scalar("int32"))
 
     @T.inline
     def update_current_m_n_idx(self, linear_idx):
@@ -231,7 +231,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
         # Rename internal state for clarity
         self.work_idx = self.linear_idx  # alias: global work item index
-        self.tile_count = T.local_scalar("int32")
+        self.tile_count = T.bind_(T.local_scalar("int32"))
 
         is_static_m = isinstance(num_m_tiles, int)
 
@@ -509,9 +509,9 @@ class FlashAttentionLinearScheduler(BaseTileScheduler):
         self._total_tasks = num_batches * num_heads * num_m_blocks
 
         # Output indices
-        self.batch_idx = T.local_scalar("int32")
-        self.head_idx = T.local_scalar("int32")
-        self.m_block_idx = T.local_scalar("int32")
+        self.batch_idx = T.bind_(T.local_scalar("int32"))
+        self.head_idx = T.bind_(T.local_scalar("int32"))
+        self.m_block_idx = T.bind_(T.local_scalar("int32"))
 
     # fmt: off
     @T.inline
@@ -596,9 +596,9 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
         self._num_hb_quotient = self._num_hb // l2_swizzle
 
         # Output indices
-        self.batch_idx = T.local_scalar("int32")
-        self.head_idx = T.local_scalar("int32")
-        self.m_block_idx = T.local_scalar("int32")
+        self.batch_idx = T.bind_(T.local_scalar("int32"))
+        self.head_idx = T.bind_(T.local_scalar("int32"))
+        self.m_block_idx = T.bind_(T.local_scalar("int32"))
 
     # fmt: off
     @T.inline
@@ -670,8 +670,8 @@ class _CLCWorker(ClusterPersistentScheduler2D):
         )
         self._clc = clc
         self._sa = PipelineState(1, 0)
-        self._done = T.local_scalar("int32")
-        self._nxt = T.local_scalar("uint32")
+        self._done = T.bind_(T.local_scalar("int32"))
+        self._nxt = T.bind_(T.local_scalar("uint32"))
 
     @T.inline
     def reset(self):
@@ -735,8 +735,8 @@ class ClusterLaunchControlScheduler:
         self.sched_arr = Pipeline(pool, 1, full="tma", empty="mbar", init_empty=1)
         self.sched_fin = Pipeline(pool, 1, full="mbar", empty="mbar", init_empty=finish_arrivals)
         self.clc_handle = pool.alloc((4,), "uint32", align=16)
-        self._s_done = T.local_scalar("int32")
-        self._s_nxt = T.local_scalar("uint32")
+        self._s_done = T.bind_(T.local_scalar("int32"))
+        self._s_nxt = T.bind_(T.local_scalar("uint32"))
 
     def worker(self, prefix):
         return _CLCWorker(self, prefix)

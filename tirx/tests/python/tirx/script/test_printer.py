@@ -260,7 +260,7 @@ def test_allocate(declare):
                 buf = tvm_tirx.ir.Var("", buf_value.ty)
                 TB.emit_(TB.Bind(buf, buf_value))
             else:
-                buf = declare(ty_args=[TB.Tensor([128, 128], "float32")])
+                buf = TB.bind_(declare(ty_args=[TB.Tensor([128, 128], "float32")]))
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
@@ -283,7 +283,7 @@ def test_allocate_with_decl_tensor_sugar():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")])
+            buf = TB.bind_(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
             buf2_value = TB.decl_tensor(
                 buf.data, ty_args=[TB.Tensor([128, 128], "float32", data=buf.data)]
             )
@@ -306,7 +306,7 @@ def test_allocate_with_decl_tensor_sugar_multi_usage():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")])
+            buf = TB.bind_(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
             buf2_value = TB.decl_tensor(
                 buf.data, ty_args=[TB.Tensor([128, 128], "float32", data=buf.data)]
             )
@@ -328,7 +328,7 @@ def test_allocate_with_decl_tensor_no_sugar_mismatch():
     with IRBuilder() as ib:
         with TB.function():
             TB.func_name_("test")
-            buf = TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")])
+            buf = TB.bind_(TB.alloc_tensor(ty_args=[TB.Tensor([128, 128], "float32")]))
             buf2_value = TB.decl_tensor(
                 buf.data, ty_args=[TB.Tensor([256, 256], "float32", data=buf.data)]
             )

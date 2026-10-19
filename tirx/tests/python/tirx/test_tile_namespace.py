@@ -104,7 +104,7 @@ def test_omitted_and_explicit_none_layout(scope):
     with IRBuilder():
         with I.function():
             tensor_type = I.Tensor((4, 8), "float32", scope=scope)
-            allocated = I.alloc_tensor(ty_args=[tensor_type])
+            allocated = I.bind_(I.alloc_tensor(ty_args=[tensor_type]))
             declared_value = I.decl_tensor(allocated.data, ty_args=[tensor_type])
             declared = tvm_tirx.ir.Var("declared", declared_value.ty)
             I.emit_(I.Bind(declared, declared_value))

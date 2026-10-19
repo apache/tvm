@@ -212,9 +212,26 @@ def bind_(
 
     Returned Vars, including tensors, and metadata retain identity, names and locs.
     Other expressions create native Bind nodes; value_loc belongs to the RHS.
-    Explicit typed bindings and frame targets retain their separate contracts.
+    Emitted allocation receipts unwrap to their original Var or TensorLoad,
+    checking annotations without creating another binding. Other receipts remain
+    intact. Explicit typed bindings and frame targets retain their separate contracts.
     """
     name_loc = loc if name_loc is None else name_loc
+    if isinstance(value, _base.AlreadyEmitted):
+        result = _base.at_(value_loc, value).value
+        if not isinstance(result, _ir.Var | _ir.TensorLoad):
+            return value
+        if ty is not None:
+            if isinstance(ty, _native.LetAnnotation):
+                annotation = ty.as_var(rhs_dtype=result.ty).ty
+            else:
+                annotation = (
+                    ty() if callable(ty) and not isinstance(ty, _ir.Expr | _ir.Type) else ty
+                )
+                annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
+            _ir.assert_structural_equal(result.ty, annotation)
+        _name(result.source if isinstance(result, _ir.TensorLoad) else result, name, name_loc)
+        return result
     if frame_value:
         if isinstance(value, _python.list | _python.tuple | tvm_ffi.Array):
             for index, item in enumerate(value):
@@ -250,8 +267,6 @@ def bind_(
         return _name(variable, name, name_loc)
     if value is _base.MISSING:
         raise ValueError("An uninitialized binding requires a scalar type annotation")
-    if isinstance(value, _base.AlreadyEmitted):
-        return _base.at_(value_loc, value)
     if isinstance(value, _base.IRBuilderFrame):
         frame_loc = value_loc if value_loc is not None else loc
         return _name(_enter_concise(_base.at_(frame_loc, value)), name, name_loc)
@@ -283,6 +298,8 @@ def decl_mutable_cell_(
     allocate their declared shape. Var declaration producers retain their own effects.
     """
     name_loc = loc if name_loc is None else name_loc
+    if isinstance(value, _base.AlreadyEmitted):
+        return bind_(value, ty=ty, name=name, loc=loc, name_loc=name_loc)
     if _tir.is_tensor_var(value) and ty is not None:
         if isinstance(ty, _native.LetAnnotation):
             annotation = ty.as_var(rhs_dtype=value.ty).ty
@@ -295,7 +312,7 @@ def decl_mutable_cell_(
         if value is not _base.MISSING:
             raise ValueError("Vector annotation does not support an initializer")
         return _name(
-            _base.with_at_group_(loc, lambda: _native.alloc_local(ty.shape, ty.dtype)),
+            _base.with_at_group_(loc, lambda: _native.alloc_local(ty.shape, ty.dtype)).value,
             name,
             name_loc,
         )
@@ -304,7 +321,7 @@ def decl_mutable_cell_(
         annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
         if not isinstance(annotation, _ir.PrimType) or str(annotation) == "handle":
             raise TypeError("Mutable scalar annotations require a primitive scalar type")
-        storage = _base.with_at_group_(loc, lambda: _native.local_scalar(str(annotation)))
+        storage = _base.with_at_group_(loc, lambda: _native.local_scalar(str(annotation))).value
         if value is not _base.MISSING:
             set_mutable_cell_(storage, value, loc=loc)
     else:
