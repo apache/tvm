@@ -210,9 +210,16 @@ def alloc_tensor(
     belong to ``attrs``; ``annotations`` accepts a Python dictionary whose
     scalar values are normalized to typed IR constants. Under an active builder,
     emit one binding and return its tensor variable in an ``AlreadyEmitted``
-    receipt. Outside a builder return
-    the allocation Call. Construct ``ir.Call("tirx.alloc_tensor", ...)`` directly
-    when a pure expression is needed inside a builder.
+    receipt. Parsed assignments consume this receipt automatically; programmatic
+    code uses ``T.bind_(receipt)`` or ``receipt.value`` to obtain the variable
+    without emitting another binding. Outside a builder return the allocation
+    Call. Construct ``ir.Call("tirx.alloc_tensor", ...)`` directly when a pure
+    expression is needed inside a builder.
+
+    Tensor allocation conveniences such as ``T.alloc_local`` and
+    ``T.alloc_shared`` use the same receipt convention. Scalar allocation and
+    declaration helpers instead return ``AlreadyEmitted[TensorLoad]`` in an
+    active builder, consumed through the same binding protocol.
 
     Examples
     --------
@@ -233,7 +240,9 @@ def alloc_tensor(
         tensor_type = T.Tensor((4,), "int32", scope="local")
         with IRBuilder() as builder:
             raw = ir.Call("tirx.alloc_tensor", [], ty_args=[tensor_type])
-            tensor = T.alloc_tensor(ty_args=[tensor_type])
+            receipt = T.alloc_tensor(ty_args=[tensor_type])
+            tensor = T.bind_(receipt, name="tensor")
+            assert tensor.same_as(receipt.value)
         binding = builder.get()
         assert isinstance(binding, ir.Bind)
         assert binding.var.same_as(tensor)
