@@ -26,6 +26,7 @@ import tvm
 import tvm_tirx.testing
 from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm_tirx.ir import Range
 from tvm_tirx.script import from_source
 from tvm_tirx.script import tirx as T
 
@@ -39,7 +40,13 @@ def test_tir_tensor_region_extent_correct_dtype():
                 Ts.reads(A[vi, T.int64(0) : T.int64(1)])
                 T.evaluate(0)
 
-    assert func.body[0].block.body[0].body[0].block.reads[0].region[0].extent.ty.dtype == "int64"
+    assert (
+        Range.get_extent(
+            func.body[0].block.body[0].body[0].block.reads[0].region[0].begin,
+            func.body[0].block.body[0].body[0].block.reads[0].region[0].end,
+        ).ty.dtype
+        == "int64"
+    )
 
 
 N = T.dynamic("N", "int32")

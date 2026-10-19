@@ -130,7 +130,10 @@ def test_roundtrip_op1():
         transfer_reg_125 = T.alloc_tensor(
             ty_args=[
                 T.Tensor(
-                    [r.extent for r in transfer_src_125.region],
+                    [
+                        tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                        for r in transfer_src_125.region
+                    ],
                     transfer_src_125.source.dtype,
                     scope="local",
                 )
@@ -149,7 +152,10 @@ def test_roundtrip_op1():
         transfer_reg_129 = T.alloc_tensor(
             ty_args=[
                 T.Tensor(
-                    [r.extent for r in transfer_src_129.region],
+                    [
+                        tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                        for r in transfer_src_129.region
+                    ],
                     transfer_src_129.source.dtype,
                     scope="local",
                 )
@@ -187,7 +193,10 @@ def test_roundtrip_op2():
             transfer_reg_155 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_155.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_155.region
+                        ],
                         transfer_src_155.source.dtype,
                         scope="local",
                     )
@@ -206,7 +215,10 @@ def test_roundtrip_op2():
             transfer_reg_156 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_156.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_156.region
+                        ],
                         transfer_src_156.source.dtype,
                         scope="local",
                     )
@@ -260,7 +272,10 @@ def test_roundtrip_op3():
             transfer_reg_187 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_187.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_187.region
+                        ],
                         transfer_src_187.source.dtype,
                         scope="local",
                     )
@@ -279,7 +294,10 @@ def test_roundtrip_op3():
             transfer_reg_188 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_188.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_188.region
+                        ],
                         transfer_src_188.source.dtype,
                         scope="local",
                     )
@@ -303,7 +321,10 @@ def test_roundtrip_op3():
             transfer_reg_194 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_194.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_194.region
+                        ],
                         transfer_src_194.source.dtype,
                         scope="local",
                     )
@@ -322,7 +343,10 @@ def test_roundtrip_op3():
             transfer_reg_195 = T.alloc_tensor(
                 ty_args=[
                     T.Tensor(
-                        [r.extent for r in transfer_src_195.region],
+                        [
+                            tvm_tirx.ir.Range.get_extent(r.begin, r.end)
+                            for r in transfer_src_195.region
+                        ],
                         transfer_src_195.source.dtype,
                         scope="local",
                     )

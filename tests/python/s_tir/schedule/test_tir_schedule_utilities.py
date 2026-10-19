@@ -29,7 +29,7 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm_tirx import tirx
-from tvm_tirx.ir import IRModule
+from tvm_tirx.ir import IRModule, Range
 from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -217,9 +217,9 @@ def test_tir_schedule_get_loops(use_block_name):
     sch = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block = "update" if use_block_name else sch.get_sblock(name="update")
     i, j, k = sch.get_loops(block)
-    assert sch.get(i).loop_var.name == "i"
-    assert sch.get(j).loop_var.name == "j"
-    assert sch.get(k).loop_var.name == "k"
+    assert sch.get(i).var.name == "i"
+    assert sch.get(j).var.name == "j"
+    assert sch.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_1(use_block_name):
@@ -228,15 +228,15 @@ def test_tir_schedule_copy_1(use_block_name):
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_sblock(name="update")
     i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
-    assert sch_1.get(i).loop_var.name == "i"
-    assert sch_1.get(j).loop_var.name == "j"
-    assert sch_1.get(k).loop_var.name == "k"
+    assert sch_1.get(i).var.name == "i"
+    assert sch_1.get(j).var.name == "j"
+    assert sch_1.get(k).var.name == "k"
 
     sch_2 = sch_1.copy()
     assert sch_2.get(block_rv).name_hint == "update"
-    assert sch_2.get(i).loop_var.name == "i"
-    assert sch_2.get(j).loop_var.name == "j"
-    assert sch_2.get(k).loop_var.name == "k"
+    assert sch_2.get(i).var.name == "i"
+    assert sch_2.get(j).var.name == "j"
+    assert sch_2.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_2():
@@ -252,8 +252,8 @@ def test_tir_schedule_copy_2():
     i_0, i_1 = sch.split(i, factors=[None, 64])
     j_0, j_1 = sch_copy.split(j, factors=[None, 32])
 
-    assert sch.get_sref(i_0).stmt.extent == 2
-    assert sch.get_sref(i_1).stmt.extent == 64
+    assert Range.get_extent(sch.get_sref(i_0).stmt.begin, sch.get_sref(i_0).stmt.end) == 2
+    assert Range.get_extent(sch.get_sref(i_1).stmt.begin, sch.get_sref(i_1).stmt.end) == 64
     with pytest.raises(IndexError):
         sch_copy.get_sref(i_0)
     with pytest.raises(IndexError):
@@ -263,8 +263,10 @@ def test_tir_schedule_copy_2():
         sch.get_sref(j_0)
     with pytest.raises(IndexError):
         sch.get_sref(j_1)
-    assert sch_copy.get_sref(j_0).stmt.extent == 4
-    assert sch_copy.get_sref(j_1).stmt.extent == 32
+    assert Range.get_extent(sch_copy.get_sref(j_0).stmt.begin, sch_copy.get_sref(j_0).stmt.end) == 4
+    assert (
+        Range.get_extent(sch_copy.get_sref(j_1).stmt.begin, sch_copy.get_sref(j_1).stmt.end) == 32
+    )
     verify_trace_roundtrip(sch, mod=matmul)
     verify_trace_roundtrip(sch_copy, mod=matmul)
 

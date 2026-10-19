@@ -89,38 +89,37 @@ UnchangedOr<Stmt> StmtExprMutatorWithAnalyzer::Mutate_(const ForNode* op,
                                                        InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
     // record the loop variable as iterators
-    Range dom = Range::FromMinExtent(op->min, op->extent);
-    analyzer_->Bind(op->loop_var, dom);
-    iter_vars_.Set(op->loop_var, dom);
-    auto min_result = this->Mutate(op->min, inplace_mode);
-    bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
-    PrimExpr min = std::move(min_result).ValueOrUnchanged(op->min);
-    auto extent_result = this->Mutate(op->extent, inplace_mode);
-    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
-    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
-    ffi::Optional<PrimExpr> step{std::nullopt};
-    if (op->step.has_value()) {
-      step = this->Mutate(*op->step, inplace_mode).ValueOrUnchanged(*op->step);
-    }
+    Range dom = Range(op->begin, op->end);
+    analyzer_->Bind(op->var, dom);
+    iter_vars_.Set(op->var, dom);
+    auto begin_result = this->Mutate(op->begin, inplace_mode);
+    bool begin_unchanged = begin_result.UnchangedOrSameAs(op->begin);
+    PrimExpr begin = std::move(begin_result).ValueOrUnchanged(op->begin);
+    auto end_result = this->Mutate(op->end, inplace_mode);
+    bool end_unchanged = end_result.UnchangedOrSameAs(op->end);
+    PrimExpr end = std::move(end_result).ValueOrUnchanged(op->end);
+    PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
     Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
+      EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, end > begin);
+      PrimExpr extent = Range::GetExtent(begin, end);
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
                            extent > IntImm(extent.ty(), 0));
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     });
-    if (min_unchanged && extent_unchanged && body.same_as(op->body) && step.same_as(op->step)) {
+    if (begin_unchanged && end_unchanged && body.same_as(op->body) && step.same_as(op->step)) {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
         auto* n = const_cast<ForNode*>(op);
-        n->min = std::move(min);
-        n->extent = std::move(extent);
+        n->begin = std::move(begin);
+        n->end = std::move(end);
         n->step = std::move(step);
         n->body = std::move(body);
         return ffi::Unchanged();
       }
       auto n = ffi::make_object<ForNode>(*op);
-      n->min = std::move(min);
-      n->extent = std::move(extent);
+      n->begin = std::move(begin);
+      n->end = std::move(end);
       n->step = std::move(step);
       n->body = std::move(body);
       return Stmt(n);

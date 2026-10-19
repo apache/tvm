@@ -35,14 +35,14 @@ void StmtExprVisitorWithAnalyzer::InitVTable(VTable* vtable) {
 
 ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const ForNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->extent));
-    if (op->step.has_value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(*op->step));
-    }
+    analyzer_->Bind(op->var, Range(op->begin, op->end));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->begin));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->end));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->step));
     return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-      constraint_scope_.Current().Emplace(analyzer_, op->extent > IntImm(op->extent.ty(), 0));
+      constraint_scope_.Current().Emplace(analyzer_, op->end > op->begin);
+      PrimExpr extent = Range::GetExtent(op->begin, op->end);
+      constraint_scope_.Current().Emplace(analyzer_, extent > IntImm(extent.ty(), 0));
       return this->Visit(op->body);
     });
   });

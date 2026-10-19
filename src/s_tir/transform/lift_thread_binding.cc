@@ -63,8 +63,8 @@ FindLoopLCA(const Stmt& root) {
       }
       auto it = iters.find(thread_tag);
       if (it == iters.end()) {
-        IterVar iter_var(Range::FromMinExtent(loop->min, loop->extent),  //
-                         loop->loop_var
+        IterVar iter_var(Range(loop->begin, loop->end),  //
+                         loop->var
                              .as_or_throw<Var>()        //
                              .CopyWithName(thread_tag)  //
                              .as_or_throw<PrimVar>(),   //
@@ -72,10 +72,10 @@ FindLoopLCA(const Stmt& root) {
                          thread_tag);
         iters.emplace(thread_tag, iter_var);
         lca[thread_tag] = stack;
-        var_subst.Set(loop->loop_var, iter_var->var);
+        var_subst.Set(loop->var, iter_var->var);
         return;
       }
-      var_subst.Set(loop->loop_var, it->second->var);
+      var_subst.Set(loop->var, it->second->var);
       std::vector<Stmt>& path = lca[thread_tag];
       uint32_t i = 0;
       for (; i < stack.size() && i < path.size(); ++i) {
@@ -138,8 +138,9 @@ class ThreadBindingLifter : public StmtExprMutator {
       for (const auto& [iter_var, annotation] : it->second) {
         auto annotations = annotation;
         annotations.Set(tvm::s_tir::attr::kThreadBinding.name, iter_var->thread_tag);
-        body = For(iter_var->var, iter_var->dom.value()->min, iter_var->dom.value()->extent,
-                   ForKind::kParallel, std::move(body), std::move(annotations), std::nullopt);
+        body = For(iter_var->var, iter_var->dom.value()->begin, iter_var->dom.value()->end,
+                   IntImm(iter_var->var.ty(), 1), ForKind::kParallel, std::move(body),
+                   std::move(annotations));
       }
     }
     if (is_kernel_root) {

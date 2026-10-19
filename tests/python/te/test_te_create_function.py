@@ -28,6 +28,7 @@ import tvm_tirx.testing
 from tvm import s_tir, te, topi
 from tvm.s_tir import script as Ts
 from tvm_tirx import tirx
+from tvm_tirx.ir import Range
 from tvm_tirx.script import tirx as T
 
 
@@ -677,9 +678,9 @@ def test_int64_indices():
     B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
     function = te.create_function([A, B])
     loop = function.body[0].block.body[0]
-    assert loop.loop_var.ty.dtype == "int64"
-    assert loop.min.ty.dtype == "int64"
-    assert loop.extent.ty.dtype == "int64"
+    assert loop.var.ty.dtype == "int64"
+    assert loop.begin.ty.dtype == "int64"
+    assert Range.get_extent(loop.begin, loop.end).ty.dtype == "int64"
 
 
 def test_zero_dim_add():

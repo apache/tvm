@@ -131,7 +131,7 @@ def lower(opcode, entry, modifiers, args, params, sctx):
         raise ValueError("MMA major order must be k or mn")
     ctx = Context(sctx)
     ng = len(ctx.group_shape)
-    d_shape = tuple(int(r.extent) for r in args[0].region)[ng:]
+    d_shape = tuple(int(Range.get_extent(r.begin, r.end)) for r in args[0].region)[ng:]
     # Every operand carries two explicit repeat axes before its atom.
     if len(d_shape) < 4:
         raise ValueError("tcgen05.mma D requires M/N repeat axes before the atom")
@@ -139,7 +139,7 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     nb = len(batch)
     a_tmem = args[1].source.ty.scope == MemoryScope("tmem")
     a_atom = (2, M // cta_group, K) if a_tmem and ws and M == 64 else (M // cta_group, K)
-    a_shape = tuple(int(r.extent) for r in args[1].region)[ng:]
+    a_shape = tuple(int(Range.get_extent(r.begin, r.end)) for r in args[1].region)[ng:]
     kr = a_shape[-len(a_atom) - 1]
     ctx.loops((*batch, mr, nr, kr))
     mn_axes, mk_axes, nk_axes = (

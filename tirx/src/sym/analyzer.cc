@@ -69,8 +69,8 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
   TVM_FFI_ICHECK(range.defined());
-  if (prim::IsOne(range->extent)) {
-    this->Bind(var, range->min, allow_override);
+  if (prim::IsOne(Range::GetExtent(range->begin, range->end))) {
+    this->Bind(var, range->begin, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);

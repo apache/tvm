@@ -205,7 +205,7 @@ UnchangedOr<Stmt> SIRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_m
 }
 
 UnchangedOr<Stmt> SIRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
-  const Var& v = op->loop_var;
+  const Var& v = op->var;
   if (defined_.count(v.get())) {
     return scope_.WithNewScope([&]() -> Stmt {
       Var new_var = MakeNewVar(v);
@@ -213,7 +213,7 @@ UnchangedOr<Stmt> SIRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-      n->loop_var = new_var.as_or_throw<PrimVar>();
+      n->var = new_var.as_or_throw<PrimVar>();
       return For(n);
     });
   } else {
@@ -310,13 +310,13 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchTensorRegion& match_tensor,
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& range = source->region[i];
-    TVM_FFI_ICHECK(analyzer->CanProve(range->extent == 1));
-    result.push_back(range->min);
+    TVM_FFI_ICHECK(analyzer->CanProve(Range::GetExtent(range->begin, range->end) == 1));
+    result.push_back(range->begin);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
     const Range& range = source->region[i + offset];
     const PrimExpr& index = indices[i];
-    result.push_back(range->min + index);
+    result.push_back(range->begin + index);
   }
   return result;
 }
@@ -333,14 +333,16 @@ ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& source_range = source->region[i];
-    TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == 1));
-    result.push_back(Range::FromMinExtent(source_range->min, 1));
+    TVM_FFI_ICHECK(
+        analyzer->CanProve(Range::GetExtent(source_range->begin, source_range->end) == 1));
+    result.push_back(source_range);
   }
   for (size_t i = 0; i < region.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const Range& target_range = region[i];
     result.push_back(
-        Range::FromMinExtent(source_range->min + target_range->min, target_range->extent));
+        Range::FromMinExtent(source_range->begin + target_range->begin,
+                             Range::GetExtent(target_range->begin, target_range->end)));
   }
   return result;
 }

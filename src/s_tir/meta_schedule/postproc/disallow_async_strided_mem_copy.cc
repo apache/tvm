@@ -48,7 +48,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!found_) {
-      input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
+      input_iters.Set(loop->var, Range(loop->begin, loop->end));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
     return std::nullopt;

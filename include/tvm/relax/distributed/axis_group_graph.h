@@ -149,7 +149,8 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
     b = analyzer->Simplify(b);
     // index var `a` must access whole range of a specific tensor dimension
     sym::IntSet intset_b = sym::EvalSet(b, sym::AsIntSet(iter_var_range_));
-    if (!analyzer->CanProveEqual(tensor_shape_a, iter_var_range_[var]->extent) ||
+    if (!analyzer->CanProveEqual(tensor_shape_a, Range::GetExtent(iter_var_range_[var]->begin,
+                                                                  iter_var_range_[var]->end)) ||
         !intset_b.MatchRange(Range::FromMinExtent(0, tensor_shape_b))) {
       return false;
     }

@@ -390,7 +390,7 @@ bool HasReshapePattern(const tirx::Function& func) {
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-      ana_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      ana_->Bind(loop->var, Range(loop->begin, loop->end));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
       if (loop->body->size() != 1 ||
@@ -430,8 +430,8 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       ffi::Map<PrimVar, Range> var_range;
       for (const s_tir::IterVar& v : block->iter_vars) {
-        ana_->Bind(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
-        var_range.Set(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
+        ana_->Bind(v->var, Range(v->dom.value()->begin, v->dom.value()->end));
+        var_range.Set(v->var, Range(v->dom.value()->begin, v->dom.value()->end));
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -481,10 +481,11 @@ bool HasReshapePattern(const tirx::Function& func) {
         }
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
-                this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->min,
+                this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->begin,
                                           IntImm::Int64(/*value=*/0)) &&
-                this->ana_->CanProveEqual(tensor.shape()[i],
-                                          block->iter_vars[i]->dom.value()->extent))) {
+                this->ana_->CanProveEqual(
+                    tensor.shape()[i], Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
+                                                        block->iter_vars[i]->dom.value()->end)))) {
             return false;
           }
         }
@@ -504,7 +505,8 @@ bool HasReshapePattern(const tirx::Function& func) {
       // Skip check 1 on zero-extent iters: the inverse index map would divide by zero.
       bool has_zero_extent = std::any_of(
           block->iter_vars.begin(), block->iter_vars.end(), [this](const s_tir::IterVar& v) {
-            return this->ana_->CanProveEqual(v->dom.value()->extent, 0);
+            return this->ana_->CanProveEqual(
+                Range::GetExtent(v->dom.value()->begin, v->dom.value()->end), 0);
           });
 
       if (nontrivial_tensor.has_value() && !has_zero_extent) {
@@ -514,10 +516,13 @@ bool HasReshapePattern(const tirx::Function& func) {
         ffi::Map<tvm::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
-          inverse_indices_map.Set(block->iter_vars[i]->var,
-                                  floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
-                                           block->iter_vars[i]->dom.value()->extent));
-          stride *= block->iter_vars[i]->dom.value()->extent;
+          inverse_indices_map.Set(
+              block->iter_vars[i]->var,
+              floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
+                       Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
+                                        block->iter_vars[i]->dom.value()->end)));
+          stride *= Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
+                                     block->iter_vars[i]->dom.value()->end);
         }
         auto f_substitute = [&inverse_indices_map](
                                 const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

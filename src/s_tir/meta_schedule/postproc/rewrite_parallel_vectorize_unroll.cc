@@ -176,7 +176,8 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    if (const auto* extent = loop->extent.as<IntImmNode>();
+    PrimExpr extent_expr = Range::GetExtent(loop->begin, loop->end);
+    if (const auto* extent = extent_expr.as<IntImmNode>();
         !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
     }
@@ -237,9 +238,9 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       sym::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
         PrimExpr idx = analyzer->Simplify(
-            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->begin, f_substitute)
                 .as_or_throw<PrimExpr>());
-        int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
+        int64_t coef = StrideExtractor::Extract(idx, var->var);
         if (coef != 0) {
           stride = coef * tensor_stride;
           break;
@@ -277,8 +278,10 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const auto* prev_used_iter_extent_imm =
-            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<IntImmNode>();
+        PrimExpr prev_used_iter_extent_imm_expr =
+            Range::GetExtent(TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->begin,
+                             TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->end);
+        const auto* prev_used_iter_extent_imm = prev_used_iter_extent_imm_expr.as<IntImmNode>();
         auto prev_used_iter_extent = prev_used_iter_extent_imm
                                          ? prev_used_iter_extent_imm->value.as<int64_t>()
                                          : std::nullopt;
@@ -311,7 +314,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;
@@ -349,7 +353,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;

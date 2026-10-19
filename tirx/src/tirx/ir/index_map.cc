@@ -126,8 +126,9 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
     PrimVar index = self->initial_indices[i];
     PrimExpr expr{ffi::UnsafeInit{}};
-    if (IsOne(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
-      expr = initial_ranges[i]->min;
+    if (IsOne(Range::GetExtent(initial_ranges[i]->begin, initial_ranges[i]->end)) &&
+        !inverse_exprs_map.count(index)) {
+      expr = initial_ranges[i]->begin;
     } else {
       expr = inverse_exprs_map.at(index);
     }
@@ -267,14 +268,13 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   auto output_dtype = [&]() {
     int max_bits = ranges.empty() ? 32 : 0;
     for (const auto& range : ranges) {
-      max_bits = std::max(max_bits, range->extent.ty().bits());
+      max_bits = std::max(max_bits, range->end.ty().bits());
     }
     return PrimType::Int(max_bits);
   }();
   output.MutateByApply([&](const Range& range) {
-    if (range->min.ty() != output_dtype || range->extent.ty() != output_dtype) {
-      return Range::FromMinExtent(prim::cast(range->min, output_dtype),
-                                  prim::cast(range->extent, output_dtype));
+    if (range->begin.ty() != output_dtype || range->end.ty() != output_dtype) {
+      return Range(prim::cast(range->begin, output_dtype), prim::cast(range->end, output_dtype));
     } else {
       return range;
     }
@@ -299,8 +299,8 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<PrimExpr> output;
   for (auto& range : mapped) {
-    TVM_FFI_ICHECK(IsZero(range->min));
-    output.push_back(range->extent);
+    TVM_FFI_ICHECK(IsZero(range->begin));
+    output.push_back(Range::GetExtent(range->begin, range->end));
   }
 
   return output;

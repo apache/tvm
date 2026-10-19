@@ -84,14 +84,12 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
         default:
           TVM_FFI_THROW(TypeError) << "printer unsupported SBlock iter var kind";
       }
-      ExprDoc domain = prim::IsZero(iter->dom.value()->min) &&
-                               iter->dom.value()->min.ty() == iter->dom.value()->extent.ty()
-                           ? d->Translate(iter->dom.value()->extent).value()
-                           : NamespaceDoc("ir")
-                                 ->Attr("Range")
-                                 ->Attr("from_min_extent")
-                                 ->Call({d->Translate(iter->dom.value()->min).value(),
-                                         d->Translate(iter->dom.value()->extent).value()});
+      ExprDoc domain = prim::IsZero(iter->dom.value()->begin) &&
+                               iter->dom.value()->begin.ty() == iter->dom.value()->end.ty()
+                           ? d->Translate(iter->dom.value()->end).value()
+                           : NamespaceDoc("ir")->Attr("Range")->Call(
+                                 {d->Translate(iter->dom.value()->begin).value(),
+                                  d->Translate(iter->dom.value()->end).value()});
       ffi::Array<ExprDoc> args = {domain};
       if (realize) args.push_back(d->Translate(realize->iter_values[i]).value());
       IdDoc lhs = VarDoc(d, iter->var);

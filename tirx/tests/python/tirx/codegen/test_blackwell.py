@@ -25,6 +25,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
 from tvm_tirx.backend.cuda.lang import SMEMPool
+from tvm_tirx.ir import Range
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
 
@@ -443,17 +444,27 @@ def test_tcgen05_cp_ld_roundtrip():
         copy_dst_1 = T.meta_var(A_smem[:, :])
         copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
         for copy_step_1 in T.serial(
-            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
+            T.ceildiv(
+                math.prod([int(Range.get_extent(r.begin, r.end)) for r in copy_src_1.region]),
+                128,
+            )
         ):
             copy_index_1 = copy_step_1 * (128) + (tx)
-            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+            if copy_index_1 < math.prod(
+                [int(Range.get_extent(r.begin, r.end)) for r in copy_src_1.region]
+            ):
                 copy_value_1 = copy_src_tensor_1[
                     tuple(
                         [
-                            copy_src_1.region[k].min
+                            copy_src_1.region[k].begin
                             + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
-                            % copy_src_1.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_src_1.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_src_1.region[k].begin, copy_src_1.region[k].end)
                             for k in range(len(copy_src_1.region))
                         ]
                     )
@@ -461,10 +472,15 @@ def test_tcgen05_cp_ld_roundtrip():
                 copy_dst_index_1 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_1.region[k].min
+                            copy_dst_1.region[k].begin
                             + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
-                            % copy_dst_1.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_dst_1.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_dst_1.region[k].begin, copy_dst_1.region[k].end)
                             for k in range(len(copy_dst_1.region))
                         ]
                     )
@@ -604,17 +620,27 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         copy_dst_2 = T.meta_var(A_smem[:, :])
         copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
         for copy_step_2 in T.serial(
-            T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 128)
+            T.ceildiv(
+                math.prod([int(Range.get_extent(r.begin, r.end)) for r in copy_src_2.region]),
+                128,
+            )
         ):
             copy_index_2 = copy_step_2 * (128) + (tx)
-            if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+            if copy_index_2 < math.prod(
+                [int(Range.get_extent(r.begin, r.end)) for r in copy_src_2.region]
+            ):
                 copy_value_2 = copy_src_tensor_2[
                     tuple(
                         [
-                            copy_src_2.region[k].min
+                            copy_src_2.region[k].begin
                             + copy_index_2
-                            // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
-                            % copy_src_2.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_src_2.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_src_2.region[k].begin, copy_src_2.region[k].end)
                             for k in range(len(copy_src_2.region))
                         ]
                     )
@@ -622,10 +648,15 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_dst_index_2 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_2.region[k].min
+                            copy_dst_2.region[k].begin
                             + copy_index_2
-                            // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
-                            % copy_dst_2.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_dst_2.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_dst_2.region[k].begin, copy_dst_2.region[k].end)
                             for k in range(len(copy_dst_2.region))
                         ]
                     )
@@ -636,17 +667,27 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         copy_dst_3 = T.meta_var(B_smem[:, :])
         copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
         for copy_step_3 in T.serial(
-            T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 128)
+            T.ceildiv(
+                math.prod([int(Range.get_extent(r.begin, r.end)) for r in copy_src_3.region]),
+                128,
+            )
         ):
             copy_index_3 = copy_step_3 * (128) + (tx)
-            if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+            if copy_index_3 < math.prod(
+                [int(Range.get_extent(r.begin, r.end)) for r in copy_src_3.region]
+            ):
                 copy_value_3 = copy_src_tensor_3[
                     tuple(
                         [
-                            copy_src_3.region[k].min
+                            copy_src_3.region[k].begin
                             + copy_index_3
-                            // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
-                            % copy_src_3.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_src_3.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_src_3.region[k].begin, copy_src_3.region[k].end)
                             for k in range(len(copy_src_3.region))
                         ]
                     )
@@ -654,10 +695,15 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_dst_index_3 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_3.region[k].min
+                            copy_dst_3.region[k].begin
                             + copy_index_3
-                            // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
-                            % copy_dst_3.region[k].extent
+                            // math.prod(
+                                [
+                                    int(Range.get_extent(s.begin, s.end))
+                                    for s in copy_dst_3.region[k + 1 :]
+                                ]
+                            )
+                            % Range.get_extent(copy_dst_3.region[k].begin, copy_dst_3.region[k].end)
                             for k in range(len(copy_dst_3.region))
                         ]
                     )

@@ -208,7 +208,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForNode* op) {
   if (s.access.size() != 0) {
     // relax the touched set to contain all ranges in the loop.
     ffi::Map<Var, sym::IntSet> relax_map;
-    relax_map.Set(op->loop_var, sym::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent)));
+    relax_map.Set(op->var, sym::IntSet::FromRange(Range(op->begin, op->end)));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         TVM_FFI_ICHECK(e.touched.size());

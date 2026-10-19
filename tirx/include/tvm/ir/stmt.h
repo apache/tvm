@@ -434,27 +434,31 @@ enum class ForKind : int {
  *
  * \code
  *
- *  for (loop_var = min; loop_var < min + extent; loop_var += step) {
+ *  for (var = begin; var < end; var += step) {
  *    // body
  *  }
  * \endcode
  */
 class ForNode : public StmtNode {
  public:
-  explicit ForNode(ffi::UnsafeInit tag) : loop_var(tag), min(tag), extent(tag), body(tag) {}
+  explicit ForNode(ffi::UnsafeInit tag) : var(tag), begin(tag), end(tag), step(tag), body(tag) {}
 
-  ForNode(PrimVar loop_var, PrimExpr min, PrimExpr extent, SeqStmt body)
-      : loop_var(std::move(loop_var)),
-        min(std::move(min)),
-        extent(std::move(extent)),
+  ForNode(PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, ForKind kind, SeqStmt body)
+      : var(std::move(var)),
+        begin(std::move(begin)),
+        end(std::move(end)),
+        step(std::move(step)),
+        kind(kind),
         body(std::move(body)) {}
 
   /*! \brief The loop variable. */
-  PrimVar loop_var;
-  /*! \brief The minimum value of iteration. */
-  PrimExpr min;
-  /*! \brief The extent of the iteration. */
-  PrimExpr extent;
+  PrimVar var;
+  /*! \brief The inclusive beginning of iteration. */
+  PrimExpr begin;
+  /*! \brief The exclusive end of iteration. */
+  PrimExpr end;
+  /*! \brief The required loop step, including an explicit typed one for unit stride. */
+  PrimExpr step;
   /*! \brief The kind of the for loop. */
   ForKind kind;
   /*! \brief The body of the for loop. */
@@ -466,21 +470,17 @@ class ForNode : public StmtNode {
    * annotations unless they explicitly handle the corresponding semantics.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
-  /*!
-   * \brief The loop step. It is one if not specified.
-   */
-  ffi::Optional<PrimExpr> step;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ForNode>()
-        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("min", &ForNode::min)
-        .def_ro("extent", &ForNode::extent)
+        .def_ro("var", &ForNode::var, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("begin", &ForNode::begin)
+        .def_ro("end", &ForNode::end)
+        .def_ro("step", &ForNode::step)
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
-        .def_ro("annotations", &ForNode::annotations)
-        .def_ro("step", &ForNode::step);
+        .def_ro("annotations", &ForNode::annotations);
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
@@ -495,9 +495,9 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_TIRX_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-                   ffi::Map<ffi::String, ffi::Any> annotations = {},
-                   ffi::Optional<PrimExpr> step = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL For(PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, ForKind kind,
+                   SeqStmt body, ffi::Map<ffi::String, ffi::Any> annotations = {},
+                   Location loc = UnknownLoc());
 
   explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
 

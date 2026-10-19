@@ -108,7 +108,7 @@ def _get_sblock_default_dtype(block: SBlock) -> str:
         return str(i.var.ty)
     for tensor_region in list(block.reads) + list(block.writes):
         for dom in tensor_region.region:
-            return str(dom.min.ty)
+            return str(dom.begin.ty)
     return "int64"
 
 

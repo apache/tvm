@@ -110,15 +110,14 @@ class OpaqueBlockLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
-    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    auto step = this->Mutate(op->step, inplace_mode)
-                    .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
-                    .ValueOrUnchanged(op->step);
-    auto previous_remap = VarRemapGet(op->loop_var);
+    PrimExpr min = this->Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
+    PrimExpr end = this->Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
+    PrimExpr extent = Range::GetExtent(min, end);
+    PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
+    auto previous_remap = VarRemapGet(op->var);
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
-      VarRemapSet(op->loop_var, prim::cast(min, op->loop_var.ty()));
+      VarRemapSet(op->var, prim::cast(min, op->var.ty()));
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.
@@ -140,15 +139,15 @@ class OpaqueBlockLower : public StmtExprMutator {
       new_annotations = HandleAnnotations(annotations);
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     });
-    VarRemapSet(op->loop_var, previous_remap);
+    VarRemapSet(op->var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
         !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark.name)) {
       return body;
     }
-    return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-               std::move(new_annotations), std::move(step), op->loc);
+    return For(op->var, std::move(min), std::move(end), std::move(step), op->kind, std::move(body),
+               std::move(new_annotations), op->loc);
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {

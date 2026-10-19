@@ -51,9 +51,10 @@ TensorRegion GetRelaxedTensorRegion(const SBlockRealize& realize, const TensorRe
     return ffi::Unchanged();
   };
   ffi::Array<Range> mapped_region = tensor_region->region.Map([&f_substitute](const Range& range) {
-    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                        .as_or_throw<PrimExpr>();
-    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          Range::GetExtent(range->begin, range->end), f_substitute)
                           .as_or_throw<PrimExpr>();
     return Range::FromMinExtent(min, extent);
   });
@@ -196,7 +197,7 @@ class RollingBufferInfoCollector {
       auto divisor = 1;
 
       ffi::Optional<Var> iter_var;
-      if (const auto* div = bound->min.as<prim::FloorDivNode>()) {
+      if (const auto* div = bound->begin.as<prim::FloorDivNode>()) {
         const auto* mul = div->a.as<prim::MulNode>();
         if (!mul) return false;
         iter_var = mul->a.as<Var>();
@@ -213,7 +214,7 @@ class RollingBufferInfoCollector {
         if (!divisor_value.has_value() || !stride_value.has_value()) return false;
         divisor = *divisor_value;
         stride = std::ceil(static_cast<float>(*stride_value) / divisor);
-      } else if (const auto* mul = bound->min.as<prim::MulNode>()) {
+      } else if (const auto* mul = bound->begin.as<prim::MulNode>()) {
         // The bound is the iter var multiplied by the stride
         iter_var = mul->a.as<Var>();
         auto stride_imm = mul->b.as<IntImm>();
@@ -221,11 +222,11 @@ class RollingBufferInfoCollector {
         auto stride_value = stride_imm.value()->value.as<int>();
         if (!stride_value.has_value()) return false;
         stride = *stride_value;
-      } else if (auto var = bound->min.as<Var>()) {
+      } else if (auto var = bound->begin.as<Var>()) {
         // If the bound is just a Var, that implies the stride is 1
         iter_var = var;
         stride = 1;
-      } else if (IsConstInt(bound->min)) {
+      } else if (IsConstInt(bound->begin)) {
         // If the bound is an int, we can't roll over it
         iter_var = std::nullopt;
       } else {
@@ -234,7 +235,7 @@ class RollingBufferInfoCollector {
       }
       auto bound_overlap = 0;
       if (iter_var.has_value()) {
-        const auto& extent = bound->extent.as_or_throw<IntImm>()->value;
+        auto extent = Range::GetExtent(bound->begin, bound->end).as_or_throw<IntImm>()->value;
         bound_overlap = (extent - stride).as<int>().value();
         // Since Pass CompactTensorAllocation will be responsible for compacting the tensor
         // allocation region, there is no need to roll over the axis where the overlap is not
@@ -253,7 +254,7 @@ class RollingBufferInfoCollector {
     ffi::Optional<Var> roll_iter_var;
     int roll_axis = 0;
     for (const tirx::StmtSRef& loop_sref : loop_srefs) {
-      auto loop_var = loop_sref->StmtAs<ForNode>()->loop_var;
+      auto loop_var = loop_sref->StmtAs<ForNode>()->var;
 
       auto it{std::find_if(
           bound_iter_vars.begin(), bound_iter_vars.end(),
@@ -270,14 +271,19 @@ class RollingBufferInfoCollector {
       return false;
     }
     ffi::Array<PrimExpr> new_shape = tensor.shape();
-    new_shape.Set(roll_axis, region[roll_axis]->extent);
+    new_shape.Set(roll_axis, Range::GetExtent(region[roll_axis]->begin, region[roll_axis]->end));
     auto new_tensor_type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     new_tensor_type->shape = new_shape;
     TensorVar new_tensor =
         TensorVar(tensor->name, TensorType(std::move(new_tensor_type)), tensor->loc);
 
-    info_ = RollingBufferInfo{tensor,         new_tensor,      roll_axis, region[roll_axis]->extent,
-                              bound_overlaps, bound_iter_vars, {}};
+    info_ = RollingBufferInfo{tensor,
+                              new_tensor,
+                              roll_axis,
+                              Range::GetExtent(region[roll_axis]->begin, region[roll_axis]->end),
+                              bound_overlaps,
+                              bound_iter_vars,
+                              {}};
 
     return true;
   }
@@ -478,8 +484,8 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_ten
       break;
     }
     For cur_loop = ffi::GetRef<For>(stmt->StmtAs<ForNode>());
-    Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
-    dom_map.Set(cur_loop->loop_var, sym::IntSet::FromRange(range));
+    Range range = Range(cur_loop->begin, cur_loop->end);
+    dom_map.Set(cur_loop->var, sym::IntSet::FromRange(range));
   }
   TensorRegion relaxed_region = GetRelaxedTensorRegion(realize, tensor_region, dom_map);
 

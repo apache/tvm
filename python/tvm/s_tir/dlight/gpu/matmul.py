@@ -191,9 +191,9 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     def get_access_axes(region: list[Range]) -> set[Var]:
         axes: set[Var] = set()
         for r in region:
-            if not _is_one(r.extent):
+            if not _is_one(Range.get_extent(r.begin, r.end)):
                 raise ValueError("Expect elemwise block access")
-            axes = axes.union(set(undefined_vars(r.min)))
+            axes = axes.union(set(undefined_vars(r.begin)))
         return axes
 
     try:
@@ -207,7 +207,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     for iter_var in block.iter_vars:
         var = iter_var.var
         kind: IterKind
-        if _is_one(iter_var.dom.extent):
+        if _is_one(Range.get_extent(iter_var.dom.begin, iter_var.dom.end)):
             kind = IterKind.kIter_T
         elif iter_var.iter_type == iter_var.DataPar:
             if var in A_axes and var in B_axes and var in C_axes:
@@ -225,7 +225,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
                 return None
         else:
             return None
-        traits[var] = IterTrait(kind, iter_var.dom.extent)
+        traits[var] = IterTrait(kind, Range.get_extent(iter_var.dom.begin, iter_var.dom.end))
 
     # A Gemm-kernel requires have I, J and K axes
     gemm_traits = {IterKind.kIter_I, IterKind.kIter_J, IterKind.kIter_K}
@@ -294,7 +294,7 @@ def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlo
             IterInfo(
                 kind=_iter_kind(iter_var),
                 var=iter_var.var,
-                dom=iter_var.dom.extent,
+                dom=Range.get_extent(iter_var.dom.begin, iter_var.dom.end),
                 loop_rv=loop_rv,
             )
             for loop_rv, iter_var in zip(sch.get_loops(block), sch.get(block).iter_vars)
@@ -551,7 +551,7 @@ class Matmul(GPUScheduleRule):
 
         # Checks if it's a inner reduction by getting the last matrix's inner Index
         def is_inner_reduction(block_stmt, iter_infos):
-            end_it = block_stmt.reads[-1].region[-1].min
+            end_it = block_stmt.reads[-1].region[-1].begin
             return {it.var: it.kind for it in iter_infos}.get(end_it, "O") == "R"
 
         if (
@@ -685,9 +685,11 @@ class Matmul(GPUScheduleRule):
 
         mb, ms, n, k = reduction_loops
         if not (
-            isinstance(sch.get(n).extent, tvm_tirx.ir.IntImm)
-            and isinstance(sch.get(mb).extent, tvm_tirx.ir.IntImm)
-            and not isinstance(sch.get(ms).extent, tvm_tirx.ir.IntImm)
+            isinstance(Range.get_extent(sch.get(n).begin, sch.get(n).end), tvm_tirx.ir.IntImm)
+            and isinstance(Range.get_extent(sch.get(mb).begin, sch.get(mb).end), tvm_tirx.ir.IntImm)
+            and not isinstance(
+                Range.get_extent(sch.get(ms).begin, sch.get(ms).end), tvm_tirx.ir.IntImm
+            )
         ):
             return None
 
@@ -698,7 +700,12 @@ class Matmul(GPUScheduleRule):
             config.unroll,
         )
 
-        VecSize = min(get_max_factor(sch.get(n).extent // Threads_X, [1, 2, 4, 8]), VecSize)
+        VecSize = min(
+            get_max_factor(
+                Range.get_extent(sch.get(n).begin, sch.get(n).end) // Threads_X, [1, 2, 4, 8]
+            ),
+            VecSize,
+        )
         dequant_block = None
         matmul_block = reduction_block
         epilogue_block = None

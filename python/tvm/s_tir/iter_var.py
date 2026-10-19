@@ -20,7 +20,7 @@
 import tvm_ffi
 
 from tvm_tirx import ir
-from tvm_tirx.ir import ExprWithOp, OpaqueExpr, Var
+from tvm_tirx.ir import ExprWithOp, OpaqueExpr, Range, Var
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
@@ -91,10 +91,12 @@ class IterVar(OpaqueExpr, ExprWithOp):
                 raise TypeError("dom need to be Range")
 
         name = var if var is not None else "iter"
-        dtype = "int32" if dom is None else dom.extent.ty
+        dtype = "int32" if dom is None else Range.get_extent(dom.begin, dom.end).ty
         var = Var(name, ty=dtype, loc=loc) if not isinstance(var, Var) else var
         if dom is not None:
-            assert var.ty == dom.extent.ty, "IterVar's Var type must match its domain's extent type"
+            assert var.ty == Range.get_extent(dom.begin, dom.end).ty, (
+                "IterVar's Var type must match its domain's extent type"
+            )
         self.__init_handle_by_constructor__(
             _ffi_api.IterVar,
             dom,

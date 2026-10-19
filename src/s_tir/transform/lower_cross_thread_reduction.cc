@@ -433,7 +433,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<PrimExpr> thread_axes;
     for (const ForNode* reduction_loop : reduction_loops) {
       if (tvm::s_tir::GetThreadBinding(reduction_loop).has_value()) {
-        thread_axes.push_back(reduction_loop->loop_var);
+        thread_axes.push_back(reduction_loop->var);
       }
     }
     ffi::Array<Expr> parameters{combine,
@@ -506,9 +506,10 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       return ffi::Unchanged();
     };
     ffi::Array<Range> region = block->writes[0]->region.Map([&map_var](const Range& range) {
-      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_var)
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_var)
                          .as_or_throw<PrimExpr>();
-      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_var)
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            Range::GetExtent(range->begin, range->end), map_var)
                             .as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });
@@ -531,7 +532,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     std::unordered_set<const VarNode*> reduction_loop_vars;
     reduction_loop_vars.reserve(reduction_loops.size());
     for (const ForNode* reduction_loop : reduction_loops) {
-      reduction_loop_vars.insert(reduction_loop->loop_var.get());
+      reduction_loop_vars.insert(reduction_loop->var.get());
     }
     std::unordered_set<const ffi::Object*> visited_predicate_nodes;
     auto walk_fn = [&wb_predicate, &reduction_loop_vars, &visited_predicate_nodes](
@@ -563,8 +564,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     if (wb_tensors[0].scope() != scope_local) {
       for (const ForNode* loop : reduction_loops) {
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
-          wb_predicate = wb_predicate &&
-                         (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
+          wb_predicate =
+              wb_predicate && (static_cast<PrimExpr>(loop->var) == IntImm(loop->var.ty(), 0));
         }
       }
     }
@@ -626,7 +627,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     bool need = false;
     std::vector<const ForNode*> reduction_loops;
     for (const ForNode* loop : loop_stack_) {
-      if (reduction_vars.count(loop->loop_var.get())) {
+      if (reduction_vars.count(loop->var.get())) {
         // Step 3. Collect the loop.
         reduction_loops.push_back(loop);
         // Step 4. See whether the loop is bound to some thread axis.
@@ -736,7 +737,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
         TVM_FFI_CHECK(IsBoundToThreadIdx(reduction_loop), ValueError)
             << "Cross-thread reduction requires all the reduction-related loops that "
                "are bound to GPU thread axes to only be bound `threadIdx.x/y/z`. However, loop "
-            << reduction_loop->loop_var->name << " violates the condition.";
+            << reduction_loop->var->name << " violates the condition.";
       }
     }
 
@@ -805,7 +806,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     loop_stack_.push_back(loop);
-    loop_range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    loop_range_map_.Set(loop->var, Range(loop->begin, loop->end));
 
     // Collect loop-thread information:
     // - when encountering a threadIdx loop, we keep note of its domain and
@@ -828,7 +829,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     Stmt result =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     loop_stack_.pop_back();
-    loop_range_map_.erase(loop->loop_var);
+    loop_range_map_.erase(loop->var);
     if (is_thread_idx) {
       --thread_idx_depth;
     }
@@ -915,7 +916,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
       if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
         reduction_threads.emplace_back(
             ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value()),
-            Range::FromMinExtent(loop->min, loop->extent));
+            Range(loop->begin, loop->end));
       }
     }
     for (const TensorVar& reduction_tensor : reduction_tensors) {
@@ -933,9 +934,9 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     loop_vars.reserve(unbound_thread2range.size());
     for (auto [scope, range] : unbound_thread2range) {
       std::string dim_index(1, static_cast<char>(scope.dim_index + 'x'));
-      Var loop_var("t" + dim_index, range->min.ty());
+      Var loop_var("t" + dim_index, range->begin.ty());
       loop_vars.push_back(loop_var);
-      predicate = (loop_var.as_or_throw<PrimExpr>() == range->min) && predicate;
+      predicate = (loop_var.as_or_throw<PrimExpr>() == range->begin) && predicate;
     }
 
     // Step 2. Update the BlockRealize with the new predicate.
@@ -946,15 +947,10 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     Stmt body(p_realize);
     for (int i = 0; i < static_cast<int>(unbound_thread2range.size()); ++i) {
       std::string dim_index(1, static_cast<char>(unbound_thread2range[i].first.dim_index + 'x'));
-      body = For(
-          /*loop_var=*/loop_vars[i].as_or_throw<PrimVar>(),   //
-          /*min=*/unbound_thread2range[i].second->min,        //
-          /*extent=*/unbound_thread2range[i].second->extent,  //
-          /*kind=*/ForKind::kParallel,                        //
-          /*body=*/body,                                      //
-                                                              /*annotations=*/
-          {{tvm::s_tir::attr::kThreadBinding.name, ffi::String("threadIdx." + dim_index)}},
-          /*step=*/std::nullopt);
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), unbound_thread2range[i].second->begin,
+                 unbound_thread2range[i].second->end,
+                 IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kParallel, body,
+                 {{tvm::s_tir::attr::kThreadBinding.name, ffi::String("threadIdx." + dim_index)}});
     }
     return body;
   }

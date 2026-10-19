@@ -22,6 +22,7 @@ from functools import reduce
 import tvm_tirx
 from tvm import s_tir
 from tvm_tirx import tirx
+from tvm_tirx.ir import Range
 from tvm_tirx.target import Target
 
 from ..analysis import (
@@ -192,12 +193,12 @@ class GEMV(GPUScheduleRule):
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm_tirx.ir.For = sch.get(l)
-                if isinstance(loop.extent, tvm_tirx.ir.IntImm):
+                if isinstance(Range.get_extent(loop.begin, loop.end), tvm_tirx.ir.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
                             get_max_factor(
-                                (int)(loop.extent),
+                                (int)(Range.get_extent(loop.begin, loop.end)),
                                 [TS * TR * 1, TS * TR * 2, TS * TR * 4, TS * TR * 8],
                             )
                             // TS
@@ -232,7 +233,7 @@ class GEMV(GPUScheduleRule):
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
-            assert sch.get(ts_o).extent.value == 1
+            assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, vec_s, vec_c)
             sch.bind(ts, TAG_S)
@@ -246,7 +247,7 @@ class GEMV(GPUScheduleRule):
             ts_o, ts_i, tile_s = sch.split(
                 ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
             )
-            assert sch.get(ts_o).extent.value == 1
+            assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, ts, tr)
             sch.bind(ts, TAG_S)
@@ -301,7 +302,7 @@ class GEMV(GPUScheduleRule):
                     ts_o, ts_i, tile_s = sch.split(
                         ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
                     )
-                    assert sch.get(ts_o).extent.value == 1
+                    assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
                     ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")

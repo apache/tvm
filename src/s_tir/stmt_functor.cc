@@ -49,8 +49,8 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
 ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor* visitor,
                                                           const SBlockNode* op) {
   for (const IterVar& iter_var : op->iter_vars) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->extent));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->begin));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->end));
   }
   for (const TensorVar& tensor : op->alloc_tensors) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(

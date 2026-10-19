@@ -152,10 +152,10 @@ class IntermediateStageRewriter {
     ffi::Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
       ffi::ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
-      for_node->loop_var = for_node->loop_var.CopyWithSuffix("");
+      for_node->var = for_node->var.CopyWithSuffix("");
       for_node->body = std::move(local_stage);
       local_stage = For(for_node);
-      subst_map.Set(relaxed_loop->loop_var, for_node->loop_var);
+      subst_map.Set(relaxed_loop->var, for_node->var);
     }
     auto f_substitute = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = subst_map.Get(var)) return ffi::Any(*std::move(repl));
@@ -177,8 +177,8 @@ class IntermediateStageRewriter {
 
     for (auto it = relaxed_loops.rbegin(); it != relaxed_loops.rend(); ++it) {
       const ForNode* relaxed_loop = *it;
-      tensor_indices.push_back(relaxed_loop->min + relaxed_loop->loop_var);
-      new_tensor_shape.push_back(relaxed_loop->extent);
+      tensor_indices.push_back(relaxed_loop->begin + relaxed_loop->var);
+      new_tensor_shape.push_back(Range::GetExtent(relaxed_loop->begin, relaxed_loop->end));
     }
     static const auto scope_local = runtime::MemoryScope::Get("local");
     TensorVar new_tensor = WithScope(tensor, scope_local);

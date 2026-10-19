@@ -67,7 +67,7 @@ def _count_s2c_ops(impl):
     total = 0
 
     def visit_for(op, visitor):
-        loop_extents.append(op.extent)
+        loop_extents.append(tvm_tirx.ir.Range.get_extent(op.begin, op.end))
         visitor.default_visit(op)
         loop_extents.pop()
 
@@ -198,19 +198,37 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                 copy_dst_1 = T.meta_var(src_smem[r])
                 copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
                 for copy_step_1 in T.serial(
-                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 1)
+                    T.ceildiv(
+                        math.prod(
+                            [
+                                int(tvm_tirx.ir.Range.get_extent(r.begin, r.end))
+                                for r in copy_src_1.region
+                            ]
+                        ),
+                        1,
+                    )
                 ):
                     copy_index_1 = copy_step_1 * (1) + (0)
-                    if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                    if copy_index_1 < math.prod(
+                        [
+                            int(tvm_tirx.ir.Range.get_extent(r.begin, r.end))
+                            for r in copy_src_1.region
+                        ]
+                    ):
                         copy_value_1 = copy_src_tensor_1[
                             tuple(
                                 [
-                                    copy_src_1.region[k].min
+                                    copy_src_1.region[k].begin
                                     + copy_index_1
                                     // math.prod(
-                                        [int(s.extent) for s in copy_src_1.region[k + 1 :]]
+                                        [
+                                            int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                            for s in copy_src_1.region[k + 1 :]
+                                        ]
                                     )
-                                    % copy_src_1.region[k].extent
+                                    % tvm_tirx.ir.Range.get_extent(
+                                        copy_src_1.region[k].begin, copy_src_1.region[k].end
+                                    )
                                     for k in range(len(copy_src_1.region))
                                 ]
                             )
@@ -218,12 +236,17 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_dst_index_1 = T.meta_var(
                             tuple(
                                 [
-                                    copy_dst_1.region[k].min
+                                    copy_dst_1.region[k].begin
                                     + copy_index_1
                                     // math.prod(
-                                        [int(s.extent) for s in copy_dst_1.region[k + 1 :]]
+                                        [
+                                            int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                            for s in copy_dst_1.region[k + 1 :]
+                                        ]
                                     )
-                                    % copy_dst_1.region[k].extent
+                                    % tvm_tirx.ir.Range.get_extent(
+                                        copy_dst_1.region[k].begin, copy_dst_1.region[k].end
+                                    )
                                     for k in range(len(copy_dst_1.region))
                                 ]
                             )
@@ -249,19 +272,37 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                 copy_dst_2 = T.meta_var(B[r])
                 copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
                 for copy_step_2 in T.serial(
-                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 1)
+                    T.ceildiv(
+                        math.prod(
+                            [
+                                int(tvm_tirx.ir.Range.get_extent(r.begin, r.end))
+                                for r in copy_src_2.region
+                            ]
+                        ),
+                        1,
+                    )
                 ):
                     copy_index_2 = copy_step_2 * (1) + (0)
-                    if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                    if copy_index_2 < math.prod(
+                        [
+                            int(tvm_tirx.ir.Range.get_extent(r.begin, r.end))
+                            for r in copy_src_2.region
+                        ]
+                    ):
                         copy_value_2 = copy_src_tensor_2[
                             tuple(
                                 [
-                                    copy_src_2.region[k].min
+                                    copy_src_2.region[k].begin
                                     + copy_index_2
                                     // math.prod(
-                                        [int(s.extent) for s in copy_src_2.region[k + 1 :]]
+                                        [
+                                            int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                            for s in copy_src_2.region[k + 1 :]
+                                        ]
                                     )
-                                    % copy_src_2.region[k].extent
+                                    % tvm_tirx.ir.Range.get_extent(
+                                        copy_src_2.region[k].begin, copy_src_2.region[k].end
+                                    )
                                     for k in range(len(copy_src_2.region))
                                 ]
                             )
@@ -269,12 +310,17 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_dst_index_2 = T.meta_var(
                             tuple(
                                 [
-                                    copy_dst_2.region[k].min
+                                    copy_dst_2.region[k].begin
                                     + copy_index_2
                                     // math.prod(
-                                        [int(s.extent) for s in copy_dst_2.region[k + 1 :]]
+                                        [
+                                            int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                            for s in copy_dst_2.region[k + 1 :]
+                                        ]
                                     )
-                                    % copy_dst_2.region[k].extent
+                                    % tvm_tirx.ir.Range.get_extent(
+                                        copy_dst_2.region[k].begin, copy_dst_2.region[k].end
+                                    )
                                     for k in range(len(copy_dst_2.region))
                                 ]
                             )

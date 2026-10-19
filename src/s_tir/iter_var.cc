@@ -90,8 +90,8 @@ IterVar::IterVar(ffi::Optional<Range> dom, PrimVar var, IterVarType t, ffi::Stri
                  Location loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
-  if (dom.has_value() && dom.value()->extent.defined()) {
-    PrimType extent_ty = dom.value()->extent.ty();
+  if (dom.has_value() && Range::GetExtent(dom.value()->begin, dom.value()->end).defined()) {
+    PrimType extent_ty = Range::GetExtent(dom.value()->begin, dom.value()->end).ty();
     PrimType var_ty = var.ty();
     TVM_FFI_ICHECK(extent_ty.code() == DLDataTypeCode::kDLInt)
         << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "

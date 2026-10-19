@@ -47,7 +47,7 @@ def test_annotate_read_tensor_access():
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                Ts.reads(A[vi - 1 : vi - 1 + 2, vj - 1 : vj - 1 + 2])
+                Ts.reads(A[vi - 1 : vi + 1, vj - 1 : vj + 1])
                 Ts.writes(B[vi, vj])
                 Ts.sblock_attr({"explicit_read_region": [0]})
                 B[vi, vj] = A[vi, vj] * 2.0
@@ -267,7 +267,7 @@ def test_annotate_tensor_access_with_compute_at_for_resize():
                     v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
                     v_i2 = Ts.axis.spatial(100, i2_0 * 10 + i2_1)
                     v_i3 = Ts.axis.spatial(100, i3_0 * 10 + i3_1)
-                    Ts.reads(x_global[v_i0, v_i1, v_i2 * 2 - 3:v_i2 * 2 - 3 + 6, v_i3 * 2 - 3:v_i3 * 2 - 3 + 6])
+                    Ts.reads(x_global[v_i0, v_i1, v_i2 * 2 - 3:v_i2 * 2 + 3, v_i3 * 2 - 3:v_i3 * 2 + 3])
                     Ts.writes(y[v_i0, v_i1, v_i2, v_i3])
                     Ts.sblock_attr({"explicit_read_region": [0]})
                     y[v_i0, v_i1, v_i2, v_i3] = x_global[v_i0, v_i1, T.Cast("int32", T.floor(T.Cast("float32", v_i2 * 2) + T.float32(0.5))), T.Cast("int32", T.floor(T.Cast("float32", v_i3 * 2) + T.float32(0.5)))]

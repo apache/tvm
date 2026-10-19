@@ -54,7 +54,7 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
         return tvm_ffi.WalkResult.SKIP
 
     def visit_for(op: For):
-        var_range_map[op.loop_var] = Range.from_min_extent(op.min, op.extent)
+        var_range_map[op.var] = Range(op.begin, op.end)
 
     def visit_op_call(op: Call):
         if getattr(op.op, "name", "") not in SPECS:

@@ -238,11 +238,11 @@ class SBlockInfoCollector : public StmtExprVisitor {
       reads.reserve(block->reads.size());
       for (const TensorRegion& region : block->reads) {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
-          PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+          PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                              .as_or_throw<PrimExpr>();
-          PrimExpr extent =
-              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
-                  .as_or_throw<PrimExpr>();
+          PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                Range::GetExtent(range->begin, range->end), f_substitute)
+                                .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
         reads.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
@@ -254,11 +254,11 @@ class SBlockInfoCollector : public StmtExprVisitor {
       writes.reserve(block->writes.size());
       for (const TensorRegion& region : block->writes) {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
-          PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+          PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                              .as_or_throw<PrimExpr>();
-          PrimExpr extent =
-              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
-                  .as_or_throw<PrimExpr>();
+          PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                                Range::GetExtent(range->begin, range->end), f_substitute)
+                                .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
         writes.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
@@ -373,7 +373,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    analyzer_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    analyzer_->Bind(loop->var, Range(loop->begin, loop->end));
     PushSRef(loop);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(loop->body));
     PopSRef();
@@ -541,7 +541,7 @@ class ReuseCollector : public StmtExprVisitor {
       intact_.push_back(op);
     } else {
       // Collect loop vars for detecting reuse of loop sref
-      loop_vars_.push_back(op->loop_var.get());
+      loop_vars_.push_back(op->var.get());
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
     return std::nullopt;
@@ -614,7 +614,7 @@ class SRefTreePruner : public StmtExprVisitor {
         << ffi::GetRef<For>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
-    const VarNode* loop_var = op->loop_var.get();
+    const VarNode* loop_var = op->var.get();
     if (reuse_info_.loop_sref_possible_reuse.count(loop_var)) {
       // sref can be reused
       reused_srefs_.emplace(loop_var, std::move(sref));
@@ -706,9 +706,9 @@ class SRefUpdater : public StmtExprVisitor {
     }
     StmtSRef sref{ffi::UnsafeInit{}};
     // Detect loop reuse
-    auto it = reused_srefs_.find(op->loop_var.get());
+    auto it = reused_srefs_.find(op->var.get());
     if (it != reused_srefs_.end()) {
-      // Update `stmt2ref[op]` to `reused_srefs_[op->loop_var]`
+      // Update `stmt2ref[op]` to `reused_srefs_[op->var]`
       sref = it->second;
       sref->stmt = op;
       sref->parent = ancestors_.back();

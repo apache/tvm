@@ -91,12 +91,14 @@ void TensorNode::RegisterReflection() {
 }
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVar(dom, PrimVar(tag, dom.defined() ? dom->extent.ty() : PrimType::Int(32)),
-                 kThreadIndex, tag);
+  return IterVar(
+      dom,
+      PrimVar(tag, dom.defined() ? Range::GetExtent(dom->begin, dom->end).ty() : PrimType::Int(32)),
+      kThreadIndex, tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {
-  return IterVar(dom, PrimVar(name, dom->extent.ty()), kCommReduce);
+  return IterVar(dom, PrimVar(name, Range::GetExtent(dom->begin, dom->end).ty()), kCommReduce);
 }
 
 PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }

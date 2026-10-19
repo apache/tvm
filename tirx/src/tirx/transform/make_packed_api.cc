@@ -62,9 +62,9 @@ class ReturnRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
     // Unannotated single-iteration loops execute without a threadpool launch.
-    bool is_parallel =
-        node->kind == ForKind::kParallel &&
-        !(prim::IsOne(node->extent) && node->HasTrivialStep() && node->annotations.empty());
+    bool is_parallel = node->kind == ForKind::kParallel &&
+                       !(prim::IsOne(Range::GetExtent(node->begin, node->end)) &&
+                         node->HasTrivialStep() && node->annotations.empty());
     if (is_parallel) in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));

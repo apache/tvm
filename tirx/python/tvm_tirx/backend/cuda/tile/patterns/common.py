@@ -64,9 +64,15 @@ class Context:
             self.analyzer.bind(var, Range(0, extent))
         for var, bound in sctx.var_range_map.items():
             self.analyzer.bind(
-                var, Range.from_min_extent(self.index_coordinates(bound.min), bound.extent)
+                var,
+                Range.from_min_extent(
+                    self.index_coordinates(bound.begin), Range.get_extent(bound.begin, bound.end)
+                ),
             )
-            low, extent = (self.analyzer.simplify(x) for x in (bound.min, bound.extent))
+            low, extent = (
+                self.analyzer.simplify(x)
+                for x in (bound.begin, Range.get_extent(bound.begin, bound.end))
+            )
             if isinstance(low, IntImm) and isinstance(extent, IntImm):
                 self.static_ranges[var] = range(int(low), int(low) + int(extent))
         self.bindings = []
@@ -218,7 +224,7 @@ class Context:
             ]
         )
         for var, extent in reversed(list(zip(self.repeat or (), self.repeat_shape or ()))):
-            body = For(var, 0, extent, ForKind.UNROLLED, body)
+            body = For(var, 0, extent, IntImm(var.ty.dtype, 1), ForKind.UNROLLED, body)
         return SeqStmt([*self.bindings, body])
 
 
@@ -237,7 +243,9 @@ class Region:
             raise ValueError(f"{name}: operand requires a physical layout")
         if self.ty.scope not in tuple(MemoryScope(scope) for scope in scopes):
             raise ValueError(f"{name}: expected storage scope {scopes}, got {self.ty.scope}")
-        shape = tuple(int(ctx.analyzer.simplify(r.extent)) for r in region.region)
+        shape = tuple(
+            int(ctx.analyzer.simplify(Range.get_extent(r.begin, r.end))) for r in region.region
+        )
         if any(n <= 0 for n in shape):
             raise ValueError(f"{name}: pattern requires positive static region extents")
         ng, na = len(ctx.group_shape), len(atom_shape)
@@ -261,8 +269,8 @@ class Region:
             raise ValueError(f"Repeat shapes must agree: {name}={repeats}, expected {expected}")
         if bounds:
             for r, size in zip(region.region, self.ty.shape):
-                ctx.require(r.min >= 0, f"{name}: cannot prove region start is in bounds")
-                ctx.require(r.min + r.extent <= size, f"{name}: region exceeds tensor shape")
+                ctx.require(r.begin >= 0, f"{name}: cannot prove region start is in bounds")
+                ctx.require(r.end <= size, f"{name}: region exceeds tensor shape")
         self.raw = None
 
     def indices(self, atom, repeat=None):
@@ -271,7 +279,7 @@ class Region:
         if len(coords) != len(self.region.region):
             raise ValueError(f"{self.name}: incorrect canonical coordinate rank")
         return tuple(
-            self.ctx.analyzer.simplify(r.min + i) for r, i in zip(self.region.region, coords)
+            self.ctx.analyzer.simplify(r.begin + i) for r, i in zip(self.region.region, coords)
         )
 
     def physical(self, atom, repeat=None):

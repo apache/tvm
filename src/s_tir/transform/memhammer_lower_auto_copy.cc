@@ -326,8 +326,11 @@ class AutoPadder {
       if (!success_) {
         return std::nullopt;
       }
-      int extent =
-          var_range_[ffi::GetRef<Var>(op)]->extent.as<IntImmNode>()->value.as<int>().value();
+      int extent = Range::GetExtent(var_range_[ffi::GetRef<Var>(op)]->begin,
+                                    var_range_[ffi::GetRef<Var>(op)]->end)
+                       .as<IntImmNode>()
+                       ->value.as<int>()
+                       .value();
       if (extent > 1) {
         stack_.push({{extent, 1}});
       } else {
@@ -529,22 +532,23 @@ class AutoPadder {
 
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       if (!tvm::s_tir::GetThreadBinding(op).has_value()) {
-        substitute_map_.Set(op->loop_var, op->min);
+        substitute_map_.Set(op->var, op->begin);
       } else {
         int64_t extent =
             warp_thread_extent_.Get(tvm::s_tir::GetThreadBinding(op).value()).value_or(1);
-        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
+        var_range_.Set(op->var, Range::FromMinExtent(op->begin, IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
-        vector_var = op->loop_var;
-        vector_length_ = op->extent.as<IntImmNode>()->value.as<int>().value();
+        vector_var = op->var;
+        vector_length_ =
+            Range::GetExtent(op->begin, op->end).as<IntImmNode>()->value.as<int>().value();
       }
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kVectorized) {
         vector_length_ = -1;
       }
       if (!tvm::s_tir::GetThreadBinding(op).has_value()) {
-        substitute_map_.erase(op->loop_var);
+        substitute_map_.erase(op->var);
       }
       return std::nullopt;
     }
@@ -651,8 +655,9 @@ class AutoPadder {
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   PrimVar var("region" + std::to_string(i));
-                  indices.push_back(region[i]->min + static_cast<PrimExpr>(var));
-                  var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
+                  indices.push_back(region[i]->begin + static_cast<PrimExpr>(var));
+                  var_range_.Set(var, Range::FromMinExtent(
+                                          0, Range::GetExtent(region[i]->begin, region[i]->end)));
                 }
                 ffi::Array<PrimExpr> substitued_indices;
                 sym::Analyzer analyzer;
@@ -715,7 +720,7 @@ class AutoPadder {
     }
     ffi::Map<Var, PrimExpr> substitute_map;
     for (const For& loop : outer_loops) {
-      substitute_map.Set(loop->loop_var, loop->min);
+      substitute_map.Set(loop->var, loop->begin);
     }
     auto iter_space_analyzer =
         ffi::make_object<IterSpaceAnalyzer>(substitute_map, this, data_bits, warp_thread_extent);
@@ -858,7 +863,8 @@ class ThreadExtentCollector : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (tvm::s_tir::GetThreadBinding(op).has_value()) {
-      if (const auto* extent = op->extent.as<IntImmNode>()) {
+      PrimExpr extent_expr = Range::GetExtent(op->begin, op->end);
+      if (const auto* extent = extent_expr.as<IntImmNode>()) {
         thread_extent_.Set(tvm::s_tir::GetThreadBinding(op).value(),
                            static_cast<int64_t>(extent->value));
       }

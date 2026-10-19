@@ -150,9 +150,10 @@ class PurityChecker : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
-    this->Visit(op->loop_var->ty);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
+    this->Visit(op->var->ty);
     return this->Visit(op->body);
   }
 

@@ -863,9 +863,9 @@ def test_loop_var_dtype_uint32():
     # fmt: on
 
     loop = func.body[0]
-    assert loop.loop_var.ty == PrimType("uint32")
-    assert loop.min.ty == PrimType("uint32")
-    assert loop.extent.ty == PrimType("uint32")
+    assert loop.var.ty == PrimType("uint32")
+    assert loop.begin.ty == PrimType("uint32")
+    assert loop.end.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -885,9 +885,9 @@ def test_loop_var_dtype_uint32_with_step():
     # fmt: on
 
     loop = func.body[0]
-    assert loop.loop_var.ty == PrimType("uint32")
-    assert loop.min.ty == PrimType("uint32")
-    assert loop.extent.ty == PrimType("uint32")
+    assert loop.var.ty == PrimType("uint32")
+    assert loop.begin.ty == PrimType("uint32")
+    assert loop.end.ty == PrimType("uint32")
     assert loop.step.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
@@ -902,7 +902,7 @@ def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body[0].loop_var.ty == PrimType("uint32")
+    assert func.body[0].var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -916,8 +916,8 @@ def test_grid_loop_var_dtype_uint32():
     # fmt: on
 
     outer = func.body[0]
-    assert outer.loop_var.ty == PrimType("uint32")
-    assert outer.body[0].loop_var.ty == PrimType("uint32")
+    assert outer.var.ty == PrimType("uint32")
+    assert outer.body[0].var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -930,7 +930,7 @@ def test_loop_var_dtype_defaults_to_int32():
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body[0].loop_var.ty == PrimType("int32")
+    assert func.body[0].var.ty == PrimType("int32")
     _assert_roundtrip(func)
 
 
@@ -945,7 +945,7 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body[0].loop_var.ty == PrimType("uint32")
+    assert func.body[0].var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -961,8 +961,8 @@ def test_loop_var_dtype_casts_mismatched_bound():
     # fmt: on
 
     loop = func.body[0]
-    assert loop.loop_var.ty == PrimType("uint32")
-    assert loop.extent.ty == PrimType("uint32")
+    assert loop.var.ty == PrimType("uint32")
+    assert loop.end.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -975,15 +975,17 @@ def test_loop_var_dtype_rejects_unsupported(dtype):
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm_tirx.tirx.Var("i", "uint32")
-    loop = tvm_tirx.ir.For(loop_var, 0, 128, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0))
-    assert loop.min.ty == PrimType("uint32")
-    assert loop.extent.ty == PrimType("uint32")
+    loop = tvm_tirx.ir.For(
+        loop_var, 0, 128, 1, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0)
+    )
+    assert loop.begin.ty == PrimType("uint32")
+    assert loop.end.ty == PrimType("uint32")
 
 
 def test_hand_built_for_rejects_negative_literal_for_uint32():
     loop_var = tvm_tirx.tirx.Var("i", "uint32")
     with pytest.raises(Exception, match="not representable"):
-        tvm_tirx.ir.For(loop_var, -1, 128, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0))
+        tvm_tirx.ir.For(loop_var, -1, 128, 1, tvm_tirx.ir.ForKind.DEFAULT, tvm_tirx.ir.Evaluate(0))
 
 
 def _assert_equal_functions(lhs, rhs, *args, **kwargs):
@@ -1065,8 +1067,8 @@ def test_thread_binding_dtype():
 
     loop_i = func.body[0]
     loop_j = loop_i.body[0]
-    assert loop_i.loop_var.ty.dtype == "int64"
-    assert loop_j.loop_var.ty.dtype == "int32"
+    assert loop_i.var.ty.dtype == "int64"
+    assert loop_j.var.ty.dtype == "int32"
 
 
 def test_inferred_ty_with_prim_args():

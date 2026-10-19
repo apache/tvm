@@ -274,11 +274,11 @@ ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfNode* op) {
  * \brief The method which overrides the specific treatment for a ForNode
  */
 ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const ForNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->min));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->begin));
   ComputationTable computations_done_by_min = table_of_computations_;
   table_of_computations_.clear();
 
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->end));
   ComputationTable computations_done_by_extent = table_of_computations_;
   table_of_computations_.clear();
 

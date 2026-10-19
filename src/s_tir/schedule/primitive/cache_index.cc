@@ -144,7 +144,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    range_map_.Set(loop->var, Range(loop->begin, loop->end));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     // Update seq pos only at top scope
     if (visited_block_ && self_->stmt2ref.at(loop)->parent == scope_sref_.get()) {
@@ -322,8 +322,9 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       const Var& block_var = info->origin_block_vars[expr_index][i];
       PrimType block_var_ty = block_var->ty.as_or_throw<PrimType>();
       PrimVar var("v" + std::to_string(access_indices.size()), block_var_ty);
-      Range range =
-          Range::FromMinExtent(IntImm(block_var_ty, 0), info->range_map.at(iter_vars[i])->extent);
+      Range range = Range::FromMinExtent(IntImm(block_var_ty, 0),
+                                         Range::GetExtent(info->range_map.at(iter_vars[i])->begin,
+                                                          info->range_map.at(iter_vars[i])->end));
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
@@ -361,11 +362,10 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
-      body = For(/*loop_var=*/loop_vars[i - 1],
-                 /*min=*/0,
-                 /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
-                 /*kind=*/ForKind::kDefault,
-                 /*body=*/body);
+      body = For(loop_vars[i - 1], 0,
+                 Range::GetExtent(info->range_map.at(iter_vars[i - 1])->begin,
+                                  info->range_map.at(iter_vars[i - 1])->end),
+                 IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
     }
     bodies.push_back(body);
   }

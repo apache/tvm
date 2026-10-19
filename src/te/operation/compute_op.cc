@@ -95,7 +95,7 @@ ffi::Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
   ffi::Array<PrimExpr> shape;
   for (const auto& ivar : this->axis) {
     const Range& r = ivar->dom.value();
-    shape.push_back(r->extent);
+    shape.push_back(Range::GetExtent(r->begin, r->end));
   }
   return shape;
 }
@@ -199,8 +199,8 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
       for (const IterVar& axis : reduce->axis) {
-        visit(axis->dom.value()->min);
-        visit(axis->dom.value()->extent);
+        visit(axis->dom.value()->begin);
+        visit(Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end));
       }
       for (const PrimExpr& source : reduce->source) visit(source);
       for (const PrimExpr& init : reduce->init) visit(init);

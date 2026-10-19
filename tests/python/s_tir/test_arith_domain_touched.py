@@ -22,6 +22,7 @@ import tvm_ffi
 import tvm
 import tvm_tirx
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Range
 from tvm_tirx.script import tirx as T
 
 m = T.dynamic("m", "int32")
@@ -40,31 +41,31 @@ def test_domain_touched():
 
     a_domain_r = tvm.s_tir._ffi_api.DomainTouched(ir, a, True, False)
 
-    assert a_domain_r[0].min.value == -1
-    assert a_domain_r[0].extent.value == 100
-    assert a_domain_r[1].min.value == -1
-    assert a_domain_r[1].extent.name == "m"
+    assert a_domain_r[0].begin.value == -1
+    assert Range.get_extent(a_domain_r[0].begin, a_domain_r[0].end).value == 100
+    assert a_domain_r[1].begin.value == -1
+    assert Range.get_extent(a_domain_r[1].begin, a_domain_r[1].end).name == "m"
 
     a_domain_w = tvm.s_tir._ffi_api.DomainTouched(ir, a, False, True)
-    assert a_domain_w[0].min.value == 0
-    assert a_domain_w[0].extent.value == 100
-    assert a_domain_w[1].min.value == 0
-    assert a_domain_w[1].extent.name == "m"
+    assert a_domain_w[0].begin.value == 0
+    assert Range.get_extent(a_domain_w[0].begin, a_domain_w[0].end).value == 100
+    assert a_domain_w[1].begin.value == 0
+    assert Range.get_extent(a_domain_w[1].begin, a_domain_w[1].end).name == "m"
 
     a_domain_rw = tvm.s_tir._ffi_api.DomainTouched(ir, a, True, True)
-    assert a_domain_rw[0].min.value == -1
-    assert a_domain_rw[0].extent.value == 101
-    assert a_domain_rw[1].min.value == -1
-    assert isinstance(a_domain_rw[1].extent, tvm_tirx.tirx.Add)
-    assert a_domain_rw[1].extent.a.name == "m"
-    assert a_domain_rw[1].extent.b.value == 1
+    assert a_domain_rw[0].begin.value == -1
+    assert Range.get_extent(a_domain_rw[0].begin, a_domain_rw[0].end).value == 101
+    assert a_domain_rw[1].begin.value == -1
+    assert isinstance(Range.get_extent(a_domain_rw[1].begin, a_domain_rw[1].end), tvm_tirx.tirx.Add)
+    assert Range.get_extent(a_domain_rw[1].begin, a_domain_rw[1].end).a.name == "m"
+    assert Range.get_extent(a_domain_rw[1].begin, a_domain_rw[1].end).b.value == 1
 
     b_domain_r = tvm.s_tir._ffi_api.DomainTouched(ir, b, True, False)
     assert b_domain_r
-    assert b_domain_r[0].min.value == -1
-    assert b_domain_r[0].extent.value == 100
-    assert b_domain_r[1].min.value == 1
-    assert b_domain_r[1].extent.name == "m"
+    assert b_domain_r[0].begin.value == -1
+    assert Range.get_extent(b_domain_r[0].begin, b_domain_r[0].end).value == 100
+    assert b_domain_r[1].begin.value == 1
+    assert Range.get_extent(b_domain_r[1].begin, b_domain_r[1].end).name == "m"
 
     b_domain_w = tvm.s_tir._ffi_api.DomainTouched(ir, b, False, True)
     assert isinstance(b_domain_w, tvm_ffi.Array)
@@ -82,11 +83,16 @@ def test_domain_touched_vector():
 
     a, b = [var for var in func.params[:2] if tvm_tirx.tirx.is_tensor_var(var)]
 
-    assert tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
-    assert tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
-    assert tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, True)[0].extent.value == 128
-    assert tvm.s_tir._ffi_api.DomainTouched(func.body, b, True, False)[0].extent.value == 128
-    assert tvm.s_tir._ffi_api.DomainTouched(func.body, b, True, False)[0].extent.value == 128
+    domain = tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0]
+    assert Range.get_extent(domain.begin, domain.end).value == 128
+    domain = tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, False)[0]
+    assert Range.get_extent(domain.begin, domain.end).value == 128
+    domain = tvm.s_tir._ffi_api.DomainTouched(func.body, a, True, True)[0]
+    assert Range.get_extent(domain.begin, domain.end).value == 128
+    domain = tvm.s_tir._ffi_api.DomainTouched(func.body, b, True, False)[0]
+    assert Range.get_extent(domain.begin, domain.end).value == 128
+    domain = tvm.s_tir._ffi_api.DomainTouched(func.body, b, True, False)[0]
+    assert Range.get_extent(domain.begin, domain.end).value == 128
 
 
 if __name__ == "__main__":

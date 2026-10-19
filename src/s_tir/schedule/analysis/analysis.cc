@@ -618,7 +618,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
       std::ostringstream ss;
       if (high_exclusive_loop_) {
         ss << "ScheduleError: The block is required to have an partial affine binding under "
-           << high_exclusive_loop_->loop_var;
+           << high_exclusive_loop_->var;
       } else {
         ss << "ScheduleError: The block is required to have an affine binding";
       }
@@ -628,7 +628,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
       std::ostringstream ss;
       if (high_exclusive_loop_) {
         ss << "The block {0} is required to have an partial affine binding under "
-           << high_exclusive_loop_->loop_var;
+           << high_exclusive_loop_->var;
       } else {
         ss << "The block {0} is required to have an affine binding";
       }
@@ -703,7 +703,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     if (loop == nullptr) {
       break;
     }
-    result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    result.Set(loop->var, Range(loop->begin, loop->end));
   }
   if (!IsGlobalMemoryScope(extra_relax_scope)) {
     for (; p; p = p->parent) {
@@ -711,7 +711,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
         if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
           const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
           if (CanRelaxStorageUnderThread(extra_relax_scope, ParseThreadBindingTag(thread_tag))) {
-            result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+            result.Set(loop->var, Range(loop->begin, loop->end));
           }
         }
       }
@@ -792,7 +792,7 @@ void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sre
     For loop_;
   };
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!analyzer->CanProve(loop->min == 0)) {
+  if (!analyzer->CanProve(loop->begin == 0)) {
     throw MakeScheduleError<LoopNotStartWithZeroError>(self->mod, ffi::GetRef<For>(loop));
   }
 }
@@ -930,7 +930,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  const Var& loop_var = loop->loop_var;
+  const Var& loop_var = loop->var;
   int n_spatial = 0;
   int n_reduce = 0;
   int n_other = 0;
@@ -1058,7 +1058,8 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
   location_indices.reserve(n_candidate + 2);
   bool visited_reduce = false;
   for (size_t i = 0; i < n_candidate; ++i) {
-    if (IsOne(TVM_SREF_TO_FOR(loop_srefs[i])->extent)) {
+    if (IsOne(Range::GetExtent(TVM_SREF_TO_FOR(loop_srefs[i])->begin,
+                               TVM_SREF_TO_FOR(loop_srefs[i])->end))) {
       continue;
     }
 
@@ -1430,10 +1431,10 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
     const Range& dom = write_region->region[i];
-    if (!dom->extent.as<IntImmNode>()) {
+    if (!Range::GetExtent(dom->begin, dom->end).as<IntImmNode>()) {
       return kNotExist;
     }
-    if (auto var = dom->min.as<PrimVar>()) {
+    if (auto var = dom->begin.as<PrimVar>()) {
       var2idx.emplace(var.value().get(), i);
     } else {
       return kNotExist;
@@ -1446,18 +1447,18 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
-    if (!dom->extent.as<IntImmNode>()) {
+    if (!Range::GetExtent(dom->begin, dom->end).as<IntImmNode>()) {
       return kNotExist;
     }
     // Case 1. Read index is a constant
-    if (dom->min.as<IntImmNode>()) {
+    if (dom->begin.as<IntImmNode>()) {
       no_const_read = false;
       continue;
     }
     // Case 2. Read index cannot be recognized as `var +/- const`
     // where `var` is a write index and `const` is an optional constant shift
     ffi::Optional<IntImm> opt_const = std::nullopt;
-    ffi::Optional<Var> opt_var = AnalyzeVarWithShift(dom->min, &opt_const);
+    ffi::Optional<Var> opt_var = AnalyzeVarWithShift(dom->begin, &opt_const);
     const VarNode* var = opt_var.has_value() ? opt_var.value().get() : nullptr;
     if (var == nullptr || !var2idx.count(var)) {
       return kNotExist;
@@ -1547,7 +1548,7 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   }
   for (int i = 0, n = loops.size(); i < n; ++i) {
     const ForNode* loop = TVM_SREF_TO_FOR(loops[i]);
-    if (binds[i].get() != loop->loop_var.get()) {
+    if (binds[i].get() != loop->var.get()) {
       return false;
     }
   }
@@ -1577,7 +1578,8 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
     bool has_trivial_dom =
-        IsZero(block_var->dom.value()->min) && IsOne(block_var->dom.value()->extent);
+        IsZero(block_var->dom.value()->begin) &&
+        IsOne(Range::GetExtent(block_var->dom.value()->begin, block_var->dom.value()->end));
     if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
@@ -1601,10 +1603,10 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     // Step 2.3. Collect the block vars that are used to index the read region
     std::unordered_set<const VarNode*> vars;
     for (const Range& range : regions) {
-      if (!range->extent.as<IntImmNode>()) {
+      if (!Range::GetExtent(range->begin, range->end).as<IntImmNode>()) {
         return false;
       }
-      for (const Var& var : UndefinedVars(range->min)) {
+      for (const Var& var : UndefinedVars(range->begin)) {
         vars.insert(var.get());
       }
     }
@@ -1645,7 +1647,9 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
   for (const tirx::StmtSRef& loop_sref : loops) {
     s_tir::IterVarType type = GetLoopIterType(loop_sref);
     if (type == s_tir::kDataPar) {
-      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr =
+          Range::GetExtent(TVM_SREF_TO_FOR(loop_sref)->begin, TVM_SREF_TO_FOR(loop_sref)->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
         cum_space_len *= *extent;
@@ -1653,7 +1657,9 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
         return std::make_pair(-1, -1);
       }
     } else if (type == s_tir::kCommReduce) {
-      const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr =
+          Range::GetExtent(TVM_SREF_TO_FOR(loop_sref)->begin, TVM_SREF_TO_FOR(loop_sref)->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
         cum_reduce_len *= *extent;
@@ -1782,8 +1788,8 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(sym::AnalyzerObj* analyzer,
     };
     auto visit_loop = [&](const For& loop) -> ffi::Expected<ffi::WalkResult> {
       info.desc_loops.push_back(loop.get());
-      info.desc_loop_vars.insert(loop->loop_var.get());
-      if (!analyzer->CanProve(loop->min == 0)) {
+      info.desc_loop_vars.insert(loop->var.get());
+      if (!analyzer->CanProve(loop->begin == 0)) {
         return ffi::WalkResult::Advance();
       }
       return ffi::WalkResult::Advance();
@@ -1816,8 +1822,8 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         break;
       }
       block_loops.push_back(loop);
-      block_loop_vars.insert(loop->loop_var.get());
-      if (!analyzer->CanProve(loop->min == 0)) {
+      block_loop_vars.insert(loop->var.get());
+      if (!analyzer->CanProve(loop->begin == 0)) {
         return std::nullopt;
       }
     }
@@ -1875,19 +1881,21 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     const ForNode* desc_loop = nullptr;
     IterVarType iter_type_desc = iter_types_desc[i_desc];
     for (int i = 0, n = desc_loops.size(); i < n; ++i) {
-      // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
-      PrimExpr residual = analyzer->Simplify(desc_bind - desc_loops[i]->loop_var);
+      // Check if desc_bind = loops[i]->var + stuff-irrelevant-of-loop-vars
+      PrimExpr residual = analyzer->Simplify(desc_bind - desc_loops[i]->var);
       if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(residual, desc_walkfn).has_value()) {
         desc_loop = desc_loops[i];
         iter_type_desc = iter_types_desc[i];
         break;
       }
     }
-    if (desc_loop == nullptr || desc_loop->extent.as<IntImmNode>() == nullptr) {
+    if (desc_loop == nullptr ||
+        Range::GetExtent(desc_loop->begin, desc_loop->end).as<IntImmNode>() == nullptr) {
       return std::nullopt;
     }
 
-    const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
+    PrimExpr int_desc_extent_expr = Range::GetExtent(desc_loop->begin, desc_loop->end);
+    const IntImmNode* int_desc_extent = int_desc_extent_expr.as<IntImmNode>();
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
     ffi::Optional<PrimExpr> block_bind;
@@ -1904,13 +1912,13 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
 
     // Step 3.3. Find the corresponding loop of the target block
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
-      // Check if block_bind = block_loops[i]->loop_var + stuff-irrelevant-of-loop-vars
+      // Check if block_bind = block_loops[i]->var + stuff-irrelevant-of-loop-vars
       const ForNode* block_loop = block_loops[i];
       const tirx::StmtSRef& block_loop_sref = self->stmt2ref.at(block_loop);
       // Skip i-th loop if it has already been mapped
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
-      PrimExpr residual = analyzer->Simplify(block_bind.value() - block_loops[i]->loop_var);
+      PrimExpr residual = analyzer->Simplify(block_bind.value() - block_loops[i]->var);
       if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(residual, block_walkfn).has_value()) {
         continue;
       }
@@ -1919,7 +1927,8 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         allow_padding = false;
       }
 
-      const IntImmNode* int_block_extent = block_loops[i]->extent.as<IntImmNode>();
+      PrimExpr int_block_extent_expr = Range::GetExtent(block_loops[i]->begin, block_loops[i]->end);
+      const IntImmNode* int_block_extent = int_block_extent_expr.as<IntImmNode>();
 
       // Check divisibility
       if (!int_block_extent) {
@@ -2105,7 +2114,8 @@ class AutoTensorizeMappingProposer {
     // Step 1: Collect extents of LHS iters and prepare the initial indices of the IndexMap
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
-      lhs_iter_extents.Set(iter->var, iter->dom.value()->extent);
+      lhs_iter_extents.Set(iter->var,
+                           Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end));
       index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 

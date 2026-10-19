@@ -182,7 +182,7 @@ class LoopUnroller : public StmtExprMutator {
 
     // If a loop var is used as indices to a local memory, it must be unrolled so
     // the local memory access can be turned into register access.
-    if (this->var_touched_local_.count(op->loop_var) && value > 0 && unroll_local_access_) {
+    if (this->var_touched_local_.count(op->var) && value > 0 && unroll_local_access_) {
       auto_unroll = true;
     }
 
@@ -298,7 +298,7 @@ class LoopUnroller : public StmtExprMutator {
       return ffi::Unchanged();
     };
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + IntImm(op->loop_var.ty(), i));
+      vmap.Set(op->var, op->begin + IntImm(op->var.ty(), i));
       Stmt step =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
       unrolled.push_back(step);
@@ -310,7 +310,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = analyzer_->Simplify(op->extent);
+    PrimExpr extent = analyzer_->Simplify(Range::GetExtent(op->begin, op->end));
     const IntImmNode* v1 = extent.as<IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,

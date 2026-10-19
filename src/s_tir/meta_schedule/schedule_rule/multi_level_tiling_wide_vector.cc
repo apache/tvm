@@ -94,12 +94,13 @@ MultiLevelTilingWideVectorObj::SplitLoop(const Schedule& sch, SBlockRV block_rv,
   const size_t innermost_axis = block_node->writes[0]->region.size() - 1;
   const PrimExpr innermost_iter_value = block_realize->iter_values[innermost_axis];
 
-  if (!sym::Analyzer()->CanProve(static_cast<PrimExpr>(loop->loop_var) == innermost_iter_value)) {
+  if (!sym::Analyzer()->CanProve(static_cast<PrimExpr>(loop->var) == innermost_iter_value)) {
     // If this is not the innermost spatial loop, split the loop in the normal way.
     return MultiLevelTilingObj::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {
     // We split the innermost spatial loop in a way that always uses the maximum vector length.
-    const auto* extent_int_imm = loop->extent.as<IntImmNode>();
+    PrimExpr extent_int_imm_expr = Range::GetExtent(loop->begin, loop->end);
+    const auto* extent_int_imm = extent_int_imm_expr.as<IntImmNode>();
     auto extent_int = extent_int_imm ? extent_int_imm->value.as<int64_t>() : std::nullopt;
     if (extent_int.has_value() && *extent_int > vec_len) {
       ffi::Array<s_tir::LoopRV> inner_splits =
@@ -116,7 +117,7 @@ MultiLevelTilingWideVectorObj::SplitLoop(const Schedule& sch, SBlockRV block_rv,
       return {outer_factors, outer_splits};
     } else {
       ffi::Array<ffi::Optional<s_tir::ExprRV>> factors(n_tiles - 1, PrimExpr(1));
-      factors.push_back(loop->extent);
+      factors.push_back(Range::GetExtent(loop->begin, loop->end));
       ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
                                                     /*factors=*/factors);
       return {factors, splits};

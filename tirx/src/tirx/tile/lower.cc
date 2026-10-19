@@ -107,9 +107,10 @@ class NoOpCallVerifier : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
-    this->Visit(op->loop_var->ty);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
+    this->Visit(op->var->ty);
     return this->Visit(op->body);
   }
 
@@ -355,16 +356,21 @@ class TileDispatcher : public StmtExprMutator {
       // its enclosing scope.  Under SSA, an inner-scope Var cannot be
       // referenced after leaving that scope or rebound elsewhere, so stale
       // entries are never consulted and no scope-based cleanup is needed.
-      var_range_map_.Set(bind->var, Range::FromMinExtent(value.value(), 1));
+      PrimType value_ty = value.value().ty();
+      PrimExpr one = value_ty.IsScalar() &&
+                             value_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)
+                         ? IntImm(value_ty, 1)
+                         : IntImm::Int32(1);
+      var_range_map_.Set(bind->var, Range::FromMinExtent(value.value(), one));
     }
     return stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Collect the loop variables
-    auto loop_var = op->loop_var.as_or_throw<Var>();
+    auto loop_var = op->var.as_or_throw<Var>();
     TVM_FFI_ICHECK(!var_range_map_.count(loop_var)) << "Internal Error: Duplicate loop variable";
-    var_range_map_.Set(loop_var, Range::FromMinExtent(op->min, op->extent));
+    var_range_map_.Set(loop_var, Range(op->begin, op->end));
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 

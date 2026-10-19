@@ -89,7 +89,7 @@ class NotInSameScopeError : public ScheduleErrorContextObj {
                                      sym::AnalyzerObj* analyzer) {
     for (const StmtSRefObj* p = loop_sref.get();; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
-        analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+        analyzer->Bind(loop->var, Range(loop->begin, loop->end));
       } else if (p != scope_root_sref.get()) {
         throw MakeScheduleError<NotInSameScopeError>(self->mod, block_sref, loop_sref);
       } else {
@@ -275,16 +275,18 @@ class ScopeReconstructor : public StmtExprMutator {
     PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom.value()).value();
-      if (preserve_unit_loops || !IsOne(iter_dom->extent)) {
-        int bits = std::max(iter_dom->min.ty().bits(), iter_dom->extent.ty().bits());
+      if (preserve_unit_loops || !IsOne(Range::GetExtent(iter_dom->begin, iter_dom->end))) {
+        int bits = std::max(iter_dom->begin.ty().bits(),
+                            Range::GetExtent(iter_dom->begin, iter_dom->end).ty().bits());
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
-        loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
-        iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
+        loop_extents.push_back(
+            analyzer->Simplify(Range::GetExtent(iter_dom->begin, iter_dom->end)));
+        iter_values.push_back(iter_dom->begin + var.as_or_throw<PrimExpr>());
         analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
-                                                 iter_dom->extent));
+                                                 Range::GetExtent(iter_dom->begin, iter_dom->end)));
       } else {
-        iter_values.push_back(iter_dom->min);
+        iter_values.push_back(iter_dom->begin);
       }
       const sym::IntSet& pred_bound = iter_doms[i].bound;
       if (!pred_bound.IsNothing()) {
@@ -309,11 +311,9 @@ class ScopeReconstructor : public StmtExprMutator {
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
-      new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
-                        /*min=*/IntImm::Int32(0),
-                        /*extent=*/loop_extent,
-                        /*ForKind=*/ForKind::kDefault,
-                        /*body=*/std::move(new_subtree));
+      new_subtree = For(loop_var.as_or_throw<PrimVar>(), IntImm::Int32(0), loop_extent,
+                        IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
+                        std::move(new_subtree));
     }
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);
     subtrees.insert(subtrees.begin() + insert_position, std::move(new_subtree));
@@ -408,9 +408,10 @@ void RelaxTensorRegions(const ffi::Map<Var, PrimExpr>& binding,
     }
     // Relax the region
     ffi::Array<Range> mapped_region = region.Map([&f_substitute](const Range& range) {
-      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                          .template as_or_throw<PrimExpr>();
-      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                            Range::GetExtent(range->begin, range->end), f_substitute)
                             .template as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });

@@ -49,11 +49,11 @@ def test_optional_statement_fields_and_roundtrip():
         tvm_tirx.ir.Var("i", tvm_tirx.ir.PrimType("int32")),
         0,
         4,
+        1,
         tvm_tirx.ir.ForKind.DEFAULT,
         body,
-        step=None,
     )
-    assert loop.step is None
+    assert int(loop.step) == 1
     for value in [conditional, loop]:
         restored = tvm_tirx.ir.load_json(tvm_tirx.ir.save_json(value))
         tvm_tirx.ir.assert_structural_equal(value, restored, map_free_vars=True)

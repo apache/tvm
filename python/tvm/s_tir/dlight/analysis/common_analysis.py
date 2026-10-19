@@ -31,7 +31,7 @@ from tvm import s_tir
 from tvm.s_tir import Schedule, match_shape_stride_pattern
 from tvm.s_tir.schedule import SBlockRV
 from tvm_tirx import ir, tirx
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Range, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.target.target import Target
 
@@ -101,13 +101,13 @@ class TensorInfo:
         loops = [sch.get(lp) for lp in lps]
         iter_vars = [Var.var for Var in block.iter_vars]
         iter_values = get_sblockrealize(sch, block_rv).iter_values
-        lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
+        lpvar_lp = dict([loop.var, lp] for loop, lp in zip(loops, lps))
         var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
 
         def extract_index_types(tensor: TensorRegion) -> TensorIndex:
             tensor_index = []
             for expr in tensor.region:
-                expr = expr.min
+                expr = expr.begin
                 dim = None
                 if isinstance(expr, tirx.expr.Add) and ir.is_prim_var(expr.b):
                     var_add = expr.b
@@ -158,9 +158,9 @@ class TensorInfo:
         if self.assoc_lps_info[-1] is None:
             return None
 
-        vlp_extent = int(self.assoc_lps_info[-1].extent) & ~(
-            int(self.assoc_lps_info[-1].extent) - 1
-        )
+        vlp_extent = int(
+            Range.get_extent(self.assoc_lps_info[-1].begin, self.assoc_lps_info[-1].end)
+        ) & ~(int(Range.get_extent(self.assoc_lps_info[-1].begin, self.assoc_lps_info[-1].end)) - 1)
         vtensor_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
 
         return min(vlp_extent, vtensor_extent, vbits // self.tensor_region.source.dtype.bits)
@@ -219,7 +219,7 @@ class SBlockInfo:
         """Whether the SBlock is elementwise, i.e. trivial mapping between read/write region"""
 
         def _check_unit_var_range(dom: ir.Range, var: tirx.Var) -> bool:
-            return dom.min.same_as(var) and dom.extent == 1
+            return dom.begin.same_as(var) and Range.get_extent(dom.begin, dom.end) == 1
 
         if not self.is_injective():
             return False
@@ -315,7 +315,7 @@ def normalize_function(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
                     IterInfo(
                         kind=_iter_kind(iter),  # type: ignore
                         var=iter.var,
-                        dom=iter.dom.extent,
+                        dom=Range.get_extent(iter.dom.begin, iter.dom.end),
                         loop_rv=loop,
                     )
                     for loop, iter in zip(loops, iters)
@@ -343,7 +343,7 @@ def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlo
             IterInfo(
                 kind=_iter_kind(iter_var),
                 var=iter_var.var,
-                dom=iter_var.dom.extent,
+                dom=Range.get_extent(iter_var.dom.begin, iter_var.dom.end),
                 loop_rv=loop_rv,
             )
             for loop_rv, iter_var in zip(sch.get_loops(block), sch.get(block).iter_vars)
@@ -413,8 +413,8 @@ def collect_block_iter_vars_used_in_access_region(
     """Collect the block iter variables used in the access region of a tensor region."""
     tir_vars = set()
     for expr in region:
-        assert expr.extent == 1
-        tir_vars |= collect_vars_used_in_prim_expr(expr.min)
+        assert Range.get_extent(expr.begin, expr.end) == 1
+        tir_vars |= collect_vars_used_in_prim_expr(expr.begin)
     tir_vars &= set(iter_var.var for iter_var in block.iter_vars)
     return tir_vars
 
@@ -450,7 +450,7 @@ def _tensor_region_offset(region):
     assert pattern is not None
     offset = pattern.elem_offset
     for axis, bounds in enumerate(region.region):
-        offset += bounds.min * pattern.strides[axis]
+        offset += bounds.begin * pattern.strides[axis]
     return tvm_tirx.sym.Analyzer().simplify(offset)
 
 

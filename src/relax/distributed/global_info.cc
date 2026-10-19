@@ -43,8 +43,11 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids)
 DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) : GlobalInfo(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
   ffi::Array<int64_t> device_ids;
-  int range_start = device_range->min.as<IntImmNode>()->value.as<int>().value();
-  int range_extent = device_range->extent.as<IntImmNode>()->value.as<int>().value();
+  int range_start = device_range->begin.as<IntImmNode>()->value.as<int>().value();
+  int range_extent = Range::GetExtent(device_range->begin, device_range->end)
+                         .as<IntImmNode>()
+                         ->value.as<int>()
+                         .value();
   for (int i = range_start; i < range_start + range_extent; i++) {
     device_ids.push_back(i);
   }

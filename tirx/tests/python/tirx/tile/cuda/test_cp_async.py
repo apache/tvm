@@ -110,17 +110,31 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         copy_dst_1 = T.meta_var(B[tuple(r_gmem)])
         copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
         for copy_step_1 in T.serial(
-            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), thread_cnt)
+            T.ceildiv(
+                math.prod(
+                    [int(tvm_tirx.ir.Range.get_extent(r.begin, r.end)) for r in copy_src_1.region]
+                ),
+                thread_cnt,
+            )
         ):
             copy_index_1 = copy_step_1 * (thread_cnt) + (tid)
-            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+            if copy_index_1 < math.prod(
+                [int(tvm_tirx.ir.Range.get_extent(r.begin, r.end)) for r in copy_src_1.region]
+            ):
                 copy_value_1 = copy_src_tensor_1[
                     tuple(
                         [
-                            copy_src_1.region[k].min
+                            copy_src_1.region[k].begin
                             + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
-                            % copy_src_1.region[k].extent
+                            // math.prod(
+                                [
+                                    int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                    for s in copy_src_1.region[k + 1 :]
+                                ]
+                            )
+                            % tvm_tirx.ir.Range.get_extent(
+                                copy_src_1.region[k].begin, copy_src_1.region[k].end
+                            )
                             for k in range(len(copy_src_1.region))
                         ]
                     )
@@ -128,10 +142,17 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
                 copy_dst_index_1 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_1.region[k].min
+                            copy_dst_1.region[k].begin
                             + copy_index_1
-                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
-                            % copy_dst_1.region[k].extent
+                            // math.prod(
+                                [
+                                    int(tvm_tirx.ir.Range.get_extent(s.begin, s.end))
+                                    for s in copy_dst_1.region[k + 1 :]
+                                ]
+                            )
+                            % tvm_tirx.ir.Range.get_extent(
+                                copy_dst_1.region[k].begin, copy_dst_1.region[k].end
+                            )
                             for k in range(len(copy_dst_1.region))
                         ]
                     )

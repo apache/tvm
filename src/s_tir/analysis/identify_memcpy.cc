@@ -53,10 +53,12 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // is not a loop.
   Stmt stmt = loop;
   while (auto* for_node = stmt.as<ForNode>()) {
-    loop_ranges.Set(for_node->loop_var, Range::FromMinExtent(for_node->min, for_node->extent));
-    loop_intervals.Set(for_node->loop_var,
-                       sym::IntSet::FromMinExtent(for_node->min, for_node->extent));
-    total_loop_iterations = total_loop_iterations * for_node->extent;
+    loop_ranges.Set(for_node->var, Range(for_node->begin, for_node->end));
+    loop_intervals.Set(for_node->var,
+                       sym::IntSet::FromMinExtent(
+                           for_node->begin, Range::GetExtent(for_node->begin, for_node->end)));
+    total_loop_iterations =
+        total_loop_iterations * Range::GetExtent(for_node->begin, for_node->end);
 
     stmt = for_node->body->size() == 1 ? for_node->body->seq[0] : for_node->body;
   }

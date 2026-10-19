@@ -418,8 +418,8 @@ void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range, boo
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
     prim::ExprDeepEqual expr_equal;
-    bool differs_from_previous = !expr_equal(range->min, (*it).second->min) ||
-                                 !expr_equal(range->extent, (*it).second->extent);
+    bool differs_from_previous = !expr_equal(range->begin, (*it).second->begin) ||
+                                 !expr_equal(range->end, (*it).second->end);
     if (differs_from_previous) {
       TVM_FFI_ICHECK(allow_override) << "Binding of variable " << var << " as " << range
                                      << " conflicts with previous binding as " << (*it).second;
@@ -434,17 +434,21 @@ void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range, boo
   prev_bindings_.Set(var, range);
 
   PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-  if (IsConstInt(range->extent, 1)) {
-    AddKnown(prim_var == range->min, &knowns_);
+  if (IsConstInt(Range::GetExtent(range->begin, range->end), 1)) {
+    AddKnown(prim_var == range->begin, &knowns_);
   } else {
-    AddKnown(prim_var >= range->min, &knowns_);
-    AddKnown(prim_var < range->min + range->extent, &knowns_);
+    AddKnown(prim_var >= range->begin, &knowns_);
+    AddKnown(prim_var < range->end, &knowns_);
   }
 }
 
 void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr,
                                          bool allow_override) {
-  Bind(var, Range::FromMinExtent(expr, 1), allow_override);
+  PrimExpr one =
+      expr.ty().IsScalar() && expr.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)
+          ? IntImm(expr.ty(), 1)
+          : IntImm::Int32(1);
+  Bind(var, Range::FromMinExtent(expr, one), allow_override);
 }
 
 std::function<void()> KnownComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {

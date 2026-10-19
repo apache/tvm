@@ -359,8 +359,8 @@ def test_blockize_blocks():
                 for i, j in T.grid(128, 64):
                     with Ts.sblock("C"):
                         vi_i, vj_i = Ts.axis.remap("SS", [i, j])
-                        Ts.reads(A[vi_i, vj_i + 64])
-                        Ts.writes(B[vi_i, vj_i + 64])
+                        Ts.reads(A[vi_i, vj_i + 64 : vj_i + 65])
+                        Ts.writes(B[vi_i, vj_i + 64 : vj_i + 65])
                         B[vi_i, vj_i + 64] = A[vi_i, vj_i + 64] * T.float32(3)
 
     s = tvm.s_tir.Schedule(blocks_func, debug_mask="all")

@@ -180,29 +180,34 @@ bool TensorizeComparator::Dispatch_(const CallNode* op, const PrimExpr& other) {
 
 bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
   const auto* rhs = other.as<ForNode>();
-  if (!DefEqual(op->loop_var, rhs->loop_var)) {
+  if (!DefEqual(op->var, rhs->var)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode loop vars do not match: op->loop_var=" << op->loop_var
-         << " vs rhs->loop_var=" << rhs->loop_var;
+      os << "ForNode loop vars do not match: op->var=" << op->var << " vs rhs->var=" << rhs->var;
       EmitError(os.str());
     }
     return false;
   }
-  if (!Dispatch(op->min, rhs->min)) {
+  if (!Dispatch(op->begin, rhs->begin)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode min values do not match: op->min=" << op->min << " vs rhs->min=" << rhs->min;
+      os << "ForNode begin values do not match: op->begin=" << op->begin
+         << " vs rhs->begin=" << rhs->begin;
       EmitError(os.str());
     }
     return false;
   }
-  if (!Dispatch(op->extent, rhs->extent)) {
+  if (!Dispatch(op->end, rhs->end)) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "ForNode extent values do not match: op->extent=" << op->extent
-         << " vs rhs->extent=" << rhs->extent;
+      os << "ForNode end values do not match: op->end=" << op->end << " vs rhs->end=" << rhs->end;
       EmitError(os.str());
+    }
+    return false;
+  }
+  if (!Dispatch(op->step, rhs->step)) {
+    if (assert_mode_) {
+      EmitError("ForNode step values do not match");
     }
     return false;
   }
@@ -558,23 +563,25 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!IsOne(lhs->region[i]->extent)) {
+      if (!IsOne(Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end))) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
-                "element-wise. lhs->region[i]->extent="
-             << lhs->region[i]->extent;
+                "element-wise. lhs region width="
+             << Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end);
           EmitError(os.str());
         }
         return false;
       }
-      indices_base.emplace_back(lhs->region[i]->min);
+      indices_base.emplace_back(lhs->region[i]->begin);
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // save base index
-      indices_base.emplace_back(lhs->region[i + offset]->min);
+      indices_base.emplace_back(lhs->region[i + offset]->begin);
       // check extent match
-      if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
+      if (!analyzer_->CanProveEqual(
+              Range::GetExtent(lhs->region[i + offset]->begin, lhs->region[i + offset]->end),
+              Range::GetExtent(rhs->region[i]->begin, rhs->region[i]->end))) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion tensor extent mismatch: lhs->region[i + offset]="
@@ -591,22 +598,22 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     const std::vector<PrimExpr>& indices_base = it->second;
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!IsOne(lhs->region[i]->extent)) {
+      if (!IsOne(Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end))) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
-                "element-wise. lhs->region[i]->extent="
-             << lhs->region[i]->extent;
+                "element-wise. lhs region width="
+             << Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end);
           EmitError(os.str());
         }
         return false;
       }
-      if (!lhs_analyzer_->CanProveEqual(indices_base[i], lhs->region[i]->min)) {
+      if (!lhs_analyzer_->CanProveEqual(indices_base[i], lhs->region[i]->begin)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "TensorVar base index consistency check failed due to unequal index base: "
                 "indices_base[i]="
-             << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
+             << indices_base[i] << " vs lhs->region[i]->begin=" << lhs->region[i]->begin;
           EmitError(os.str());
         }
         return false;
@@ -614,7 +621,9 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // check extent match
-      if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
+      if (!analyzer_->CanProveEqual(
+              Range::GetExtent(lhs->region[i + offset]->begin, lhs->region[i + offset]->end),
+              Range::GetExtent(rhs->region[i]->begin, rhs->region[i]->end))) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion tensor region extent mismatch. lhs->region[i + offset]="
@@ -624,8 +633,8 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
         return false;
       }
       PrimExpr normalized_lhs_min =
-          lhs_analyzer_->Simplify((lhs->region[i + offset]->min - indices_base[i + offset]));
-      if (!analyzer_->CanProveEqual(normalized_lhs_min, rhs->region[i]->min)) {
+          lhs_analyzer_->Simplify((lhs->region[i + offset]->begin - indices_base[i + offset]));
+      if (!analyzer_->CanProveEqual(normalized_lhs_min, rhs->region[i]->begin)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion tensor region min mismatch. lhs->region[i + offset]="
@@ -702,7 +711,7 @@ bool TensorizeComparator::CompareArray(const ffi::Array<T>& lhs, const ffi::Arra
 }
 
 bool TensorizeComparator::CompareRange(const Range& lhs, const Range& rhs) {
-  return Dispatch(lhs->min, rhs->min) && Dispatch(lhs->extent, rhs->extent);
+  return Dispatch(lhs->begin, rhs->begin) && Dispatch(lhs->end, rhs->end);
 }
 
 bool TensorizeComparator::CompareIterVar(const IterVar& lhs, const IterVar& rhs) {

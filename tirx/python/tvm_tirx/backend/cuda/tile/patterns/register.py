@@ -28,7 +28,7 @@ PTX register-group count, including an extent-one axis for a scalar register.
 
 from tvm_tirx.backend.cuda.ptx import PTXNamespace
 from tvm_tirx.backend.cuda.ptx.table import operand_layout
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Range, TensorRegion
 
 from .common import Context
 
@@ -62,7 +62,7 @@ def lower(opcode, forms, args, params, sctx):
             or (
                 isinstance(arg, TensorRegion)
                 and len(arg.region) > 0
-                and int(arg.region[-1].extent) == n
+                and int(Range.get_extent(arg.region[-1].begin, arg.region[-1].end)) == n
             )
             for arg, (slot, n) in zip(args, slots)
         ):

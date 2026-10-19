@@ -125,10 +125,10 @@ class InstructionGenerator:
         region = []
         changed = False
         for r in tensor_region.region:
-            bound = self.analyzer.const_int_bound(r.extent)
-            if not self.analyzer.can_prove_equal(bound.max_value, r.extent):
+            bound = self.analyzer.const_int_bound(Range.get_extent(r.begin, r.end))
+            if not self.analyzer.can_prove_equal(bound.max_value, Range.get_extent(r.begin, r.end)):
                 changed = True
-            region.append(Range.from_min_extent(r.min, bound.max_value))
+            region.append(Range.from_min_extent(r.begin, bound.max_value))
         if changed:
             bound_region = TensorRegion(tensor_region.source, region, ty=TensorRegionType())
             self.bound_regions[tensor_region] = bound_region
@@ -143,8 +143,8 @@ class InstructionGenerator:
         new_seps = [0]
         for i in range(len(seps) - 1):
             r = tensor_region.region[i]
-            st = r.min
-            ext = r.extent
+            st = r.begin
+            ext = Range.get_extent(r.begin, r.end)
             reversed_shard = []
             for j in reversed(range(seps[i], seps[i + 1])):
                 if self.analyzer.can_prove_equal(ext, 1):
@@ -466,7 +466,7 @@ class InstructionGenerator:
 
     def generate_indices(self, tensor_region: TensorRegion) -> list[Expr]:
         axes = self.generate_axes(tensor_region)
-        return [axes[i] + r.min for i, r in enumerate(tensor_region.region)]
+        return [axes[i] + r.begin for i, r in enumerate(tensor_region.region)]
 
     def _get_inst_logical_iter_list(
         self,
@@ -528,12 +528,18 @@ class InstructionGenerator:
         relaxed_dims = [
             i
             for i, (r1, r2) in enumerate(zip(bound_region.region, tensor_region.region))
-            if not self.analyzer.can_prove(r1.extent == r2.extent)
+            if not self.analyzer.can_prove(
+                Range.get_extent(r1.begin, r1.end) == Range.get_extent(r2.begin, r2.end)
+            )
         ]
         axes = self.generate_axes(tensor_region)
         guard = reduce(
             T.And,
-            [axes[i] < r.extent for i, r in enumerate(tensor_region.region) if i in relaxed_dims],
+            [
+                axes[i] < Range.get_extent(r.begin, r.end)
+                for i, r in enumerate(tensor_region.region)
+                if i in relaxed_dims
+            ],
             True,
         )
         return guard

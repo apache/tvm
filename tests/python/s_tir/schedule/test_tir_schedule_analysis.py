@@ -49,9 +49,10 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
     assert len(loop_vars) == len(extents)
     return [
         For(
-            loop_var=loop_var,
-            min=0,
-            extent=extent,
+            var=loop_var,
+            begin=0,
+            end=extent,
+            step=tvm_tirx.ir.IntImm(loop_var.ty, 1),
             kind=ForKind.DEFAULT,
             body=Evaluate(0),
         )

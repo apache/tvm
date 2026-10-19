@@ -204,7 +204,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
   ffi::Array<Range>& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                               .template as_or_throw<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
@@ -236,11 +236,8 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For(/*loop_var=*/loop_vars[i - 1],
-               /*min=*/info->loop_ranges[i - 1]->min,
-               /*extent=*/info->loop_ranges[i - 1]->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/body);
+    body = For(loop_vars[i - 1], info->loop_ranges[i - 1]->begin, info->loop_ranges[i - 1]->end,
+               IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -266,9 +263,10 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
   for (const Range& axis_range : cache_region->region) {
-    PrimVar loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.ty());
+    PrimVar loop_var("ax" + std::to_string(loop_vars.size()),
+                     Range::GetExtent(axis_range->begin, axis_range->end).ty());
     loop_vars.push_back(loop_var);
-    iter_values.push_back(cache_full_region ? (axis_range->min + loop_var) : loop_var);
+    iter_values.push_back(cache_full_region ? (axis_range->begin + loop_var) : loop_var);
   }
   // block variables
   ffi::Array<IterVar> block_vars;
@@ -283,7 +281,8 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
                           cache_region->source.as_or_throw<tvm::tirx::TensorVar>().shape().size());
        ++i) {
     Range axis_range = cache_region->region[i];
-    PrimVar var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
+    PrimVar var("v" + std::to_string(read_access_indices.size()),
+                Range::GetExtent(axis_range->begin, axis_range->end).ty());
     if (cache_full_region) {
       PrimExpr dim = cache_region->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i];
       block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
@@ -295,21 +294,23 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       write_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
     } else {
       block_vars.push_back(IterVar(
-          /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.ty(), 0), axis_range->extent),
+          /*dom=*/Range::FromMinExtent(
+              IntImm(Range::GetExtent(axis_range->begin, axis_range->end).ty(), 0),
+              Range::GetExtent(axis_range->begin, axis_range->end)),
           /*var=*/var,
           /*IterVarType=*/kDataPar));
       if (cache_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info->read_tensor)) {
         // cache_read
-        read_access_indices.push_back(axis_range->min + var);
+        read_access_indices.push_back(axis_range->begin + var);
         read_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->begin + var, IntImm(var.ty(), 1)));
         write_access_indices.push_back(var);
         write_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       } else {
         // cache_write
-        write_access_indices.push_back(axis_range->min + var);
+        write_access_indices.push_back(axis_range->begin + var);
         write_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->begin + var, IntImm(var.ty(), 1)));
         read_access_indices.push_back(var);
         read_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       }
@@ -339,11 +340,10 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For(/*loop_var=*/loop_vars[i - 1],
-               /*min=*/0,
-               /*extent=*/cache_region->region[i - 1]->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/body);
+    body =
+        For(loop_vars[i - 1], 0,
+            Range::GetExtent(cache_region->region[i - 1]->begin, cache_region->region[i - 1]->end),
+            IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -457,11 +457,9 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
 
   // Create the chain of loops
   for (int i = static_cast<int>(new_block_iters.size()) - 1; i >= 0; --i) {
-    body = For(/*loop_var=*/loop_vars[i],
-               /*min=*/new_block_iters[i]->dom.value()->min,
-               /*extent=*/new_block_iters[i]->dom.value()->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/std::move(body));
+    body = For(loop_vars[i], new_block_iters[i]->dom.value()->begin,
+               new_block_iters[i]->dom.value()->end, IntImm(loop_vars[i].ty(), 1),
+               ForKind::kDefault, std::move(body));
   }
   // Update cache info, which will be used in the later rewriting.
   info->cache_stage = std::move(body);
@@ -675,9 +673,10 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
     return ffi::Unchanged();
   };
   ffi::Array<Range> mapped_region = tensor_region->region.Map([&f_substitute](const Range& range) {
-    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                        .as_or_throw<PrimExpr>();
-    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                          Range::GetExtent(range->begin, range->end), f_substitute)
                           .as_or_throw<PrimExpr>();
     return Range::FromMinExtent(min, extent);
   });
@@ -985,8 +984,8 @@ class CacheReadRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
-                                           region[i]->extent));
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->begin - offset[i]->begin),
+                                           Range::GetExtent(region[i]->begin, region[i]->end)));
       }
       return ret;
     };
@@ -1111,7 +1110,7 @@ class CacheReadRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->begin));
     }
     return ret;
   }
@@ -1298,8 +1297,8 @@ class CacheWriteRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
-                                           region[i]->extent));
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->begin - offset[i]->begin),
+                                           Range::GetExtent(region[i]->begin, region[i]->end)));
       }
       return ret;
     };
@@ -1437,7 +1436,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->begin));
     }
     return ret;
   }
@@ -1652,7 +1651,7 @@ TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>
   std::vector<PrimExpr> new_shape;
   for (const auto& iter : block_iters) {
     if (covered.count(iter->var)) {
-      new_shape.push_back(iter->dom.value()->min + iter->dom.value()->extent);
+      new_shape.push_back(iter->dom.value()->end);
     }
   }
   new_tensor->shape = new_shape;
@@ -2050,7 +2049,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
     auto write_tensor = ffi::make_object<TensorTypeNode>(*info.write_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
-      shape.push_back(cache_range->extent);
+      shape.push_back(Range::GetExtent(cache_range->begin, cache_range->end));
     }
     write_tensor->shape = std::move(shape);
     info.write_tensor = TensorVar(info.write_tensor->name, TensorType(std::move(write_tensor)),
@@ -2142,7 +2141,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
     auto read_tensor_type = ffi::make_object<TensorTypeNode>(*info.read_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
-      shape.push_back(cache_range->extent);
+      shape.push_back(Range::GetExtent(cache_range->begin, cache_range->end));
     }
     read_tensor_type->shape = std::move(shape);
     info.read_tensor = TensorVar(info.read_tensor->name, TensorType(std::move(read_tensor_type)),
@@ -2243,7 +2242,8 @@ void CollectReindexCacheStageInfoAndCreateTensor(
   ffi::Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var->var);
-    block_shape.push_back(iter_var->dom.value()->extent);
+    block_shape.push_back(
+        Range::GetExtent(iter_var->dom.value()->begin, iter_var->dom.value()->end));
   }
   ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, analyzer);
   ffi::Array<PrimExpr> new_shape = index_map->MapShape(block_shape, analyzer);
@@ -2256,7 +2256,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
   };
   ffi::Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(range->min);
+    old_indices.push_back(range->begin);
   }
   auto old_vars = collect_vars(old_indices);
   auto new_vars = collect_vars(new_indices);
@@ -2278,9 +2278,9 @@ void CollectReindexCacheStageInfoAndCreateTensor(
   auto iter_value_vars = collect_vars(info->block_iter_values);
   for (const StmtSRef& loop_sref : GetLoopsUnderScope(block_sref, info->loc_sref)) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    if (iter_value_vars.count(loop->loop_var)) {
-      info->loop_vars.push_back(loop->loop_var);
-      info->loop_ranges.push_back(Range::FromMinExtent(loop->min, loop->extent));
+    if (iter_value_vars.count(loop->var)) {
+      info->loop_vars.push_back(loop->var);
+      info->loop_ranges.push_back(Range(loop->begin, loop->end));
     }
   }
 
@@ -2306,7 +2306,8 @@ template <bool is_cache_read>
 void CheckSinglePoint(ScheduleState self, const SBlock& block, const TensorRegion& cache_region) {
   bool single_point = true;
   for (const Range& range : cache_region->region) {
-    const auto* ext_int = range->extent.as<IntImmNode>();
+    PrimExpr ext_int_expr = Range::GetExtent(range->begin, range->end);
+    const auto* ext_int = ext_int_expr.as<IntImmNode>();
     if (!ext_int || ext_int->value != 1) {
       single_point = false;
     }

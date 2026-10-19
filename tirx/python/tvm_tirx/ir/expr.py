@@ -906,8 +906,8 @@ class Range(Node, Scriptable):
     if the end argument is not None. Otherwise, it creates `[0, begin)`.
     """
 
-    min: Expr
-    extent: Expr
+    begin: Expr
+    end: Expr
     loc: Location
 
     def __init__(self, begin: Expr, end: Expr | None = None, loc: Location = UNKNOWN_LOC) -> None:
@@ -936,6 +936,11 @@ class Range(Node, Scriptable):
             The constructed range.
         """
         return _ffi_api.RangeFromMinExtent(min_value, extent, loc)
+
+    @staticmethod
+    def get_extent(begin: Expr, end: Expr) -> Expr:
+        """Extract the width from endpoints, reusing a shallow addition operand."""
+        return _ffi_api.RangeGetExtent(begin, end)
 
     def __eq__(self, other: tvm_ffi.Object) -> bool:
         return tvm_ffi.structural_equal(self, other)

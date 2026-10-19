@@ -20,7 +20,7 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import Stmt
+from tvm_tirx.ir import Range, Stmt
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.tile import DispatchContext, fail
@@ -76,8 +76,8 @@ def copy_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
         raise ValueError("Invalid tensor layout/scope for copy operation.")
 
     analyzer = init_analyzer(sctx)
-    src_extent = [r.extent for r in src_region.region]
-    dst_extent = [r.extent for r in dst_region.region]
+    src_extent = [Range.get_extent(r.begin, r.end) for r in src_region.region]
+    dst_extent = [Range.get_extent(r.begin, r.end) for r in dst_region.region]
 
     # Validate non-unit dimensions match
     src_non_unit = [e for e in src_extent if e != 1]

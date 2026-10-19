@@ -184,8 +184,8 @@ def _prepare_legacy_target_binding(mod):
 
     def visit_loop(loop, visitor):
         nonlocal in_binding
-        visitor.visit(loop.min)
-        visitor.visit(loop.extent)
+        visitor.visit(loop.begin)
+        visitor.visit(loop.end)
         visitor.visit(loop.step)
         visitor.visit(loop.annotations)
         previous = in_binding

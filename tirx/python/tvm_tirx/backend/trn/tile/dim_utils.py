@@ -19,7 +19,7 @@
 
 from collections import namedtuple
 
-from tvm_tirx.ir import TensorRegion
+from tvm_tirx.ir import Range, TensorRegion
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym.analyzer import Analyzer
 
@@ -79,8 +79,8 @@ def get_ewise_dim_map(
     AssertionError :
         If dimensions do not match
     """
-    extent_1 = [r.extent for r in tensor_region.region]
-    extent_2 = [r.extent for r in second_tensor_region.region]
+    extent_1 = [Range.get_extent(r.begin, r.end) for r in tensor_region.region]
+    extent_2 = [Range.get_extent(r.begin, r.end) for r in second_tensor_region.region]
     extent_1_non_unit = [e for e in extent_1 if e != 1]
     extent_2_non_unit = [e for e in extent_2 if e != 1]
     assert all(
@@ -137,10 +137,10 @@ def get_reduction_dim_map(
         If dimensions do not match
     """
     dst_region = dst_tensor_region.region
-    dst_extent = [r.extent for r in dst_region]
+    dst_extent = [Range.get_extent(r.begin, r.end) for r in dst_region]
     dst_non_unit_extent_ = [(i, e) for i, e in enumerate(dst_extent) if e != 1]
     src_region = src_tensor_region.region
-    src_extent = [r.extent for r in src_region]
+    src_extent = [Range.get_extent(r.begin, r.end) for r in src_region]
     src_non_unit_extent_ = [(i, e) for i, e in enumerate(src_extent) if e != 1]
     src_non_reduction_extents = [(i, e) for i, e in src_non_unit_extent_ if i not in axes]
     assert len(src_non_reduction_extents) == len(dst_non_unit_extent_), (

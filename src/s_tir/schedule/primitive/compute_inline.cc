@@ -555,9 +555,11 @@ class ComputeInliner : public BaseInliner {
       for (size_t i = 0; i < num_iters; ++i) {
         const IterVar& iter = producer_block->iter_vars[i];
         const PrimExpr& e = inlined_store_->indices[i];
-        if (e.same_as(iter->var) || (analyzer_->CanProveEqual(e, 0) &&
-                                     analyzer_->CanProveEqual(iter->dom.value()->min, 0) &&
-                                     analyzer_->CanProveEqual(iter->dom.value()->extent, 1))) {
+        if (e.same_as(iter->var) ||
+            (analyzer_->CanProveEqual(e, 0) &&
+             analyzer_->CanProveEqual(iter->dom.value()->begin, 0) &&
+             analyzer_->CanProveEqual(
+                 Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end), 1))) {
           idx_vars.push_back(iter->var);
         } else {
           break;
@@ -597,10 +599,11 @@ class ComputeInliner : public BaseInliner {
     for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
     auto inverse_iter_map = sym::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
-      if (IsConstInt(iter->dom.value()->min) &&
-          analyzer_->CanProveEqual(iter->dom.value()->extent, 1)) {
+      if (IsConstInt(iter->dom.value()->begin) &&
+          analyzer_->CanProveEqual(
+              Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end), 1)) {
         // fallback mapping for constant iters
-        inverse_iter_map.Set(iter->var, iter->dom.value()->min);
+        inverse_iter_map.Set(iter->var, iter->dom.value()->begin);
       }
     }
     auto f_substitute =
@@ -716,9 +719,8 @@ class ReverseComputeInliner : public BaseInliner {
     consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
       consumer_iter_in_bound_ =
-          consumer_iter_in_bound_ &&
-          (iter->var >= iter->dom.value()->min &&
-           static_cast<PrimExpr>(iter->var) < iter->dom.value()->min + iter->dom.value()->extent);
+          consumer_iter_in_bound_ && (iter->var >= iter->dom.value()->begin &&
+                                      static_cast<PrimExpr>(iter->var) < iter->dom.value()->end);
     }
   }
 
@@ -744,8 +746,10 @@ class ReverseComputeInliner : public BaseInliner {
     for (const auto& iter_var : consumer_block->iter_vars) {
       consumer_iter_doms.Set(iter_var->var, iter_var->dom.value());
       // Set default mapping for unit iters
-      if (IsConstInt(iter_var->dom.value()->extent, 1) && IsConstInt(iter_var->dom.value()->min)) {
-        VarRemapSet(iter_var->var, iter_var->dom.value()->min);
+      if (IsConstInt(Range::GetExtent(iter_var->dom.value()->begin, iter_var->dom.value()->end),
+                     1) &&
+          IsConstInt(iter_var->dom.value()->begin)) {
+        VarRemapSet(iter_var->var, iter_var->dom.value()->begin);
       }
     }
 
@@ -820,13 +824,13 @@ class ReverseComputeInliner : public BaseInliner {
       const IterVar& iter = producer_block->iter_vars[i];
       const PrimExpr& binding = producer_block_realize->iter_values[i];
       subst_map.Set(iter->var, binding);
-      analyzer_->Bind(iter->var,
-                      Range::FromMinExtent(iter->dom.value()->min, iter->dom.value()->extent));
+      analyzer_->Bind(iter->var, Range(iter->dom.value()->begin, iter->dom.value()->end));
     }
     if (producer_block->annotations.count(tvm::s_tir::attr::kAutoCopy.name) != 0) {
       auto bind = [&](const ForNode* loop) {
-        analyzer_->Bind(loop->loop_var,
-                        Range::FromMinExtent(IntImm(loop->extent.ty(), 0), loop->extent));
+        analyzer_->Bind(loop->var, Range::FromMinExtent(
+                                       IntImm(Range::GetExtent(loop->begin, loop->end).ty(), 0),
+                                       Range::GetExtent(loop->begin, loop->end)));
       };
       TVM_FFI_ICHECK_EQ(producer_block->body->size(), 1);
       const ForNode* producer_inner_loop = producer_block->body->seq[0].as<ForNode>();
@@ -904,9 +908,8 @@ class ReverseComputeInliner : public BaseInliner {
     for (const IterVar& iter : consumer_block_->iter_vars) {
       if (auto producer_iter = VarRemapGet(iter->var).as<PrimExpr>()) {
         sym::IntSet producer_iter_range = sym::EvalSet(producer_iter.value(), producer_iter_doms);
-        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom.value()->min) ||
-            analyzer_->CanProve(producer_iter_range.max() <
-                                iter->dom.value()->min + iter->dom.value()->extent - 1)) {
+        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom.value()->begin) ||
+            analyzer_->CanProve(producer_iter_range.max() < iter->dom.value()->end - 1)) {
           return false;
         }
       } else {
@@ -1646,9 +1649,10 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   for (const TensorRegion& write : reduction_block->writes) {
     if (write->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_tensor_)) {
       ffi::Array<Range> mapped_region = write->region.Map([&f_substitute](const Range& range) {
-        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                            .as_or_throw<PrimExpr>();
-        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                              Range::GetExtent(range->begin, range->end), f_substitute)
                               .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
@@ -1668,9 +1672,10 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   for (const TensorRegion& read : epilogue_block_->reads) {
     if (!read->source.as_or_throw<tvm::tirx::TensorVar>().same_as(inlined_tensor_)) {
       ffi::Array<Range> mapped_region = read->region.Map([&f_substitute](const Range& range) {
-        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                            .as_or_throw<PrimExpr>();
-        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+                              Range::GetExtent(range->begin, range->end), f_substitute)
                               .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
@@ -1831,8 +1836,8 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
       return mutated_body;
     }
 
-    return For(loop->loop_var, loop->min, loop->extent, loop->kind, mutated_body,
-               loop->annotations);
+    return For(loop->var, loop->begin, loop->end, loop->step, loop->kind, mutated_body,
+               loop->annotations, loop->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {

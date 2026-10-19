@@ -21,7 +21,7 @@ from enum import Enum
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import FloatImm, TensorRegion
+from tvm_tirx.ir import FloatImm, Range, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.sym.analyzer import Analyzer
 from tvm_tirx.tirx.tile.common import MapOpType
@@ -102,12 +102,16 @@ def try_find_inst_nary(
         raise ValueError(f"Invalid tensor region: dst: {_dst}, srcs: {_srcs}")
 
     # Check non-unit extents
-    dst_non_unit_extent = [r.extent for r in dst_region if r.extent != 1]
+    dst_non_unit_extent = [
+        Range.get_extent(r.begin, r.end)
+        for r in dst_region
+        if Range.get_extent(r.begin, r.end) != 1
+    ]
 
     # Handle broadcasting between first two sources
     if not isinstance(_srcs[1], FloatImm):
-        src0_extent = [r.extent for r in _srcs[0].region]
-        src1_extent = [r.extent for r in _srcs[1].region]
+        src0_extent = [Range.get_extent(r.begin, r.end) for r in _srcs[0].region]
+        src1_extent = [Range.get_extent(r.begin, r.end) for r in _srcs[1].region]
         shared_dim_num = min(len(src0_extent), len(src1_extent))
 
         # Check for various broadcasting patterns and swap sources if needed
@@ -141,7 +145,11 @@ def try_find_inst_nary(
             raise ValueError(f"Shape mismatch: src0: {_srcs[0]}, src1: {_srcs[1]}")
 
     # Verify src0 and dst have matching non-unit dimensions
-    src0_non_unit_extent = [r.extent for r in _srcs[0].region if r.extent != 1]
+    src0_non_unit_extent = [
+        Range.get_extent(r.begin, r.end)
+        for r in _srcs[0].region
+        if Range.get_extent(r.begin, r.end) != 1
+    ]
     valid_shapes = all(
         [
             len(src0_non_unit_extent) == len(dst_non_unit_extent),
@@ -155,7 +163,7 @@ def try_find_inst_nary(
     assert valid_shapes, "the larger between src0 and src1 must have the same shape as dst"
 
     # Identify broadcast dimensions for each source after src0
-    src0_extent = [r.extent for r in _srcs[0].region]
+    src0_extent = [Range.get_extent(r.begin, r.end) for r in _srcs[0].region]
     dst_to_src0_dim_map = get_ewise_dim_map(_dst, _srcs[0], analyzer)
     inst_gen.link_tensor_regions(_dst, _srcs[0], dst_to_src0_dim_map)
 
@@ -163,7 +171,7 @@ def try_find_inst_nary(
         if isinstance(src, FloatImm):
             continue
 
-        src_extent = [r.extent for r in src.region]
+        src_extent = [Range.get_extent(r.begin, r.end) for r in src.region]
 
         # Check extra dimensions
         assert len(src_extent) <= len(src0_extent) or all(

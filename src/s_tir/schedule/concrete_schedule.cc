@@ -511,8 +511,8 @@ ffi::Array<LoopRV> ConcreteScheduleObj::Split(const LoopRV& loop_rv,
         throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
                                                         i);
       }
-      if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(factor, loop->extent.ty());
+      if (factor.ty().bits() > Range::GetExtent(loop->begin, loop->end).ty().bits()) {
+        factor = cast(factor, Range::GetExtent(loop->begin, loop->end).ty());
       }
       factors.push_back(factor);
       tot_length *= factor;
@@ -520,8 +520,9 @@ ffi::Array<LoopRV> ConcreteScheduleObj::Split(const LoopRV& loop_rv,
   }
   if (infer_index != -1) {
     factors.Set(infer_index,
-                this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
-  } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
+                this->analyzer_->Simplify(floordiv(
+                    Range::GetExtent(loop->begin, loop->end) + tot_length - 1, tot_length)));
+  } else if (!this->analyzer_->CanProve(tot_length >= Range::GetExtent(loop->begin, loop->end))) {
     throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), true);
   }
   results = s_tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
@@ -562,7 +563,7 @@ ffi::Array<LoopRV> ConcreteScheduleObj::LoopPartition(
   PrimExpr tot_length = 0;
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
-  if (!IsConstNumber(loop->min) || !IsConstNumber(loop->extent)) {
+  if (!IsConstNumber(loop->begin) || !IsConstNumber(Range::GetExtent(loop->begin, loop->end))) {
     throw MakeScheduleError<SymbolicShapeError>(state_->mod, ffi::GetRef<For>(loop));
   }
   // infer factor if needed and check validity of factors
@@ -579,26 +580,26 @@ ffi::Array<LoopRV> ConcreteScheduleObj::LoopPartition(
         throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
                                                         i);
       }
-      if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(factor, loop->extent.ty());
+      if (factor.ty().bits() > Range::GetExtent(loop->begin, loop->end).ty().bits()) {
+        factor = cast(factor, Range::GetExtent(loop->begin, loop->end).ty());
       }
       factors.push_back(factor);
       tot_length += factor;
     }
   }
-  if (this->analyzer_->CanProve(tot_length >= loop->extent)) {
+  if (this->analyzer_->CanProve(tot_length >= Range::GetExtent(loop->begin, loop->end))) {
     throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), false);
   }
   if (infer_index != -1) {
     // if there is a 'None' in the factor list, 'None' becomes the difference between the extent and
     // the sum of the factors excluding 'None' specified in the partition directive.
-    factors.Set(infer_index, loop->extent - tot_length);
+    factors.Set(infer_index, Range::GetExtent(loop->begin, loop->end) - tot_length);
   }
   for (size_t i = 1; i < factor_rvs.size(); i++) {
     factors.Set(i, factors[i] + factors[i - 1]);
   }
   if (infer_index == -1) {
-    factors.push_back(loop->extent);
+    factors.push_back(Range::GetExtent(loop->begin, loop->end));
   }
   results = s_tir::LoopPartition(state_, loop_sref, factors, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("loop_partition", this->error_render_level_);
