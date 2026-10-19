@@ -146,8 +146,8 @@ class WorkspacePool::Pool {
   std::vector<Entry> allocated_;
 };
 
-WorkspacePool::WorkspacePool(DLDeviceType device_type, DeviceAPI* device, Allocator alloc)
-    : device_type_(device_type), device_(device), alloc_(alloc) {}
+WorkspacePool::WorkspacePool(DLDeviceType, DeviceAPI* device, Allocator alloc)
+    : device_(device), alloc_(alloc) {}
 
 WorkspacePool::~WorkspacePool() {
   for (auto& streams : array_) {

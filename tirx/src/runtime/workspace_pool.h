@@ -75,8 +75,6 @@ class TVM_RUNTIME_DLL WorkspacePool {
   class Pool;
   /*! \brief pool of device local array */
   std::vector<std::unordered_map<TVMStreamHandle, Pool*>> array_;
-  /*! \brief device type this pool support */
-  DLDeviceType device_type_;
   /*! \brief The device API */
   DeviceAPI* device_;
   Allocator alloc_;
