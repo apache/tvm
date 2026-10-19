@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
 
@@ -43,7 +44,7 @@ def test_jit_optional_tensor():
             T.evaluate(0)
 
     @T.function(private=True)
-    def absent():
+    def absent(value: I.NoneType()):
         T.evaluate(0)
 
     @T.function(private=True)

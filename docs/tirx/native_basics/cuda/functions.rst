@@ -184,7 +184,7 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 
 - ``@Tx.function`` parses the function immediately into a ``Function``. Sizes are
   whatever you wrote — concrete ints, or runtime-symbolic vars (above).
-- ``@Tx.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
+- ``@Tx.jit`` returns a ``JITFunction`` and **defers** parsing until you call ``.specialize(**constexpr)``:
   parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
   the result is an ordinary ``Function``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
@@ -215,6 +215,17 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 So: a **symbolic shape** is one kernel whose size is resolved at run time; a
 **constexpr + jit** produces a specialized kernel per value, resolved at compile
 time.
+
+Optional annotations may use ``Tx.Tensor((N,), "float32") | None`` or
+``typing.Optional[Tx.Tensor((N,), "float32")]`` (including an imported
+``Optional``). The existing ``Tx.Optional(...)`` spelling remains supported.
+Use ``from __future__ import annotations`` for these deferred tensor annotations;
+they are interpreted as script syntax rather than evaluated as Python unions.
+Calling ``kernel.specialize(optional=None)`` skips that parameter's original
+annotation and binds Python ``None`` in compile-time guards. The resulting
+``Function`` retains the parameter in its original position with ``ir.NoneType``;
+the compiled function requires ``None`` in that argument slot. Omitting the
+specialization keyword keeps the parameter's ordinary runtime type.
 
 Launch parameters
 -----------------
