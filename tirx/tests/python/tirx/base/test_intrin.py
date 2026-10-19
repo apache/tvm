@@ -266,7 +266,9 @@ def test_ldexp():
     )
 
 
-dtype = tvm_tirx.testing.parameter("int32", "int64")
+@pytest.fixture(params=["int32", "int64"], scope="session")
+def dtype(request):
+    return request.param
 
 
 @pytest.mark.parametrize(

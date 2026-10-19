@@ -55,7 +55,7 @@ void RelaxTensorRegions(const ffi::Array<TensorRegion>& tensor_regions,
     if (tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tensor)) {
       ffi::Array<Range> mapped_region =
           tensor_region->region.Map([&f_substitute](const Range& range) {
-            PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+            PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                                .as_or_throw<PrimExpr>();
             PrimExpr extent =
                 ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
@@ -179,7 +179,7 @@ struct ReadWriteAtImpl {
     ffi::Map<Var, Range> result;
     for (const ForNode* loop; (loop = loop_sref->StmtAs<ForNode>()) != nullptr;
          loop_sref = loop_sref->parent) {
-      result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      result.Set(loop->var, Range(loop->begin, loop->end));
     }
     return result;
   }
@@ -324,20 +324,21 @@ struct ReadWriteAtImpl {
         return ffi::Any(v.as_or_throw<PrimExpr>());
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
-      dom->min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->min), f_substitute)
-                     .as_or_throw<PrimExpr>();
+      dom->begin =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->begin), f_substitute)
+              .as_or_throw<PrimExpr>();
       dom->extent =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->extent), f_substitute)
               .as_or_throw<PrimExpr>();
       domain.Set(i, Range(ffi::UnsafeInit{}, dom));
     }
     for (int i = 0; i < n; ++i) {
-      indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
+      indices.push_back(domain[i]->begin + loop_vars[i].as_or_throw<PrimExpr>());
     }
     Stmt stmt = TensorStore(copy_to, /*indices=*/indices, /*value=*/TensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
-                 ForKind::kDefault, stmt);
+                 IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

@@ -61,10 +61,8 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
     return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
 
 
-def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
-    """Verify definitions, tensor-load types, loop control, tile ops, and scope IDs.
-
-    Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
+def check_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
+    """Check whether a TIRx function is well formed.
 
     Parameters
     ----------
@@ -72,11 +70,16 @@ def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bo
         The function or module to be verified.
 
     assert_mode: bool
-        The indicator if it raises an error when the function is not well-formed.
+        Whether to raise on invalid IR. Defaults to True.
 
     Returns
     -------
     result: bool
-        Whether it is a well-formed TIR function.
+        True for valid IR; False for invalid IR when assert_mode is False.
+
+    Raises
+    ------
+    RuntimeError
+        If the IR is invalid and assert_mode is True.
     """
-    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.CheckWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member

@@ -47,37 +47,38 @@ class LoopCanonicalizer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (IsZero(op->min) && op->HasTrivialStep()) {
+    if (IsZero(op->begin) && op->HasTrivialStep()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    const auto* loop_var = op->loop_var.get();
+    const auto* loop_var = op->var.get();
     PrimType loop_var_ty = loop_var->ty.as_or_throw<PrimType>();
-    PrimExpr step = op->step.value_or(IntImm(loop_var_ty, 1));
+    PrimExpr step = op->step;
 
     // report warning for negative step, since it would be a forever loop
     if (!analyzer_->CanProveGreaterEqual(step, 1)) {
       // TODO(tvm): prove dynamic shaped step
       TVM_FFI_THROW(InternalError)
-          << "Loop step for " << op->loop_var << " may not be positive: " << step;
+          << "Loop step for " << op->var << " may not be positive: " << step;
     }
 
-    VarRemapSet(op->loop_var, op->loop_var.as_or_throw<PrimExpr>() * step + op->min);
+    VarRemapSet(op->var, op->var.as_or_throw<PrimExpr>() * step + op->begin);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     PrimExpr min = IntImm(loop_var_ty, 0);
-    PrimExpr extent = analyzer_->Simplify(ceildiv(op->extent, step));
+    PrimExpr extent =
+        analyzer_->Simplify(ceildiv(Range::GetExtentFromBeginEnd(op->begin, op->end), step));
     if (inplace_mode == InplaceMode::kAllow) {
       auto* writable = const_cast<ForNode*>(op);
       writable->body = std::move(body);
-      writable->min = std::move(min);
-      writable->extent = std::move(extent);
-      writable->step = std::nullopt;
+      writable->begin = std::move(min);
+      writable->end = std::move(extent);
+      writable->step = IntImm(loop_var_ty, 1);
       return ffi::Unchanged();
     } else {
       auto copy = ffi::make_object<ForNode>(*op);
       copy->body = std::move(body);
-      copy->min = std::move(min);
-      copy->extent = std::move(extent);
-      copy->step = std::nullopt;
+      copy->begin = std::move(min);
+      copy->end = std::move(extent);
+      copy->step = IntImm(loop_var_ty, 1);
       return For(std::move(copy));
     }
   }

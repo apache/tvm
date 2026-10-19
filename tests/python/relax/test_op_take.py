@@ -22,13 +22,17 @@ import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.relax import script as R
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 
-axis = tvm_tirx.testing.parameter(0, 1)
+
+@pytest.fixture(params=[0, 1], scope="session")
+def axis(request):
+    return request.param
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_scalar_tensor_as_index(axis):
     """The index of R.take may be a scalar tensor
 
@@ -57,7 +61,7 @@ def test_take_scalar_tensor_as_index(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_1d_tensor_as_index(axis):
     """The index of R.take may be a non-scalar tensor
 
@@ -85,7 +89,7 @@ def test_take_1d_tensor_as_index(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_2d_tensor_as_index(axis):
     """The index of R.take may be a 2-d tensor"""
     target = "llvm"
@@ -109,7 +113,7 @@ def test_take_2d_tensor_as_index(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_constant_prim_value_as_index(axis):
     """The index of R.take may be a R.prim_value
 
@@ -138,7 +142,7 @@ def test_take_constant_prim_value_as_index(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_dynamic_prim_value_as_index(axis):
     """The index of R.take may be a dynamic R.prim_value
 
@@ -169,7 +173,7 @@ def test_take_dynamic_prim_value_as_index(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_nan_mode_OOB_indices(axis):
     """Test R.take with mode="nan" and out-of-bounds indices.
     This test checks that out-of-bounds indices produce NaN values in the output tensor.
@@ -204,7 +208,7 @@ def test_take_nan_mode_OOB_indices(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_wrap_mode_OOB_indices(axis):
     """Test R.take with mode="wrap" and out-of-bounds indices.
     This test checks that out-of-bounds indices wrap around to the valid range.
@@ -230,7 +234,7 @@ def test_take_wrap_mode_OOB_indices(axis):
     tvm_tirx.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_take_clip_mode_OOB_indices(axis):
     """Test R.take with mode="clip" and out-of-bounds indices.
     This test checks that out-of-bounds indices are clipped to the valid range.

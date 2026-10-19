@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
                  sig::arg<IntExpr>("cols", "The number of columns."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& cooperative_tensor_load_op() {
@@ -60,7 +60,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& cooperative_tensor_store_op() {
@@ -80,7 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
                  sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
                  sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& cooperative_tensor_multiply_accumulate_op() {
@@ -100,7 +100,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("K", "The K dimension."),
           sig::arg<PrimExpr>("transpose_a", "Whether to transpose A."),
           sig::arg<PrimExpr>("transpose_b", "Whether to transpose B."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 }  // namespace metal

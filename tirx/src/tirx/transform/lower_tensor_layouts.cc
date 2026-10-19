@@ -87,8 +87,8 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
   }
 
  public:
-  explicit LayoutApplier(const sym::Analyzer& analyzer, const Target& target)
-      : StmtExprMutatorWithAnalyzer(analyzer), target_(target) {}
+  explicit LayoutApplier(const sym::Analyzer& analyzer, const Target&)
+      : StmtExprMutatorWithAnalyzer(analyzer) {}
 
  protected:
   ffi::Any VisitAny(const ffi::Any& any) {
@@ -371,7 +371,6 @@ class LayoutApplier : public StmtExprMutatorWithAnalyzer {
 
   /*! \brief Physical roots of tensor aliases, flattened at each declaration. */
   ffi::Map<Var, Var> tensor_aliases_;
-  const Target& target_;
 };
 
 namespace {

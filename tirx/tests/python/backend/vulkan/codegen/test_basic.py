@@ -31,8 +31,15 @@ from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.testing import env
 from tvm_tirx.tirx.script import ir_builder as T_builder
 
-dtype = tvm_tirx.testing.parameter("float32", "int32", "float16", "int8")
-fuzz_seed = tvm_tirx.testing.parameter(range(25))
+
+@pytest.fixture(params=["float32", "int32", "float16", "int8"], scope="session")
+def dtype(request):
+    return request.param
+
+
+@pytest.fixture(params=[range(25)], scope="session")
+def fuzz_seed(request):
+    return request.param
 
 
 # Explicitly specify a target, as this test is looking at the
@@ -191,8 +198,14 @@ def test_vulkan_bool_load():
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
-vulkan_parameter_impl = tvm_tirx.testing.parameter("push_constants", "ubo")
-vulkan_parameter_dtype = tvm_tirx.testing.parameter("int32", "float32", "int64")
+@pytest.fixture(params=["push_constants", "ubo"], scope="session")
+def vulkan_parameter_impl(request):
+    return request.param
+
+
+@pytest.fixture(params=["int32", "float32", "int64"], scope="session")
+def vulkan_parameter_dtype(request):
+    return request.param
 
 
 # Only run on vulkan because extremely large numbers of input

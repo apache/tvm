@@ -44,6 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<DataTypeImmNode>();
   RegisterScriptRepr<GenericConstNode>();
   RegisterScriptRepr<AnyTypeNode>();
+  RegisterScriptRepr<NoneTypeNode>();
   RegisterScriptRepr<CallNode>();
   RegisterScriptRepr<DictAttrsNode>();
   RegisterScriptRepr<FloatImmNode>();

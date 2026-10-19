@@ -48,7 +48,7 @@ using ffi::Tuple;
 class LayoutNode : public ffi::Object {
  public:
   /*! \brief Verify if the layout is well-formed */
-  virtual bool VerifyWellFormed() const = 0;
+  virtual void CheckWellFormed() const = 0;
 
   /*! \brief Get the size of the layout (of some axis) */
   virtual PrimExpr GetSize(ffi::Optional<ffi::String> axis_name = std::nullopt) const = 0;
@@ -164,7 +164,7 @@ class TileLayoutNode : public LayoutNode {
   }
 
   /*! \brief Verify if the layout is well-formed */
-  bool VerifyWellFormed() const final;
+  void CheckWellFormed() const final;
 
   /*! \brief Get the size of the layout (of some axis) */
   PrimExpr GetSize(ffi::Optional<ffi::String> axis_name = std::nullopt) const final;
@@ -254,7 +254,7 @@ class ComposeLayoutNode : public LayoutNode {
   }
 
   /*! \brief Verify if the layout is well-formed */
-  bool VerifyWellFormed() const final;
+  void CheckWellFormed() const final;
 
   /*! \brief Get the size (of some axis) of the layout */
   PrimExpr GetSize(ffi::Optional<ffi::String> axis_name = std::nullopt) const final;

@@ -100,9 +100,9 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Verify variable/tensor definitions, load types and schedulable block boundaries. */
-TVM_DLL bool VerifyWellFormed(const tirx::Function& func, bool assert_mode = true);
+TVM_DLL void CheckWellFormed(const tirx::Function& func);
 /*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
-TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+TVM_DLL void CheckWellFormed(const IRModule& mod);
 
 /*!
  * \brief Estimate the FLOPs of a TIR fragment.

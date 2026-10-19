@@ -30,14 +30,14 @@ from tvm_ffi import Shape
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.runtime import disco as di
-from tvm_tirx.testing import env
+from tvm.testing import env as tvm_env
 
 if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
 
 pytestmark = [
     pytest.mark.gpu,
-    pytest.mark.skipif(not env.has_nvshmem(), reason="need nvshmem"),
+    pytest.mark.skipif(not tvm_env.has_nvshmem(), reason="need nvshmem"),
 ]
 
 

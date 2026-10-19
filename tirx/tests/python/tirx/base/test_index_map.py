@@ -127,110 +127,115 @@ def test_nonbijective_inverse_gives_error():
 
 
 dynamic_N = tvm_tirx.tirx.Var("N", "int32")
-padding_test_case = tvm_tirx.testing.parameter(
-    by_dict={
-        "no_padding": dict(
-            forward=lambda i: [i // 4, i % 4],
-            inverse=lambda i, j: [4 * i + j],
-            pre_shape=[16],
-            post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_ffi.convert(False),
+_padding_test_cases = {
+    "no_padding": dict(
+        forward=lambda i: [i // 4, i % 4],
+        inverse=lambda i, j: [4 * i + j],
+        pre_shape=[16],
+        post_shape=[T.int32(4), T.int32(4)],
+        padding=lambda i, j: tvm_ffi.convert(False),
+    ),
+    "right_padding": dict(
+        forward=lambda i: [i // 4, i % 4],
+        inverse=lambda i, j: [4 * i + j],
+        pre_shape=[15],
+        post_shape=[T.int32(4), T.int32(4)],
+        padding=lambda i, j: tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
+    ),
+    "left_padding": dict(
+        forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
+        inverse=lambda i, j: [4 * i + j - 1],
+        pre_shape=[15],
+        post_shape=[T.int32(4), T.int32(4)],
+        padding=lambda i, j: tvm_tirx.tirx.And(i == 0, j < 1),
+    ),
+    "left_and_right_padding": dict(
+        forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
+        inverse=lambda i, j: [4 * i + j - 1],
+        pre_shape=[14],
+        post_shape=[T.int32(4), T.int32(4)],
+        padding=lambda i, j: tvm_tirx.tirx.Or(
+            tvm_tirx.tirx.And(i == 0, j < 1),
+            tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
         ),
-        "right_padding": dict(
-            forward=lambda i: [i // 4, i % 4],
-            inverse=lambda i, j: [4 * i + j],
-            pre_shape=[15],
-            post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
+    ),
+    "dynamic_size": dict(
+        forward=lambda i: [i // 4, i % 4],
+        inverse=lambda i, j: [4 * i + j],
+        pre_shape=[dynamic_N],
+        post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, T.int32(4)],
+        padding=lambda i, j: tvm_tirx.tirx.And(
+            dynamic_N % (-4) != 0,
+            tvm_tirx.tirx.And(i == dynamic_N // 4, j >= dynamic_N % 4),
         ),
-        "left_padding": dict(
-            forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
-            inverse=lambda i, j: [4 * i + j - 1],
-            pre_shape=[15],
-            post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.tirx.And(i == 0, j < 1),
-        ),
-        "left_and_right_padding": dict(
-            forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
-            inverse=lambda i, j: [4 * i + j - 1],
-            pre_shape=[14],
-            post_shape=[T.int32(4), T.int32(4)],
-            padding=lambda i, j: tvm_tirx.tirx.Or(
-                tvm_tirx.tirx.And(i == 0, j < 1),
-                tvm_tirx.tirx.And(i == 3, tvm_ffi.convert(3) == j),
+    ),
+    "2d_padding": dict(
+        forward=lambda i, j: [(i + 1) // 4, (j + 5) // 8, (i + 1) % 4, (j + 5) % 8],
+        inverse=lambda i_outer, j_outer, i_inner, j_inner: [
+            4 * i_outer + i_inner - 1,
+            8 * j_outer + j_inner - 5,
+        ],
+        pre_shape=[14, 31],
+        post_shape=[
+            T.int32(4),  # ceildiv(left_pad + i.extent, 4) = ceildiv(1 + 14, 4) = 4
+            T.int32(5),  # ceildiv(left_pad + j.extent, 8) = ceildiv(5 + 31, 8) = 5
+            T.int32(4),  # Range of iter%4
+            T.int32(8),  # Range of iter%8
+        ],
+        padding=lambda i_outer, j_outer, i_inner, j_inner: tvm_tirx.tirx.Or(
+            tvm_tirx.tirx.Or(
+                tvm_tirx.tirx.And(i_outer == 0, i_inner < 1),
+                tvm_tirx.tirx.And(i_outer == 3, tvm_ffi.convert(3) == i_inner),
+            ),
+            tvm_tirx.tirx.Or(
+                tvm_tirx.tirx.And(j_outer == 0, j_inner < 5),
+                tvm_tirx.tirx.And(j_outer == 4, j_inner >= 4),
             ),
         ),
-        "dynamic_size": dict(
-            forward=lambda i: [i // 4, i % 4],
-            inverse=lambda i, j: [4 * i + j],
-            pre_shape=[dynamic_N],
-            post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, T.int32(4)],
-            padding=lambda i, j: tvm_tirx.tirx.And(
-                dynamic_N % (-4) != 0,
-                tvm_tirx.tirx.And(i == dynamic_N // 4, j >= dynamic_N % 4),
-            ),
-        ),
-        "2d_padding": dict(
-            forward=lambda i, j: [(i + 1) // 4, (j + 5) // 8, (i + 1) % 4, (j + 5) % 8],
-            inverse=lambda i_outer, j_outer, i_inner, j_inner: [
-                4 * i_outer + i_inner - 1,
-                8 * j_outer + j_inner - 5,
-            ],
-            pre_shape=[14, 31],
-            post_shape=[
-                T.int32(4),  # ceildiv(left_pad + i.extent, 4) = ceildiv(1 + 14, 4) = 4
-                T.int32(5),  # ceildiv(left_pad + j.extent, 8) = ceildiv(5 + 31, 8) = 5
-                T.int32(4),  # Range of iter%4
-                T.int32(8),  # Range of iter%8
-            ],
-            padding=lambda i_outer, j_outer, i_inner, j_inner: tvm_tirx.tirx.Or(
-                tvm_tirx.tirx.Or(
-                    tvm_tirx.tirx.And(i_outer == 0, i_inner < 1),
-                    tvm_tirx.tirx.And(i_outer == 3, tvm_ffi.convert(3) == i_inner),
-                ),
-                tvm_tirx.tirx.Or(
-                    tvm_tirx.tirx.And(j_outer == 0, j_inner < 5),
-                    tvm_tirx.tirx.And(j_outer == 4, j_inner >= 4),
-                ),
-            ),
-        ),
-        "multiple_right_padding": dict(
-            forward=lambda i: [i // 32, (i // 4) % 8, i % 4],
-            inverse=lambda i, j, k: [32 * i + 4 * j + k],
-            pre_shape=[116],
-            post_shape=[T.int32(4), T.int32(8), T.int32(4)],
-            padding=lambda i, j, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
-        ),
-        "multiple_right_padding_transpose": dict(
-            forward=lambda i: [(i // 4) % 8, i // 32, i % 4],
-            inverse=lambda j, i, k: [32 * i + 4 * j + k],
-            pre_shape=[116],
-            post_shape=[T.int32(8), T.int32(4), T.int32(4)],
-            padding=lambda j, i, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
-        ),
-        "multiple_left_padding": dict(
-            forward=lambda i: [(i + 5) // 32, ((i + 5) // 4) % 8, (i + 5) % 4],
-            inverse=lambda i, j, k: [32 * i + 4 * j + k - 5],
-            pre_shape=[123],
-            post_shape=[T.int32(4), T.int32(8), T.int32(4)],
-            padding=lambda i, j, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
-        ),
-        "multiple_left_padding_with_transpose": dict(
-            forward=lambda i: [((i + 5) // 4) % 8, (i + 5) // 32, (i + 5) % 4],
-            inverse=lambda j, i, k: [32 * i + 4 * j + k - 5],
-            pre_shape=[123],
-            post_shape=[T.int32(8), T.int32(4), T.int32(4)],
-            padding=lambda j, i, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
-        ),
-        "outer_loop_extent_one": dict(
-            forward=lambda i: [i // 4, i % 4],
-            inverse=lambda i, j: [i * 4 + j],
-            pre_shape=[3],
-            post_shape=[T.int32(1), T.int32(4)],
-            padding=lambda i, j: tvm_ffi.convert(3) == j,
-        ),
-    }
+    ),
+    "multiple_right_padding": dict(
+        forward=lambda i: [i // 32, (i // 4) % 8, i % 4],
+        inverse=lambda i, j, k: [32 * i + 4 * j + k],
+        pre_shape=[116],
+        post_shape=[T.int32(4), T.int32(8), T.int32(4)],
+        padding=lambda i, j, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
+    ),
+    "multiple_right_padding_transpose": dict(
+        forward=lambda i: [(i // 4) % 8, i // 32, i % 4],
+        inverse=lambda j, i, k: [32 * i + 4 * j + k],
+        pre_shape=[116],
+        post_shape=[T.int32(8), T.int32(4), T.int32(4)],
+        padding=lambda j, i, k: tvm_tirx.tirx.And(i == 3, 4 * j + k >= 20),
+    ),
+    "multiple_left_padding": dict(
+        forward=lambda i: [(i + 5) // 32, ((i + 5) // 4) % 8, (i + 5) % 4],
+        inverse=lambda i, j, k: [32 * i + 4 * j + k - 5],
+        pre_shape=[123],
+        post_shape=[T.int32(4), T.int32(8), T.int32(4)],
+        padding=lambda i, j, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
+    ),
+    "multiple_left_padding_with_transpose": dict(
+        forward=lambda i: [((i + 5) // 4) % 8, (i + 5) // 32, (i + 5) % 4],
+        inverse=lambda j, i, k: [32 * i + 4 * j + k - 5],
+        pre_shape=[123],
+        post_shape=[T.int32(8), T.int32(4), T.int32(4)],
+        padding=lambda j, i, k: tvm_tirx.tirx.And(i == 0, j * 4 + k < 5),
+    ),
+    "outer_loop_extent_one": dict(
+        forward=lambda i: [i // 4, i % 4],
+        inverse=lambda i, j: [i * 4 + j],
+        pre_shape=[3],
+        post_shape=[T.int32(1), T.int32(4)],
+        padding=lambda i, j: tvm_ffi.convert(3) == j,
+    ),
+}
+
+
+@pytest.fixture(
+    params=_padding_test_cases.values(), ids=_padding_test_cases.keys(), scope="session"
 )
+def padding_test_case(request):
+    return request.param
 
 
 def test_nonsurjective_inverse(padding_test_case):

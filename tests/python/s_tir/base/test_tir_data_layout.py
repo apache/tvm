@@ -100,18 +100,18 @@ def test_layout():
 def test_layout_dtype():
     layout_i32 = tvm.s_tir.slayout("NCHW")
     assert layout_i32.axes[0].var.ty.dtype == "int32"
-    assert layout_i32.axes[0].dom.min.ty.dtype == "int32"
+    assert layout_i32.axes[0].dom.begin.ty.dtype == "int32"
     assert layout_i32.axes[0].dom.extent.ty.dtype == "int32"
     assert layout_i32.axes[1].var.ty.dtype == "int32"
-    assert layout_i32.axes[1].dom.min.ty.dtype == "int32"
+    assert layout_i32.axes[1].dom.begin.ty.dtype == "int32"
     assert layout_i32.axes[1].dom.extent.ty.dtype == "int32"
 
     layout_i64 = tvm.s_tir.slayout("NCHW", dtype="int64")
     assert layout_i64.axes[2].var.ty.dtype == "int64"
-    assert layout_i64.axes[2].dom.min.ty.dtype == "int64"
+    assert layout_i64.axes[2].dom.begin.ty.dtype == "int64"
     assert layout_i64.axes[2].dom.extent.ty.dtype == "int64"
     assert layout_i64.axes[3].var.ty.dtype == "int64"
-    assert layout_i64.axes[3].dom.min.ty.dtype == "int64"
+    assert layout_i64.axes[3].dom.begin.ty.dtype == "int64"
     assert layout_i64.axes[3].dom.extent.ty.dtype == "int64"
 
     with pytest.raises(TypeError):

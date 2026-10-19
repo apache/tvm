@@ -26,9 +26,20 @@ from tvm import relax
 from tvm.relax import script as R
 from tvm_tirx import tirx
 
-param_specification = tvm_tirx.testing.parameter("by_string", "by_var")
-param_shape = tvm_tirx.testing.parameter("static_shape", "dynamic_shape", "ndim", "arbitrary")
-tensor_param_dtype = tvm_tirx.testing.parameter("float32", None)
+
+@pytest.fixture(params=["by_string", "by_var"], scope="session")
+def param_specification(request):
+    return request.param
+
+
+@pytest.fixture(params=["static_shape", "dynamic_shape", "ndim", "arbitrary"], scope="session")
+def param_shape(request):
+    return request.param
+
+
+@pytest.fixture(params=["float32", None], scope="session")
+def tensor_param_dtype(request):
+    return request.param
 
 
 def test_bind_tensor_param(param_specification, param_shape, tensor_param_dtype):
@@ -109,7 +120,9 @@ def test_bind_shape_param(param_shape):
     tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
-prim_value_dtype = tvm_tirx.testing.parameter("int64", "int32", "float32")
+@pytest.fixture(params=["int64", "int32", "float32"], scope="session")
+def prim_value_dtype(request):
+    return request.param
 
 
 def test_bind_prim_value(prim_value_dtype):

@@ -56,7 +56,7 @@ assert "tvm_tirx.backend.cuda.axis" not in sys.modules
 assert "tvm_tirx.backend.trn.axis" not in sys.modules
 """,
         ],
-        env={**os.environ, "TVM_DEVICE_BACKEND_AUTOLOAD": "0"},
+        env={**os.environ, "TVM_TIRX_DEVICE_BACKEND_AUTOLOAD": "0"},
         capture_output=True,
         text=True,
     )
@@ -135,7 +135,7 @@ def test_effective_global_layout_preserves_source_and_region():
     region = tensor[2:4, 3:7]
     layout = region.source.ty.effective_layout()
     assert int(layout.apply(2, 3, shape=tensor.shape)["m"]) == 48
-    starts = [r.min for r in region.region]
+    starts = [r.begin for r in region.region]
     assert int(layout.apply(*starts, shape=tensor.shape)["m"]) == 48
     assert int(layout.apply(starts[0] + 1, starts[1] + 3, shape=tensor.shape)["m"]) == 67
     assert save_json(tensor) == before

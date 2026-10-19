@@ -131,7 +131,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
     if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->begin));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
     }
     return std::nullopt;
@@ -209,10 +209,10 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
-  Range range = Range::FromMinExtent(op->min, op->extent);
-  dom_map_.Set(op->loop_var, sym::IntSet::FromRange(range));
+  Range range = Range(op->begin, op->end);
+  dom_map_.Set(op->var, sym::IntSet::FromRange(range));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
-  dom_map_.erase(op->loop_var);
+  dom_map_.erase(op->var);
   return std::nullopt;
 }
 
@@ -354,7 +354,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
   for (const auto& read : op->block->reads) {
     std::vector<sym::IntSet> relaxed_region;
     for (const auto& range : read->region) {
-      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                          .as_or_throw<PrimExpr>();
       PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
                             .as_or_throw<PrimExpr>();
@@ -367,7 +367,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
   for (const auto& write : op->block->writes) {
     std::vector<sym::IntSet> relaxed_region;
     for (const auto& range : write->region) {
-      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                          .as_or_throw<PrimExpr>();
       PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
                             .as_or_throw<PrimExpr>();

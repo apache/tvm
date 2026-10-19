@@ -59,7 +59,6 @@ from .ir import (
 )
 from .ir import _get_dialect_builder as __getattr__
 from .parser_protocol import (
-    check_well_formed_,
     decl_function,
     ir_module,
     module_member_,
@@ -90,7 +89,6 @@ __all__ = [
     "Type",
     "Var",
     "at_",
-    "check_well_formed_",
     "constexpr",
     "decl_function",
     "dtype",

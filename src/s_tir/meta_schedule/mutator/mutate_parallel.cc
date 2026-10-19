@@ -100,9 +100,10 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
          (loop = loop_sref->StmtAs<ForNode>()) != nullptr;  //
          loop_sref = loop_sref->parent) {
       int64_t loop_extent = -1;
-      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      PrimExpr ext_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+      const auto* ext_imm = ext_imm_expr.as<IntImmNode>();
       if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
-        if (!info.non_spatial_vars.count(loop->loop_var.get())) {
+        if (!info.non_spatial_vars.count(loop->var.get())) {
           loop_extent = *ext;
         }
       }

@@ -61,14 +61,14 @@ ffi::Module OpenCLFallbackModuleCreate(ffi::Bytes code, ffi::String fmt,
  *   - Registry hit (USE_OPENCL=ON build) → real OpenCL module returned.
  *   - Registry miss (USE_OPENCL=OFF build) → `OpenCLFallbackModuleObj`
  *     returned.
- *   - `TVM_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
+ *   - `TVM_TIRX_COMPILE_FORCE_FALLBACK` env var truthy → fallback regardless
  *     of registry state (used by per-backend fallback tests on a
  *     USE_X=ON CI box).
  */
 inline ffi::Module OpenCLModuleCreateWithFallback(ffi::Bytes code, ffi::String fmt,
                                                   ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
                                                   ffi::Map<ffi::String, ffi::String> source) {
-  if (tvm::support::GetEnv<bool>("TVM_COMPILE_FORCE_FALLBACK", false)) {
+  if (tvm::support::GetEnv<bool>("TVM_TIRX_COMPILE_FORCE_FALLBACK", false)) {
     return OpenCLFallbackModuleCreate(std::move(code), std::move(fmt), std::move(fmap),
                                       std::move(source));
   }

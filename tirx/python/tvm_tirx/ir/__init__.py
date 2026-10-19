@@ -29,6 +29,7 @@ from .type import (
     AnyType,
     FuncType,
     MissingType,
+    NoneType,
     OpaqueType,
     PtrType,
     PrimType,

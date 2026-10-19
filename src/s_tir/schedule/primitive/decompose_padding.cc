@@ -240,7 +240,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   TensorRegion write_region =
       TensorRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                    block->writes[0]->region.Map([rewrite_expr](const Range& r) {
-                     return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
+                     return Range::FromMinExtent(rewrite_expr(r->begin), rewrite_expr(r->extent));
                    }),
                    TensorRegionType());
 
@@ -255,9 +255,9 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new loop vars
   ffi::Array<Var> new_loop_vars;
   for (const For& loop : loops) {
-    Var new_var = loop->loop_var.CopyWithSuffix("");
+    Var new_var = loop->var.CopyWithSuffix("");
     new_loop_vars.push_back(new_var);
-    repl_dict.Set(loop->loop_var, new_var.as_or_throw<PrimExpr>());
+    repl_dict.Set(loop->var, new_var.as_or_throw<PrimExpr>());
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -276,8 +276,9 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   Stmt nest_stmt_root = new_realize;
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
-    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
-                         ForKind::kDefault, nest_stmt_root);
+    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->begin, loop->end,
+                         IntImm(new_loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
+                         nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -297,7 +298,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   // record loop ranges to be mutated
   ffi::Map<Var, Range> new_loop_ranges;
   for (const For& loop : loops) {
-    new_loop_ranges.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    new_loop_ranges.Set(loop->var, Range(loop->begin, loop->end));
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -312,7 +313,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     Range new_range =
         Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
-    repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
+    repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->begin);
 
     // update new loop range
     if (auto opt = realize->iter_values[i].as<Var>(); opt && new_loop_ranges.count(opt.value())) {
@@ -321,11 +322,11 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
       auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
-      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->min);
+      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->begin);
       analyzer->Bind(loop_var, new_range, /*allow_override=*/true);
     } else {
       new_iter_binding.push_back(
-          analyzer->Simplify(realize->iter_values[i] - info.in_bound_region[i]->min));
+          analyzer->Simplify(realize->iter_values[i] - info.in_bound_region[i]->begin));
     }
   }
 
@@ -341,7 +342,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   };
   auto rewrite_region = [rewrite_expr](const ffi::Array<Range>& region) {
     return region.Map([rewrite_expr](const Range& r) {
-      return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
+      return Range::FromMinExtent(rewrite_expr(r->begin), rewrite_expr(r->extent));
     });
   };
 
@@ -370,11 +371,13 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   // create new loops
   Stmt nest_stmt_root = new_realize;
   for (const For& loop : loops) {
-    auto it = new_loop_ranges.find(loop->loop_var);
-    PrimExpr min = it == new_loop_ranges.end() ? loop->min : (*it).second->min;
-    PrimExpr extent = it == new_loop_ranges.end() ? loop->extent : (*it).second->extent;
-    nest_stmt_root = For(loop->loop_var, min, extent, loop->kind, nest_stmt_root, loop->annotations,
-                         loop->step, loop->loc);
+    auto it = new_loop_ranges.find(loop->var);
+    PrimExpr min = it == new_loop_ranges.end() ? loop->begin : (*it).second->begin;
+    PrimExpr extent = it == new_loop_ranges.end()
+                          ? Range::GetExtentFromBeginEnd(loop->begin, loop->end)
+                          : (*it).second->extent;
+    nest_stmt_root = For(loop->var, min, min + extent, loop->step, loop->kind, nest_stmt_root,
+                         loop->annotations, loop->loc);
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -470,9 +473,9 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   ffi::Optional<For> in_bound_filling_pos;
   for (auto it = loop_srefs.rbegin(); it != loop_srefs.rend(); ++it) {
     For cur_loop = ffi::GetRef<For>((*it)->StmtAs<ForNode>());
-    Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
-    dom_map.Set(cur_loop->loop_var, range);
-    analyzer->Bind(cur_loop->loop_var, range);
+    Range range = Range(cur_loop->begin, cur_loop->end);
+    dom_map.Set(cur_loop->var, range);
+    analyzer->Bind(cur_loop->var, range);
     loops.push_back(cur_loop);
 
     if (cur_loop.same_as(const_filling_pos)) {

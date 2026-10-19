@@ -49,8 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.likely")
       .signature(sig::arg("x", "The input value."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind,
-                static_cast<int64_t>(CallEffectKind::kExprAnnotation))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kExprAnnotation)
       .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.if_then_else")
@@ -58,28 +57,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("true_value", "The value when the condition is true."),
                  sig::arg("false_value", "The value when the condition is false."))
       .set_native_fn_attr<&InferTypeReturnArgType<1>>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 
   OpDef("prim.vscale")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 
   OpDef("prim.ceil")
       .signature(sig::arg("x", "The input value."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure)
       .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.log2")
       .signature(sig::arg("x", "The input value."))
       .set_native_fn_attr<&InferTypeReturnArgType<0>>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure)
       .set_attr(tvm::tirx::op_attr::kVectorizable, true);
 
   OpDef("prim.clz")
       .signature(sig::arg("x", "The input value."))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 }  // namespace prim

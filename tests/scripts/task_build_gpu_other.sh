@@ -16,14 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# This file is a compiler test to ensure that runtimes can compile
-# correctly, even if they aren't actively tested in the CI.
+# Compile the backends excluded from the GPU test wheel without running them.
 set -euxo pipefail
 
-# Preserve the separate runtime-only GPU compile check.
+# Keep these libraries separate from the published GPU wheel artifacts.
 uv pip install --python python3 --no-deps --target build/python ./tirx/3rdparty/tvm-ffi
 export PYTHONPATH="$PWD/build/python"
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DTVM_TIRX_USE_OPENCL=ON -DTVM_TIRX_USE_ROCM=ON -DCMAKE_CXX_FLAGS=-Werror \
-    -DTVM_USE_CCACHE=OFF
-cmake --build build --target tvm_runtime tvm_runtime_opencl tvm_runtime_rocm
+    -DTVM_TIRX_USE_OPENCL=ON -DTVM_TIRX_USE_VULKAN=ON -DTVM_TIRX_USE_ROCM=ON \
+    -DTVM_USE_CLML=ON -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-15 --link-static' \
+    -DCMAKE_CXX_FLAGS=-Werror -DTVM_USE_CCACHE=OFF
+cmake --build build --target tvm_compiler tvm_runtime_opencl tvm_runtime_vulkan tvm_runtime_rocm

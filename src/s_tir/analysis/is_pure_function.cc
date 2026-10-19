@@ -105,7 +105,7 @@ class PurityChecker : public StmtExprVisitor {
     static auto op_call_effect = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
-        return static_cast<CallEffectKind>(op_call_effect[opt.value()]);
+        return op_call_effect[opt.value()];
       } else {
         return CallEffectKind::kOpaque;
       }
@@ -150,9 +150,10 @@ class PurityChecker : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
-    this->Visit(op->loop_var->ty);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
+    this->Visit(op->var->ty);
     return this->Visit(op->body);
   }
 

@@ -211,23 +211,24 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
 ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr> step,
              ffi::Optional<PrimType> dtype, ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
   PrimType var_ty = InferLoopVarDtype(start, stop, dtype);
-  PrimExpr min = ConvertLoopBound(start, var_ty);
-  PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);
+  PrimExpr begin = ConvertLoopBound(start, var_ty);
+  PrimExpr end = ConvertLoopBound(stop, var_ty);
   if (step.has_value()) {
     step = ConvertLoopBound(step.value(), var_ty);
   }
   ffi::ObjectPtr<ForFrameObj> n = ffi::make_object<ForFrameObj>();
   n->vars = {Var("v", var_ty)};
-  n->doms = {Range::FromMinExtent(min, extent)};
+  n->doms = {Range(begin, end)};
   n->steps = {step};
-  n->f_make_for_loop = [kind, annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                           ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                           tvm::SeqStmt body, Location loc) {
+  n->f_make_for_loop = [kind, annotations, end](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                                                ffi::Array<ffi::Optional<PrimExpr>> steps,
+                                                tvm::SeqStmt body, Location loc) {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK_EQ(steps.size(), 1);
-    return tvm::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, kind, body,
-                    annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], loc);
+    PrimVar var = vars[0].as_or_throw<PrimVar>();
+    return tvm::For(var, doms[0]->begin, end, steps[0].value_or(IntImm(var.ty(), 1)), kind, body,
+                    annotations.value_or(ffi::Map<ffi::String, Any>()), loc);
   };
   return ForFrame(n);
 }
@@ -267,9 +268,10 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
-      result = tvm::For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kDefault,
-                        SeqStmt(std::move(result)),
-                        /*annotations=*/{}, /*step=*/steps[i], loc);
+      PrimVar prim_var = var.as_or_throw<PrimVar>();
+      result = tvm::For(prim_var, dom->begin, dom->begin + dom->extent,
+                        steps[i].value_or(IntImm(prim_var.ty(), 1)), ForKind::kDefault,
+                        SeqStmt(std::move(result)), /*annotations=*/{}, loc);
     }
     return result;
   };

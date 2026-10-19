@@ -199,6 +199,22 @@ class Op : public Expr {
   TVM_TIRX_DLL static ffi::List<ffi::Any> GetAttrColumn(const ffi::String& attr_name);
 };
 
+namespace op_attr {
+/*! \brief Infer a Call's result type from its explicit inputs without builder state. */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<Type(const CallNode* call)>>
+    kInferType{"FInferType"};
+/*!
+ * \brief An operator's result type independent of operands, attributes, and type arguments.
+ * When present, this concrete type takes precedence over FInferType.
+ */
+inline constexpr ffi::reflection::AttrKey<Type> kFixedReturnType{"TFixedReturnType"};
+}  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FInferType = decltype(op_attr::kInferType)::ValueType;
+using TFixedReturnType = decltype(op_attr::kFixedReturnType)::ValueType;
+
 namespace sig {
 
 /*! \brief Base counts for descriptors accepted by OpDef::signature. */
@@ -742,22 +758,6 @@ template <typename ValueType>
 OpAttrMap<ValueType> Op::GetAttrMap(ffi::reflection::AttrKey<ValueType> key) {
   return GetAttrMap<ValueType>(key.name);
 }
-
-namespace op_attr {
-/*! \brief Infer a Call's result type from its explicit inputs without builder state. */
-inline constexpr ffi::reflection::AttrKey<
-    ffi::reflection::NativeFunctionView<Type(const CallNode* call)>>
-    kInferType{"FInferType"};
-/*!
- * \brief An operator's result type independent of operands, attributes, and type arguments.
- * When present, this concrete type takes precedence over FInferType.
- */
-inline constexpr ffi::reflection::AttrKey<Type> kFixedReturnType{"TFixedReturnType"};
-}  // namespace op_attr
-
-// Compatibility names; new callers can deduce the value type from the key.
-using FInferType = decltype(op_attr::kInferType)::ValueType;
-using TFixedReturnType = decltype(op_attr::kFixedReturnType)::ValueType;
 
 }  // namespace tvm
 #endif  // TVM_IR_OP_H_

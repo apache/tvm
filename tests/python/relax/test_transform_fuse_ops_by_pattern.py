@@ -614,7 +614,7 @@ def test_compare_with_merge_composite_path():
     mod1 = relax.transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(
         mod
     )
-    tvm.relax.analysis.well_formed(mod1)
+    tvm.relax.analysis.check_well_formed(mod1)
 
     @I.ir_module
     class Expected1:
@@ -655,7 +655,7 @@ def test_compare_with_merge_composite_path():
         mod
     )
     mod2 = relax.transform.MergeCompositeFunctions()(mod2)
-    tvm.relax.analysis.well_formed(mod2)
+    tvm.relax.analysis.check_well_formed(mod2)
 
     @I.ir_module
     class Expected2:
@@ -1457,7 +1457,7 @@ def test_unique_boundary_output_precedes_last_group_binding():
         [("compiler_A.relu_chain", pattern)], annotate_codegen=True
     )(Before)
 
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
     assert not relax.analysis.free_vars(after["main"])
 
     calls = [

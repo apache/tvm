@@ -57,39 +57,20 @@ TVM_TIRX_DLL bool VerifyMemory(const Function& func);
 TVM_TIRX_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
 
 /*!
- * \brief Verify if the given TIR is well-formed. The verification includes:
- *
- * - All variables are defined prior to their point of use.
- *
- * - No variables are used outside of the scope of their definition.
- *
- * - Each variable has a single point of definition.
- *
- * - Tensor loads have consistent source, indices, and result types.
- *
- * - Loop control, tile-operation categories, and scope IDs are valid.
- *
- * Dialect statements require their dialect-specific verifier.
- *
+ * \brief Check whether a TIRx function is well formed.
  * \param func The Function to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \return Whether it is a well-formed TIR function.
+ * \param assert_mode Whether to raise on invalid IR (default: true).
+ * \return True for valid IR; false for invalid IR when assert_mode is false.
  */
-TVM_TIRX_DLL bool VerifyWellFormed(const Function& func, bool assert_mode = true);
+TVM_TIRX_DLL bool CheckWellFormed(const Function& func, bool assert_mode = true);
 
 /*!
- * \brief Verify if the TIR in the given IRMOdule is well-formed.
- *
- * In addition to the checks performed for each Function (see above),
- * the following checks are performed:
- *
- * - The same TIR variable may not be defined in more than one function
- *
+ * \brief Check whether a TIRx module is well formed.
  * \param mod The IRModule to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \return Whether it is a well-formed TIR module.
+ * \param assert_mode Whether to raise on invalid IR (default: true).
+ * \return True for valid IR; false for invalid IR when assert_mode is false.
  */
-TVM_TIRX_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+TVM_TIRX_DLL bool CheckWellFormed(const IRModule& mod, bool assert_mode = true);
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by

@@ -118,19 +118,20 @@ class NoOpRemover : public StmtExprMutatorWithAnalyzer {
     }
   }
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    auto extent_range = sym::EvalSet(op->extent, var_range_map_);
+    auto extent_range =
+        sym::EvalSet(Range::GetExtentFromBeginEnd(op->begin, op->end), var_range_map_);
     if (!sym::is_neg_inf(extent_range.max()) && !sym::is_pos_inf(extent_range.max()) &&
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
-    var_range_map_.Set(op->loop_var, sym::IntSet::FromMinExtent(op->min, op->extent));
+    var_range_map_.Set(op->var, sym::IntSet::FromRange(Range(op->begin, op->end)));
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    var_range_map_.erase(op->loop_var);
+    var_range_map_.erase(op->var);
     op = stmt.as<ForNode>();
-    if (IsZero(op->extent)) {
+    if (IsZero(Range::GetExtentFromBeginEnd(op->begin, op->end))) {
       return Evaluate(0);
     }
-    return tirx::IsNoOp(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
+    return tirx::IsNoOp(op->body) ? MakeEvaluate({op->begin, op->end, op->step}) : stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {

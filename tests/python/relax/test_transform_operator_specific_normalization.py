@@ -31,7 +31,10 @@ from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
 from tvm_tirx.script.parser import tirx as T
 
-define_normalization = tvm_tirx.testing.parameter(True)
+
+@pytest.fixture(params=[True], scope="session")
+def define_normalization(request):
+    return request.param
 
 
 @pytest.fixture
@@ -151,7 +154,7 @@ def test_normalized_call_node_is_well_formed(custom_op):
         def main(A: R.Tensor):
             return relax.Call(custom_op, [A, A])
 
-    relax.analysis.well_formed(Module)
+    relax.analysis.check_well_formed(Module)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -170,9 +173,10 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
             return relax.Call(custom_op, [A])
 
     if define_normalization:
-        assert not relax.analysis.check_well_formed(Module)
+        with pytest.raises((ValueError, TypeError)):
+            relax.analysis.check_well_formed(Module)
     else:
-        relax.analysis.well_formed(Module)
+        relax.analysis.check_well_formed(Module)
 
 
 @pytest.mark.skip_well_formed_check_before_transform

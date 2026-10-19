@@ -102,7 +102,7 @@ void RegisterCudaTargetBuiltins() {
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateDeclTmem>(),
                      true)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 
   OpDef("tirx.cuda.bmma_sync")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
@@ -114,7 +114,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("index_b", "The B fragment index."),
                  sig::arg("fragment_c", "The C fragment."),
                  sig::arg<IntExpr>("index_c", "The C fragment index."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
   // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
@@ -125,7 +125,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("src_ptr", "The source pointer."),
                  sig::arg<IntExpr>("src_offset", "The source offset."),
                  sig::arg<IntExpr>("cp_size", "The copy size."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.cuda.timer_init")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
@@ -133,7 +133,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
                  sig::arg<IntExpr>("num_groups", "The number of groups."),
                  sig::arg<IntExpr>("group_id", "The group identifier."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.cuda.timer_start")
       .signature(sig::arg("event_type", "The event type."),
@@ -142,7 +142,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
                  sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.cuda.timer_end")
       .signature(sig::arg("event_type", "The event type."),
@@ -151,7 +151,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
                  sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   OpDef("tirx.cuda.timer_finalize")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
@@ -159,7 +159,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
                  sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 
   RegisterDeviceIntrinsics();
 }
@@ -167,7 +167,7 @@ void RegisterCudaTargetBuiltins() {
 namespace {
 
 TVM_FFI_NO_INLINE void RegisterDeviceIntrinsicAttrs(OpDef& def, CallEffectKind effect_kind) {
-  def.set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(effect_kind));
+  def.set_attr(tvm::op_attr::kCallEffectKind, effect_kind);
 }
 
 template <typename... Specs>

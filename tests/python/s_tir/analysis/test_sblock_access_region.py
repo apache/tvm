@@ -373,8 +373,11 @@ def test_access_of_padding_pattern():
         assert region.source == expect.source
         analyzer = tvm_tirx.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
-            analyzer.can_prove_equal(observed_range.min, expected_range.min)
-            analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
+            analyzer.can_prove_equal(observed_range.begin, expected_range.begin)
+            analyzer.can_prove_equal(
+                observed_range.extent,
+                expected_range.extent,
+            )
 
     def do_check_block(block_name):
         block = s.get_sref(s.get_sblock(block_name)).stmt
@@ -510,7 +513,14 @@ def test_conditional_inequality_access_regions(case):
         ]
     )
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
-        body = tvm_tirx.ir.For(var, minimum, extent, tvm_tirx.ir.ForKind.DEFAULT, body)
+        body = tvm_tirx.ir.For(
+            var,
+            minimum,
+            minimum + extent,
+            tvm_tirx.ir.IntImm(var.ty, 1),
+            tvm_tirx.ir.ForKind.DEFAULT,
+            body,
+        )
     block = s_tir.SBlock([], [], [], "conditional", body)
     # Unbounded access sets conservatively cover the whole tensor.
     outside_expected = [(0, 256)] if case == "unbounded" else domains

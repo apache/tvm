@@ -120,8 +120,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
-    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    vextent_.insert_or_assign(op->loop_var.as<VarNode>(), op->extent.ty());
+    analyzer_->Bind(op->var, Range(op->begin, op->end));
+    vextent_.insert_or_assign(op->var.as<VarNode>(), op->end.ty());
     return StmtExprVisitor::Visit_(op);
   }
 

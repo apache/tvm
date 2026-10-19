@@ -1074,22 +1074,25 @@ class Vectorizer : public StmtExprMutator {
     if (op->kind == ForKind::kVectorized) {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
-    TVM_FFI_ICHECK(IsZero(op->min));
-    TVM_FFI_ICHECK(!op->extent.ty().IsScalableVector() && !op->extent.ty().IsFixedLengthVector());
-    auto extent_update = this->Mutate(op->extent, inplace_mode);
-    bool extent_unchanged = extent_update.UnchangedOrSameAs(op->extent);
-    PrimExpr extent = std::move(extent_update).ValueOrUnchanged(op->extent);
-    if (extent.ty().IsScalableVector() || extent.ty().IsFixedLengthVector()) {
+    TVM_FFI_ICHECK(IsZero(op->begin));
+    TVM_FFI_ICHECK(!op->end.ty().IsScalableVector() && !op->end.ty().IsFixedLengthVector());
+    auto end_update = this->Mutate(op->end, inplace_mode);
+    bool end_unchanged = end_update.UnchangedOrSameAs(op->end);
+    PrimExpr end = std::move(end_update).ValueOrUnchanged(op->end);
+    PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
+    if (end.ty().IsScalableVector() || end.ty().IsFixedLengthVector() ||
+        step.ty().IsScalableVector() || step.ty().IsFixedLengthVector()) {
       return Scalarize(ffi::GetRef<Stmt>(op));
     }
     auto body_update = this->Mutate(op->body, inplace_mode);
     bool body_unchanged = body_update.UnchangedOrSameAs(op->body);
     Stmt body = std::move(body_update).ValueOrUnchanged(op->body);
-    if (extent_unchanged && body_unchanged) {
+    if (end_unchanged && step.same_as(op->step) && body_unchanged) {
       return ffi::Unchanged();
     } else {
       auto n = ffi::make_object<ForNode>(*op);
-      n->extent = extent;
+      n->end = end;
+      n->step = step;
       n->body = body;
       return For(n);
     }
@@ -1178,7 +1181,8 @@ class Vectorizer : public StmtExprMutator {
     auto substituter = ffi::make_object<StmtExprMutator>();
     substituter->VarRemapSet(var_, idx);
     stmt = substituter->Mutate(stmt).ValueOrUnchanged(stmt);
-    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kDefault, stmt);
+    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, IntImm(var_ty, 1),
+               ForKind::kDefault, stmt);
   }
 
  private:
@@ -1361,9 +1365,10 @@ class LoopVectorizer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {
-      auto* extent_as_int = op->extent.as<IntImmNode>();
+      PrimExpr extent = Range::GetExtentFromBeginEnd(op->begin, op->end);
+      auto* extent_as_int = extent.as<IntImmNode>();
 
-      TVM_FFI_ICHECK(IsZero(op->min));
+      TVM_FFI_ICHECK(IsZero(op->begin));
       // General calls still have vectorization paths that query a compile-time
       // lane count, so keep them on the existing fixed-width path for now.
       if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_) &&
@@ -1380,12 +1385,12 @@ class LoopVectorizer : public StmtExprMutator {
             return StmtExprVisitor::Visit(value);
           }
         };
-        bool is_scalable_expr = ffi::make_object<VScaleFinder>()->Visit(op->extent).has_value();
+        bool is_scalable_expr = ffi::make_object<VScaleFinder>()->Visit(extent).has_value();
         TVM_FFI_ICHECK(is_scalable_expr && TargetHasVLA(target_))
-            << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
+            << "Failed to vectorize loop with extent " << extent << " for target " << target_;
       }
       Stmt body = PreserveUnrollPolicy(op->body, op->annotations);
-      return ffi::make_object<Vectorizer>(op->loop_var, op->extent, target_)
+      return ffi::make_object<Vectorizer>(op->var, extent, target_)
           ->Mutate(body, inplace_mode)
           .ValueOrUnchanged(body);
     } else {
@@ -1398,7 +1403,7 @@ class LoopVectorizer : public StmtExprMutator {
     // Match the existing TIRx scalable-vector convention.  LLVM/RVV still
     // selects the runtime vector length with vsetvli.
     static constexpr int kDefaultVScaleFactor = 4;
-    PrimType index_dtype = op->loop_var.ty();
+    PrimType index_dtype = op->var.ty();
     PrimExpr zero = IntImm(index_dtype, 0);
     PrimExpr fixed_extent = IntImm(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
@@ -1409,21 +1414,21 @@ class LoopVectorizer : public StmtExprMutator {
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
-    PrimVar outer(op->loop_var->name + ".vla.o", index_dtype);
-    PrimVar inner(op->loop_var->name + ".vla.i", lane_dtype);
+    PrimVar outer(op->var->name + ".vla.o", index_dtype);
+    PrimVar inner(op->var->name + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
     if (inner_index.ty() != index_dtype) {
       inner_index = prim::Cast(index_dtype, inner_index);
     }
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     auto substituter = ffi::make_object<StmtExprMutator>();
-    substituter->VarRemapSet(op->loop_var, index);
+    substituter->VarRemapSet(op->var, index);
     Stmt body = substituter->Mutate(op->body).ValueOrUnchanged(op->body);
     Stmt guarded_body = If(index < fixed_extent, body, std::nullopt, op->loc);
-    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-                           guarded_body, op->annotations, std::nullopt, op->loc);
-    Stmt loop =
-        For(outer, zero, num_chunks, ForKind::kDefault, vector_loop, {}, std::nullopt, op->loc);
+    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, IntImm(lane_dtype, 1),
+                           ForKind::kVectorized, guarded_body, op->annotations, op->loc);
+    Stmt loop = For(outer, zero, num_chunks, IntImm(index_dtype, 1), ForKind::kDefault, vector_loop,
+                    {}, op->loc);
 
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }

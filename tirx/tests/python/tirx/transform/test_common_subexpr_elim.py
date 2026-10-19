@@ -615,7 +615,7 @@ def test_shared_subtree_stays_ssa():
     assert body[1].same_as(body[3])
     After = tvm_tirx.tirx.transform.CommonSubexprElim()(unrolled)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After["main"])
+    assert tvm_tirx.tirx.analysis.check_well_formed(After["main"])
 
 
 if __name__ == "__main__":

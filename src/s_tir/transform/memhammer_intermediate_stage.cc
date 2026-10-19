@@ -259,7 +259,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   // Step 1.1 collect loop var range for rank promotion
   while (const ForNode* loop = body.as<ForNode>()) {
     if (need_relax) {
-      var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      var_range.Set(loop->var, Range(loop->begin, loop->end));
       loops_under_compute_location.push_back(loop);
     } else {
       loops.push_back(loop);
@@ -268,7 +268,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
       need_relax = true;
     }
     if (loop->kind == ForKind::kVectorized) {
-      vector_bytes = loop->extent;
+      vector_bytes = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     }
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
@@ -289,7 +289,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
           // writing C_reindex_m16n8k8_matrixC_shared_dyn is warp execution
           continue;
         }
-        var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+        var_range.Set(loop->var, Range(loop->begin, loop->end));
         relaxed_thread_loops.push_back(loop.get());
       }
     }
@@ -340,29 +340,29 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (!use_rank_promotion) {
     cache_indices.clear();
     for (const ForNode* loop : relaxed_thread_loops) {
-      new_shape.push_back(loop->extent);
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
     for (const ForNode* loop : loops_under_compute_location) {
-      new_shape.push_back(loop->extent);
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
   }
 
   for (int i = 0; i < static_cast<int>(relaxed_thread_loops.size()); i++) {
     const ForNode* loop = relaxed_thread_loops[i];
-    PrimVar new_loop_var = loop->loop_var.CopyWithSuffix("_cache");
+    PrimVar new_loop_var = loop->var.CopyWithSuffix("_cache");
     new_loop_vars.push_back(new_loop_var);
-    subst_map.Set(loop->loop_var, new_loop_var);
+    subst_map.Set(loop->var, new_loop_var);
     if (!use_rank_promotion) {
-      cache_indices.push_back(loop->loop_var);
+      cache_indices.push_back(loop->var);
     }
   }
   for (int i = 0; i < static_cast<int>(loops_under_compute_location.size()); i++) {
     const ForNode* loop = loops_under_compute_location[i];
-    PrimVar new_loop_var = loop->loop_var.CopyWithSuffix("_cache");
+    PrimVar new_loop_var = loop->var.CopyWithSuffix("_cache");
     new_loop_vars.push_back(new_loop_var);
-    subst_map.Set(loop->loop_var, new_loop_var);
+    subst_map.Set(loop->var, new_loop_var);
     if (!use_rank_promotion) {
-      cache_indices.push_back(loop->loop_var);
+      cache_indices.push_back(loop->var);
     }
   }
   auto map_var = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -429,14 +429,14 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = loops_under_compute_location[i];
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
-    new_loop->loop_var = new_loop_vars[i + relaxed_thread_loops.size()];
+    new_loop->var = new_loop_vars[i + relaxed_thread_loops.size()];
     new_loop->body = generate_body;
     generate_body = For(new_loop);
   }
   for (int i = static_cast<int>(relaxed_thread_loops.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = relaxed_thread_loops[i];
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
-    new_loop->loop_var = new_loop_vars[i];
+    new_loop->var = new_loop_vars[i];
     new_loop->body = generate_body;
     new_loop->kind = ForKind::kDefault;
     new_loop->annotations = {};

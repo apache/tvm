@@ -73,7 +73,9 @@ def generate_param_sets():
                     yield (d1, d2, d3)
 
 
-dims = tvm_tirx.testing.parameter(*generate_param_sets())
+@pytest.fixture(params=[*generate_param_sets()], scope="session")
+def dims(request):
+    return request.param
 
 
 @pytest.mark.parametrize(
@@ -104,7 +106,9 @@ def test_allreduce_sum(dims, target):
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
-define_metal_compile_callback = tvm_tirx.testing.parameter(True, False)
+@pytest.fixture(params=[True, False], scope="session")
+def define_metal_compile_callback(request):
+    return request.param
 
 
 @pytest.fixture

@@ -1286,7 +1286,13 @@ def symbolic_matmul_blocked_cache_write(
 
 ########## Testcases for cache_read ##########
 
-use_block_name = tvm_tirx.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_cache_read_elementwise(use_block_name):

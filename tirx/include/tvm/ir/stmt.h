@@ -233,6 +233,29 @@ class RegionStmt : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RegionStmtNode);
 };
 
+namespace op_attr {
+/*!
+ * \brief Construct fresh typed variables for a region's lexical body parameters.
+ *
+ * The input carries only the operation, operands and attributes, without a body
+ * or builder state. Parameters are ordered, distinct definitions and may have
+ * name hints. Every region operation must register this hook, returning an empty
+ * array when it has no body parameters. Presence of the attribute identifies
+ * region support without invoking the hook or allocating variables.
+ */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>>
+    kRegionGetBodyParams{"FRegionGetBodyParams"};
+/*! \brief Optional dialect validation of a complete region statement. */
+inline constexpr ffi::reflection::AttrKey<
+    ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>>
+    kRegionValidate{"FRegionValidate"};
+}  // namespace op_attr
+
+// Compatibility names; new callers can deduce the value type from the key.
+using FRegionGetBodyParams = decltype(op_attr::kRegionGetBodyParams)::ValueType;
+using FRegionValidate = decltype(op_attr::kRegionValidate)::ValueType;
+
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
  *
@@ -327,6 +350,13 @@ class TensorStore : public Stmt {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorStore, Stmt, TensorStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorStoreNode);
 };
+
+namespace type_attr {
+/*! \brief Validate a tensor store by its destination type before constructing the statement. */
+inline constexpr ffi::reflection::AttrKey<ffi::reflection::NativeFunctionView<void(
+    const Expr&, const ffi::Array<PrimExpr>&, const PrimExpr&)>>
+    kTensorStoreValidateByTy{"__tvm_tensor_store_validate__"};
+}  // namespace type_attr
 
 /*!
  * \brief Evaluates an expression.
@@ -434,27 +464,31 @@ enum class ForKind : int {
  *
  * \code
  *
- *  for (loop_var = min; loop_var < min + extent; loop_var += step) {
+ *  for (var = begin; var < end; var += step) {
  *    // body
  *  }
  * \endcode
  */
 class ForNode : public StmtNode {
  public:
-  explicit ForNode(ffi::UnsafeInit tag) : loop_var(tag), min(tag), extent(tag), body(tag) {}
+  explicit ForNode(ffi::UnsafeInit tag) : var(tag), begin(tag), end(tag), step(tag), body(tag) {}
 
-  ForNode(PrimVar loop_var, PrimExpr min, PrimExpr extent, SeqStmt body)
-      : loop_var(std::move(loop_var)),
-        min(std::move(min)),
-        extent(std::move(extent)),
+  ForNode(PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, ForKind kind, SeqStmt body)
+      : var(std::move(var)),
+        begin(std::move(begin)),
+        end(std::move(end)),
+        step(std::move(step)),
+        kind(kind),
         body(std::move(body)) {}
 
   /*! \brief The loop variable. */
-  PrimVar loop_var;
-  /*! \brief The minimum value of iteration. */
-  PrimExpr min;
-  /*! \brief The extent of the iteration. */
-  PrimExpr extent;
+  PrimVar var;
+  /*! \brief The inclusive beginning of iteration. */
+  PrimExpr begin;
+  /*! \brief The exclusive end of iteration. */
+  PrimExpr end;
+  /*! \brief The required loop step, including an explicit typed one for unit stride. */
+  PrimExpr step;
   /*! \brief The kind of the for loop. */
   ForKind kind;
   /*! \brief The body of the for loop. */
@@ -466,21 +500,17 @@ class ForNode : public StmtNode {
    * annotations unless they explicitly handle the corresponding semantics.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
-  /*!
-   * \brief The loop step. It is one if not specified.
-   */
-  ffi::Optional<PrimExpr> step;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ForNode>()
-        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("min", &ForNode::min)
-        .def_ro("extent", &ForNode::extent)
+        .def_ro("var", &ForNode::var, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("begin", &ForNode::begin)
+        .def_ro("end", &ForNode::end)
+        .def_ro("step", &ForNode::step)
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
-        .def_ro("annotations", &ForNode::annotations)
-        .def_ro("step", &ForNode::step);
+        .def_ro("annotations", &ForNode::annotations);
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
@@ -495,9 +525,9 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_TIRX_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-                   ffi::Map<ffi::String, ffi::Any> annotations = {},
-                   ffi::Optional<PrimExpr> step = std::nullopt, Location loc = UnknownLoc());
+  TVM_TIRX_DLL For(PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, ForKind kind,
+                   SeqStmt body, ffi::Map<ffi::String, ffi::Any> annotations = {},
+                   Location loc = UnknownLoc());
 
   explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
 
@@ -656,36 +686,6 @@ inline const char* ForKind2String(ForKind t) {
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
   TVM_FFI_UNREACHABLE();
 }
-
-namespace op_attr {
-/*!
- * \brief Construct fresh typed variables for a region's lexical body parameters.
- *
- * The input carries only the operation, operands and attributes, without a body
- * or builder state. Parameters are ordered, distinct definitions and may have
- * name hints. Every region operation must register this hook, returning an empty
- * array when it has no body parameters. Presence of the attribute identifies
- * region support without invoking the hook or allocating variables.
- */
-inline constexpr ffi::reflection::AttrKey<
-    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>>
-    kRegionGetBodyParams{"FRegionGetBodyParams"};
-/*! \brief Optional dialect validation of a complete region statement. */
-inline constexpr ffi::reflection::AttrKey<
-    ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>>
-    kRegionValidate{"FRegionValidate"};
-}  // namespace op_attr
-
-// Compatibility names; new callers can deduce the value type from the key.
-using FRegionGetBodyParams = decltype(op_attr::kRegionGetBodyParams)::ValueType;
-using FRegionValidate = decltype(op_attr::kRegionValidate)::ValueType;
-
-namespace type_attr {
-inline constexpr ffi::reflection::AttrKey<ffi::Function> kEvaluateValidate{
-    "__tvm_evaluate_validate__"};
-inline constexpr ffi::reflection::AttrKey<ffi::Function> kTensorStoreValidate{
-    "__tvm_tensor_store_validate__"};
-}  // namespace type_attr
 
 }  // namespace tvm
 #endif  // TVM_IR_STMT_H_

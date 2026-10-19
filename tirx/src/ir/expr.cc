@@ -39,6 +39,43 @@
 
 namespace tvm {
 
+namespace ffi {
+
+Expr TypeTraits<Expr>::ConvertFallbackValue(ffi::String value) {
+  return StringImm(std::move(value));
+}
+
+std::optional<Expr> TypeTraits<Expr>::TryCastFromAnyView(const TVMFFIAny* src) {
+  if (auto value =
+          ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String>::TryCastFromAnyView(src)) {
+    return value;
+  }
+  if (auto fields = TypeTraits<ffi::Array<Expr>>::TryCastFromAnyView(src)) {
+    return tvm::Tuple(std::move(*fields));
+  }
+  return std::nullopt;
+}
+
+std::optional<PrimExpr> TypeTraits<PrimExpr>::TryCastFromAnyView(const TVMFFIAny* src) {
+  // A required expression cannot accept None.
+  if (src->type_index == TypeIndex::kTVMFFINone) return std::nullopt;
+  return Base::TryCastFromAnyView(src);
+}
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
+  return IntImm::Bool(value);
+}
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
+  return TypeTraits<IntImm>::ConvertFallbackValue(value);
+}
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
+  return TypeTraits<FloatImm>::ConvertFallbackValue(value);
+}
+
+}  // namespace ffi
+
 namespace {
 
 template <typename TNode>
@@ -393,7 +430,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> RangeVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const RangeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->min));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->begin));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
   return std::nullopt;
 }
@@ -402,16 +439,16 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RangeMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const RangeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_min_u,
-                                    mutator->MutateExpected(self->min));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_begin_u,
+                                    mutator->MutateExpected(self->begin));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent_u,
                                     mutator->MutateExpected(self->extent));
-  if (mapped_min_u.UnchangedOrSameAs(self->min) &&
+  if (mapped_begin_u.UnchangedOrSameAs(self->begin) &&
       mapped_extent_u.UnchangedOrSameAs(self->extent)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<RangeNode> copy = ffi::make_object<RangeNode>(*self);
-  if (!mapped_min_u.IsUnchanged()) copy->min = std::move(mapped_min_u).ValueUnchecked();
+  if (!mapped_begin_u.IsUnchanged()) copy->begin = std::move(mapped_begin_u).ValueUnchecked();
   if (!mapped_extent_u.IsUnchanged()) copy->extent = std::move(mapped_extent_u).ValueUnchecked();
   return ffi::Any(std::move(copy));
 }
@@ -420,16 +457,16 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RangeMaybeInplaceMutate
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   RangeNode* self = const_cast<RangeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_min_u,
-                                    mutator->MutateExpected(self->min, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_begin_u,
+                                    mutator->MutateExpected(self->begin, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<PrimExpr>, mapped_extent_u,
       mutator->MutateExpected(self->extent, ffi::InplaceMode::kAllow));
-  if (mapped_min_u.UnchangedOrSameAs(self->min) &&
+  if (mapped_begin_u.UnchangedOrSameAs(self->begin) &&
       mapped_extent_u.UnchangedOrSameAs(self->extent)) {
     return ffi::Unchanged();
   }
-  if (!mapped_min_u.IsUnchanged()) self->min = std::move(mapped_min_u).ValueUnchecked();
+  if (!mapped_begin_u.IsUnchanged()) self->begin = std::move(mapped_begin_u).ValueUnchecked();
   if (!mapped_extent_u.IsUnchanged()) self->extent = std::move(mapped_extent_u).ValueUnchecked();
   return ffi::Unchanged();
 }
@@ -702,13 +739,13 @@ TensorLoad::TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc)
       << "TensorLoad requires a source with a defined type";
   namespace refl = ffi::reflection;
   static const refl::TypeAttrColumn infer_column(type_attr::kTensorLoadInferType.name);
-  auto infer = infer_column[source->ty->type_index()];
-  TVM_FFI_CHECK(infer != nullptr, TypeError)
+  auto infer = type_attr::kTensorLoadInferType.ValueFrom(infer_column[source->ty->type_index()]);
+  TVM_FFI_CHECK(infer.has_value(), TypeError)
       << "Type " << source->ty->GetTypeKey() << " does not support TensorLoad";
   auto node = ffi::make_object<TensorLoadNode>(std::move(source));
   node->indices = std::move(indices);
   node->loc = loc;
-  PrimType ty = infer.cast<FTensorLoadInferType>().CallExpected(node.get()).value();
+  PrimType ty = infer->CallExpected(node.get()).value();
   TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError)
       << "TensorLoad inference requires a concrete PrimType";
   node->ty = std::move(ty);
@@ -1140,8 +1177,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, Location loc)
-    : Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(
-                                   begin, tvm::prim::IsZero(begin) ? end : (end - begin), loc)) {}
+    : Range(ffi::UnsafeInit{},
+            ffi::make_object<RangeNode>(begin, GetExtentFromBeginEnd(begin, end), loc)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -1166,9 +1203,21 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Location loc) {
   return Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(min, extent, loc));
 }
 
+PrimExpr Range::GetExtentFromBeginEnd(const PrimExpr& begin, const PrimExpr& end) {
+  if (const auto* add = end.as<prim::AddNode>()) {
+    prim::ExprDeepEqual equal;
+    if (equal(add->a, begin)) return add->b;
+    if (equal(add->b, begin)) return add->a;
+  }
+  if (prim::IsZero(begin)) return end;
+  return end - begin;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.RangeFromMinExtent", Range::FromMinExtent);
+  refl::GlobalDef()
+      .def("ir.RangeFromMinExtent", Range::FromMinExtent)
+      .def("ir.RangeGetExtentFromBeginEnd", Range::GetExtentFromBeginEnd);
 }
 
 // Var

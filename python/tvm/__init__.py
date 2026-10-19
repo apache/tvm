@@ -18,6 +18,7 @@
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM compiler dialects and runtime extensions built on TIRx."""
 
+import os
 import sys
 
 from typing import TYPE_CHECKING
@@ -25,7 +26,7 @@ from typing import TYPE_CHECKING
 
 def _is_config_mode() -> bool:
     """Recognize the config CLI before loading Python or native TVM components."""
-    if sys.argv[0].endswith("tvm-config"):
+    if os.path.basename(sys.argv[0]) in ("tvm-config", "tvm-config.exe"):
         return True
     argv = getattr(sys, "orig_argv", [])
     return any(arg == "-m" and argv[i + 1 : i + 2] == ["tvm.config"] for i, arg in enumerate(argv))

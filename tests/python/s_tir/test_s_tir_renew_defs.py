@@ -73,9 +73,9 @@ def test_simple():
     # check root block
     _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
     # check remap of i
-    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
+    assert f1.body[0].block.body[0].var != f2.body[0].block.body[0].var
     # check remap of j
-    assert f1.body[0].block.body[0].body[0].loop_var != f2.body[0].block.body[0].body[0].loop_var
+    assert f1.body[0].block.body[0].body[0].var != f2.body[0].block.body[0].body[0].var
 
     # check inner block
     def _get_sblock(f):
@@ -113,7 +113,7 @@ def test_match_tensor():
 
     _check_func_signature_remap(f1, f2)
     _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
-    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
+    assert f1.body[0].block.body[0].var != f2.body[0].block.body[0].var
 
     def _get_sblock(f):
         return f.body[0].block

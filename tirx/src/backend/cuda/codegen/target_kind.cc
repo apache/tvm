@@ -145,7 +145,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   TargetKindDef("cuda")
       .set_default_device_type(kDLCUDA)
-      .def_option<ffi::Map<ffi::String, ffi::Any>>(backend::attr::kBackendConfig.name)
+      .def_option<ffi::Map<ffi::String, ffi::Any>>(tvm::attr::kBackendConfig.name)
       .def_option<ffi::String>("mcpu")
       .def_option<ffi::String>("arch")
       .def_option<int64_t>("max_shared_memory_per_block")

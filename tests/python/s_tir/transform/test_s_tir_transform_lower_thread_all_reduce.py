@@ -126,7 +126,7 @@ def test_basic_with_decl_tensor():
 
     After = transform(Before)
     assert After is not None
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.tirx.analysis.check_well_formed(After)
     After_script = After.script()
     assert "gpu_warp_shuffle" in After_script
 
@@ -258,7 +258,7 @@ def test_multi_group_reduction_consumed_through_alias():
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.tirx.analysis.check_well_formed(After)
     After_script = After.script()
     assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
     assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
@@ -302,7 +302,7 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
                 B_flat[threadIdx_y] = cross_thread_B_alias[0]
 
     After = transform(Before)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.tirx.analysis.check_well_formed(After)
     After_script = After.script()
     assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
     assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
@@ -620,7 +620,7 @@ def test_webgpu_warp_reduce():
 
     After = transform(Before)
     assert After is not None
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    tvm_tirx.tirx.analysis.check_well_formed(After)
     After_script = After.script()
     assert "gpu_warp_shuffle_down" in After_script
     assert "gpu_warp_shuffle(" in After_script

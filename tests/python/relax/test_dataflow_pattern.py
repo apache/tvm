@@ -1518,9 +1518,12 @@ def test_repeated_pattern_match():
     tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
-bind_to_dataflow_var = tvm_tirx.testing.parameter(
-    by_dict={"var-to-var": False, "var-to-dataflow-var": True}
+@pytest.fixture(
+    params=[pytest.param(False, id="var-to-var"), pytest.param(True, id="var-to-dataflow-var")],
+    scope="session",
 )
+def bind_to_dataflow_var(request):
+    return request.param
 
 
 def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
@@ -1580,12 +1583,17 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
     tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
-same_shape_func_type = tvm_tirx.testing.parameter(
-    "same_static_shape",
-    "same_dynamic_shape",
-    "different_static_shape",
-    "different_dynamic_shape",
+@pytest.fixture(
+    params=[
+        "same_static_shape",
+        "same_dynamic_shape",
+        "different_static_shape",
+        "different_dynamic_shape",
+    ],
+    scope="session",
 )
+def same_shape_func_type(request):
+    return request.param
 
 
 def test_same_shape_pattern(same_shape_func_type):

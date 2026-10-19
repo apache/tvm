@@ -45,6 +45,7 @@ from typing import Any, NamedTuple, NoReturn, TypeVar
 
 from . import protocol_registry
 from .inspect_source import _AnnotationScope
+from .jit_support import optional_annotation_body
 from .prescan import (
     BindingKind,
     PrescanContext,
@@ -113,7 +114,7 @@ def _unwrap_optional_annotation(
     Notes
     -----
     Generated specialization calls this after checking selected values and
-    absences, so omitted parameters never evaluate their annotation. Ordinary
+    absences, so None-specialized parameters never evaluate their annotation. Ordinary
     argument construction delegates annotation validation to the language variant.
     Adapter lookup and execution exceptions propagate unchanged.
     """
@@ -1847,6 +1848,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     [],
                 )
             else:
+                if const_args is not None:
+                    inner = optional_annotation_body(annotation, self.module.environment)
+                    if inner is not None:
+                        annotation = inner
                 if name in forward:
                     translated = ast.Name(forward[name], ast.Load())
                 elif (
@@ -1875,8 +1880,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     )
                 # x = X.arg_("x", annotation, loc=_L[i])
                 fallback = self._call_dialect("arg_", [ast.Constant(name), translated], parameter)
-            # Specialized parameters have no runtime ABI slot. The annotation
-            # thunk is absent from the selected generated Python branch.
+            # Constexprs have no ABI slot. Optional None parameters retain a slot
+            # while binding Python None for later annotations and body guards.
             value = (
                 fallback
                 if const_args is None
@@ -1884,7 +1889,26 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     name, fallback, parameter, const_args=const_args
                 )
             )
-            declaration.append(self._assign(alias, value, parameter))
+            if const_args is not None and not is_constexpr:
+                from tvm_tirx.ir import NoneType
+
+                none_arg = self._call_dialect(
+                    "arg_",
+                    [ast.Constant(name), ast.Call(self._inject(NoneType), [], [])],
+                    parameter,
+                )
+                declaration.append(
+                    ast.copy_location(
+                        ast.If(
+                            value.test,
+                            [ast.Expr(none_arg), self._assign(alias, value.body, parameter)],
+                            [self._assign(alias, value.orelse, parameter)],
+                        ),
+                        parameter,
+                    )
+                )
+            else:
+                declaration.append(self._assign(alias, value, parameter))
             unbound.discard(name)
             if alias != name:
                 declaration.append(self._assign(name, ast.Name(alias, ast.Load()), parameter))
@@ -2002,12 +2026,21 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             )
             for parameter in parameters:
                 name = parameter.arg
+                if name not in constexpr_aliases:
+                    # Every runtime parameter, including NoneType, owns a slot.
+                    body.append(
+                        self._assign(
+                            name,
+                            ast.Call(self._inject(next), [ast.Name(iterator, ast.Load())], []),
+                            parameter,
+                        )
+                    )
                 value = (
                     ast.Name(constexpr_aliases[name], ast.Load())
                     if name in constexpr_aliases
                     else self._select_specialized_value(
                         name,
-                        ast.Call(self._inject(next), [ast.Name(iterator, ast.Load())], []),
+                        ast.Name(name, ast.Load()),
                         parameter,
                         const_args=const_args,
                     )
@@ -2245,7 +2278,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     root,
                 )
             )
-        if check_well_formed:
+        if check_well_formed and not is_module:
             # -------------------- Pattern --------------------
             # Python source:
             #     @X.function
@@ -2256,12 +2289,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             #     result = builder.get()
             #     X.check_well_formed_(result)
             # -------------------------------------------------
-            # Module syntax selects I.check_well_formed_ instead, after all bodies complete.
-            namespace = (
-                self.module.ir_prefix
-                if is_module
-                else self._function_namespace(root, self.read_function_metadata(root)[0])
-            )
+            namespace = self._function_namespace(root, self.read_function_metadata(root)[0])
             statements.append(
                 ast.copy_location(
                     ast.Expr(

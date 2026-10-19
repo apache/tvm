@@ -134,8 +134,8 @@ def _check(
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
-        relax.analysis.well_formed(parsed)
-        relax.analysis.well_formed(roundtrip_mod)
+        relax.analysis.check_well_formed(parsed)
+        relax.analysis.check_well_formed(roundtrip_mod)
     if expect:
         tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
@@ -498,7 +498,7 @@ def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
     current, value = recursive_func.params
     assert value.ty.shape[0].same_as(current)
     assert recursive_func.ret_ty.shape[0].same_as(current)
-    relax.analysis.well_formed(func)
+    relax.analysis.check_well_formed(func)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")

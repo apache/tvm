@@ -85,7 +85,7 @@ from .layout import TileLayout, Layout, ComposeLayout
 from . import transform
 from . import analysis
 
-# Compiler-only submodules. Skip under `TVM_USE_RUNTIME_LIB=1` since they
+# Compiler-only submodules. Skip under `TVM_TIRX_USE_RUNTIME_LIB=1` since they
 # perform compiler-side FFI at module load (schema engine looks up
 # `ir.RegisterOp`; codegen registry hooks the build pipeline).
 from tvm_tirx.base import _RUNTIME_ONLY as _RUNTIME_ONLY_TIRX  # pylint: disable=wrong-import-position
@@ -97,16 +97,6 @@ if not _RUNTIME_ONLY_TIRX:
         get_default_tir_pipeline,
         register_tir_pipeline,
     )
-
-
-def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:
-    # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
-    from tvm_tirx.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
-
-    _check_module_well_formed(module)
-
-
-tvm_tirx.script.register_module_validator(_check_script_module)
 
 
 def _initialize_script_namespace() -> None:

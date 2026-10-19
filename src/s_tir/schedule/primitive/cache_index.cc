@@ -144,7 +144,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    range_map_.Set(loop->var, Range(loop->begin, loop->end));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     // Update seq pos only at top scope
     if (visited_block_ && self_->stmt2ref.at(loop)->parent == scope_sref_.get()) {
@@ -361,11 +361,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
-      body = For(/*loop_var=*/loop_vars[i - 1],
-                 /*min=*/0,
-                 /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
-                 /*kind=*/ForKind::kDefault,
-                 /*body=*/body);
+      body = For(loop_vars[i - 1], 0, info->range_map.at(iter_vars[i - 1])->extent,
+                 IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
     }
     bodies.push_back(body);
   }

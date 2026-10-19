@@ -166,8 +166,8 @@ inline bool IsSingleStmt(const SeqStmt& stmt) { return stmt->size() == 1; }
  * \return The newly created IterVar
  */
 inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType iter_var_type) {
-  return IterVar(Range::FromMinExtent(loop->min, loop->extent),
-                 PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
+  return IterVar(Range(loop->begin, loop->end), PrimVar(std::move(name), loop->var.ty()),
+                 iter_var_type);
 }
 
 /*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */

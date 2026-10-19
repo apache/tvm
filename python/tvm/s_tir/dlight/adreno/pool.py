@@ -20,6 +20,7 @@
 
 from tvm import s_tir
 from tvm_tirx import tirx
+from tvm_tirx.ir import Range
 from tvm_tirx.target import Target
 
 from .. import analysis
@@ -47,7 +48,11 @@ class Pool2D(AdrenoScheduleRule):
             lps, veclp = sch.get_loops(blk)[:-1], sch.get_loops(blk)[-1]
             sch.vectorize(veclp)
             b = sch.fuse(*lps)
-            tx_extent = min(int(sch.get(b).extent) & ~int(sch.get(b).extent - 1), 256)
+            tx_extent = min(
+                int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end))
+                & ~int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end) - 1),
+                256,
+            )
             bx, tx = sch.split(b, [None, tx_extent])
             sch.bind(bx, "blockIdx.x")
             sch.bind(tx, "threadIdx.x")
@@ -63,7 +68,11 @@ class Pool2D(AdrenoScheduleRule):
             write_blk = sch.cache_write(blk, 0, "local")
             sch.reverse_compute_at(write_blk, vec_lp)
             b = sch.fuse(*block_lps)
-            tx_extent = min(int(sch.get(b).extent) & ~int(sch.get(b).extent - 1), 256)
+            tx_extent = min(
+                int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end))
+                & ~int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end) - 1),
+                256,
+            )
             bx, tx = sch.split(b, [None, tx_extent])
             sch.bind(bx, "blockIdx.x")
             sch.bind(tx, "threadIdx.x")

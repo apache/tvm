@@ -172,7 +172,7 @@ def test_decl_tensor_alias_chain_uses_flat_root_map():
 
     After = transform(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
-    assert tvm_tirx.tirx.analysis.verify_well_formed(After)
+    assert tvm_tirx.tirx.analysis.check_well_formed(After)
 
 
 if __name__ == "__main__":

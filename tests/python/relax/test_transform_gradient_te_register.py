@@ -379,7 +379,7 @@ def test_tir_var(register_te_grads):
     Before = bb.get()
     After = Gradient("main")(Before)
     assert_structural_equal(After, get_expected_3())
-    relax.analysis.well_formed(After)
+    relax.analysis.check_well_formed(After)
 
 
 if __name__ == "__main__":

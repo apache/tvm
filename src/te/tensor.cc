@@ -104,7 +104,7 @@ PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("te.tensor_load")
       .signature(sig::arg("tensor", "The input tensor."), sig::var_args("args"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kReadState);
 }
 
 // Tensor

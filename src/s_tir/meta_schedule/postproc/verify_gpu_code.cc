@@ -57,7 +57,8 @@ class ThreadExtentChecker : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
     support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope)) {
-      const auto* p_ext_imm = loop->extent.as<IntImmNode>();
+      PrimExpr p_ext_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+      const auto* p_ext_imm = p_ext_imm_expr.as<IntImmNode>();
       if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;
           p_ext.has_value()) {
         int64_t ext = *p_ext;

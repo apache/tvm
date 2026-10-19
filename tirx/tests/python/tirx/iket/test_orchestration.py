@@ -54,8 +54,8 @@ def _fake_profile_process(captured, *, artifact_count: int = 1):
 
 
 def test_public_namespace_and_old_bench_path_is_absent():
-    pytest.importorskip("triton")  # tvm.tirx.bench pulls in the triton harness
-    import tvm_tirx.tirx.bench as bench
+    pytest.importorskip("triton")  # tvm_tirx.testing.bench pulls in the triton harness
+    import tvm_tirx.testing.bench as bench
 
     assert iket.__all__ == [
         "IketProfileError",
@@ -147,7 +147,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     assert captured["cwd"] == cwd
     assert captured["timeout"] == 12.5
     assert captured["env"]["IKET_TEST_ENV"] == "present"
-    assert captured["env"]["TVM_IKET_INJECTED_CHILD_ENABLE"] == "1"
+    assert captured["env"]["TVM_TIRX_IKET_INJECTED_CHILD_ENABLE"] == "1"
     assert os.environ["IKET_TEST_ENV"] == "inherited"
     assert result.output_dir == target
     assert result.command == (sys.executable, "workload.py")

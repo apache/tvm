@@ -239,7 +239,7 @@ def test_recursive():
     before = Before
     expected = Expected
     # check well-formness of recursive call
-    relax.analysis.well_formed(before)
+    relax.analysis.check_well_formed(before)
 
     # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
@@ -505,7 +505,7 @@ def test_runtime_symbolic_variable_defined_by_inner_func():
 
     After = transform.LambdaLift()(Before)
 
-    assert relax.analysis.check_well_formed(After)
+    relax.analysis.check_well_formed(After)
     assert "R.make_closure" not in After.script()
 
 

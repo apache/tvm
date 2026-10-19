@@ -203,7 +203,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     )
 
 
-bcast_length = tvm_tirx.testing.parameter(2, 4, 6, 8)
+@pytest.fixture(params=[2, 4, 6, 8], scope="session")
+def bcast_length(request):
+    return request.param
 
 
 @pytest.mark.gpu
@@ -238,7 +240,9 @@ def test_half_broadcast(bcast_length):
     tvm_tirx.testing.assert_allclose(b.numpy(), b_np)
 
 
-vector_length = tvm_tirx.testing.parameter(2, 4)
+@pytest.fixture(params=[2, 4], scope="session")
+def vector_length(request):
+    return request.param
 
 
 @pytest.mark.gpu
@@ -396,8 +400,9 @@ class BaseFP8E4M3QuantScaleOnly:
 
 
 class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
-    # weight_shape = tvm.testing.parameter((32000, 4096), (4096, 14336))
-    weight_shape = tvm_tirx.testing.parameter((128, 256), (128, 64))
+    @pytest.fixture(params=[(128, 256), (128, 64)], scope="session")
+    def weight_shape(self, request):
+        return request.param
 
     @pytest.mark.gpu
     @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")

@@ -22,9 +22,16 @@ from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import script as R
 from tvm_tirx.script import tirx as T
 
-replace_by_tir_var = tvm_tirx.testing.parameter(
-    by_dict={"replace-by-string": False, "replace-by-tirx-var": True}
+
+@pytest.fixture(
+    params=[
+        pytest.param(False, id="replace-by-string"),
+        pytest.param(True, id="replace-by-tirx-var"),
+    ],
+    scope="session",
 )
+def replace_by_tir_var(request):
+    return request.param
 
 
 def test_bind_static_value(replace_by_tir_var):

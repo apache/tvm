@@ -4302,7 +4302,7 @@ def test_shape_start_end_scalar():
         keep_params_in_input=True,
     )
 
-    assert relax.analysis.check_well_formed(tvm_model)
+    relax.analysis.check_well_formed(tvm_model)
 
     # A rank-0 input has a known, empty static shape, so start=1 slices an empty
     # ShapeExpr and folds at import time. This used to fall back to a runtime

@@ -196,28 +196,28 @@ def test_spec_builder():
     assert str(TileLayout(S[1:1] + R[4:"laneid"])) == str(TileLayout(S[1:1] + R[4 : 1 @ laneid]))
 
 
-def test_verify_well_formed():
+def test_check_well_formed():
     def test_scope_connected():
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
         assert res[0].name == "cuda.thread"
         assert res[1].name == "cuda.warp"
-        assert layout.verify_well_formed()
+        assert layout.check_well_formed() is None
 
         layout = TileLayout(S[8 : 4 @ laneid] + R[4 : 1 @ laneid])
         res = layout.get_scope()
         assert res is not None
         assert res[0].name == "cuda.thread"
         assert res[1].name == "cuda.warp"
-        assert layout.verify_well_formed()
+        layout.check_well_formed()
 
         layout = TileLayout(S[(8, 4, 2) : (4 @ laneid, 1 @ laneid, 1)])
         res = layout.get_scope()
         assert res is not None
         assert res[0].name == "cuda.thread"
         assert res[1].name == "cuda.warp"
-        assert layout.verify_well_formed()
+        layout.check_well_formed()
 
         layout = TileLayout(
             S[(2, 8, 2, 4, 2) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid, 1)]
@@ -226,7 +226,7 @@ def test_verify_well_formed():
         assert res is not None
         assert res[0].name == "cuda.thread"
         assert res[1].name == "cuda.cta"
-        assert layout.verify_well_formed()
+        layout.check_well_formed()
 
         layout = TileLayout(
             S[(2, 8, 2, 4, 2) : (2 @ wid_in_wg, 4 @ laneid, 1 @ wid_in_wg, 1 @ laneid, 1)]
@@ -235,11 +235,11 @@ def test_verify_well_formed():
         assert res is not None
         assert res[0].name == "cuda.thread"
         assert res[1].name == "cuda.warpgroup"
-        assert layout.verify_well_formed()
+        layout.check_well_formed()
 
         layout = TileLayout(S[(2, 8, 2, 4, 2) : (2 @ wgid, 4 @ laneid, 1 @ wgid, 1 @ laneid, 1)])
-        with pytest.raises(Exception):
-            layout.verify_well_formed()
+        with pytest.raises(RuntimeError, match="disconnected scope chain"):
+            layout.check_well_formed()
 
     test_scope_connected()
 
@@ -435,14 +435,14 @@ def test_normalize_tile_layout():
         with tvm_tirx.target.Target("cuda"):
             layout = TileLayout(S[(2, 8, 2, 4) : (2 @ warpid, 4 @ laneid, 1 @ warpid, 1 @ laneid)])
             layout_expected = TileLayout(S[(2, 8, 2, 4) : (64 @ tx, 4 @ tx, 32 @ tx, 1 @ tx)])
-            assert layout.verify_well_formed()
-            assert layout_expected.verify_well_formed()
+            layout.check_well_formed()
+            layout_expected.check_well_formed()
             assert_structural_equal(layout_expected, layout.canonicalize())
 
             layout = TileLayout(S[(2, 2, 8, 4) : (2 @ warpid, 1 @ warpid, 4 @ laneid, 1 @ laneid)])
             layout_expected = TileLayout(S[128 : 1 @ tx])
-            assert layout.verify_well_formed()
-            assert layout_expected.verify_well_formed()
+            layout.check_well_formed()
+            layout_expected.check_well_formed()
             assert_structural_equal(layout_expected, layout.canonicalize())
 
             layout = TileLayout(
@@ -460,8 +460,8 @@ def test_normalize_tile_layout():
             layout_expected = TileLayout(
                 S[(2, 2, 8, 2, 2, 4) : (256 @ tx, 64 @ tx, 4 @ tx, 128 @ tx, 32 @ tx, 1 @ tx)]
             )
-            assert layout.verify_well_formed()
-            assert layout_expected.verify_well_formed()
+            layout.check_well_formed()
+            layout_expected.check_well_formed()
             assert_structural_equal(layout_expected, layout.canonicalize())
 
             layout = TileLayout(
@@ -470,16 +470,16 @@ def test_normalize_tile_layout():
             layout_expected = TileLayout(
                 S[(2, 8, 2, 4) : (64 @ tid_in_wg, 4 @ tid_in_wg, 32 @ tid_in_wg, 1 @ tid_in_wg)]
             )
-            assert layout.verify_well_formed()
-            assert layout_expected.verify_well_formed()
+            layout.check_well_formed()
+            layout_expected.check_well_formed()
             assert_structural_equal(layout_expected, layout.canonicalize())
 
             layout = TileLayout(
                 S[(2, 2, 4, 32) : (2 @ wgid, 1 @ wgid, 32 @ tid_in_wg, 1 @ tid_in_wg)]
             )
             layout_expected = TileLayout(S[512 : 1 @ tx])
-            assert layout.verify_well_formed()
-            assert layout_expected.verify_well_formed()
+            layout.check_well_formed()
+            layout_expected.check_well_formed()
             assert_structural_equal(layout_expected, layout.canonicalize())
 
     case_fuse_axis()

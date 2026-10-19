@@ -166,19 +166,12 @@ def func_attr(attrs: dict[str, Any]) -> None:
 def check_well_formed_(function: _tir.Function) -> None:
     """Validate a completed TIRx function."""
     try:
-        _tir.analysis.verify_well_formed(function)
+        _tir.analysis.check_well_formed(function)
     except Exception as error:
         raise ValueError(
             "Program is not well-formed. If this is deliberate, set "
             f"check_well_formed=False in the top-level decorator.\n{error}"
         ) from error
-
-
-def _check_module_well_formed(module: _ir.IRModule) -> None:
-    """Validate completed functions belonging to the TIRx dialect."""
-    for function in module.functions.values():
-        if isinstance(function, _tir.Function) and not function.attrs.get("s_tir", False):
-            check_well_formed_(function)
 
 
 # --------------------------------------

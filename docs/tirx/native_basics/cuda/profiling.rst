@@ -24,7 +24,7 @@ timers and ``nsys`` tell you how long a launch took, but not how that time split
 across the regions *inside* one kernel — the TMA loads, the mainloop MMAs, the
 softmax, the epilogue.
 
-``tvm.tirx.bench.CudaProfiler`` is a lightweight, in-kernel event tracer for
+``tvm_tirx.testing.bench.CudaProfiler`` is a lightweight, in-kernel event tracer for
 exactly this. You bracket regions of device code with ``start`` / ``end``
 markers; at runtime one leader thread per ``(block, group)`` track stamps the GPU
 global timer into a tensor you pass in as an ordinary kernel argument. After the
@@ -49,7 +49,7 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
     import numpy as np
     import tvm
     from tvm.script import tirx as Tx
-    from tvm.tirx.bench import CudaProfiler, export_to_perfetto_trace
+    from tvm_tirx.testing.bench import CudaProfiler, export_to_perfetto_trace
 
     NUM_BLOCKS, BLOCK, NUM_GROUPS = 4, 128, 1
     WRITE_STRIDE = NUM_BLOCKS * NUM_GROUPS  # >= number of (block, group) lanes

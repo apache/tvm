@@ -16,6 +16,7 @@
 # under the License.
 """Unified type system in the project."""
 
+import keyword
 import sys
 from collections.abc import Callable
 from types import ModuleType
@@ -73,6 +74,14 @@ class MissingType(Type):
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.MissingType)
+
+
+@tvm_ffi.register_object("ir.NoneType")
+class NoneType(Type):
+    """The concrete type whose only value is None."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.NoneType)
 
 
 @tvm_ffi.register_object("ir.AnyType")
@@ -281,6 +290,8 @@ def _init_type_api(namespace: str, target_module: str | ModuleType) -> None:
             if root_index not in info.type_ancestors:
                 continue
             alias = name[:-4] if name.endswith("Type") else name
+            if keyword.iskeyword(alias):
+                alias = name
             if prefix == namespace:
                 # Reserve unbound dialect names so a later repeat can fill them.
                 dialect_aliases.add(alias)

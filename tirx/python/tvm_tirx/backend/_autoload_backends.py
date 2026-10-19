@@ -54,7 +54,7 @@ def _autoload_backends() -> None:
         return
     _AUTO_LOAD_DONE = True
 
-    if os.environ.get("TVM_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
+    if os.environ.get("TVM_TIRX_DEVICE_BACKEND_AUTOLOAD", "1") == "0":
         return
 
     from tvm_tirx import _RUNTIME_ONLY  # pylint: disable=import-outside-toplevel
@@ -62,10 +62,10 @@ def _autoload_backends() -> None:
     if not _RUNTIME_ONLY:
         _load_builtin_backends()
 
-    # Out-of-tree extensions opt into being loaded automatically at ``import tvm`` time
+    # Out-of-tree extensions opt into being loaded automatically at ``import tvm_tirx`` time
     # by declaring an entry point in the ``tvm_tirx.backends`` group:
     # [project.entry-points."tvm_tirx.backends"] tvm_foo = "tvm_foo:_autoload".
-    # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.
+    # Autoload can be disabled via ``TVM_TIRX_DEVICE_BACKEND_AUTOLOAD=0``.
     for entry_pt in entry_points(group="tvm_tirx.backends"):
         try:
             entry_pt.load()()

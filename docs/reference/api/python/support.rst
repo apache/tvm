@@ -15,6 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
+tvm.support
+-----------
+.. automodule:: tvm.support
+   :members: libinfo, describe
+
 tvm_tirx.support
 ----------------
 .. automodule:: tvm_tirx.support

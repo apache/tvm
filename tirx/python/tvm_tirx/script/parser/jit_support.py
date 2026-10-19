@@ -24,10 +24,44 @@ state, and ordinary parsing does not import the TIRx JIT entry point.
 
 from __future__ import annotations
 
+import ast
+import typing
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
+
+
+def optional_annotation_body(node: ast.expr, environment: Mapping[str, Any]) -> ast.expr | None:
+    """Recognize standard optional syntax without evaluating its contained annotation.
+
+    Only the actual typing.Optional object or typing module is accepted. Attribute
+    lookup on arbitrary receivers stays opaque, just as for language namespaces.
+    """
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        if isinstance(node.right, ast.Constant) and node.right.value is None:
+            inner = node.left
+        elif isinstance(node.left, ast.Constant) and node.left.value is None:
+            inner = node.right
+        else:
+            return None
+        if not (isinstance(inner, ast.BinOp) and isinstance(inner.op, ast.BitOr)):
+            return inner
+    if isinstance(node, ast.Subscript):
+        marker = node.value
+        if isinstance(marker, ast.Name):
+            optional = environment.get(marker.id) is typing.Optional
+        else:
+            optional = (
+                isinstance(marker, ast.Attribute)
+                and isinstance(marker.value, ast.Name)
+                and environment.get(marker.value.id) is typing
+                and marker.attr == "Optional"
+            )
+        if optional:
+            return node.slice
+    return None
+
 
 # Per-execution inputs, never a second owner of native function or parameter state.
 # Host/JIT values and callable annotation adapters have open-ended Python types.
@@ -47,7 +81,7 @@ def use_specialization(name: str | None, const_args: Mapping[str, Any] | None) -
         exact name. None is used when the parsed root is not a function.
     const_args : Mapping[str, Any] or None
         Parameter names mapped to fixed values, including explicit None values for
-        omitted optional parameters. None selects ordinary parsing; an empty
+        None-typed optional parameters. None selects ordinary parsing; an empty
         mapping still selects specialization with no compile-time values.
         The mapping is copied on entry, without copying its values.
 

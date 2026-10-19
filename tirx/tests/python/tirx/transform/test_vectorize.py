@@ -522,7 +522,7 @@ def test_illegal_vscale_in_non_sve_compilation():
             for j in T.vectorized(0, 4 * T.vscale()):
                 A[j] = 13
 
-    msg = "Failed to vectorize loop with extent T.vscale\\(\\) \\* 4 for target"
+    msg = "Failed to vectorize loop with extent 4 \\* T.vscale\\(\\) for target"
     with pytest.raises(RuntimeError, match=msg):
         tvm_tirx.tirx.transform.VectorizeLoop()(Mod)
 

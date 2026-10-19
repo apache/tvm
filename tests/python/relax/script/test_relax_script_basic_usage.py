@@ -54,8 +54,8 @@ def _check(
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
-        relax.analysis.well_formed(parsed)
-        relax.analysis.well_formed(roundtrip_mod)
+        relax.analysis.check_well_formed(parsed)
+        relax.analysis.check_well_formed(roundtrip_mod)
     if expect:
         tvm_tirx.ir.assert_structural_equal(parsed, expect)
 

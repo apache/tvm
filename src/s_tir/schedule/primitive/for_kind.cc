@@ -140,7 +140,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
     if (!self->stmt2ref.count(realize->block.get())) {
       return ffi::WalkResult::Skip();
     }
-    CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, realize, thread_scope);
+    CheckLoopParallelizableInBlock(self, for_kind, loop->var, realize, thread_scope);
     return ffi::WalkResult::Advance();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop, walk_fn);

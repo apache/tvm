@@ -48,8 +48,8 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = loops[n - 1]->extent;
-  PrimExpr extent_last2 = loops[n - 2]->extent;
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
@@ -58,15 +58,15 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
+      /*0:*/ loops[n - 2]->var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->var.CopyWithSuffix("_1"),
   };
   ffi::Map<Var, PrimExpr> loop_var_map{
-      {loops[n - 2]->loop_var,
+      {loops[n - 2]->var,
        new_loop_vars[0].as_or_throw<PrimExpr>() * 16 + new_loop_vars[2].as_or_throw<PrimExpr>()},
-      {loops[n - 1]->loop_var,
+      {loops[n - 1]->var,
        new_loop_vars[1].as_or_throw<PrimExpr>() * 16 + new_loop_vars[3].as_or_throw<PrimExpr>()},
   };
   auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -82,13 +82,17 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3],
+               IntImm(new_loop_vars[3].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2],
+               IntImm(new_loop_vars[2].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1],
+               IntImm(new_loop_vars[1].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0],
+               IntImm(new_loop_vars[0].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -139,8 +143,12 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
@@ -244,8 +252,12 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
@@ -398,8 +410,8 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = loops[n - 1]->extent;
-  PrimExpr extent_last2 = loops[n - 2]->extent;
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
@@ -409,15 +421,15 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
+      /*0:*/ loops[n - 2]->var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->var.CopyWithSuffix("_1"),
   };
   ffi::Map<Var, PrimExpr> loop_var_map{
-      {loops[n - 2]->loop_var,
+      {loops[n - 2]->var,
        new_loop_vars[0].as_or_throw<PrimExpr>() * 8 + new_loop_vars[2].as_or_throw<PrimExpr>()},
-      {loops[n - 1]->loop_var,
+      {loops[n - 1]->var,
        new_loop_vars[1].as_or_throw<PrimExpr>() * 8 + new_loop_vars[3].as_or_throw<PrimExpr>()},
   };
   auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -433,13 +445,17 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3],
+               IntImm(new_loop_vars[3].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2],
+               IntImm(new_loop_vars[2].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1],
+               IntImm(new_loop_vars[1].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0],
+               IntImm(new_loop_vars[0].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -472,8 +488,12 @@ Stmt RewriteMmaStore(Stmt stmt) {
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
 
   // Step 2. Find matrixC tensor
@@ -538,8 +558,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
           /*name_hint=*/"mma_store",
           RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx},
                      DictAttrs(), /*body=*/
-                     For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
-                         /*body=*/
+                     For(vec.as_or_throw<PrimVar>(), 0, 2,
+                         IntImm(vec.as_or_throw<PrimVar>().ty(), 1), ForKind::kVectorized,
                          TensorStore(new_tgt_tensor, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec},
                                      TensorLoad(new_src_tensor,
                                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec})))),

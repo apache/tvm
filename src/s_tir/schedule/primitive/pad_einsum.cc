@@ -56,10 +56,10 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialTensorAccess(const TensorRegion& tens
     if (!tvm::prim::IsOne(range->extent)) {
       return std::nullopt;
     }
-    if (range->min->IsInstance<IntImmNode>()) {
+    if (range->begin->IsInstance<IntImmNode>()) {
       continue;
     }
-    if (auto var = range->min.as<PrimVar>()) {
+    if (auto var = range->begin.as<PrimVar>()) {
       indices.push_back(var.value());
     } else {
       return std::nullopt;
@@ -145,7 +145,7 @@ struct TensorPadding {
     shape.reserve(tensor_region->region.size());
     int ndim = tensor_region->region.size();
     for (int i = 0; i < ndim; ++i) {
-      PrimExpr pos = tensor_region->region[i]->min;
+      PrimExpr pos = tensor_region->region[i]->begin;
       TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos.as<PrimVar>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos.ty(), 1));
@@ -204,8 +204,10 @@ struct TensorPadding {
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
-                 ForKind::kDefault, std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->begin,
+                 loop_doms[i]->begin + loop_doms[i]->extent,
+                 IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
+                 std::move(body));
     }
     return body;
   }
@@ -310,7 +312,7 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
     for (const IterVar& iter_var : block->iter_vars) {
       if (ffi::Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
         ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
-        new_iter_var->dom = Range::FromMinExtent(iter_var->dom.value()->min, new_dom.value());
+        new_iter_var->dom = Range::FromMinExtent(iter_var->dom.value()->begin, new_dom.value());
         iter_vars.push_back(IterVar(new_iter_var));
       } else {
         iter_vars.push_back(iter_var);
@@ -348,9 +350,9 @@ class PadEinsumTensorReplacer : public StmtExprMutator {
     For new_for = StmtExprMutator::Mutate_(old_for_ptr, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(old_for_ptr))
                       .as_or_throw<For>();
-    if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
+    if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
-      new_for_ptr->extent = new_extent.value();
+      new_for_ptr->end = new_for_ptr->begin + new_extent.value();
       new_for = For(new_for_ptr);
     }
     return new_for;
@@ -412,7 +414,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   }
   auto f_needs_padding = [&replacer](const ffi::Array<Range>& region) {
     for (const Range& range : region) {
-      if (auto var = range->min.as<PrimVar>()) {
+      if (auto var = range->begin.as<PrimVar>()) {
         if (replacer->iter2padded_extents.count(var.value())) {
           return true;
         }

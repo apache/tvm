@@ -152,7 +152,7 @@ def test_1d_input_1d_output_nested_loop():
             B[i * 32 + j] = A[i * 32 + j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         (A[0:1024], B[0:1024]),
         (A[i * 32 : i * 32 + 32], B[i * 32 : i * 32 + 32]),
@@ -174,7 +174,7 @@ def test_1d_input_1d_output_nested_loop_equivalent_expressions():
             B[i * 32 + j] = A[j + i * 32]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         (A[0:1024], B[0:1024]),
         (A[i * 32 : i * 32 + 32], B[i * 32 : i * 32 + 32]),
@@ -191,7 +191,7 @@ def test_1d_input_2d_output_nested_loop():
             B[i, j] = A[i * 32 + j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         (A[0:1024], B[0:32, 0:32]),
         (A[i * 32 : i * 32 + 32], B[i, 0:32]),
@@ -208,7 +208,7 @@ def test_2d_input_1d_output_nested_loop():
             B[i * 32 + j] = A[i, j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         (A[0:32, 0:32], B[0:1024]),
         (A[i, 0:32], B[i * 32 : i * 32 + 32]),
@@ -225,7 +225,7 @@ def test_2d_input_2d_output_nested_loop():
             B[i, j] = A[i, j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         (A[0:32, 0:32], B[0:32, 0:32]),
         (A[i, 0:32], B[i, 0:32]),
@@ -304,7 +304,7 @@ def test_cache_read():
             B[j] = A[i, j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         "does not form a bijective transform",
         (A[i, 0:32], B[0:32]),
@@ -325,7 +325,7 @@ def test_cache_write():
             B[i, j] = A[j]
 
     A, B = [param for param in func.params if tvm_tirx.tirx.is_tensor_var(param)]
-    i = func.body[0].loop_var
+    i = func.body[0].var
     expected = [
         "does not form a bijective transform",
         (A[0:32], B[i, 0:32]),

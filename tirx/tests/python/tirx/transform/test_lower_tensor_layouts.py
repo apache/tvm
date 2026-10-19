@@ -1200,7 +1200,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
         lowered = LowerTensorLayouts()(Dispatched)["main"]
     tvm_tirx.ir.assert_structural_equal(lowered, Expected["main"])
     assert not tvm_tirx.tirx.analysis.undefined_vars(lowered.body, lowered.params)
-    tvm_tirx.tirx.analysis.verify_well_formed(lowered)
+    tvm_tirx.tirx.analysis.check_well_formed(lowered)
     bindings = []
     tvm_ffi.structural_walk(lowered.body, (tvm_tirx.ir.Bind, bindings.append))
     address = next(

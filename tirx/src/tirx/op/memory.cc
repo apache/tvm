@@ -172,7 +172,7 @@ Expr reinterpret(Type target_ty, Expr value, Location loc) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.reinterpret")
       .signature(sig::arg("x", "The input value."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& address_of_op() {
@@ -184,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.address_of")
       .signature(sig::arg("obj", "The referenced object."))
       .set_native_fn_attr<&InferTypeAddressOf>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& isnullptr_op() {
@@ -196,7 +196,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.isnullptr")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Bool())
       .signature(sig::arg("x", "The input value."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& prefetch_op() {
@@ -209,7 +209,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("rw", "The read/write mode."),
                  sig::arg<IntExpr>("locality", "The locality hint."),
                  sig::arg<IntExpr>("cache_type", "The cache policy."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& ptr_byte_offset_op() {
@@ -221,7 +221,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.ptr_byte_offset")
       .signature(sig::arg("data", "Base pointer."),
                  sig::arg<IntExpr>("byte_offset", "Offset in bytes."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& static_handle_op() {
@@ -231,8 +231,7 @@ const Op& static_handle_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.static_handle")
-      .set_attr(tvm::op_attr::kCallEffectKind,
-                static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kSpecialCallArg);
 }
 
 const Op& handle_add_byte_offset_op() {
@@ -244,7 +243,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.handle_add_byte_offset")
       .signature(sig::arg("handle", "The handle."), sig::arg<IntExpr>("offset", "The offset."))
       .set_native_fn_attr<&InferTypePointerOffset<0, -1>>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& atomic_add_op() {
@@ -255,7 +254,7 @@ const Op& atomic_add_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.atomic_add")
       .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& assume_aligned_op() {
@@ -268,7 +267,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<TensorVar>("tensor", "The tensor whose base address is aligned."),
                  sig::arg<IntImm>("alignment_bytes", "The constant byte alignment."))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kEmbedInfo);
 }
 
 const Op& undef_op() {
@@ -279,7 +278,7 @@ const Op& undef_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.undef")
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kReadState);
 }
 
 const Op& masked_load_op() {
@@ -292,7 +291,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg<TensorVar>("tensor", "The tensor."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_native_fn_attr<&InferTypeMaskedLoad>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kReadState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kReadState);
 }
 
 const Op& masked_store_op() {
@@ -306,7 +305,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("value", "The value to use."),
                  sig::arg<PrimExpr>("index", "The index."), sig::var_args<PrimExpr>("args"))
       .set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kUpdateState));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kUpdateState);
 }
 
 const Op& alloc_tensor_op() {
@@ -323,7 +322,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::var_args<tvm::Tuple>("placement", "Optional producer-owned placement."),
                  sig::ty_arg<TensorType>("tensor_type"))
       .set_attrs_type_key(DictAttrsNode::_type_key)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 const Op& decl_tensor_op() {
@@ -339,7 +338,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                      true)
       .signature(sig::arg("data", "The existing data pointer."),
                  sig::ty_arg<TensorType>("tensor_type"))
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 const Op& tensor_data_ptr_op() {
@@ -351,7 +350,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensor_data_ptr")
       .signature(sig::arg("tensor", "The tensor variable."))
       .set_native_fn_attr<&InferTypeTensorDataPtr>(tvm::op_attr::kInferType)
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kPure);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

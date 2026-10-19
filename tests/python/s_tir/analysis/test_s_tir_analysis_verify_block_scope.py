@@ -36,7 +36,8 @@ def test_tensor_region_bounds_are_visited():
     )
     block = tvm.s_tir.SBlock([], [region], [], "region", tvm_tirx.ir.Evaluate(0))
     func = tvm_tirx.tirx.Function([tensor], block)
-    assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
+    with pytest.raises(RuntimeError):
+        tvm.s_tir.analysis.check_well_formed(func)
 
 
 def test_fail_use_out_loop_var():
@@ -51,7 +52,8 @@ def test_fail_use_out_loop_var():
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
 
-    assert not tvm.s_tir.analysis.verify_well_formed(element_wise, assert_mode=False)
+    with pytest.raises(RuntimeError):
+        tvm.s_tir.analysis.check_well_formed(element_wise)
 
 
 def test_block_match_tensor_defines_tensor_obj():
@@ -70,7 +72,7 @@ def test_block_match_tensor_defines_tensor_obj():
                     )
                     B[i, j] = 0.0
 
-    tvm.s_tir.analysis.verify_well_formed(mod)
+    assert tvm.s_tir.analysis.check_well_formed(mod) is None
 
 
 def test_block_match_tensor_defines_symbolic_variables():
@@ -94,7 +96,7 @@ def test_block_match_tensor_defines_symbolic_variables():
 
                     B[i, j] = elem_offset
 
-    tvm.s_tir.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.check_well_formed(mod)
 
 
 def test_match_tensor_in_block_is_well_formed():
@@ -113,7 +115,7 @@ def test_match_tensor_in_block_is_well_formed():
                     )
                     A_tile[i, j] = A_tile[i, j] * 2.0
 
-    tvm.s_tir.analysis.verify_well_formed(mod)
+    tvm.s_tir.analysis.check_well_formed(mod)
 
 
 def test_error_undeclared_tensor_in_schedulable_tir():
@@ -146,11 +148,13 @@ def test_error_undeclared_tensor_in_schedulable_tir():
 
     function = tvm_tirx.tirx.Function(
         params=[A, B_data],
-        body=tvm_tirx.ir.For(i, 0, n, tvm_tirx.ir.ForKind.DEFAULT, block_realize),
+        body=tvm_tirx.ir.For(
+            i, 0, n, tvm_tirx.ir.IntImm(i.ty, 1), tvm_tirx.ir.ForKind.DEFAULT, block_realize
+        ),
         # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclTensor node (which we intentionally omit here).
     )
 
     # B is used in the block but was never declared — should fail.
     with pytest.raises((ValueError, RuntimeError), match="tensor B.*without a prior DeclTensor"):
-        tvm.s_tir.analysis.verify_well_formed(function)
+        tvm.s_tir.analysis.check_well_formed(function)

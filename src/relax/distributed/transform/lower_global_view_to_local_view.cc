@@ -233,11 +233,11 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
         int shard = iter_var_shards_[iter_var->var];
         if (shard > 1) {
           Range dom = iter_var->dom.value();
-          TVM_FFI_ICHECK(IsZero(dom->min));
+          TVM_FFI_ICHECK(IsZero(dom->begin));
           sym::Analyzer analyzer;
           TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(
-              s_tir::IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)),
+              s_tir::IterVar(Range::FromMinExtent(dom->begin, floordiv(dom->extent, shard)),
                              iter_var->var, iter_var->iter_type, iter_var->thread_tag));
           continue;
         }
@@ -329,12 +329,15 @@ class DistributedTensorCompactor : public s_tir::StmtExprMutator {
     For new_loop = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<For>();
-    if (loop_var_shards_.count(op->loop_var)) {
-      int shard = loop_var_shards_[op->loop_var];
+    if (loop_var_shards_.count(op->var)) {
+      int shard = loop_var_shards_[op->var];
       if (shard > 1) {
         sym::Analyzer analyzer;
-        TVM_FFI_ICHECK(analyzer->CanProve(floormod(new_loop->extent, shard) == 0));
-        new_loop.CopyOnWrite()->extent = floordiv(new_loop->extent, shard);
+        TVM_FFI_ICHECK(analyzer->CanProve(
+            floormod(Range::GetExtentFromBeginEnd(new_loop->begin, new_loop->end), shard) == 0));
+        new_loop.CopyOnWrite()->end =
+            new_loop->begin +
+            floordiv(Range::GetExtentFromBeginEnd(new_loop->begin, new_loop->end), shard);
         return new_loop;
       }
     }

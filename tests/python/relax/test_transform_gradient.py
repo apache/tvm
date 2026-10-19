@@ -1073,7 +1073,7 @@ def test_function_copy():
     old_bindings_len = len(old_bindings)
     new_bindings = After["main_adjoint"].body.blocks[0].bindings[:old_bindings_len]
     assert_structural_equal(old_bindings, new_bindings, True)
-    relax.analysis.well_formed(After)
+    relax.analysis.check_well_formed(After)
 
 
 def test_tir_copy():
@@ -1097,7 +1097,7 @@ def test_tir_copy():
             return gv
 
     After = relax.transform.Gradient("main")(Before)
-    relax.analysis.well_formed(After)
+    relax.analysis.check_well_formed(After)
 
 
 def test_report_error():

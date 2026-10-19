@@ -275,6 +275,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.MissingType", []() { return MissingType(); });
 }
 
+NoneType::NoneType() : Type(ffi::UnsafeInit{}) {
+  static const auto singleton = ffi::make_object<NoneTypeNode>();
+  data_ = singleton;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  NoneTypeNode::RegisterReflection();
+  refl::TypeAttrDef<NoneTypeNode>()
+      .attr(ffi::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TypeVisit>())
+      .attr(ffi::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TypeMutate>())
+      .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
+            ffi::FStructuralMutate::FromNative<&TypeMaybeInplaceMutate>());
+  refl::GlobalDef().def("ir.NoneType", []() { return NoneType(); });
+}
+
 AnyType::AnyType(Location loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
   n->loc = loc;

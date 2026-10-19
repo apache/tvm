@@ -28,7 +28,10 @@ from tvm.relax import script as R
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
 
-use_np_array = tvm_tirx.testing.parameter(False, True)
+
+@pytest.fixture(params=[False, True], scope="session")
+def use_np_array(request):
+    return request.param
 
 
 def test_bind_params(use_np_array):
@@ -190,7 +193,9 @@ def test_bind_params_rejects_non_primitive_standalone_symbolic_var():
         before.bind_params({n: relax.const(np.array(5, dtype="int64"))})
 
 
-param_specification = tvm_tirx.testing.parameter("by_string", "by_var")
+@pytest.fixture(params=["by_string", "by_var"], scope="session")
+def param_specification(request):
+    return request.param
 
 
 def test_bind_params_by_var_obj(param_specification):

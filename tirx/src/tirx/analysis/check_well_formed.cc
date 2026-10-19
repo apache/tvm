@@ -366,17 +366,17 @@ class WellFormednessVerifier : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
     if (check_ == Check::kLoopControl) {
-      this->Visit(op->step);
       ++loop_depth_;
       this->Visit(op->body);
       --loop_depth_;
       return std::nullopt;
     }
     return WithScope([&]() -> Result {
-      Define(op->loop_var, AccessPath::Root()->Attr("loop_var"));
+      Define(op->var, AccessPath::Root()->Attr("var"));
       return WithScope([&]() { return this->Visit(op->body); });
     });
   }
@@ -564,7 +564,7 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
   return this->Visit(op->indices);
 }
 
-bool VerifyWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
+bool CheckWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
   using Check = WellFormednessVerifier::Check;
   for (Check check :
        {Check::kVariables, Check::kTensors, Check::kTensorLoadType, Check::kLoopControl}) {
@@ -575,25 +575,25 @@ bool VerifyWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
 
 }  // namespace
 
-bool VerifyWellFormed(const Function& func, bool assert_mode) {
-  return VerifyWellFormedCommon(func, assert_mode);
+bool CheckWellFormed(const Function& func, bool assert_mode) {
+  return CheckWellFormedCommon(func, assert_mode);
 }
 
-bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
-  return VerifyWellFormedCommon(mod, assert_mode);
+bool CheckWellFormed(const IRModule& mod, bool assert_mode) {
+  return CheckWellFormedCommon(mod, assert_mode);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
+      "tirx.analysis.CheckWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
         if (auto opt = obj.as<Function>()) {
-          return VerifyWellFormed(opt.value(), assert_mode);
+          return CheckWellFormed(opt.value(), assert_mode);
         } else if (auto opt = obj.as<IRModule>()) {
-          return VerifyWellFormed(opt.value(), assert_mode);
+          return CheckWellFormed(opt.value(), assert_mode);
         } else {
           TVM_FFI_THROW(InternalError)
-              << "Expected VerifyWellFormed argument to be a Function or IRModule, but found "
+              << "Expected CheckWellFormed argument to be a Function or IRModule, but found "
               << obj->GetTypeKey();
           TVM_FFI_UNREACHABLE();
         }

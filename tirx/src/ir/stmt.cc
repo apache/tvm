@@ -276,11 +276,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> ForVisit(
   const ForNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->loop_var); }));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->min));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
+      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->var); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->begin));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->end));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->step));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
   return std::nullopt;
 }
 
@@ -289,27 +289,27 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMutate(
   // skips: kind and constant annotations; unlike SBlock annotations, these carry no expressions.
   const ForNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_loop_var,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->loop_var);
+                                      return mutator->MutateExpected(self->var);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_min,
-                                    mutator->MutateExpected(self->min));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
-                                    mutator->MutateExpected(self->extent));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_begin,
+                                    mutator->MutateExpected(self->begin));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_end,
+                                    mutator->MutateExpected(self->end));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_step,
+                                    mutator->MutateExpected(self->step));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
-                                    mutator->MutateExpected(self->step));
-  if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
-      mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
+  if (mapped_var.UnchangedOrSameAs(self->var) && mapped_begin.UnchangedOrSameAs(self->begin) &&
+      mapped_end.UnchangedOrSameAs(self->end) && mapped_body.UnchangedOrSameAs(self->body) &&
+      mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<ForNode> copy = ffi::make_object<ForNode>(*self);
-  copy->loop_var = std::move(mapped_loop_var).ValueOrUnchanged(std::move(copy->loop_var));
-  copy->min = std::move(mapped_min).ValueOrUnchanged(std::move(copy->min));
-  copy->extent = std::move(mapped_extent).ValueOrUnchanged(std::move(copy->extent));
+  copy->var = std::move(mapped_var).ValueOrUnchanged(std::move(copy->var));
+  copy->begin = std::move(mapped_begin).ValueOrUnchanged(std::move(copy->begin));
+  copy->end = std::move(mapped_end).ValueOrUnchanged(std::move(copy->end));
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
   copy->step = std::move(mapped_step).ValueOrUnchanged(std::move(copy->step));
   return ffi::Any(std::move(copy));
@@ -320,28 +320,27 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMaybeInplaceMutate(
   // skips: kind and constant annotations; unlike SBlock annotations, these carry no expressions.
   ForNode* self = const_cast<ForNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_loop_var,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->loop_var,
+                                      return mutator->MutateExpected(self->var,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_min,
-                                    mutator->MutateExpected(self->min, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<PrimExpr>, mapped_extent,
-      mutator->MutateExpected(self->extent, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_begin,
+                                    mutator->MutateExpected(self->begin, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_end,
+                                    mutator->MutateExpected(self->end, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_step,
+                                    mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
-                                    mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
-  if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
-      mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
+  if (mapped_var.UnchangedOrSameAs(self->var) && mapped_begin.UnchangedOrSameAs(self->begin) &&
+      mapped_end.UnchangedOrSameAs(self->end) && mapped_body.UnchangedOrSameAs(self->body) &&
+      mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged();
   }
-  if (!mapped_loop_var.IsUnchanged()) self->loop_var = std::move(mapped_loop_var).ValueUnchecked();
-  if (!mapped_min.IsUnchanged()) self->min = std::move(mapped_min).ValueUnchecked();
-  if (!mapped_extent.IsUnchanged()) self->extent = std::move(mapped_extent).ValueUnchecked();
+  if (!mapped_var.IsUnchanged()) self->var = std::move(mapped_var).ValueUnchecked();
+  if (!mapped_begin.IsUnchanged()) self->begin = std::move(mapped_begin).ValueUnchecked();
+  if (!mapped_end.IsUnchanged()) self->end = std::move(mapped_end).ValueUnchecked();
   if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   if (!mapped_step.IsUnchanged()) self->step = std::move(mapped_step).ValueUnchecked();
   return ffi::Unchanged();
@@ -650,8 +649,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorStoreMaybeInplace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
-  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kTensorStoreValidate.name);
-  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kEvaluateValidate.name);
+  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kTensorStoreValidateByTy.name);
 }
 
 // Bind
@@ -787,12 +785,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // For
-For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step, Location loc)
+For::For(PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, ForKind kind, SeqStmt body,
+         ffi::Map<ffi::String, Any> annotations, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
-  TVM_FFI_ICHECK(loop_var.defined());
-  TVM_FFI_ICHECK(min.defined());
-  TVM_FFI_ICHECK(extent.defined());
+  TVM_FFI_ICHECK(var.defined());
+  TVM_FFI_ICHECK(begin.defined());
+  TVM_FFI_ICHECK(end.defined());
+  TVM_FFI_ICHECK(step.defined());
   TVM_FFI_ICHECK(body.defined());
 
   auto require_scalar_int_dtype = [&](PrimExpr expr, const char* field_name) {
@@ -802,47 +801,42 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt 
         << "TIR For nodes require a scalar integer as the " << field_name << ", but received "
         << expr << " with dtype " << dtype;
   };
-  require_scalar_int_dtype(loop_var, "loop_var");
-  require_scalar_int_dtype(min, "min");
-  require_scalar_int_dtype(extent, "extent");
+  require_scalar_int_dtype(var, "var");
+  require_scalar_int_dtype(begin, "begin");
+  require_scalar_int_dtype(end, "end");
+  require_scalar_int_dtype(step, "step");
 
-  // When extent, min or step is an IntImm whose dtype differs from loop_var's
+  // When end, begin or step is an IntImm whose dtype differs from var's
   // (narrower bits and/or a different signedness code), we directly promote it
   // to the loop var's dtype as long as the value stays representable.
   auto try_promote_imm_dtype = [&](const PrimExpr& e) -> PrimExpr {
     PrimType e_ty = e.ty();
-    PrimType loop_var_ty = loop_var.ty();
-    if (e_ty == loop_var_ty) return e;
+    PrimType var_ty = var.ty();
+    if (e_ty == var_ty) return e;
     if (const IntImmNode* a = e.as<IntImmNode>()) {
-      TVM_FFI_ICHECK(IntImmValueFits(a->value, loop_var_ty))
+      TVM_FFI_ICHECK(IntImmValueFits(a->value, var_ty))
           << "Literal value " << a->value << " is not representable in the loop variable's dtype ("
-          << loop_var_ty << ")";
-      return IntImm(loop_var_ty, a->value);
+          << var_ty << ")";
+      return IntImm(var_ty, a->value);
     }
-    TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
-        << " Loop variable's dtype (" << loop_var_ty
-        << ") is narrower than that of `min` or `extent` (" << e_ty << ")";
+    TVM_FFI_ICHECK(e_ty.bits() <= var_ty.bits())
+        << " Loop variable's dtype (" << var_ty << ") is narrower than that of `begin` or `end` ("
+        << e_ty << ")";
     return e;
   };
 
-  min = try_promote_imm_dtype(min);
-  extent = try_promote_imm_dtype(extent);
+  begin = try_promote_imm_dtype(begin);
+  end = try_promote_imm_dtype(end);
 
-  TVM_FFI_ICHECK(loop_var.ty() == min.ty()) << loop_var.ty() << " vs " << min.ty();
-  TVM_FFI_ICHECK(loop_var.ty() == extent.ty()) << loop_var.ty() << " vs " << extent.ty();
+  TVM_FFI_ICHECK(var.ty() == begin.ty()) << var.ty() << " vs " << begin.ty();
+  TVM_FFI_ICHECK(var.ty() == end.ty()) << var.ty() << " vs " << end.ty();
 
-  if (step.has_value()) {
-    require_scalar_int_dtype(*step, "step");
-    step = try_promote_imm_dtype(*step);
-    TVM_FFI_ICHECK(loop_var.ty() == step.value().ty())
-        << loop_var.ty() << " vs " << step.value().ty();
-  }
+  step = try_promote_imm_dtype(step);
+  TVM_FFI_ICHECK(var.ty() == step.ty()) << var.ty() << " vs " << step.ty();
 
-  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>(std::move(loop_var), std::move(min),
-                                                           std::move(extent), std::move(body));
-  node->kind = kind;
+  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>(
+      std::move(var), std::move(begin), std::move(end), std::move(step), kind, std::move(body));
   node->annotations = std::move(annotations);
-  node->step = std::move(step);
   node->loc = loc;
   data_ = std::move(node);
 }
@@ -856,16 +850,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(ffi::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.For",
-                        [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind, SeqStmt body,
-                           ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                           ffi::Optional<PrimExpr> step, Location loc) {
-                          return For(loop_var, min, extent, static_cast<ForKind>(kind), body,
-                                     annotations.value_or(ffi::Map<ffi::String, Any>()), step, loc);
-                        });
+  refl::GlobalDef().def(
+      "ir.For", [](PrimVar var, PrimExpr begin, PrimExpr end, PrimExpr step, int kind, SeqStmt body,
+                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Location loc) {
+        return For(var, begin, end, step, static_cast<ForKind>(kind), body,
+                   annotations.value_or(ffi::Map<ffi::String, Any>()), loc);
+      });
 }
 
-bool ForNode::HasTrivialStep() const { return !step.has_value() || IsOne(*step); }
+bool ForNode::HasTrivialStep() const { return IsOne(step); }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   switch (type) {
@@ -1065,12 +1058,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Evaluate
 Evaluate::Evaluate(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
-  static const ffi::reflection::TypeAttrColumn validate_column(
-      tvm::type_attr::kEvaluateValidate.name);
-  if (auto validate = validate_column[value->ty->type_index()]; validate != nullptr) {
-    validate.cast<ffi::Function>()(value);
-  }
-
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
   node->loc = loc;
   data_ = std::move(node);
@@ -1094,11 +1081,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
-  static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidate.name);
-  auto validate = validate_column[dest->ty->type_index()];
-  TVM_FFI_CHECK(validate != nullptr, TypeError)
+  static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidateByTy.name);
+  auto validate =
+      type_attr::kTensorStoreValidateByTy.ValueFrom(validate_column[dest->ty->type_index()]);
+  TVM_FFI_CHECK(validate.has_value(), TypeError)
       << "Type " << dest->ty->GetTypeKey() << " does not support TensorStore";
-  validate.cast<ffi::Function>()(dest, indices, value);
+  validate->CallExpected(dest, indices, value).value();
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
   node->loc = loc;

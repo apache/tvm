@@ -97,7 +97,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
     def reject_s_tir_analysis(*args, **kwargs):
         pytest.fail("TIRx construction and compilation must not invoke S-TIR verification")
 
-    monkeypatch.setattr(tvm.s_tir.analysis, "verify_well_formed", reject_s_tir_analysis)
+    monkeypatch.setattr(tvm.s_tir.analysis, "check_well_formed", reject_s_tir_analysis)
 
     @I.ir_module
     class Direct:

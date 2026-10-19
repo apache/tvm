@@ -107,9 +107,10 @@ class NoOpCallVerifier : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
-    this->Visit(op->loop_var->ty);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
+    this->Visit(op->var->ty);
     return this->Visit(op->body);
   }
 
@@ -362,9 +363,9 @@ class TileDispatcher : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Collect the loop variables
-    auto loop_var = op->loop_var.as_or_throw<Var>();
+    auto loop_var = op->var.as_or_throw<Var>();
     TVM_FFI_ICHECK(!var_range_map_.count(loop_var)) << "Internal Error: Duplicate loop variable";
-    var_range_map_.Set(loop_var, Range::FromMinExtent(op->min, op->extent));
+    var_range_map_.Set(loop_var, Range(op->begin, op->end));
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 

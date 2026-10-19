@@ -494,7 +494,7 @@ def test_reused_loop_var_in_decl_tensor_elem_offset():
     assert Before["main"].body[1].same_as(Before["main"].body[2])
     After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
     tvm_tirx.ir.assert_structural_equal(After, Expected)
-    tvm_tirx.tirx.analysis.verify_well_formed(After["main"], assert_mode=True)
+    tvm_tirx.tirx.analysis.check_well_formed(After["main"], assert_mode=True)
 
 
 if __name__ == "__main__":

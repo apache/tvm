@@ -262,7 +262,7 @@ def test_nested_function_preserves_outer_rewrite_context():
             return R.add(x, weight)
 
     after = relax.transform.BundleModelParams()(Before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     func = after["main"]
     assert len(func.params) == 2
@@ -283,10 +283,10 @@ def test_bundled_tensor_preserves_retained_shape_dependency():
     before = bb.get()
     global_var = before.get_global_var("main")
     before.update_func(global_var, before[global_var].with_attr("num_input", 2))
-    relax.analysis.well_formed(before)
+    relax.analysis.check_well_formed(before)
 
     after = relax.transform.BundleModelParams()(before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     func = after[global_var]
     bundled_ty = func.params[2].ty
@@ -312,7 +312,7 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
             return out
 
     after = relax.transform.BundleModelParams()(Before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     func = after["main"]
     extent_binding = func.body.blocks[0].bindings[0]
@@ -349,7 +349,7 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
 
     old_extent = Before["main"].params[1]
     after = relax.transform.BundleModelParams()(Before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     func = after["main"]
     bundled_ty = func.params[1].ty

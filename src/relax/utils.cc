@@ -247,7 +247,7 @@ bool IsImpureCall(const Call& call) {
     static auto effect_map = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
-    auto effect = static_cast<CallEffectKind>(effect_map[op]);
+    auto effect = effect_map[op];
     return effect > CallEffectKind::kPure;
   }
   TVM_FFI_CHECK(!call->op->ty.as<tvm::FuncTypeNode>(), TypeError)

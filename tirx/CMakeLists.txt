@@ -243,7 +243,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT "${TVM_TIRX_USE_LLVM}" MATCHES ${I
   target_link_options(tvm_tirx_compiler PRIVATE "-Wl,--no-relax" "-Wl,--as-needed")
 endif()
 include(cmake/modules/Logging.cmake)
-include(cmake/modules/ClangFlags.cmake)
 
 # ######### Library configuration ##########
 

@@ -53,8 +53,8 @@ def _check(
     )
     tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
-        relax.analysis.well_formed(parsed)
-        relax.analysis.well_formed(roundtrip_mod)
+        relax.analysis.check_well_formed(parsed)
+        relax.analysis.check_well_formed(roundtrip_mod)
     if expect:
         tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
@@ -342,38 +342,39 @@ def test_annotate_override():
 
 
 def test_call_tir_inplace_with_tuple_var_raises_error():
-    with pytest.raises(ValueError, match="not well-formed"):
+    @tvm_tirx.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")):
+            cls = Module
+            args = (x, y)
+            res = R.call_tir_inplace(
+                cls.copy,
+                # The `args` tuple must be an in-line tuple, not a
+                # reference to a tuple.  This error should be
+                # caught by explicit module validation.
+                args,
+                inplace_indices=[0, -1],
+                ty_args=[_TupleType([R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")])],
+            )
+            return res
 
-        @tvm_tirx.script.ir_module
-        class Module:
-            @R.function
-            def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")):
-                cls = Module
-                args = (x, y)
-                res = R.call_tir_inplace(
-                    cls.copy,
-                    # The `args` tuple must be an in-line tuple, not a
-                    # reference to a tuple.  This error should be
-                    # caught by script well-formedness validation.
-                    args,
-                    inplace_indices=[0, -1],
-                    ty_args=[_TupleType([R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")])],
-                )
-                return res
+        @Ts.function
+        def copy(
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
+        ):
+            # copies the contents of B into A and out1
+            T.func_attr({"tirx.noalias": True})
+            for (*iters,) in T.grid(T.int64(2), T.int64(3)):
+                with Ts.sblock("T_zeros"):
+                    i, j = Ts.axis.remap("SS", iters)
+                    A[i, j] = B[i, j]
+                    out1[i, j] = B[i, j]
 
-            @Ts.function
-            def copy(
-                A: T.Tensor((2, 3), "int32"),
-                B: T.Tensor((2, 3), "int32"),
-                out1: T.Tensor((2, 3), "int32"),
-            ):
-                # copies the contents of B into A and out1
-                T.func_attr({"tirx.noalias": True})
-                for (*iters,) in T.grid(T.int64(2), T.int64(3)):
-                    with Ts.sblock("T_zeros"):
-                        i, j = Ts.axis.remap("SS", iters)
-                        A[i, j] = B[i, j]
-                        out1[i, j] = B[i, j]
+    with pytest.raises(ValueError):
+        relax.analysis.check_well_formed(Module)
 
 
 def test_if_inside_dataflow():

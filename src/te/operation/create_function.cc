@@ -310,7 +310,7 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes
       return depth_it->second;
     }
     std::vector<Var> dep_vars;
-    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->min))) {
+    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->begin))) {
       dep_vars.push_back(v);
     }
     for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->extent))) {
@@ -615,7 +615,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     for (size_t j = 0; j < axes.size(); ++j) {
       const s_tir::IterVar& axis = axes[j];
       PrimType index_type = PrimType::Int(
-          std::max(axis->dom.value()->min.ty().bits(), axis->dom.value()->extent.ty().bits()));
+          std::max(axis->dom.value()->begin.ty().bits(), axis->dom.value()->extent.ty().bits()));
       bool first_times_define =
           std::any_of(axes_levels[i].begin(), axes_levels[i].end(),
                       [&](const s_tir::IterVar& candidate) { return candidate.same_as(axis); });
@@ -625,7 +625,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         }
         Var loop_var = Var(axis->var->name, index_type);
         Var block_var("v_" + axis->var->name, index_type);
-        PrimExpr min = axis->dom.value()->min;
+        PrimExpr min = axis->dom.value()->begin;
         PrimExpr extent = axis->dom.value()->extent;
         if (i > 0) {
           const auto& scope_repl = scopes[i - 1].axes_remap;
@@ -750,7 +750,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var.as_or_throw<PrimVar>(), dom->min, dom->extent, ForKind::kDefault, body);
+      body = For(loop_var.as_or_throw<PrimVar>(), dom->begin, dom->begin + dom->extent,
+                 IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, body);
     }
   }
   return body;

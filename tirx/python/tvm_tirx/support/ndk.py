@@ -45,11 +45,11 @@ def create_shared(output, objects, options=None):
     options : list of str, optional
         The additional options.
     """
-    if "TVM_NDK_CC" not in os.environ:
+    if "TVM_TIRX_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
+            "Require environment variable TVM_TIRX_NDK_CC to be the NDK standalone compiler"
         )
-    compiler = os.environ["TVM_NDK_CC"]
+    compiler = os.environ["TVM_TIRX_NDK_CC"]
     cmd = [compiler]
     cmd += ["-o", output]
 
@@ -73,7 +73,9 @@ def create_shared(output, objects, options=None):
 # assign output format
 create_shared.output_format = "so"
 create_shared.get_target_triple = (
-    get_target_by_dump_machine(os.environ["TVM_NDK_CC"]) if "TVM_NDK_CC" in os.environ else None
+    get_target_by_dump_machine(os.environ["TVM_TIRX_NDK_CC"])
+    if "TVM_TIRX_NDK_CC" in os.environ
+    else None
 )
 
 
@@ -88,9 +90,9 @@ def create_staticlib(output, inputs):
     inputs : list
         List of object files or tar files
     """
-    if "TVM_NDK_CC" not in os.environ:
+    if "TVM_TIRX_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
+            "Require environment variable TVM_TIRX_NDK_CC to be the NDK standalone compiler"
         )
     output_name = os.path.basename(output)
 
@@ -98,7 +100,7 @@ def create_staticlib(output, inputs):
     tmp_output = temp.relpath("lib" + output_name)
     objects = _tar.normalize_file_list_by_unpacking_tars(temp, inputs)
 
-    compiler = os.environ["TVM_NDK_CC"]
+    compiler = os.environ["TVM_TIRX_NDK_CC"]
     base_path = os.path.dirname(compiler)
     ar_path = os.path.join(base_path, "llvm-ar")
     cmd = [ar_path]
@@ -146,12 +148,12 @@ def get_global_symbol_section_map(path, *, nm=None) -> dict[str, str]:
     symbol_section_map: Dict[str, str]
         A map from defined global symbol to their sections
     """
-    if "TVM_NDK_CC" not in os.environ:
+    if "TVM_TIRX_NDK_CC" not in os.environ:
         raise RuntimeError(
-            "Require environment variable TVM_NDK_CC to be the NDK standalone compiler"
+            "Require environment variable TVM_TIRX_NDK_CC to be the NDK standalone compiler"
         )
     if nm is None:
-        compiler = os.environ["TVM_NDK_CC"]
+        compiler = os.environ["TVM_TIRX_NDK_CC"]
         base_path = os.path.dirname(compiler)
         nm = os.path.join(base_path, "llvm-nm")
     return _cc.get_global_symbol_section_map(path, nm=nm)

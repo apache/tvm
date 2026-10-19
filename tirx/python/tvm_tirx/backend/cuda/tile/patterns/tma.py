@@ -118,7 +118,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
         _encode_requirement(
             ctx, dims[-1] % 128 == 0, "TMA packed FP4 inner dimension must be a multiple of 128"
         )
-    starts = tuple(r.min for r in region.region)
+    starts = tuple(r.begin for r in region.region)
     if interleave:
         ctx.require(view_dims[-1] == channels, "TMA Ci extent must equal one interleave slice")
     # Tensor strides already specify a rectangular descriptor. A layout is
