@@ -174,7 +174,7 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
-    if (!IsConstInt(op->begin) || !IsConstInt(Range::GetExtent(op->begin, op->end)) ||
+    if (!IsConstInt(op->begin) || !IsConstInt(Range::GetExtentFromBeginEnd(op->begin, op->end)) ||
         partition_const_loop_) {
       record_.insert({var, false});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -289,7 +289,8 @@ class PartitionFinder : public StmtExprVisitor {
                                         : ffi::WalkResult::Advance();
     };
     if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->begin, walkfn).has_value() ||
-        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(Range::GetExtent(op->begin, op->end), walkfn)
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            Range::GetExtentFromBeginEnd(op->begin, op->end), walkfn)
             .has_value()) {
       return std::nullopt;
     }

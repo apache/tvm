@@ -162,7 +162,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
     if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->begin));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->end));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
     }
     return std::nullopt;
   }
@@ -493,15 +493,15 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       PrimExpr extent{ffi::UnsafeInit{}};
       if (collect_inbound_) {
         min = dom_analyzer_->Simplify(tvm::max(0, range->begin));
-        extent = Range::GetExtent(range->begin, range->end);
+        extent = range->extent;
         // Apply stronger symbolic proof to help us remove symbolic min here.
         if (!dom_analyzer_->CanProveLessEqualThanSymbolicShapeValue(extent, original_shape[i])) {
-          extent = tvm::min(original_shape[i], Range::GetExtent(range->begin, range->end));
+          extent = tvm::min(original_shape[i], range->extent);
         }
         extent = dom_analyzer_->Simplify(extent);
       } else {
         min = dom_analyzer_->Simplify(range->begin);
-        extent = dom_analyzer_->Simplify(Range::GetExtent(range->begin, range->end));
+        extent = dom_analyzer_->Simplify(range->extent);
       }
 
       // We check the tensor extent is pure and not loop dependent, since loop dependent
@@ -731,8 +731,8 @@ class TensorCompactor : public StmtExprMutator {
     new_region.reserve(info.region.size());
     for (size_t i = 0; i < info.region.size(); ++i) {
       const Range& range = (*region)[i];
-      new_region.push_back(Range::FromMinExtent(range->begin - info.region[i]->begin,
-                                                Range::GetExtent(range->begin, range->end)));
+      new_region.push_back(
+          Range::FromMinExtent(range->begin - info.region[i]->begin, range->extent));
     }
     *tensor = info.new_tensor;
     *region = std::move(new_region);
@@ -820,8 +820,7 @@ Stmt TensorCompactorCompact(
     }
 
     // prepare new tensor
-    ffi::Array<PrimExpr> shape =
-        region.Map([](const Range& range) { return Range::GetExtent(range->begin, range->end); });
+    ffi::Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = std::move(shape);

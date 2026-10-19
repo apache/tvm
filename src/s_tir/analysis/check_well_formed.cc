@@ -109,7 +109,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     auto fvisit_tensor_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->begin));
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->end));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
       }
       return std::nullopt;
     };

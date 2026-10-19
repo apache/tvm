@@ -176,7 +176,7 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    PrimExpr extent_expr = Range::GetExtent(loop->begin, loop->end);
+    PrimExpr extent_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     if (const auto* extent = extent_expr.as<IntImmNode>();
         !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
@@ -279,8 +279,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
       } else {
         // contiguous memory access
         PrimExpr prev_used_iter_extent_imm_expr =
-            Range::GetExtent(TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->begin,
-                             TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->end);
+            Range::GetExtentFromBeginEnd(TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->begin,
+                                         TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->end);
         const auto* prev_used_iter_extent_imm = prev_used_iter_extent_imm_expr.as<IntImmNode>();
         auto prev_used_iter_extent = prev_used_iter_extent_imm
                                          ? prev_used_iter_extent_imm->value.as<int64_t>()
@@ -314,7 +314,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
@@ -353,7 +353,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {

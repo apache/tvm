@@ -134,11 +134,11 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = this->coef;
-  if (tvm::prim::IsOne(Range::GetExtent(r->begin, r->end))) {
+  if (tvm::prim::IsOne(r->extent)) {
     equal.push_back(analyzer->Simplify(r->begin * coef));
   } else {
     lower.push_back(analyzer->Simplify(r->begin * coef));
-    upper.push_back(analyzer->Simplify((r->end - 1) * coef));
+    upper.push_back(analyzer->Simplify((r->begin + r->extent - 1) * coef));
   }
   for (const auto& eq : this->equal) equal.push_back(eq);
   for (const auto& lb : this->lower) lower.push_back(lb);
@@ -404,7 +404,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     if (system_to_solve.ranges.count(v)) {
       const Range& range = system_to_solve.ranges[v];
       PrimExpr range_lbound = analyzer->Simplify(range->begin, kSimplifyRewriteCanonicalRewrite);
-      PrimExpr range_ubound = analyzer->Simplify(range->end - 1, kSimplifyRewriteCanonicalRewrite);
+      PrimExpr range_ubound =
+          analyzer->Simplify(range->begin + range->extent - 1, kSimplifyRewriteCanonicalRewrite);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
@@ -578,8 +579,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       auto best_range = bnd.FindBestRange(vranges);
 
       if (best_range.has_value()) {
-        if (analyzer->CanProveGreaterEqual(
-                -Range::GetExtent(best_range.value()->begin, best_range.value()->end), 0)) {
+        if (analyzer->CanProveGreaterEqual(-best_range.value()->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
                                 /*relations=*/{IntImm::Bool(false)});

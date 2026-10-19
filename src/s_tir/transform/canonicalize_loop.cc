@@ -64,7 +64,8 @@ class LoopCanonicalizer : public StmtExprMutator {
     VarRemapSet(op->var, op->var.as_or_throw<PrimExpr>() * step + op->begin);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     PrimExpr min = IntImm(loop_var_ty, 0);
-    PrimExpr extent = analyzer_->Simplify(ceildiv(Range::GetExtent(op->begin, op->end), step));
+    PrimExpr extent =
+        analyzer_->Simplify(ceildiv(Range::GetExtentFromBeginEnd(op->begin, op->end), step));
     if (inplace_mode == InplaceMode::kAllow) {
       auto* writable = const_cast<ForNode*>(op);
       writable->body = std::move(body);

@@ -47,8 +47,8 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
     return std::nullopt;
   }
   return static_cast<int64_t>(
-      Range::GetExtent(sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->begin,
-                       sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->end)
+      Range::GetExtentFromBeginEnd(sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->begin,
+                                   sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->end)
           .as_or_throw<IntImm>()
           ->value);
 }
@@ -184,7 +184,8 @@ bool RewriteCooperativeFetchObj::Apply(const s_tir::Schedule& sch) {
       sch->Unannotate(block, tvm::s_tir::attr::kMetaScheduleCooperativeFetch.name);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
-      PrimExpr extent_imm_expr = Range::GetExtent(sch->Get(fused)->begin, sch->Get(fused)->end);
+      PrimExpr extent_imm_expr =
+          Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {

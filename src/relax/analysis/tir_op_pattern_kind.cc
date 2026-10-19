@@ -430,8 +430,8 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       ffi::Map<PrimVar, Range> var_range;
       for (const s_tir::IterVar& v : block->iter_vars) {
-        ana_->Bind(v->var, Range(v->dom.value()->begin, v->dom.value()->end));
-        var_range.Set(v->var, Range(v->dom.value()->begin, v->dom.value()->end));
+        ana_->Bind(v->var, v->dom.value());
+        var_range.Set(v->var, v->dom.value());
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -483,9 +483,8 @@ bool HasReshapePattern(const tirx::Function& func) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
                 this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->begin,
                                           IntImm::Int64(/*value=*/0)) &&
-                this->ana_->CanProveEqual(
-                    tensor.shape()[i], Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
-                                                        block->iter_vars[i]->dom.value()->end)))) {
+                this->ana_->CanProveEqual(tensor.shape()[i],
+                                          block->iter_vars[i]->dom.value()->extent))) {
             return false;
           }
         }
@@ -505,8 +504,7 @@ bool HasReshapePattern(const tirx::Function& func) {
       // Skip check 1 on zero-extent iters: the inverse index map would divide by zero.
       bool has_zero_extent = std::any_of(
           block->iter_vars.begin(), block->iter_vars.end(), [this](const s_tir::IterVar& v) {
-            return this->ana_->CanProveEqual(
-                Range::GetExtent(v->dom.value()->begin, v->dom.value()->end), 0);
+            return this->ana_->CanProveEqual(v->dom.value()->extent, 0);
           });
 
       if (nontrivial_tensor.has_value() && !has_zero_extent) {
@@ -516,13 +514,10 @@ bool HasReshapePattern(const tirx::Function& func) {
         ffi::Map<tvm::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
-          inverse_indices_map.Set(
-              block->iter_vars[i]->var,
-              floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
-                       Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
-                                        block->iter_vars[i]->dom.value()->end)));
-          stride *= Range::GetExtent(block->iter_vars[i]->dom.value()->begin,
-                                     block->iter_vars[i]->dom.value()->end);
+          inverse_indices_map.Set(block->iter_vars[i]->var,
+                                  floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
+                                           block->iter_vars[i]->dom.value()->extent));
+          stride *= block->iter_vars[i]->dom.value()->extent;
         }
         auto f_substitute = [&inverse_indices_map](
                                 const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

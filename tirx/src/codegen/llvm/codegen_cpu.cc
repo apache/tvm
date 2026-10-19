@@ -1161,7 +1161,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   // A single iteration needs no nested threadpool launch.  Keep an explicit
   // parallel_launch region's first loop distributed across its existing tasks.
-  if (op->kind == ForKind::kParallel && IsOne(Range::GetExtent(op->begin, op->end)) &&
+  if (op->kind == ForKind::kParallel && IsOne(Range::GetExtentFromBeginEnd(op->begin, op->end)) &&
       op->HasTrivialStep() && op->annotations.empty() &&
       (parallel_env_.penv == nullptr || parallel_env_.in_parallel_loop)) {
     auto serial = ffi::make_object<ForNode>(*op);

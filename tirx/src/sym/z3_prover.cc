@@ -222,7 +222,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
             ApplyBindValue(entry.var.value(), entry.value.value());
             break;
           case Scope::BindRange:
-            ApplyBindRange(entry.var.value(), entry.begin.value(), entry.end.value());
+            ApplyBindRange(entry.var.value(), entry.begin.value(), entry.extent.value());
             break;
           case Scope::Constraint:
             ApplyConstraint(entry.constraint.value(), entry.is_assume, scope_index);
@@ -265,7 +265,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
     ffi::Optional<Var> var;
     ffi::Optional<PrimExpr> value;
     ffi::Optional<PrimExpr> begin;
-    ffi::Optional<PrimExpr> end;
+    ffi::Optional<PrimExpr> extent;
     ffi::Optional<PrimExpr> constraint;
     /// Assume-mode constraints keep side-effectful expressions memoized for
     /// the lifetime of their scope. This flag preserves that behavior during
@@ -407,36 +407,39 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
   void Bind(const Var& var, const Range& range, bool allow_override = false) {
     if (!IsZ3SupportedExpr(var.get())) return;
     scope_stack_.back().push_back(
-        Scope{Scope::BindRange, var, std::nullopt, range->begin, range->end});
+        Scope{Scope::BindRange, var, std::nullopt, range->begin, range->extent});
     if (!solver) return;  // journaled; translated when the solver materializes
-    ApplyBindRange(var, range->begin, range->end);
+    ApplyBindRange(var, range->begin, range->extent);
   }
 
-  void ApplyBindRange(const Var& var, const PrimExpr& begin, const PrimExpr& end) {
-    // Rebinding uses a fresh placeholder, so previous constraints do not leak.
+  void ApplyBindRange(const Var& var, const PrimExpr& begin, const PrimExpr& extent) {
+    // 1. Create a placeholder for the var, and save it in the memo
+    //    if the var is overrided later, we can just update the memo, and the old placeholder will
+    //    be ignored
     auto var_expr = Create(var.get());
     MemoPut(var.as_or_throw<PrimExpr>(), var_expr);
 
-    // Leave empty ranges unconstrained instead of making the solver unsatisfiable.
-    if (const auto* begin_imm = begin.as<IntImmNode>()) {
-      auto bind_constant_range = [&](const ffi::BigInt& end_value) {
-        if (begin_imm->value < end_value) {
-          solver->add(IntegerValue(*ctx, begin_imm->value) <= var_expr);
-          solver->add(var_expr < IntegerValue(*ctx, end_value));
-        }
-      };
-      if (const auto* end_imm = end.as<IntImmNode>()) {
-        bind_constant_range(end_imm->value);
-        return;
+    // 2. Add constraint on the placeholder
+    //    when min_expr >= max_expr, the range is empty, which is under undefined behavior
+    //    instead of adding an unsat constraint, we just skip the range constraint to leave it a
+    //    free var
+    //
+    //    NOTE: begin + extent builds a fresh AddNode that is not folded, so we must
+    //    test IsConstInt on begin and extent individually and add the two constants
+    //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
+    //    symbolic constraint below.
+    if (auto min_imm = begin.as<IntImm>(), extent_imm = extent.as<IntImm>();
+        min_imm.has_value() && extent_imm.has_value()) {
+      const ffi::BigInt& min_value = (*min_imm)->value;
+      ffi::BigInt max_value = min_value + (*extent_imm)->value;
+      if (min_value < max_value) {
+        solver->add(IntegerValue(*ctx, min_value) <= var_expr);
+        solver->add(var_expr < IntegerValue(*ctx, max_value));
       }
-      PrimExpr extent = Range::GetExtent(begin, end);
-      if (const auto* extent_imm = extent.as<IntImmNode>()) {
-        bind_constant_range(begin_imm->value + extent_imm->value);
-        return;
-      }
+    } else {
+      PrimExpr prim_var = var.as_or_throw<PrimExpr>();
+      solver->add(ConvertBool(extent <= 0 || (begin <= prim_var && prim_var < begin + extent)));
     }
-    PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-    solver->add(ConvertBool(end <= begin || (begin <= prim_var && prim_var < end)));
   }
 
   void CopyFrom(const Self& other_) {
@@ -527,7 +530,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
             break;
           case Scope::BindRange:
             ss << "; bind range: " << s.var.value() << " in [" << s.begin.value() << ", "
-               << s.end.value() << ")\n";
+               << s.begin.value() + s.extent.value() << ")\n";
             break;
         }
       }

@@ -313,8 +313,7 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes
     for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->begin))) {
       dep_vars.push_back(v);
     }
-    for (const Var& v : UndefinedVars(analyzer->Simplify(
-             Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end)))) {
+    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->extent))) {
       dep_vars.push_back(v);
     }
     int cur_depth = 0;
@@ -616,8 +615,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     for (size_t j = 0; j < axes.size(); ++j) {
       const s_tir::IterVar& axis = axes[j];
       PrimType index_type = PrimType::Int(
-          std::max(axis->dom.value()->begin.ty().bits(),
-                   Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end).ty().bits()));
+          std::max(axis->dom.value()->begin.ty().bits(), axis->dom.value()->extent.ty().bits()));
       bool first_times_define =
           std::any_of(axes_levels[i].begin(), axes_levels[i].end(),
                       [&](const s_tir::IterVar& candidate) { return candidate.same_as(axis); });
@@ -628,7 +626,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         Var loop_var = Var(axis->var->name, index_type);
         Var block_var("v_" + axis->var->name, index_type);
         PrimExpr min = axis->dom.value()->begin;
-        PrimExpr extent = Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end);
+        PrimExpr extent = axis->dom.value()->extent;
         if (i > 0) {
           const auto& scope_repl = scopes[i - 1].axes_remap;
           auto f_substitute =
@@ -752,7 +750,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var.as_or_throw<PrimVar>(), dom->begin, dom->end,
+      body = For(loop_var.as_or_throw<PrimVar>(), dom->begin, dom->begin + dom->extent,
                  IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, body);
     }
   }

@@ -20,7 +20,7 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import FloatImm, Range, Stmt, TensorRegion
+from tvm_tirx.ir import FloatImm, Stmt, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.tirx.tile import DispatchContext, fail
@@ -76,9 +76,9 @@ def select_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
         assert False, f"scope or layout mismatch, {dst} vs {true_value}"
 
     # Extract regions and validate dimensions
-    dst_extent = [Range.get_extent(r.begin, r.end) for r in dst.region]
+    dst_extent = [r.extent for r in dst.region]
     dst_extent_non_unit = [e for e in dst_extent if e != 1]
-    true_value_extent = [Range.get_extent(r.begin, r.end) for r in true_value.region]
+    true_value_extent = [r.extent for r in true_value.region]
     true_value_extent_non_unit = [e for e in true_value_extent if e != 1]
 
     # Validate non-unit dimensions match

@@ -191,7 +191,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     def get_access_axes(region: list[Range]) -> set[Var]:
         axes: set[Var] = set()
         for r in region:
-            if not _is_one(Range.get_extent(r.begin, r.end)):
+            if not _is_one(r.extent):
                 raise ValueError("Expect elemwise block access")
             axes = axes.union(set(undefined_vars(r.begin)))
         return axes
@@ -207,7 +207,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     for iter_var in block.iter_vars:
         var = iter_var.var
         kind: IterKind
-        if _is_one(Range.get_extent(iter_var.dom.begin, iter_var.dom.end)):
+        if _is_one(iter_var.dom.extent):
             kind = IterKind.kIter_T
         elif iter_var.iter_type == iter_var.DataPar:
             if var in A_axes and var in B_axes and var in C_axes:
@@ -225,7 +225,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
                 return None
         else:
             return None
-        traits[var] = IterTrait(kind, Range.get_extent(iter_var.dom.begin, iter_var.dom.end))
+        traits[var] = IterTrait(kind, iter_var.dom.extent)
 
     # A Gemm-kernel requires have I, J and K axes
     gemm_traits = {IterKind.kIter_I, IterKind.kIter_J, IterKind.kIter_K}
@@ -294,7 +294,7 @@ def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlo
             IterInfo(
                 kind=_iter_kind(iter_var),
                 var=iter_var.var,
-                dom=Range.get_extent(iter_var.dom.begin, iter_var.dom.end),
+                dom=iter_var.dom.extent,
                 loop_rv=loop_rv,
             )
             for loop_rv, iter_var in zip(sch.get_loops(block), sch.get(block).iter_vars)
@@ -685,10 +685,17 @@ class Matmul(GPUScheduleRule):
 
         mb, ms, n, k = reduction_loops
         if not (
-            isinstance(Range.get_extent(sch.get(n).begin, sch.get(n).end), tvm_tirx.ir.IntImm)
-            and isinstance(Range.get_extent(sch.get(mb).begin, sch.get(mb).end), tvm_tirx.ir.IntImm)
+            isinstance(
+                Range.get_extent_from_begin_end(sch.get(n).begin, sch.get(n).end),
+                tvm_tirx.ir.IntImm,
+            )
+            and isinstance(
+                Range.get_extent_from_begin_end(sch.get(mb).begin, sch.get(mb).end),
+                tvm_tirx.ir.IntImm,
+            )
             and not isinstance(
-                Range.get_extent(sch.get(ms).begin, sch.get(ms).end), tvm_tirx.ir.IntImm
+                Range.get_extent_from_begin_end(sch.get(ms).begin, sch.get(ms).end),
+                tvm_tirx.ir.IntImm,
             )
         ):
             return None
@@ -702,7 +709,8 @@ class Matmul(GPUScheduleRule):
 
         VecSize = min(
             get_max_factor(
-                Range.get_extent(sch.get(n).begin, sch.get(n).end) // Threads_X, [1, 2, 4, 8]
+                Range.get_extent_from_begin_end(sch.get(n).begin, sch.get(n).end) // Threads_X,
+                [1, 2, 4, 8],
             ),
             VecSize,
         )

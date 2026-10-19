@@ -508,8 +508,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<Range> region = block->writes[0]->region.Map([&map_var](const Range& range) {
       PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_var)
                          .as_or_throw<PrimExpr>();
-      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                            Range::GetExtent(range->begin, range->end), map_var)
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_var)
                             .as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });
@@ -948,7 +947,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     for (int i = 0; i < static_cast<int>(unbound_thread2range.size()); ++i) {
       std::string dim_index(1, static_cast<char>(unbound_thread2range[i].first.dim_index + 'x'));
       body = For(loop_vars[i].as_or_throw<PrimVar>(), unbound_thread2range[i].second->begin,
-                 unbound_thread2range[i].second->end,
+                 unbound_thread2range[i].second->begin + unbound_thread2range[i].second->extent,
                  IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kParallel, body,
                  {{tvm::s_tir::attr::kThreadBinding.name, ffi::String("threadIdx." + dim_index)}});
     }

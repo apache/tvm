@@ -58,7 +58,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
     }
     PrimExpr min = Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
     PrimExpr end = Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
-    PrimExpr extent = Range::GetExtent(min, end);
+    PrimExpr extent = Range::GetExtentFromBeginEnd(min, end);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(tvm::s_tir::GetThreadBinding(op).has_value());
     TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name) ||

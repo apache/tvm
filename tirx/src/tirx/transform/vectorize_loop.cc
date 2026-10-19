@@ -1365,7 +1365,7 @@ class LoopVectorizer : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {
-      PrimExpr extent = Range::GetExtent(op->begin, op->end);
+      PrimExpr extent = Range::GetExtentFromBeginEnd(op->begin, op->end);
       auto* extent_as_int = extent.as<IntImmNode>();
 
       TVM_FFI_ICHECK(IsZero(op->begin));

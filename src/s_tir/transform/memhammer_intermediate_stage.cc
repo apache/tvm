@@ -129,8 +129,7 @@ class IndexPatternFinder : public StmtExprVisitor {
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
       PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
-      int64_t max = static_cast<int64_t>(
-          Range::GetExtent(range.value()->begin, range.value()->end).as<IntImmNode>()->value);
+      int64_t max = static_cast<int64_t>(range.value()->extent.as<IntImmNode>()->value);
       int64_t extent = max;
       for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {
         Operator o = operator_stack[i];
@@ -269,7 +268,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
       need_relax = true;
     }
     if (loop->kind == ForKind::kVectorized) {
-      vector_bytes = Range::GetExtent(loop->begin, loop->end);
+      vector_bytes = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     }
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
@@ -341,10 +340,10 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (!use_rank_promotion) {
     cache_indices.clear();
     for (const ForNode* loop : relaxed_thread_loops) {
-      new_shape.push_back(Range::GetExtent(loop->begin, loop->end));
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
     for (const ForNode* loop : loops_under_compute_location) {
-      new_shape.push_back(Range::GetExtent(loop->begin, loop->end));
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
   }
 

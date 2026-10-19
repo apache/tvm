@@ -915,10 +915,10 @@ IntSet IntSet::FromMinExtent(PrimExpr min, PrimExpr extent) {
 
 IntSet IntSet::FromRange(Range r) {
   // must make sure it can be matched back by MatchRange.
-  if (IsOne(Range::GetExtent(r->begin, r->end))) {
+  if (IsOne(r->extent)) {
     return IntSet::SinglePoint(r->begin);
   }
-  return IntervalSet(r->begin, r->end - 1);
+  return IntervalSet(r->begin, r->extent + r->begin - 1);
 }
 
 bool IntSet::MatchRange(const Range& b) const {
@@ -928,7 +928,7 @@ bool IntSet::MatchRange(const Range& b) const {
   if (!a_int->HasUpperBound() || !a_int->HasLowerBound()) return false;
   Analyzer ana;
   return ProveEqual(ana.get(), a_int->min_value, b->begin) &&
-         ProveEqual(ana.get(), a_int->max_value, b->end - 1);
+         ProveEqual(ana.get(), a_int->max_value, b->extent + b->begin - 1);
 }
 
 IntSet Union(const ffi::Array<IntSet>& sets) {
@@ -1048,12 +1048,12 @@ IntSet EvalSet(Range r, const ffi::Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   PrimType min_ty = r->begin.ty();
   if (min_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
-      ana->CanProveEqual(Range::GetExtent(r->begin, r->end), 1)) {
+      ana->CanProveEqual(r->extent, 1)) {
     return EvalSet(r->begin, dom_map);
   }
   IntervalSetEvaluator m(ana.get(), dom_map);
-  // Simplifying the endpoint first can give tighter bounds.
-  PrimExpr sum = r->end - 1;
+  // Simplifying first can give tighter bounds if r->begin and r->extent share variables
+  PrimExpr sum = r->begin + r->extent - 1;
   auto res = m.Eval(IntervalSet(r->begin, ana->Simplify(sum)));
   return res;
 }
@@ -1064,7 +1064,7 @@ ffi::Array<IntSet> EvalSet(const ffi::Array<Range>& region, const ffi::Map<Var, 
   ffi::Array<IntSet> result;
   result.reserve(region.size());
   for (const Range& r : region) {
-    PrimExpr sum = r->end - 1;
+    PrimExpr sum = r->begin + (r->extent - 1);
     result.push_back(m.Eval(IntervalSet(r->begin, ana->Simplify(sum))));
   }
   return result;
@@ -1159,7 +1159,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
     ffi::Array<PrimExpr> affine_indices;
     affine_indices.reserve(ndim);
     for (const Range& range : region) {
-      if (!IsConstNumber(Range::GetExtent(range->begin, range->end))) {
+      if (!IsConstNumber(range->extent)) {
         // dynamic extent is not supported yet.
         return std::nullopt;
       }
@@ -1179,8 +1179,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
   for (int i = 0; i < ndim; ++i) {
     const IterSumExpr& sum_expr = iter_sum_exprs[i];
     const Range& range = region[i];
-    ffi::Optional<IntSet> int_set =
-        EvalIterSum(sum_expr, Range::GetExtent(range->begin, range->end), analyzer_ptr);
+    ffi::Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer_ptr);
     if (int_set.has_value()) {
       result.push_back(int_set.value());
     } else {
@@ -1223,15 +1222,14 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
       IterSumExpr sum_expr = res->indices[0];
 
       // dynamic extent is not supported yet.
-      PrimExpr extent = Range::GetExtent(range->begin, range->end);
+      PrimExpr extent = range->extent;
       if (!IsConstNumber(extent)) {
         IntSet relaxed = EvalSet(extent, AsIntSet(var_dom));
         TVM_FFI_ICHECK(relaxed.HasUpperBound());
         extent = relaxed.max();
       }
 
-      if (ffi::Optional<IntSet> int_set =
-              EvalIterSum(sum_expr, Range::GetExtent(range->begin, range->end), analyzer_ptr)) {
+      if (ffi::Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer_ptr)) {
         result.push_back(int_set.value());
         continue;
       }

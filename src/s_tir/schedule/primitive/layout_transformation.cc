@@ -206,7 +206,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
                              .as_or_throw<PrimExpr>();
         bool is_loop_over_axis =
             index.same_as(loop->var) && IsConstInt(loop->begin, 0) &&
-            prim::ExprDeepEqual()(Range::GetExtent(loop->begin, loop->end), tensor_dim) &&
+            prim::ExprDeepEqual()(Range::GetExtentFromBeginEnd(loop->begin, loop->end),
+                                  tensor_dim) &&
             loop->kind == ForKind::kDefault;
         if (!is_loop_over_axis) {
           return false;
@@ -1489,8 +1490,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     block_iter_dom.Set(iter_var->var, iter_var->dom.value());
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
     TVM_FFI_ICHECK(IsZero(iter_var->dom.value()->begin));
-    block_iter_range_array.push_back(
-        Range::GetExtent(iter_var->dom.value()->begin, iter_var->dom.value()->end));
+    block_iter_range_array.push_back(iter_var->dom.value()->extent);
   }
 
   // Step 4: Apply the IndexMap to block iters.

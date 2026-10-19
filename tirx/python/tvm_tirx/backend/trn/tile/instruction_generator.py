@@ -125,9 +125,8 @@ class InstructionGenerator:
         region = []
         changed = False
         for r in tensor_region.region:
-            extent = self.analyzer.simplify(Range.get_extent(r.begin, r.end))
-            bound = self.analyzer.const_int_bound(extent)
-            if not self.analyzer.can_prove_equal(bound.max_value, extent):
+            bound = self.analyzer.const_int_bound(r.extent)
+            if not self.analyzer.can_prove_equal(bound.max_value, r.extent):
                 changed = True
             region.append(Range.from_min_extent(r.begin, bound.max_value))
         if changed:
@@ -145,7 +144,7 @@ class InstructionGenerator:
         for i in range(len(seps) - 1):
             r = tensor_region.region[i]
             st = r.begin
-            ext = Range.get_extent(r.begin, r.end)
+            ext = r.extent
             reversed_shard = []
             for j in reversed(range(seps[i], seps[i + 1])):
                 if self.analyzer.can_prove_equal(ext, 1):
@@ -529,18 +528,12 @@ class InstructionGenerator:
         relaxed_dims = [
             i
             for i, (r1, r2) in enumerate(zip(bound_region.region, tensor_region.region))
-            if not self.analyzer.can_prove(
-                Range.get_extent(r1.begin, r1.end) == Range.get_extent(r2.begin, r2.end)
-            )
+            if not self.analyzer.can_prove(r1.extent == r2.extent)
         ]
         axes = self.generate_axes(tensor_region)
         guard = reduce(
             T.And,
-            [
-                axes[i] < Range.get_extent(r.begin, r.end)
-                for i, r in enumerate(tensor_region.region)
-                if i in relaxed_dims
-            ],
+            [axes[i] < r.extent for i, r in enumerate(tensor_region.region) if i in relaxed_dims],
             True,
         )
         return guard

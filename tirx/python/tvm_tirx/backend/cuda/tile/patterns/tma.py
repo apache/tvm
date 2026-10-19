@@ -107,7 +107,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
     tensor_rank = rank + bool(interleave)
     if len(region.region) != tensor_rank:
         raise ValueError("TMA global rank must equal instruction rank plus its implicit Ci axis")
-    view_dims = tuple(Range.get_extent(r.begin, r.end) for r in region.region)
+    view_dims = tuple(r.extent for r in region.region)
     dims = view_dims[:rank]
     for size in dims:
         wide = T.cast(size, ty="int64")

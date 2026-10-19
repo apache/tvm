@@ -314,7 +314,7 @@ std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* ran
                                        int32_t max_innermost_factor,
                                        ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+  PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
   const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
   auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
   std::vector<int64_t> result;
@@ -377,7 +377,7 @@ std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState*
                                            int32_t partition_pos, int32_t innerpart_factor,
                                            ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+  PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
   const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
   auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
   std::vector<int64_t> result;

@@ -56,8 +56,7 @@ ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> 
   }
   Var var = source_var.value();
   // the floormod must take no effect
-  if (!analyzer->CanProve(floordiv(Range::GetExtent(var_range[var]->begin, var_range[var]->end),
-                                   highest_iter_split->lower_factor) <=
+  if (!analyzer->CanProve(floordiv(var_range[var]->extent, highest_iter_split->lower_factor) <=
                           highest_iter_split->extent)) {
     return std::nullopt;
   }

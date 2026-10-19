@@ -471,7 +471,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                  ->Mutate(new_stmt, InplaceMode::kAllow)
                  .ValueOrUnchanged(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
-  PrimExpr predicate = substitute_value < Range::GetExtent(loop->begin, loop->end);
+  PrimExpr predicate = substitute_value < Range::GetExtentFromBeginEnd(loop->begin, loop->end);
   if (!disable_predication && !analyzer->CanProve(predicate, sym::ProofStrength::kSymbolicBound)) {
     new_stmt = ffi::make_object<BlockPredicateAppender>(/*predicate=*/predicate)
                    ->Mutate(new_stmt, InplaceMode::kAllow)
@@ -821,7 +821,8 @@ class LoopReconstructor : public StmtExprMutator {
         if (i == 0) {
           Var merged_var = loops_[i][j]->var.CopyWithSuffix("_m");
           new_loop_vars.push_back(merged_var);
-          new_loop_extents.push_back(Range::GetExtent(loops_[i][j]->begin, loops_[i][j]->end));
+          new_loop_extents.push_back(
+              Range::GetExtentFromBeginEnd(loops_[i][j]->begin, loops_[i][j]->end));
         }
         var_map.Set(loops_[i][j]->var, new_loop_vars[j].as_or_throw<PrimExpr>());
       }
@@ -908,7 +909,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
         }
         CheckLoopStartsWithZero(self, ffi::GetRef<StmtSRef>(p), analyzer.get());
         nest_loop_i_loops.push_back(ffi::GetRef<For>(loop));
-        nest_loop_i_extents.push_back(Range::GetExtent(loop->begin, loop->end));
+        nest_loop_i_extents.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
       }
     }
     lca_nest_loops.push_back(nest_loop_i_loops);
@@ -992,7 +993,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
                                               : ffi::WalkResult::Advance();
     };
     auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        Range::GetExtent(loop->begin, loop->end), walkfn);
+        Range::GetExtentFromBeginEnd(loop->begin, loop->end), walkfn);
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();
       throw MakeScheduleError<DependentLoopError>(self->mod, ffi::GetRef<For>(loop), used_var->name,
@@ -1016,15 +1017,15 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
   for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
-    PrimExpr next_lower =
-        analyzer->canonical_simplify(Range::GetExtent(loops[i]->begin, loops[i]->end) * lower);
+    PrimExpr next_lower = analyzer->canonical_simplify(
+        Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end) * lower);
     substitute_value.Set(
-        i, IsOne(Range::GetExtent(loops[i]->begin, loops[i]->end))
+        i, IsOne(Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end))
                ? PrimExpr(0)
                : floordiv(floormod(fused_var.as_or_throw<PrimExpr>(), next_lower), lower));
     lower = next_lower;
   }
-  substitute_value.Set(0, IsOne(Range::GetExtent(loops[0]->begin, loops[0]->end))
+  substitute_value.Set(0, IsOne(Range::GetExtentFromBeginEnd(loops[0]->begin, loops[0]->end))
                               ? PrimExpr(0)
                               : floordiv(fused_var.as_or_throw<PrimExpr>(), lower));
   Stmt new_stmt = loops.back()->body;
@@ -1038,7 +1039,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   // Step 3. Generate a loop to replace the original loops
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
-    fused_extent *= Range::GetExtent(loops[i]->begin, loops[i]->end);
+    fused_extent *= Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end);
   }
   fused_extent = analyzer->Simplify(fused_extent);
   new_stmt = For(fused_var.as_or_throw<PrimVar>(), 0, fused_extent,
@@ -1191,7 +1192,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefO
     auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(copy->begin, walkfn);
     if (!result.has_value()) {
       result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-          Range::GetExtent(copy->begin, copy->end), walkfn);
+          Range::GetExtentFromBeginEnd(copy->begin, copy->end), walkfn);
     }
     if (result.has_value()) {
       Var used_var = result.value()->value.cast<Var>();

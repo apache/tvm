@@ -109,13 +109,12 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   if (indexable) {
     for (size_t i = 0; i < region->region.size(); ++i) {
       const Range& range = region->region[i];
-      if (range->begin.ty()->dtype.lanes != 1 || range->end.ty()->dtype.lanes != 1) {
+      if (range->begin.ty()->dtype.lanes != 1 || range->extent.ty()->dtype.lanes != 1) {
         indexable = false;
         break;
       }
       ExprDoc start = d->Translate(range->begin).value();
-      PrimExpr width = Range::GetExtent(range->begin, range->end);
-      const auto* extent = width.as<IntImmNode>();
+      const auto* extent = range->extent.as<IntImmNode>();
       bool point =
           extent && extent->value == 1 && ffi::StructuralEqual()(extent->ty, range->begin.ty());
       if (point && (has_slice || i + 1 < region->region.size())) {
@@ -123,7 +122,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
         indices.push_back(range->begin);
       } else {
         try {
-          PrimExpr stop = range->end;
+          PrimExpr stop = range->begin + range->extent;
           // Scalar constructors accept signed 64-bit Python literals. A computed
           // endpoint outside that range cannot reconstruct through indexing.
           if (const auto* imm = stop.as<IntImmNode>();
@@ -158,8 +157,11 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 
   ffi::Array<ExprDoc> ranges;
   for (const Range& range : region->region) {
-    ranges.push_back(NamespaceDoc("ir")->Attr("Range")->Call(
-        {d->Translate(range->begin).value(), d->Translate(range->end).value()}));
+    ranges.push_back(
+        NamespaceDoc("ir")
+            ->Attr("Range")
+            ->Attr("from_min_extent")
+            ->Call({d->Translate(range->begin).value(), d->Translate(range->extent).value()}));
   }
   return NamespaceDoc("ir")
       ->Attr("TensorRegion")

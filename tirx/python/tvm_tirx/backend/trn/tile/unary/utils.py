@@ -20,7 +20,7 @@
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import FloatImm, Range, Stmt, TensorRegion
+from tvm_tirx.ir import FloatImm, Stmt, TensorRegion
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym.analyzer import Analyzer
@@ -85,8 +85,8 @@ def try_find_inst_unary(
     dst_region = dst_tensor_region.region
     src_region = src_tensor_region.region
 
-    dst_extent = [Range.get_extent(r.begin, r.end) for r in dst_region]
-    src_extent = [Range.get_extent(r.begin, r.end) for r in src_region]
+    dst_extent = [r.extent for r in dst_region]
+    src_extent = [r.extent for r in src_region]
 
     dst_extent_nonunit = [e for e in dst_extent if e != 1]
     src_extent_nonunit = [e for e in src_extent if e != 1]

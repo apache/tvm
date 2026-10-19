@@ -106,7 +106,8 @@ void AnnotateTensorAccess(ScheduleState self, const StmtSRef& block_sref, int te
   ffi::Array<Range> new_ranges;
   for (size_t i = 0; i < new_indices.size(); i += 2) {
     // (begin, end) represents a region
-    new_ranges.push_back(Range(new_indices[i], new_indices[i + 1]));
+    new_ranges.push_back(Range::FromMinExtent(
+        new_indices[i], analyzer->Simplify(new_indices[i + 1] - new_indices[i])));
   }
 
   TensorRegion new_region = TensorRegion(tensor, new_ranges, TensorRegionType());

@@ -27,13 +27,12 @@ from tvm.s_tir.op import comm_reducer
 from tvm.te import CommReducer, Reduce
 from tvm_tirx import ir
 from tvm_tirx import tirx as tir
-from tvm_tirx.ir import IntImm, Range, TensorLoad, TensorRegion, is_prim_expr
+from tvm_tirx.ir import IntImm, TensorLoad, TensorRegion, is_prim_expr
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.type import _normalize_type
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script.ir_builder.base import MISSING, auto_emit_void_call
 from tvm_tirx.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
-from tvm_tirx.sym import Analyzer
 from tvm_tirx.tirx import Expr, Var
 from tvm_tirx.tirx.layout import Layout
 from tvm_tirx.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
@@ -113,11 +112,7 @@ def match_tensor(
     if shape is None:
         if isinstance(param, TensorRegion):
             dtype = param.source.ty.dtype
-            analyzer = Analyzer()
-            shape = [
-                analyzer.simplify(Range.get_extent(region.begin, region.end))
-                for region in param.region
-            ]
+            shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding a scalar tensor access")
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -307,6 +302,8 @@ def _as_range(dom: ir.Range | list[Expr]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, list | tuple):
+        from tvm_tirx.sym import Analyzer  # pylint: disable=import-outside-toplevel
+
         extent = Analyzer().simplify(dom[1] - dom[0])
         if isinstance(extent, tvm_tirx.ir.IntImm):
             return ir.Range.from_min_extent(dom[0], extent)

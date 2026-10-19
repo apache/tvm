@@ -1013,20 +1013,20 @@ class RangeNode : public ffi::Object {
  public:
   /*! \brief Inclusive beginning of the range. */
   PrimExpr begin;
-  /*! \brief Exclusive end of the range. */
-  PrimExpr end;
+  /*! \brief Extent of the range. */
+  PrimExpr extent;
   /*! \brief the location of this range in the source */
   mutable Location loc = UnknownLoc();
   /*! \brief constructor */
-  explicit RangeNode(ffi::UnsafeInit tag) : begin(tag), end(tag) {}
-  RangeNode(PrimExpr begin, PrimExpr end, Location loc = UnknownLoc())
-      : begin(begin), end(end), loc(loc) {}
+  explicit RangeNode(ffi::UnsafeInit tag) : begin(tag), extent(tag) {}
+  RangeNode(PrimExpr begin, PrimExpr extent, Location loc = UnknownLoc())
+      : begin(begin), extent(extent), loc(loc) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RangeNode>()
         .def_ro("begin", &RangeNode::begin)
-        .def_ro("end", &RangeNode::end)
+        .def_ro("extent", &RangeNode::extent)
         .def_ro("loc", &RangeNode::loc, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
@@ -1063,7 +1063,7 @@ class Range : public ffi::ObjectRef {
    * For begin + extent or extent + begin, return the original extent operand.
    * Otherwise form end - begin using primitive arithmetic.
    */
-  TVM_TIRX_DLL static PrimExpr GetExtent(const PrimExpr& begin, const PrimExpr& end);
+  TVM_TIRX_DLL static PrimExpr GetExtentFromBeginEnd(const PrimExpr& begin, const PrimExpr& end);
   // declare range.
   explicit Range(ffi::UnsafeInit tag, ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);

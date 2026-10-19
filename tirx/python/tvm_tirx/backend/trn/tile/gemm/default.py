@@ -22,7 +22,7 @@ import operator
 from functools import cache
 
 from tvm_tirx.backend.trn.layout import is_trainium_layout
-from tvm_tirx.ir import Range, Stmt, TensorRegion, assert_structural_equal
+from tvm_tirx.ir import Stmt, TensorRegion, assert_structural_equal
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.script import tirx as T
 from tvm_tirx.sym.analyzer import Analyzer
@@ -62,9 +62,7 @@ def get_pf_dim_from_tensor_region(
     non_unit_dims = [
         i
         for i in range(len(tensor_region.source.ty.shape))
-        if not analyzer.can_prove_equal(
-            Range.get_extent(tensor_region.region[i].begin, tensor_region.region[i].end), 1
-        )
+        if not analyzer.can_prove_equal(tensor_region.region[i].extent, 1)
     ]
     assert len(non_unit_dims) == 2, "Only 2D matrix is supported for gemm"
 
@@ -186,34 +184,19 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Stmt:
 
     # Validate dimension compatibility
     assert analyzer.can_prove(
-        Range.get_extent(
-            A_tensor_region.region[lhs_p_dim].begin, A_tensor_region.region[lhs_p_dim].end
-        )
-        == Range.get_extent(
-            B_tensor_region.region[rhs_p_dim].begin, B_tensor_region.region[rhs_p_dim].end
-        )
+        A_tensor_region.region[lhs_p_dim].extent == B_tensor_region.region[rhs_p_dim].extent
     ), (
         f"Reduction dimension must match, but the {lhs_p_dim} dimension of {A_tensor_region} != the {rhs_p_dim} dimension of {B_tensor_region}"  # noqa: E501
     )
 
     assert analyzer.can_prove(
-        Range.get_extent(
-            A_tensor_region.region[lhs_f_dim].begin, A_tensor_region.region[lhs_f_dim].end
-        )
-        == Range.get_extent(
-            C_tensor_region.region[acc_p_dim].begin, C_tensor_region.region[acc_p_dim].end
-        )
+        A_tensor_region.region[lhs_f_dim].extent == C_tensor_region.region[acc_p_dim].extent
     ), (
         f"Spatial dimension must match, but the {lhs_f_dim} dimension of {A_tensor_region} != the {acc_p_dim} dimension of {C_tensor_region}"  # noqa: E501
     )
 
     assert analyzer.can_prove(
-        Range.get_extent(
-            B_tensor_region.region[rhs_f_dim].begin, B_tensor_region.region[rhs_f_dim].end
-        )
-        == Range.get_extent(
-            C_tensor_region.region[acc_f_dim].begin, C_tensor_region.region[acc_f_dim].end
-        )
+        B_tensor_region.region[rhs_f_dim].extent == C_tensor_region.region[acc_f_dim].extent
     ), (
         f"Spatial dimension must match, but the {rhs_f_dim} dimension of {B_tensor_region} != the {acc_f_dim} dimension of {C_tensor_region}"  # noqa: E501
     )

@@ -64,15 +64,9 @@ class Context:
             self.analyzer.bind(var, Range(0, extent))
         for var, bound in sctx.var_range_map.items():
             self.analyzer.bind(
-                var,
-                Range.from_min_extent(
-                    self.index_coordinates(bound.begin), Range.get_extent(bound.begin, bound.end)
-                ),
+                var, Range.from_min_extent(self.index_coordinates(bound.begin), bound.extent)
             )
-            low, extent = (
-                self.analyzer.simplify(x)
-                for x in (bound.begin, Range.get_extent(bound.begin, bound.end))
-            )
+            low, extent = (self.analyzer.simplify(x) for x in (bound.begin, bound.extent))
             if isinstance(low, IntImm) and isinstance(extent, IntImm):
                 self.static_ranges[var] = range(int(low), int(low) + int(extent))
         self.bindings = []
@@ -243,9 +237,7 @@ class Region:
             raise ValueError(f"{name}: operand requires a physical layout")
         if self.ty.scope not in tuple(MemoryScope(scope) for scope in scopes):
             raise ValueError(f"{name}: expected storage scope {scopes}, got {self.ty.scope}")
-        shape = tuple(
-            int(ctx.analyzer.simplify(Range.get_extent(r.begin, r.end))) for r in region.region
-        )
+        shape = tuple(int(ctx.analyzer.simplify(r.extent)) for r in region.region)
         if any(n <= 0 for n in shape):
             raise ValueError(f"{name}: pattern requires positive static region extents")
         ng, na = len(ctx.group_shape), len(atom_shape)
@@ -270,7 +262,7 @@ class Region:
         if bounds:
             for r, size in zip(region.region, self.ty.shape):
                 ctx.require(r.begin >= 0, f"{name}: cannot prove region start is in bounds")
-                ctx.require(r.end <= size, f"{name}: region exceeds tensor shape")
+                ctx.require(r.begin + r.extent <= size, f"{name}: region exceeds tensor shape")
         self.raw = None
 
     def indices(self, atom, repeat=None):

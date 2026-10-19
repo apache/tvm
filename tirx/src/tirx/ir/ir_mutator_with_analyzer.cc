@@ -101,7 +101,7 @@ UnchangedOr<Stmt> StmtExprMutatorWithAnalyzer::Mutate_(const ForNode* op,
     PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
     Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, end > begin);
-      PrimExpr extent = Range::GetExtent(begin, end);
+      PrimExpr extent = Range::GetExtentFromBeginEnd(begin, end);
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
                            extent > IntImm(extent.ty(), 0));
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);

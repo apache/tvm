@@ -907,7 +907,7 @@ class Range(Node, Scriptable):
     """
 
     begin: Expr
-    end: Expr
+    extent: Expr
     loc: Location
 
     def __init__(self, begin: Expr, end: Expr | None = None, loc: Location = UNKNOWN_LOC) -> None:
@@ -938,9 +938,9 @@ class Range(Node, Scriptable):
         return _ffi_api.RangeFromMinExtent(min_value, extent, loc)
 
     @staticmethod
-    def get_extent(begin: Expr, end: Expr) -> Expr:
+    def get_extent_from_begin_end(begin: Expr, end: Expr) -> Expr:
         """Extract the width from endpoints, reusing a shallow addition operand."""
-        return _ffi_api.RangeGetExtent(begin, end)
+        return _ffi_api.RangeGetExtentFromBeginEnd(begin, end)
 
     def __eq__(self, other: tvm_ffi.Object) -> bool:
         return tvm_ffi.structural_equal(self, other)

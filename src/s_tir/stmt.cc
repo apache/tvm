@@ -357,20 +357,16 @@ MatchTensorRegion::MatchTensorRegion(TensorVar tensor, TensorRegion source) {
       << source->region.size() << " vs. " << tensor.shape().size();
   size_t offset = source->region.size() - tensor.shape().size();
   for (size_t i = 0; i < offset; ++i) {
-    TVM_FFI_ICHECK(
-        analyzer->CanProve(Range::GetExtent(source->region[i]->begin, source->region[i]->end) == 1))
-        << "The higher dimension should be 1, but got "
-        << Range::GetExtent(source->region[i]->begin, source->region[i]->end) << ".";
+    TVM_FFI_ICHECK(analyzer->CanProve(source->region[i]->extent == 1))
+        << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
   }
   for (size_t i = 0; i < tensor.shape().size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& tensor_shape = tensor.shape()[i];
     if (!tensor_shape.as<PrimVar>()) {
-      TVM_FFI_ICHECK(analyzer->CanProve(Range::GetExtent(source_range->begin, source_range->end) ==
-                                        tensor_shape))
+      TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == tensor_shape))
           << "The dimension mismatched between source region and target tensor shape, got "
-          << Range::GetExtent(source_range->begin, source_range->end) << " vs. " << tensor_shape
-          << ".";
+          << source_range->extent << " vs. " << tensor_shape << ".";
     }
   }
   // Note that we do not check elem_offset and strides in this function

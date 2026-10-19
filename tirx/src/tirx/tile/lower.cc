@@ -356,12 +356,7 @@ class TileDispatcher : public StmtExprMutator {
       // its enclosing scope.  Under SSA, an inner-scope Var cannot be
       // referenced after leaving that scope or rebound elsewhere, so stale
       // entries are never consulted and no scope-based cleanup is needed.
-      PrimType value_ty = value.value().ty();
-      PrimExpr one = value_ty.IsScalar() &&
-                             value_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)
-                         ? IntImm(value_ty, 1)
-                         : IntImm::Int32(1);
-      var_range_map_.Set(bind->var, Range::FromMinExtent(value.value(), one));
+      var_range_map_.Set(bind->var, Range::FromMinExtent(value.value(), 1));
     }
     return stmt;
   }

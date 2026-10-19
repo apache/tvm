@@ -310,7 +310,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = analyzer_->Simplify(Range::GetExtent(op->begin, op->end));
+    PrimExpr extent = analyzer_->Simplify(Range::GetExtentFromBeginEnd(op->begin, op->end));
     const IntImmNode* v1 = extent.as<IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,

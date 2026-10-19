@@ -68,7 +68,7 @@ def match_tensor_func() -> None:
         for i, j in T.grid(8, 8):
             with Ts.sblock("block"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                Ts.reads(B[vi * 16 + 2 : vi * 16 + 2 + 10, vj * 16 + 2 : vj * 16 + 2 + 14])
+                Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
                 Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                 AA = Ts.match_tensor(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
                 B0 = Ts.match_tensor(
@@ -375,8 +375,8 @@ def test_access_of_padding_pattern():
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.begin, expected_range.begin)
             analyzer.can_prove_equal(
-                Range.get_extent(observed_range.begin, observed_range.end),
-                Range.get_extent(expected_range.begin, expected_range.end),
+                observed_range.extent,
+                expected_range.extent,
             )
 
     def do_check_block(block_name):

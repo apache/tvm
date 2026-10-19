@@ -1058,8 +1058,8 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
   location_indices.reserve(n_candidate + 2);
   bool visited_reduce = false;
   for (size_t i = 0; i < n_candidate; ++i) {
-    if (IsOne(Range::GetExtent(TVM_SREF_TO_FOR(loop_srefs[i])->begin,
-                               TVM_SREF_TO_FOR(loop_srefs[i])->end))) {
+    if (IsOne(Range::GetExtentFromBeginEnd(TVM_SREF_TO_FOR(loop_srefs[i])->begin,
+                                           TVM_SREF_TO_FOR(loop_srefs[i])->end))) {
       continue;
     }
 
@@ -1431,7 +1431,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
     const Range& dom = write_region->region[i];
-    if (!Range::GetExtent(dom->begin, dom->end).as<IntImmNode>()) {
+    if (!dom->extent.as<IntImmNode>()) {
       return kNotExist;
     }
     if (auto var = dom->begin.as<PrimVar>()) {
@@ -1447,7 +1447,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
-    if (!Range::GetExtent(dom->begin, dom->end).as<IntImmNode>()) {
+    if (!dom->extent.as<IntImmNode>()) {
       return kNotExist;
     }
     // Case 1. Read index is a constant
@@ -1578,8 +1578,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
     bool has_trivial_dom =
-        IsZero(block_var->dom.value()->begin) &&
-        IsOne(Range::GetExtent(block_var->dom.value()->begin, block_var->dom.value()->end));
+        IsZero(block_var->dom.value()->begin) && IsOne(block_var->dom.value()->extent);
     if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
@@ -1603,7 +1602,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
     // Step 2.3. Collect the block vars that are used to index the read region
     std::unordered_set<const VarNode*> vars;
     for (const Range& range : regions) {
-      if (!Range::GetExtent(range->begin, range->end).as<IntImmNode>()) {
+      if (!range->extent.as<IntImmNode>()) {
         return false;
       }
       for (const Var& var : UndefinedVars(range->begin)) {
@@ -1647,8 +1646,8 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
   for (const tirx::StmtSRef& loop_sref : loops) {
     s_tir::IterVarType type = GetLoopIterType(loop_sref);
     if (type == s_tir::kDataPar) {
-      PrimExpr extent_imm_expr =
-          Range::GetExtent(TVM_SREF_TO_FOR(loop_sref)->begin, TVM_SREF_TO_FOR(loop_sref)->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(TVM_SREF_TO_FOR(loop_sref)->begin,
+                                                              TVM_SREF_TO_FOR(loop_sref)->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
@@ -1657,8 +1656,8 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
         return std::make_pair(-1, -1);
       }
     } else if (type == s_tir::kCommReduce) {
-      PrimExpr extent_imm_expr =
-          Range::GetExtent(TVM_SREF_TO_FOR(loop_sref)->begin, TVM_SREF_TO_FOR(loop_sref)->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(TVM_SREF_TO_FOR(loop_sref)->begin,
+                                                              TVM_SREF_TO_FOR(loop_sref)->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
@@ -1890,11 +1889,12 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       }
     }
     if (desc_loop == nullptr ||
-        Range::GetExtent(desc_loop->begin, desc_loop->end).as<IntImmNode>() == nullptr) {
+        Range::GetExtentFromBeginEnd(desc_loop->begin, desc_loop->end).as<IntImmNode>() ==
+            nullptr) {
       return std::nullopt;
     }
 
-    PrimExpr int_desc_extent_expr = Range::GetExtent(desc_loop->begin, desc_loop->end);
+    PrimExpr int_desc_extent_expr = Range::GetExtentFromBeginEnd(desc_loop->begin, desc_loop->end);
     const IntImmNode* int_desc_extent = int_desc_extent_expr.as<IntImmNode>();
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
@@ -1927,7 +1927,8 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         allow_padding = false;
       }
 
-      PrimExpr int_block_extent_expr = Range::GetExtent(block_loops[i]->begin, block_loops[i]->end);
+      PrimExpr int_block_extent_expr =
+          Range::GetExtentFromBeginEnd(block_loops[i]->begin, block_loops[i]->end);
       const IntImmNode* int_block_extent = int_block_extent_expr.as<IntImmNode>();
 
       // Check divisibility
@@ -2114,8 +2115,7 @@ class AutoTensorizeMappingProposer {
     // Step 1: Collect extents of LHS iters and prepare the initial indices of the IndexMap
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
-      lhs_iter_extents.Set(iter->var,
-                           Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end));
+      lhs_iter_extents.Set(iter->var, iter->dom.value()->extent);
       index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 

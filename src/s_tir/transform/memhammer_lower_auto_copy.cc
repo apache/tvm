@@ -326,11 +326,8 @@ class AutoPadder {
       if (!success_) {
         return std::nullopt;
       }
-      int extent = Range::GetExtent(var_range_[ffi::GetRef<Var>(op)]->begin,
-                                    var_range_[ffi::GetRef<Var>(op)]->end)
-                       .as<IntImmNode>()
-                       ->value.as<int>()
-                       .value();
+      int extent =
+          var_range_[ffi::GetRef<Var>(op)]->extent.as<IntImmNode>()->value.as<int>().value();
       if (extent > 1) {
         stack_.push({{extent, 1}});
       } else {
@@ -540,8 +537,10 @@ class AutoPadder {
       }
       if (op->kind == ForKind::kVectorized) {
         vector_var = op->var;
-        vector_length_ =
-            Range::GetExtent(op->begin, op->end).as<IntImmNode>()->value.as<int>().value();
+        vector_length_ = Range::GetExtentFromBeginEnd(op->begin, op->end)
+                             .as<IntImmNode>()
+                             ->value.as<int>()
+                             .value();
       }
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (op->kind == ForKind::kVectorized) {
@@ -656,8 +655,7 @@ class AutoPadder {
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   PrimVar var("region" + std::to_string(i));
                   indices.push_back(region[i]->begin + static_cast<PrimExpr>(var));
-                  var_range_.Set(var, Range::FromMinExtent(
-                                          0, Range::GetExtent(region[i]->begin, region[i]->end)));
+                  var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
                 ffi::Array<PrimExpr> substitued_indices;
                 sym::Analyzer analyzer;
@@ -863,7 +861,7 @@ class ThreadExtentCollector : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (tvm::s_tir::GetThreadBinding(op).has_value()) {
-      PrimExpr extent_expr = Range::GetExtent(op->begin, op->end);
+      PrimExpr extent_expr = Range::GetExtentFromBeginEnd(op->begin, op->end);
       if (const auto* extent = extent_expr.as<IntImmNode>()) {
         thread_extent_.Set(tvm::s_tir::GetThreadBinding(op).value(),
                            static_cast<int64_t>(extent->value));

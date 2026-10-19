@@ -217,7 +217,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
     if (op->var->name == "vthread.s") {
-      PrimExpr extent_expr = Range::GetExtent(op->begin, op->end);
+      PrimExpr extent_expr = Range::GetExtentFromBeginEnd(op->begin, op->end);
       const auto* extent = extent_expr.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 

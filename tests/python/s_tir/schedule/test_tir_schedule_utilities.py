@@ -252,8 +252,14 @@ def test_tir_schedule_copy_2():
     i_0, i_1 = sch.split(i, factors=[None, 64])
     j_0, j_1 = sch_copy.split(j, factors=[None, 32])
 
-    assert Range.get_extent(sch.get_sref(i_0).stmt.begin, sch.get_sref(i_0).stmt.end) == 2
-    assert Range.get_extent(sch.get_sref(i_1).stmt.begin, sch.get_sref(i_1).stmt.end) == 64
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_0).stmt.begin, sch.get_sref(i_0).stmt.end)
+        == 2
+    )
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_1).stmt.begin, sch.get_sref(i_1).stmt.end)
+        == 64
+    )
     with pytest.raises(IndexError):
         sch_copy.get_sref(i_0)
     with pytest.raises(IndexError):
@@ -263,9 +269,17 @@ def test_tir_schedule_copy_2():
         sch.get_sref(j_0)
     with pytest.raises(IndexError):
         sch.get_sref(j_1)
-    assert Range.get_extent(sch_copy.get_sref(j_0).stmt.begin, sch_copy.get_sref(j_0).stmt.end) == 4
     assert (
-        Range.get_extent(sch_copy.get_sref(j_1).stmt.begin, sch_copy.get_sref(j_1).stmt.end) == 32
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_0).stmt.begin, sch_copy.get_sref(j_0).stmt.end
+        )
+        == 4
+    )
+    assert (
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_1).stmt.begin, sch_copy.get_sref(j_1).stmt.end
+        )
+        == 32
     )
     verify_trace_roundtrip(sch, mod=matmul)
     verify_trace_roundtrip(sch_copy, mod=matmul)

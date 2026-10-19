@@ -66,9 +66,10 @@ ScanOp::ScanOp(std::string name, std::string tag,
     TVM_FFI_ICHECK_EQ(init[i]->dtype, update[i]->dtype);
     TVM_FFI_ICHECK(prove_equal(init[i]->shape[0], axis->dom.value()->begin))
         << "init.shape[0] need to match scan_axis.dom.begin";
-    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom.value()->end))
+    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0],
+                               axis->dom.value()->begin + axis->dom.value()->extent))
         << "state_placeholder.shape[0] need to match"
-        << " scan_axis.dom.end";
+        << " scan_axis.dom.begin + scan_axis.dom.extent";
     TVM_FFI_ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
         << "The dimension of init need to match state_placeholder";
     TVM_FFI_ICHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())

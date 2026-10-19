@@ -90,8 +90,7 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
 
     if (is_grouped) repr << "[";
     for (const IterVar& axis : unpacked_axes) {
-      PrimExpr factor_expr = Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end);
-      if (const auto* factor = factor_expr.as<IntImmNode>()) {
+      if (const auto* factor = axis->dom.value()->extent.as<IntImmNode>()) {
         TVM_FFI_ICHECK_GT(factor->value, 0);
         repr << factor->value;
       } else {
@@ -164,13 +163,11 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       std::stringstream ss;
       ffi::BigInt extent = 1;
       for (auto& axis : unpacked_axes) {
-        TVM_FFI_ICHECK(
-            Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end).as<IntImmNode>())
+        TVM_FFI_ICHECK(axis->dom.value()->extent.as<IntImmNode>())
             << "Invalid SLayout " << name << ": can't have variable sized node(" << axis->var->name
             << ") within a packed axis";
         auto axis_name = axis->var->name.operator std::string();
-        auto factor =
-            Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end).as<IntImm>().value();
+        auto factor = axis->dom.value()->extent.as<IntImm>().value();
         ss << axis_name;
         extent *= factor->value;
       }
@@ -278,25 +275,14 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   std::stringstream name;
   size_t extent = 1;
 
-  PrimType index_ty =
-      Range::GetExtent(iter_vars[0]->dom.value()->begin, iter_vars[0]->dom.value()->end)
-          .as<PrimExpr>()
-          .value()
-          .ty();
+  PrimType index_ty = iter_vars[0]->dom.value()->extent.as<PrimExpr>().value().ty();
   for (auto itvar : iter_vars) {
-    TVM_FFI_ICHECK(
-        Range::GetExtent(itvar->dom.value()->begin, itvar->dom.value()->end).as<IntImm>())
+    TVM_FFI_ICHECK(itvar->dom.value()->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
-    name
-        << Range::GetExtent(itvar->dom.value()->begin, itvar->dom.value()->end).as<IntImm>().value()
-        << itvar->var->name;
-    extent =
-        (ffi::BigInt(extent) * Range::GetExtent(itvar->dom.value()->begin, itvar->dom.value()->end)
-                                   .as<IntImm>()
-                                   .value()
-                                   ->value)
-            .as<size_t>()
-            .value();
+    name << itvar->dom.value()->extent.as<IntImm>().value() << itvar->var->name;
+    extent = (ffi::BigInt(extent) * itvar->dom.value()->extent.as<IntImm>().value()->value)
+                 .as<size_t>()
+                 .value();
   }
 
   return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
@@ -313,10 +299,7 @@ int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
     for (auto itvar : UnpackIterVar(packed_itvar)) {
       if (sub == SLayoutAxis::Get(itvar)) {
         has_sub = true;
-        int32_t val = Range::GetExtent(itvar->dom.value()->begin, itvar->dom.value()->end)
-                          .as<IntImmNode>()
-                          ->value.as<int32_t>()
-                          .value();
+        int32_t val = itvar->dom.value()->extent.as<IntImmNode>()->value.as<int32_t>().value();
         factor *= val;
       }
     }
@@ -341,8 +324,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
   std::vector<PrimExpr> norm_indexes(128, PrimExpr(0));
 
   for (size_t i = 0; i < src_layout.ndim(); i++) {
-    auto factor = Range::GetExtent(src_layout.PackedAxisAt(i)->dom.value()->begin,
-                                   src_layout.PackedAxisAt(i)->dom.value()->end);
+    auto factor = src_layout.PackedAxisAt(i)->dom.value()->extent;
     auto src_unpacked_axes = SLayout::UnpackIterVar(src_layout.PackedAxisAt(i));
 
     if (src_unpacked_axes.size() == 1 && SLayoutAxis::Get(src_unpacked_axes[0]).IsPrimal()) {
@@ -361,9 +343,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       std::vector<ffi::BigInt> index_divs(src_unpacked_axes.size());
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
         index_divs[j] = value;
-        PrimExpr extent_expr = Range::GetExtent(src_unpacked_axes[j]->dom.value()->begin,
-                                                src_unpacked_axes[j]->dom.value()->end);
-        const auto* extent = extent_expr.as<IntImmNode>();
+        const auto* extent = src_unpacked_axes[j]->dom.value()->extent.as<IntImmNode>();
         TVM_FFI_ICHECK(extent) << "Expected Integer Extents for Offset Calculation";
         index_divs.push_back(value);
         value *= extent->value;
@@ -371,8 +351,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       std::reverse(index_divs.begin(), index_divs.end());
 
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
-        PrimExpr extent = Range::GetExtent(src_unpacked_axes[j]->dom.value()->begin,
-                                           src_unpacked_axes[j]->dom.value()->end);
+        PrimExpr extent = src_unpacked_axes[j]->dom.value()->extent;
         const SLayoutAxis& store_axis_impl = SLayoutAxis::Get(src_unpacked_axes[j]);
         const SLayoutAxis& sub_axis = store_axis_impl.ToSubordinate(); /* Not Needed */
         const SLayoutAxis& prim_axis = store_axis_impl.ToPrimal();
@@ -389,9 +368,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           for (; l < inter_unpacked_axes.size(); l++) {
             const SLayoutAxis& axis = SLayoutAxis::Get(inter_unpacked_axes[l]);
             if (axis == sub_axis) {
-              IntImm sub_extent = Range::GetExtent(inter_unpacked_axes[l]->dom.value()->begin,
-                                                   inter_unpacked_axes[l]->dom.value()->end)
-                                      .as_or_throw<IntImm>();
+              IntImm sub_extent = inter_unpacked_axes[l]->dom.value()->extent.as_or_throw<IntImm>();
               factor_ij = factor_ij * IntImm(sub_extent.ty(), sub_extent->value);
             }
           }
@@ -427,9 +404,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       for (size_t j = 0; j < dst_unpacked_axes.size(); j++) {
         const auto& prim_axis = SLayoutAxis::Get(dst_unpacked_axes[j]).ToPrimal();
         const auto& sub_axis = SLayoutAxis::Get(dst_unpacked_axes[j]).ToSubordinate();
-        PrimExpr extent_expr = Range::GetExtent(dst_unpacked_axes[j]->dom.value()->begin,
-                                                dst_unpacked_axes[j]->dom.value()->end);
-        const auto* extent = extent_expr.as<IntImmNode>();
+        const auto* extent = dst_unpacked_axes[j]->dom.value()->extent.as<IntImmNode>();
         TVM_FFI_ICHECK(extent) << "Expected extent to be IntImmNode";
 
         size_t divfactor = 1;
@@ -441,10 +416,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           for (; l < inter_unpacked_axes.size(); l++) {
             const auto& axis = SLayoutAxis::Get(inter_unpacked_axes[l]);
             if (sub_axis == axis) {
-              PrimExpr sub_extent_expr =
-                  Range::GetExtent(inter_unpacked_axes[l]->dom.value()->begin,
-                                   inter_unpacked_axes[l]->dom.value()->end);
-              const auto* sub_extent = sub_extent_expr.as<IntImmNode>();
+              const auto* sub_extent = inter_unpacked_axes[l]->dom.value()->extent.as<IntImmNode>();
               TVM_FFI_ICHECK(sub_extent) << "Expected Integer Extents for Offset Calculation";
               divfactor = (ffi::BigInt(divfactor) * sub_extent->value).as<size_t>().value();
             }
@@ -454,10 +426,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
         factor = factor + indexmod(indexdiv(norm_indexes[prim_axis.name()[0] - 'A'], divfactor),
                                    IntImm(extent->ty.as_or_throw<PrimType>(), extent->value));
         for (size_t k = j + 1; k < dst_unpacked_axes.size(); k++) {
-          factor = factor * Range::GetExtent(dst_unpacked_axes[k]->dom.value()->begin,
-                                             dst_unpacked_axes[k]->dom.value()->end)
-                                .as<IntImm>()
-                                .value();
+          factor = factor * dst_unpacked_axes[k]->dom.value()->extent.as<IntImm>().value();
         }
       }
       ana->Simplify(factor);
@@ -541,14 +510,11 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImmNode>();
-        PrimExpr orig_axis_extent_expr =
-            Range::GetExtent(orig_axis->dom.value()->begin, orig_axis->dom.value()->end);
-        const auto* orig_axis_extent = orig_axis_extent_expr.as<IntImmNode>();
+        const auto* orig_axis_extent = orig_axis->dom.value()->extent.as<IntImmNode>();
         if (orig_shape_const) {
           TVM_FFI_ICHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
               << "Input shape mismatch at index " << i << ". Expected "
-              << Range::GetExtent(orig_axis->dom.value()->begin, orig_axis->dom.value()->end)
-              << ", get " << orig_shape;
+              << orig_axis->dom.value()->extent << ", get " << orig_shape;
         }
       }
       bind_map.insert_or_assign(orig_axis->var.get(), IntImm(orig_axis->var.ty(), 0));
@@ -575,7 +541,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     IterVar axis = target_axis[i];
     auto layout = SLayout::UnpackIterVar(axis);
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
-      result.push_back(Range::GetExtent(axis->dom.value()->begin, axis->dom.value()->end));
+      result.push_back(axis->dom.value()->extent);
     } else {
       result.push_back(
           ana->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute)

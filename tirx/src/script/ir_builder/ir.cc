@@ -220,15 +220,15 @@ ForFrame For(ForKind kind, PrimExpr start, PrimExpr stop, ffi::Optional<PrimExpr
   n->vars = {Var("v", var_ty)};
   n->doms = {Range(begin, end)};
   n->steps = {step};
-  n->f_make_for_loop = [kind, annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                                           ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                           tvm::SeqStmt body, Location loc) {
+  n->f_make_for_loop = [kind, annotations, end](ffi::Array<Var> vars, ffi::Array<Range> doms,
+                                                ffi::Array<ffi::Optional<PrimExpr>> steps,
+                                                tvm::SeqStmt body, Location loc) {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK_EQ(steps.size(), 1);
     PrimVar var = vars[0].as_or_throw<PrimVar>();
-    return tvm::For(var, doms[0]->begin, doms[0]->end, steps[0].value_or(IntImm(var.ty(), 1)), kind,
-                    body, annotations.value_or(ffi::Map<ffi::String, Any>()), loc);
+    return tvm::For(var, doms[0]->begin, end, steps[0].value_or(IntImm(var.ty(), 1)), kind, body,
+                    annotations.value_or(ffi::Map<ffi::String, Any>()), loc);
   };
   return ForFrame(n);
 }
@@ -269,8 +269,9 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
       Range dom = doms[i];
       Var var = vars[i];
       PrimVar prim_var = var.as_or_throw<PrimVar>();
-      result = tvm::For(prim_var, dom->begin, dom->end, steps[i].value_or(IntImm(prim_var.ty(), 1)),
-                        ForKind::kDefault, SeqStmt(std::move(result)), /*annotations=*/{}, loc);
+      result = tvm::For(prim_var, dom->begin, dom->begin + dom->extent,
+                        steps[i].value_or(IntImm(prim_var.ty(), 1)), ForKind::kDefault,
+                        SeqStmt(std::move(result)), /*annotations=*/{}, loc);
     }
     return result;
   };

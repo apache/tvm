@@ -112,7 +112,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 1. Update unit loop info.
     PrimExpr min = this->Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
     PrimExpr end = this->Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
-    PrimExpr extent = Range::GetExtent(min, end);
+    PrimExpr extent = Range::GetExtentFromBeginEnd(min, end);
     PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->var);
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {

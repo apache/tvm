@@ -236,7 +236,8 @@ std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        PrimExpr extent_imm_expr = Range::GetExtent(sch->Get(loop)->begin, sch->Get(loop)->end);
+        PrimExpr extent_imm_expr =
+            Range::GetExtentFromBeginEnd(sch->Get(loop)->begin, sch->Get(loop)->end);
         const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
         if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
             extent.has_value()) {

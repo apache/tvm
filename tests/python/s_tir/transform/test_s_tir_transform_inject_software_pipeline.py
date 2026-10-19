@@ -137,7 +137,7 @@ def transformed_simple_compute(
                 Ts.writes([B[0:2, tx, 0], C[tx, 0:15]])
                 for i in T.serial(0, 15):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2]])
+                        Ts.reads([A[tx, i + 1]])
                         Ts.writes([B[(i + 1) % 2, tx, 0]])
                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
                     with Ts.sblock():
@@ -197,11 +197,11 @@ def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16
                     Ts.writes(B[0, tx, 0])
                     B[0, tx, 0] = A[tx, 0] * T.float32(2)
             with Ts.sblock(""):
-                Ts.reads(A[tx, 1:k], B[0:2, tx, 0])
+                Ts.reads(A[tx, 1 : 1 + (k - 1)], B[0:2, tx, 0])
                 Ts.writes(B[0:2, tx, 0], C[tx, 0 : k - 1])
                 for i in range(k - 1):
                     with Ts.sblock(""):
-                        Ts.reads(A[tx, i + 1 : i + 2])
+                        Ts.reads(A[tx, i + 1])
                         Ts.writes(B[(i + 1) % 2, tx, 0])
                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
                     with Ts.sblock(""):
@@ -210,11 +210,11 @@ def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16
                         C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
             with Ts.sblock(""):
                 Ts.reads(B[(k + 1) % 2, tx, 0])
-                Ts.writes(C[tx, k - 1 : k])
+                Ts.writes(C[tx, k - 1])
                 with Ts.sblock(""):
                     Ts.where(1 <= k)
                     Ts.reads(B[(k + 1) % 2, tx, 0])
-                    Ts.writes(C[tx, k - 1 : k])
+                    Ts.writes(C[tx, k - 1])
                     C[tx, k - 1] = B[(k + 1) % 2, tx, 0] + T.float32(1)
 
 
@@ -268,7 +268,7 @@ def transformed_simple_compute_with_other_annotation(
                     annotations={"loop_partition_hint": True},
                 ):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2]])
+                        Ts.reads([A[tx, i + 1]])
                         Ts.writes([B[(i + 1) % 2, tx, 0]])
                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
                     with Ts.sblock():
@@ -339,7 +339,7 @@ def transformed_three_stage_compute(
                 Ts.writes(B[0:2, tx, 0], C[0:2, tx, 0], D[tx, 0:14])
                 for i in T.serial(14):
                     with Ts.sblock():
-                        Ts.reads(A[tx, i + 2 : i + 3])
+                        Ts.reads(A[tx, i + 2])
                         Ts.writes(B[0:2, tx, 0])
                         B[i % 2, tx, 0] = A[tx, i + 2] * T.float32(2)
                     with Ts.sblock():
@@ -361,7 +361,7 @@ def transformed_three_stage_compute(
                         C[(i + 1) % 2, tx, 0] = B[(i + 1) % 2, tx, 0] + T.float32(2)
                     with Ts.sblock():
                         Ts.reads(C[0:2, tx, 0])
-                        Ts.writes(D[tx, i + 14 : i + 15])
+                        Ts.writes(D[tx, i + 14])
                         D[tx, i + 14] = C[i, tx, 0] + T.float32(1)
 
 
@@ -449,11 +449,11 @@ def transformed_dag_interleaving(
                 Ts.writes(AS[tx, 0], BS[tx, 0], AL[0:2, 0, 0], BL[0:2, 0, 0], C[tx, 0:15])
                 for i in T.serial(15):
                     with Ts.sblock():
-                        Ts.reads(A[tx, i + 1 : i + 2])
+                        Ts.reads(A[tx, i + 1])
                         Ts.writes(AS[tx, 0])
                         AS[tx, 0] = A[tx, i + 1] * T.float32(2)
                     with Ts.sblock():
-                        Ts.reads(B[tx, i + 1 : i + 2])
+                        Ts.reads(B[tx, i + 1])
                         Ts.writes(BS[tx, 0])
                         BS[tx, 0] = B[tx, i + 1] + T.float32(2)
                     with Ts.sblock():
@@ -541,11 +541,11 @@ def transformed_nested_pipeline_simple(
                 Ts.writes([A_shared[0:2, tx, 0, 0:16], B[0:2, tx, 0:15, 0], C[tx, 0:15, 0:16]])
                 for i in T.serial(0, 15):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2, 0:16]])
+                        Ts.reads([A[tx, i + 1, 0:16]])
                         Ts.writes([A_shared[(i + 1) % 2, tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with Ts.sblock():
-                                Ts.reads([A[tx, i + 1 : i + 2, j]])
+                                Ts.reads([A[tx, i + 1, j]])
                                 Ts.writes([A_shared[(i + 1) % 2, tx, 0, j]])
                                 A_shared[(i + 1) % 2, tx, 0, j] = A[tx, i + 1, j]
                     with Ts.sblock():
@@ -557,7 +557,7 @@ def transformed_nested_pipeline_simple(
                         Ts.writes([B[0:2, tx, i, 0], C[tx, i, 0:15]])
                         for j in T.serial(0, 15):
                             with Ts.sblock():
-                                Ts.reads([A_shared[i % 2, tx, i, j + 1 : j + 2]])
+                                Ts.reads([A_shared[i % 2, tx, i, j + 1]])
                                 Ts.writes([B[(j + 1) % 2, tx, i, 0]])
                                 B[(j + 1) % 2, tx, i, 0] = A_shared[
                                     i % 2, tx, 0, j + 1
@@ -582,7 +582,7 @@ def transformed_nested_pipeline_simple(
                     Ts.writes([B[0:2, tx, 15, 0], C[tx, 15, 0:15]])
                     for j in T.serial(0, 15):
                         with Ts.sblock():
-                            Ts.reads([A_shared[1, tx, 15, j + 1 : j + 2]])
+                            Ts.reads([A_shared[1, tx, 15, j + 1]])
                             Ts.writes([B[(j + 1) % 2, tx, 15, 0]])
                             B[(j + 1) % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
                         with Ts.sblock():
@@ -669,11 +669,11 @@ def transformed_nested_pipeline_prefetch_inner(
                 Ts.writes([A_shared[0:2, tx, 0, 0:16], B[0:2, tx, 0:16, 0], C[tx, 0:15, 0:16]])
                 for i in T.serial(0, 15):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2, 0:16]])
+                        Ts.reads([A[tx, i + 1, 0:16]])
                         Ts.writes([A_shared[(i + 1) % 2, tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with Ts.sblock():
-                                Ts.reads([A[tx, i + 1 : i + 2, j]])
+                                Ts.reads([A[tx, i + 1, j]])
                                 Ts.writes([A_shared[(i + 1) % 2, tx, 0, j]])
                                 A_shared[(i + 1) % 2, tx, 0, j] = A[tx, i + 1, j]
                     with Ts.sblock():
@@ -681,7 +681,7 @@ def transformed_nested_pipeline_prefetch_inner(
                         Ts.writes([B[0:2, tx, i, 0], C[tx, i, 0:15]])
                         for j in T.serial(0, 15):
                             with Ts.sblock():
-                                Ts.reads([A_shared[i % 2, tx, i, j + 1 : j + 2]])
+                                Ts.reads([A_shared[i % 2, tx, i, j + 1]])
                                 Ts.writes([B[(j + 1) % 2, tx, i, 0]])
                                 B[(j + 1) % 2, tx, i, 0] = A_shared[
                                     i % 2, tx, 0, j + 1
@@ -691,8 +691,8 @@ def transformed_nested_pipeline_prefetch_inner(
                                 Ts.writes([C[tx, i, j]])
                                 C[tx, i, j] = B[j % 2, tx, i, 0] + T.float32(1)
                     with Ts.sblock():
-                        Ts.reads([A_shared[(i + 1) % 2, tx, i + 1 : i + 2, 0]])
-                        Ts.writes([B[0, tx, i + 1 : i + 2, 0]])
+                        Ts.reads([A_shared[(i + 1) % 2, tx, i + 1, 0]])
+                        Ts.writes([B[0, tx, i + 1, 0]])
                         B[0, tx, i + 1, 0] = A_shared[(i + 1) % 2, tx, 0, 0] * T.float32(2)
                     with Ts.sblock():
                         Ts.reads([B[1, tx, i, 0]])
@@ -706,7 +706,7 @@ def transformed_nested_pipeline_prefetch_inner(
                     Ts.writes([B[0:2, tx, 15, 0], C[tx, 15, 0:15]])
                     for j in T.serial(0, 15):
                         with Ts.sblock():
-                            Ts.reads([A_shared[1, tx, 15, j + 1 : j + 2]])
+                            Ts.reads([A_shared[1, tx, 15, j + 1]])
                             Ts.writes([B[(j + 1) % 2, tx, 15, 0]])
                             B[(j + 1) % 2, tx, 15, 0] = A_shared[1, tx, 0, j + 1] * T.float32(2)
                         with Ts.sblock():
@@ -822,11 +822,11 @@ def transformed_nested_pipeline_interleaving(
                 )
                 for i in T.serial(0, 15):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2, 0:16]])
+                        Ts.reads([A[tx, i + 1, 0:16]])
                         Ts.writes([A_shared[tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with Ts.sblock():
-                                Ts.reads([A[tx, i + 1 : i + 2, j]])
+                                Ts.reads([A[tx, i + 1, j]])
                                 Ts.writes([A_shared[tx, 0, j]])
                                 A_shared[tx, 0, j] = A[tx, i + 1, j]
                     with Ts.sblock():
@@ -834,7 +834,7 @@ def transformed_nested_pipeline_interleaving(
                         Ts.writes([B[0:2, tx, i, 0], C[tx, i, 0:15]])
                         for j in T.serial(0, 15):
                             with Ts.sblock():
-                                Ts.reads([A_local[tx, i, j + 1 : j + 2]])
+                                Ts.reads([A_local[tx, i, j + 1]])
                                 Ts.writes([B[(j + 1) % 2, tx, i, 0]])
                                 B[(j + 1) % 2, tx, i, 0] = A_local[0, 0, j + 1] * T.float32(2)
                             with Ts.sblock():
@@ -850,8 +850,8 @@ def transformed_nested_pipeline_interleaving(
                                 Ts.writes([A_local[0, 0, j]])
                                 A_local[0, 0, j] = A_shared[tx, i + 1, j]
                     with Ts.sblock():
-                        Ts.reads([A_local[tx, i + 1 : i + 2, 0]])
-                        Ts.writes([B[0, tx, i + 1 : i + 2, 0]])
+                        Ts.reads([A_local[tx, i + 1, 0]])
+                        Ts.writes([B[0, tx, i + 1, 0]])
                         B[0, tx, i + 1, 0] = A_local[0, 0, 0] * T.float32(2)
                     with Ts.sblock():
                         Ts.reads([B[1, tx, i, 0]])
@@ -865,7 +865,7 @@ def transformed_nested_pipeline_interleaving(
                     Ts.writes([B[0:2, tx, 15, 0], C[tx, 15, 0:15]])
                     for j in T.serial(0, 15):
                         with Ts.sblock():
-                            Ts.reads([A_local[tx, 15, j + 1 : j + 2]])
+                            Ts.reads([A_local[tx, 15, j + 1]])
                             Ts.writes([B[(j + 1) % 2, tx, 15, 0]])
                             B[(j + 1) % 2, tx, 15, 0] = A_local[0, 0, j + 1] * T.float32(2)
                         with Ts.sblock():
@@ -983,11 +983,11 @@ def transformed_nested_pipeline_double_buffer(
                 )
                 for i in T.serial(0, 15):
                     with Ts.sblock():
-                        Ts.reads([A[tx, i + 1 : i + 2, 0:16]])
+                        Ts.reads([A[tx, i + 1, 0:16]])
                         Ts.writes([A_shared[tx, 0, 0:16]])
                         for j in T.serial(0, 16):
                             with Ts.sblock():
-                                Ts.reads([A[tx, i + 1 : i + 2, j]])
+                                Ts.reads([A[tx, i + 1, j]])
                                 Ts.writes([A_shared[tx, 0, j]])
                                 A_shared[tx, 0, j] = A[tx, i + 1, j]
                     with Ts.sblock():
@@ -995,7 +995,7 @@ def transformed_nested_pipeline_double_buffer(
                         Ts.writes([B[0:2, tx, i, 0], C[tx, i, 0:15]])
                         for j in T.serial(0, 15):
                             with Ts.sblock():
-                                Ts.reads([A_local[i % 2, tx, i, j + 1 : j + 2]])
+                                Ts.reads([A_local[i % 2, tx, i, j + 1]])
                                 Ts.writes([B[(j + 1) % 2, tx, i, 0]])
                                 B[(j + 1) % 2, tx, i, 0] = A_local[i % 2, 0, 0, j + 1] * T.float32(
                                     2
@@ -1014,8 +1014,8 @@ def transformed_nested_pipeline_double_buffer(
                                 Ts.sblock_attr({"double_buffer_scope": 0})
                                 A_local[(i + 1) % 2, 0, 0, j] = A_shared[tx, i + 1, j]
                     with Ts.sblock():
-                        Ts.reads([A_local[(i + 1) % 2, tx, i + 1 : i + 2, 0]])
-                        Ts.writes([B[0, tx, i + 1 : i + 2, 0]])
+                        Ts.reads([A_local[(i + 1) % 2, tx, i + 1, 0]])
+                        Ts.writes([B[0, tx, i + 1, 0]])
                         B[0, tx, i + 1, 0] = A_local[(i + 1) % 2, 0, 0, 0] * T.float32(2)
                     with Ts.sblock():
                         Ts.reads([B[1, tx, i, 0]])
@@ -1029,7 +1029,7 @@ def transformed_nested_pipeline_double_buffer(
                     Ts.writes([B[0:2, tx, 15, 0], C[tx, 15, 0:15]])
                     for j in T.serial(0, 15):
                         with Ts.sblock():
-                            Ts.reads([A_local[1, tx, 15, j + 1 : j + 2]])
+                            Ts.reads([A_local[1, tx, 15, j + 1]])
                             Ts.writes([B[(j + 1) % 2, tx, 15, 0]])
                             B[(j + 1) % 2, tx, 15, 0] = A_local[1, 0, 0, j + 1] * T.float32(2)
                         with Ts.sblock():
@@ -1218,7 +1218,7 @@ def test_simple_compute_async():
                             C[tx, i - 1 + 1] = B[(i - 1 + 1) % 2, tx, 0] + T.float32(1)
                 with Ts.sblock():
                     Ts.reads(B[T.FloorMod(15, 2), tx, 0])
-                    Ts.writes(C[tx, 15 : T.Add(15, 1)])
+                    Ts.writes(C[tx, 15])
                     Ts.async_wait(0, 0)
                     C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
@@ -1603,11 +1603,11 @@ def test_less_loop_than_num_stage_dynamic():
                             Ts.writes(D[0:2, 0])
                             D[i % 2, 0] = C[i % 2, 0] + T.float32(4.0)
                 with Ts.sblock(""):
-                    Ts.reads(A[3:K], B[0:2, 0], C[0:2, 0], D[0:2, 0])
+                    Ts.reads(A[3 : 3 + (K - 3)], B[0:2, 0], C[0:2, 0], D[0:2, 0])
                     Ts.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0], E[0 : K - 3])
                     for i in range(K - 3):
                         with Ts.sblock(""):
-                            Ts.reads(A[i + 3 : i + 4])
+                            Ts.reads(A[i + 3])
                             Ts.writes(B[0:2, 0])
                             B[(i + 1) % 2, 0] = A[i + 3] * T.float32(2.0)
                         with Ts.sblock(""):
@@ -1624,7 +1624,7 @@ def test_less_loop_than_num_stage_dynamic():
                             E[i] = D[i % 2, 0] + T.float32(5.0)
                 with Ts.sblock(""):
                     Ts.reads(B[0:2, 0], C[0:2, 0], D[0:2, 0])
-                    Ts.writes(C[0:2, 0], D[0:2, 0], E[K - 3 : K])
+                    Ts.writes(C[0:2, 0], D[0:2, 0], E[K - 3 : K - 3 + 3])
                     for i in T.unroll(3):
                         with Ts.sblock(""):
                             Ts.where(1 <= i + K and i + K == K and 3 <= i + K)
@@ -1639,7 +1639,7 @@ def test_less_loop_than_num_stage_dynamic():
                         with Ts.sblock(""):
                             Ts.where(3 <= i + K and 3 <= i + K)
                             Ts.reads(D[0:2, 0])
-                            Ts.writes(E[i + K - 3 : i + K - 2])
+                            Ts.writes(E[i + K - 3])
                             E[i + K - 3] = D[(i + K + 1) % 2, 0] + T.float32(5.0)
 
     _check(before, after)

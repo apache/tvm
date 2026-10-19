@@ -63,8 +63,8 @@ def _has_zero_extent_loop(stmt: tvm_tirx.ir.Stmt) -> bool:
     def visit_for(node: tvm_tirx.ir.For):
         nonlocal found
         if (
-            isinstance(Range.get_extent(node.begin, node.end), tvm_tirx.ir.IntImm)
-            and Range.get_extent(node.begin, node.end).value == 0
+            isinstance(Range.get_extent_from_begin_end(node.begin, node.end), tvm_tirx.ir.IntImm)
+            and Range.get_extent_from_begin_end(node.begin, node.end).value == 0
         ):
             found = True
 

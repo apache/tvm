@@ -57,9 +57,9 @@ void RelaxTensorRegions(const ffi::Array<TensorRegion>& tensor_regions,
           tensor_region->region.Map([&f_substitute](const Range& range) {
             PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                                .as_or_throw<PrimExpr>();
-            PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                  Range::GetExtent(range->begin, range->end), f_substitute)
-                                  .as_or_throw<PrimExpr>();
+            PrimExpr extent =
+                ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                    .as_or_throw<PrimExpr>();
             return Range::FromMinExtent(min, extent);
           });
       ffi::Array<sym::IntSet> relaxed_region = sym::EvalSet(mapped_region, var_dom);
@@ -327,8 +327,9 @@ struct ReadWriteAtImpl {
       dom->begin =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->begin), f_substitute)
               .as_or_throw<PrimExpr>();
-      dom->end = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->end), f_substitute)
-                     .as_or_throw<PrimExpr>();
+      dom->extent =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->extent), f_substitute)
+              .as_or_throw<PrimExpr>();
       domain.Set(i, Range(ffi::UnsafeInit{}, dom));
     }
     for (int i = 0; i < n; ++i) {
@@ -336,8 +337,7 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = TensorStore(copy_to, /*indices=*/indices, /*value=*/TensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0),
-                 Range::GetExtent(domain[i]->begin, domain[i]->end),
+      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
     }
     return SBlockRealize(

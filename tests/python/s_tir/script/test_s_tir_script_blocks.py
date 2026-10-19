@@ -281,10 +281,7 @@ def expected_recursive_tensorslice_indices(
                 Ts.reads(
                     [
                         data_buf[index_buf[index_buf[0]], index_buf[0]],
-                        index_buf[
-                            T.min(index_buf[0], 0) : T.min(index_buf[0], 0)
-                            + (T.max(index_buf[0], 0) + 1 - T.min(index_buf[0], 0))
-                        ],
+                        index_buf[T.min(index_buf[0], 0) : T.max(index_buf[0], 0) + 1],
                     ]
                 )
                 Ts.writes([out_buf[vi, vj]])

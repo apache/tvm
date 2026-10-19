@@ -49,8 +49,8 @@ class Pool2D(AdrenoScheduleRule):
             sch.vectorize(veclp)
             b = sch.fuse(*lps)
             tx_extent = min(
-                int(Range.get_extent(sch.get(b).begin, sch.get(b).end))
-                & ~int(Range.get_extent(sch.get(b).begin, sch.get(b).end) - 1),
+                int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end))
+                & ~int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end) - 1),
                 256,
             )
             bx, tx = sch.split(b, [None, tx_extent])
@@ -69,8 +69,8 @@ class Pool2D(AdrenoScheduleRule):
             sch.reverse_compute_at(write_blk, vec_lp)
             b = sch.fuse(*block_lps)
             tx_extent = min(
-                int(Range.get_extent(sch.get(b).begin, sch.get(b).end))
-                & ~int(Range.get_extent(sch.get(b).begin, sch.get(b).end) - 1),
+                int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end))
+                & ~int(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end) - 1),
                 256,
             )
             bx, tx = sch.split(b, [None, tx_extent])

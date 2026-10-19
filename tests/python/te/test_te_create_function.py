@@ -680,7 +680,7 @@ def test_int64_indices():
     loop = function.body[0].block.body[0]
     assert loop.var.ty.dtype == "int64"
     assert loop.begin.ty.dtype == "int64"
-    assert Range.get_extent(loop.begin, loop.end).ty.dtype == "int64"
+    assert Range.get_extent_from_begin_end(loop.begin, loop.end).ty.dtype == "int64"
 
 
 def test_zero_dim_add():

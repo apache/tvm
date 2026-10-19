@@ -68,9 +68,12 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (Range::GetExtent(sch->Get(fused)->begin, sch->Get(fused)->end)->IsInstance<IntImmNode>()) {
+  if (Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+          ->IsInstance<IntImmNode>()) {
     product = static_cast<int64_t>(
-        Range::GetExtent(sch->Get(fused)->begin, sch->Get(fused)->end).as<IntImmNode>()->value);
+        Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+            .as<IntImmNode>()
+            ->value);
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {

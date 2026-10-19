@@ -35,7 +35,7 @@ def get_bytes(dtype: tvm_ffi.dtype | PrimType | str) -> int:
 
 def get_extent(sch: s_tir.Schedule, loop_rv: s_tir.schedule.LoopRV):
     loop: tvm_tirx.ir.For = sch.get(loop_rv)
-    extent = Range.get_extent(loop.begin, loop.end)
+    extent = Range.get_extent_from_begin_end(loop.begin, loop.end)
     return extent.value if isinstance(extent, tvm_tirx.ir.IntImm) else extent
 
 
@@ -88,7 +88,7 @@ def suggest_threads_per_block(
     results: list[int | None] = []
     dynamic: list[int] = []
     for i, loop in enumerate(loops):
-        loop_extent = Range.get_extent(loop.begin, loop.end)
+        loop_extent = Range.get_extent_from_begin_end(loop.begin, loop.end)
         if isinstance(loop_extent, tvm_tirx.ir.IntImm):
             loop_extent = loop_extent.value
             extent = 1

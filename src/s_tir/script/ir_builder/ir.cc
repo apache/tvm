@@ -249,7 +249,7 @@ IterVar PushBlockVar(IterVar iter_var, ffi::Optional<PrimExpr> binding) {
   Var Method(Range dom, ffi::Optional<PrimExpr> binding, PrimType dtype) {                         \
     TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";                           \
     PrimType min_ty = dom->begin.ty();                                                             \
-    PrimType extent_ty = Range::GetExtent(dom->begin, dom->end).ty();                              \
+    PrimType extent_ty = dom->extent.ty();                                                         \
     int bits = std::max({min_ty.bits(), extent_ty.bits(), dtype.bits()});                          \
     PrimType var_ty = dtype.WithBits(bits);                                                        \
     return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/tvm::PrimVar("", var_ty), /*iter_type=*/Kind, \

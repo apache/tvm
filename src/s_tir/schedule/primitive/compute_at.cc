@@ -275,16 +275,14 @@ class ScopeReconstructor : public StmtExprMutator {
     PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom.value()).value();
-      if (preserve_unit_loops || !IsOne(Range::GetExtent(iter_dom->begin, iter_dom->end))) {
-        int bits = std::max(iter_dom->begin.ty().bits(),
-                            Range::GetExtent(iter_dom->begin, iter_dom->end).ty().bits());
+      if (preserve_unit_loops || !IsOne(iter_dom->extent)) {
+        int bits = std::max(iter_dom->begin.ty().bits(), iter_dom->extent.ty().bits());
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
-        loop_extents.push_back(
-            analyzer->Simplify(Range::GetExtent(iter_dom->begin, iter_dom->end)));
+        loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->begin + var.as_or_throw<PrimExpr>());
         analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
-                                                 Range::GetExtent(iter_dom->begin, iter_dom->end)));
+                                                 iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->begin);
       }
@@ -410,8 +408,7 @@ void RelaxTensorRegions(const ffi::Map<Var, PrimExpr>& binding,
     ffi::Array<Range> mapped_region = region.Map([&f_substitute](const Range& range) {
       PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                          .template as_or_throw<PrimExpr>();
-      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                            Range::GetExtent(range->begin, range->end), f_substitute)
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
                             .template as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });

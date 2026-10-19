@@ -398,7 +398,7 @@ class PipelineRewriter : public StmtExprMutator {
     ffi::Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
     if (max_stage_ > 1 &&
         !analyzer_->CanProveGreaterEqual(
-            Range::GetExtent(pipeline_loop_->begin, pipeline_loop_->end), max_stage_)) {
+            Range::GetExtentFromBeginEnd(pipeline_loop_->begin, pipeline_loop_->end), max_stage_)) {
       if (IsConstInt(epigogue_start)) {
         epigogue_start = max(epigogue_start, pipeline_loop_->begin + max_stage_);
       } else {
@@ -877,7 +877,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
-    // the "normalized" range, [pipeline_loop_->min, extent).
+    // the "normalized" range, [pipeline_loop_->begin, extent).
     sym::Analyzer ana_normalized;
     if (!is_unit_loop) {
       ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->begin, extent));
@@ -915,7 +915,7 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_prim : skewed_loop_prim + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
-      //  [pipeline_loop_->min, extent).
+      //  [pipeline_loop_->begin, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
         auto f_substitute = [loop_iter,

@@ -706,16 +706,16 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
                         .as_or_throw<PrimVar>();
   PrimExpr min = this->Mutate(iter_var->dom.value()->begin, InplaceMode::kDisallow)
                      .ValueOrUnchanged(iter_var->dom.value()->begin);
-  PrimExpr end = this->Mutate(iter_var->dom.value()->end, InplaceMode::kDisallow)
-                     .ValueOrUnchanged(iter_var->dom.value()->end);
+  PrimExpr extent = this->Mutate(iter_var->dom.value()->extent, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(iter_var->dom.value()->extent);
   this->is_enabled_ = is_enabled;
   if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom.value()->begin) ||
-      !end.same_as(iter_var->dom.value()->end)) {
+      !extent.same_as(iter_var->dom.value()->extent)) {
     IterVar new_iter_var = iter_var;
     IterVarNode* n = new_iter_var.CopyOnWrite();
     n->var = std::move(new_var);
     n->ty = n->var.ty();
-    n->dom = Range(min, end);
+    n->dom = Range::FromMinExtent(min, extent);
     return new_iter_var;
   }
   return iter_var;
@@ -730,8 +730,9 @@ TensorRegion IndexDataTypeNormalizer::VisitTensorRegion(const TensorRegion& tens
   bool is_enabled = this->is_enabled_;
   this->is_enabled_ = true;
   auto new_region = tensor_region->region.Map([&](const Range& range) {
-    return Range(this->Mutate(range->begin, InplaceMode::kDisallow).ValueOrUnchanged(range->begin),
-                 this->Mutate(range->end, InplaceMode::kDisallow).ValueOrUnchanged(range->end));
+    return Range::FromMinExtent(
+        this->Mutate(range->begin, InplaceMode::kDisallow).ValueOrUnchanged(range->begin),
+        this->Mutate(range->extent, InplaceMode::kDisallow).ValueOrUnchanged(range->extent));
   });
   this->is_enabled_ = is_enabled;
 

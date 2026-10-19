@@ -62,8 +62,8 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
 def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     """Check the point-access restriction required by ``Schedule.pad_einsum``."""
     return all(
-        isinstance(Range.get_extent(dim.begin, dim.end), tvm_tirx.ir.IntImm)
-        and int(Range.get_extent(dim.begin, dim.end)) == 1
+        isinstance(dim.extent, tvm_tirx.ir.IntImm)
+        and int(dim.extent) == 1
         and isinstance(dim.begin, tvm_tirx.ir.IntImm | tirx.Var)
         for region in [*block.reads, *block.writes]
         for dim in region.region
@@ -106,16 +106,14 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | Non
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(Range.get_extent(iter_var.dom.begin, iter_var.dom.end), tvm_tirx.ir.IntImm)
+        if isinstance(iter_var.dom.extent, tvm_tirx.ir.IntImm)
     )
     if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
         return None
     symbolic_iter_var = next(
         iter_var
         for iter_var in block_stmt.iter_vars
-        if not isinstance(
-            Range.get_extent(iter_var.dom.begin, iter_var.dom.end), tvm_tirx.ir.IntImm
-        )
+        if not isinstance(iter_var.dom.extent, tvm_tirx.ir.IntImm)
     )
     if symbolic_iter_var.iter_type != s_tir.IterVar.DataPar:
         return None
@@ -159,7 +157,7 @@ def normalize(
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
-        if isinstance(Range.get_extent(iter_var.dom.begin, iter_var.dom.end), tvm_tirx.ir.IntImm)
+        if isinstance(iter_var.dom.extent, tvm_tirx.ir.IntImm)
     )
     dynamic_iter_vars = set(
         iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
@@ -404,12 +402,14 @@ class LowBatchGEMV(GPUScheduleRule):
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm_tirx.ir.For = sch.get(l)
-                if isinstance(Range.get_extent(loop.begin, loop.end), tvm_tirx.ir.IntImm):
+                if isinstance(
+                    Range.get_extent_from_begin_end(loop.begin, loop.end), tvm_tirx.ir.IntImm
+                ):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
                         min(
                             get_max_factor(
-                                (int)(Range.get_extent(loop.begin, loop.end)),
+                                (int)(Range.get_extent_from_begin_end(loop.begin, loop.end)),
                                 [TS * TR * 1, TS * TR * 2, TS * TR * 4, TS * TR * 8],
                             )
                             // TS
@@ -446,7 +446,9 @@ class LowBatchGEMV(GPUScheduleRule):
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
-            assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
+            assert (
+                Range.get_extent_from_begin_end(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
+            )
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, batch_loop, vec_s, vec_c)
             sch.bind(ts, TAG_S)
@@ -461,7 +463,9 @@ class LowBatchGEMV(GPUScheduleRule):
             ts_o, ts_i, tile_s = sch.split(
                 ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
             )
-            assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
+            assert (
+                Range.get_extent_from_begin_end(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
+            )
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, batch_loop, ts, tr)
             sch.bind(ts, TAG_S)
@@ -517,7 +521,12 @@ class LowBatchGEMV(GPUScheduleRule):
                     ts_o, ts_i, tile_s = sch.split(
                         ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
                     )
-                    assert Range.get_extent(sch.get(ts_o).begin, sch.get(ts_o).end).value == 1
+                    assert (
+                        Range.get_extent_from_begin_end(
+                            sch.get(ts_o).begin, sch.get(ts_o).end
+                        ).value
+                        == 1
+                    )
                     ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")

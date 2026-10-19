@@ -262,8 +262,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     ffi::Array<Range> mapped_region = write->region.Map([&map_block_var](const Range& range) {
       PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                          .as_or_throw<PrimExpr>();
-      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                            Range::GetExtent(range->begin, range->end), map_block_var)
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
                             .as_or_throw<PrimExpr>();
       return Range::FromMinExtent(min, extent);
     });
@@ -700,7 +699,8 @@ class LoopPropertyError : public ScheduleErrorContextObj {
           meet_reduction_loop = true;
         }
         continue;
-      } else if (meet_reduction_loop && !IsOne(Range::GetExtent(loop->begin, loop->end))) {
+      } else if (meet_reduction_loop &&
+                 !IsOne(Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
         throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kUnboundLoopUnderReductionLoop);
       }
     }
@@ -742,7 +742,8 @@ ffi::Array<TensorVar> CreateRFactorTensors(const ffi::Array<TensorStore>& tensor
   for (const TensorStore& tensor_store : tensor_stores) {
     TensorVar tensor = tensor_store->dest.as_or_throw<TensorVar>();
     ffi::Array<PrimExpr> rf_shape = tensor.shape();
-    rf_shape.insert(rf_shape.begin() + factor_axis, Range::GetExtent(rf_loop->begin, rf_loop->end));
+    rf_shape.insert(rf_shape.begin() + factor_axis,
+                    Range::GetExtentFromBeginEnd(rf_loop->begin, rf_loop->end));
 
     ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     n->shape = rf_shape;
@@ -1060,9 +1061,9 @@ class RFactorBlockCreator : public BaseBlockCreator {
       ffi::Array<Range> region = read_region->region.Map([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                            .as_or_throw<PrimExpr>();
-        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                              Range::GetExtent(range->begin, range->end), map_block_var)
-                              .as_or_throw<PrimExpr>();
+        PrimExpr extent =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
+                .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
       read_regions_.push_back(TensorRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(),
@@ -1080,9 +1081,9 @@ class RFactorBlockCreator : public BaseBlockCreator {
       region.MutateByApply([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                            .as_or_throw<PrimExpr>();
-        PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                              Range::GetExtent(range->begin, range->end), map_block_var)
-                              .as_or_throw<PrimExpr>();
+        PrimExpr extent =
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
+                .as_or_throw<PrimExpr>();
         return Range::FromMinExtent(min, extent);
       });
       write_regions_.push_back(TensorRegion(rf_tensor.value(), region, TensorRegionType()));

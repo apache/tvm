@@ -301,7 +301,7 @@ class AfterPureSpatial:
         for i0, i1, i2 in T.grid(1, 384, 768):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
-                Ts.reads(placeholder[ax0, ax1], placeholder_1[T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) : T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) + (T.min(T.max(T.int64(0), placeholder[ax0, ax1] + T.int64(30522)), T.int64(30521)) + T.int64(1) - T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521))), ax2], placeholder_2[ax0, ax1, ax2])
+                Ts.reads(placeholder[ax0, ax1], placeholder_1[T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) : T.min(T.max(T.int64(0), placeholder[ax0, ax1] + T.int64(30522)), T.int64(30521)) + T.int64(1), ax2], placeholder_2[ax0, ax1, ax2])
                 Ts.writes(T_add[ax0, ax1, ax2])
                 T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), ty="int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
 

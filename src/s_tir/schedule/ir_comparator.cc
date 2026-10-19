@@ -563,12 +563,12 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!IsOne(Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end))) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
                 "element-wise. lhs region width="
-             << Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end);
+             << lhs->region[i]->extent;
           EmitError(os.str());
         }
         return false;
@@ -579,9 +579,7 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
       // save base index
       indices_base.emplace_back(lhs->region[i + offset]->begin);
       // check extent match
-      if (!analyzer_->CanProveEqual(
-              Range::GetExtent(lhs->region[i + offset]->begin, lhs->region[i + offset]->end),
-              Range::GetExtent(rhs->region[i]->begin, rhs->region[i]->end))) {
+      if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion tensor extent mismatch: lhs->region[i + offset]="
@@ -598,12 +596,12 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     const std::vector<PrimExpr>& indices_base = it->second;
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!IsOne(Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end))) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion returning false because tensor extent high-dim region must be "
                 "element-wise. lhs region width="
-             << Range::GetExtent(lhs->region[i]->begin, lhs->region[i]->end);
+             << lhs->region[i]->extent;
           EmitError(os.str());
         }
         return false;
@@ -621,9 +619,7 @@ bool TensorizeComparator::CompareTensorRegion(const TensorRegion& lhs, const Ten
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // check extent match
-      if (!analyzer_->CanProveEqual(
-              Range::GetExtent(lhs->region[i + offset]->begin, lhs->region[i + offset]->end),
-              Range::GetExtent(rhs->region[i]->begin, rhs->region[i]->end))) {
+      if (!analyzer_->CanProveEqual(lhs->region[i + offset]->extent, rhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareTensorRegion tensor region extent mismatch. lhs->region[i + offset]="
@@ -711,7 +707,7 @@ bool TensorizeComparator::CompareArray(const ffi::Array<T>& lhs, const ffi::Arra
 }
 
 bool TensorizeComparator::CompareRange(const Range& lhs, const Range& rhs) {
-  return Dispatch(lhs->begin, rhs->begin) && Dispatch(lhs->end, rhs->end);
+  return Dispatch(lhs->begin, rhs->begin) && Dispatch(lhs->extent, rhs->extent);
 }
 
 bool TensorizeComparator::CompareIterVar(const IterVar& lhs, const IterVar& rhs) {

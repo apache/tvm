@@ -310,7 +310,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchTensorRegion& match_tensor,
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& range = source->region[i];
-    TVM_FFI_ICHECK(analyzer->CanProve(Range::GetExtent(range->begin, range->end) == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(range->extent == 1));
     result.push_back(range->begin);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
@@ -333,16 +333,14 @@ ffi::Array<Range> ConvertRegion(const MatchTensorRegion& match_tensor,
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& source_range = source->region[i];
-    TVM_FFI_ICHECK(
-        analyzer->CanProve(Range::GetExtent(source_range->begin, source_range->end) == 1));
+    TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == 1));
     result.push_back(source_range);
   }
   for (size_t i = 0; i < region.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const Range& target_range = region[i];
     result.push_back(
-        Range::FromMinExtent(source_range->begin + target_range->begin,
-                             Range::GetExtent(target_range->begin, target_range->end)));
+        Range::FromMinExtent(source_range->begin + target_range->begin, target_range->extent));
   }
   return result;
 }

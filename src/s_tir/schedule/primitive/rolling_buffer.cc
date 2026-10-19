@@ -53,8 +53,7 @@ TensorRegion GetRelaxedTensorRegion(const SBlockRealize& realize, const TensorRe
   ffi::Array<Range> mapped_region = tensor_region->region.Map([&f_substitute](const Range& range) {
     PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                        .as_or_throw<PrimExpr>();
-    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                          Range::GetExtent(range->begin, range->end), f_substitute)
+    PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
                           .as_or_throw<PrimExpr>();
     return Range::FromMinExtent(min, extent);
   });
@@ -235,7 +234,7 @@ class RollingBufferInfoCollector {
       }
       auto bound_overlap = 0;
       if (iter_var.has_value()) {
-        auto extent = Range::GetExtent(bound->begin, bound->end).as_or_throw<IntImm>()->value;
+        auto extent = bound->extent.as_or_throw<IntImm>()->value;
         bound_overlap = (extent - stride).as<int>().value();
         // Since Pass CompactTensorAllocation will be responsible for compacting the tensor
         // allocation region, there is no need to roll over the axis where the overlap is not
@@ -271,19 +270,14 @@ class RollingBufferInfoCollector {
       return false;
     }
     ffi::Array<PrimExpr> new_shape = tensor.shape();
-    new_shape.Set(roll_axis, Range::GetExtent(region[roll_axis]->begin, region[roll_axis]->end));
+    new_shape.Set(roll_axis, region[roll_axis]->extent);
     auto new_tensor_type = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
     new_tensor_type->shape = new_shape;
     TensorVar new_tensor =
         TensorVar(tensor->name, TensorType(std::move(new_tensor_type)), tensor->loc);
 
-    info_ = RollingBufferInfo{tensor,
-                              new_tensor,
-                              roll_axis,
-                              Range::GetExtent(region[roll_axis]->begin, region[roll_axis]->end),
-                              bound_overlaps,
-                              bound_iter_vars,
-                              {}};
+    info_ = RollingBufferInfo{tensor,         new_tensor,      roll_axis, region[roll_axis]->extent,
+                              bound_overlaps, bound_iter_vars, {}};
 
     return true;
   }

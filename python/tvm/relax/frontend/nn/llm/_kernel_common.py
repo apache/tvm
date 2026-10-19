@@ -679,7 +679,7 @@ def _get_prefill_kernel_config(
     return NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z
 
 def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile_x, tile_y, tile_z, transform_k_load: bool, merged_qk_load: bool) -> tvm.s_tir.Schedule:
-    get_extent = lambda *lps: [int(Range.get_extent(sch.get(lp).begin, sch.get(lp).end)) for lp in lps]
+    get_extent = lambda *lps: [int(Range.get_extent_from_begin_end(sch.get(lp).begin, sch.get(lp).end)) for lp in lps]
 
     def apply_to_qkv_load(sch: s_tir.Schedule, block):
         loop_x, loop_y = sch.get_loops(block)[-2:]

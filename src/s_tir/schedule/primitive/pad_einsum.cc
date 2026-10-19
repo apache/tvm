@@ -53,7 +53,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialTensorAccess(const TensorRegion& tens
   ffi::Array<Var> indices;
   indices.reserve(tensor_region->region.size());
   for (const Range& range : tensor_region->region) {
-    if (!tvm::prim::IsOne(Range::GetExtent(range->begin, range->end))) {
+    if (!tvm::prim::IsOne(range->extent)) {
       return std::nullopt;
     }
     if (range->begin->IsInstance<IntImmNode>()) {
@@ -204,7 +204,8 @@ struct TensorPadding {
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->begin, loop_doms[i]->end,
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->begin,
+                 loop_doms[i]->begin + loop_doms[i]->extent,
                  IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                  std::move(body));
     }
@@ -400,7 +401,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   auto replacer = ffi::make_object<PadEinsumTensorReplacer>();
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    PrimExpr dom = Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end);
+    PrimExpr dom = iter->dom.value()->extent;
     PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {

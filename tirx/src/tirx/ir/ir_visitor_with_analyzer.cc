@@ -41,7 +41,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitorWithAnalyzer::Visit_(const ForNode*
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->step));
     return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
       constraint_scope_.Current().Emplace(analyzer_, op->end > op->begin);
-      PrimExpr extent = Range::GetExtent(op->begin, op->end);
+      PrimExpr extent = Range::GetExtentFromBeginEnd(op->begin, op->end);
       constraint_scope_.Current().Emplace(analyzer_, extent > IntImm(extent.ty(), 0));
       return this->Visit(op->body);
     });

@@ -36,7 +36,6 @@
 #include <stack>
 #include <utility>
 
-#include "../../ir/prim/op_utils.h"
 #include "../../sym/pattern_match.h"
 
 namespace tvm {
@@ -62,6 +61,15 @@ namespace {
 using SubscriptSlice = ffi::Array<ffi::Variant<
     ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
     PrimExpr>>;
+
+PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Analyzer& analyzer) {
+  PrimExpr extent = Range::GetExtentFromBeginEnd(start, stop);
+  if (const auto* add = stop.as<AddNode>();
+      add && (extent.same_as(add->a) || extent.same_as(add->b))) {
+    return extent;
+  }
+  return analyzer->Simplify(extent);
+}
 
 ffi::ObjectRef RealizeTensorSubscript(
     Expr value,
@@ -98,6 +106,7 @@ ffi::ObjectRef RealizeTensorSubscript(
   // Any slice or omitted trailing dimension denotes a region.  Rejecting
   // steps makes the old behavior, where a stride could be silently dropped,
   // unrepresentable rather than giving it dimension-dependent semantics.
+  sym::Analyzer analyzer;
   ffi::Array<Range> region;
   region.reserve(tensor_ty->shape.size());
   for (size_t i = 0; i < slice.size(); ++i) {
@@ -110,9 +119,8 @@ ffi::ObjectRef RealizeTensorSubscript(
                             .value();
       PrimExpr start = descriptor.get<0>().value_or(IntImm(tensor_ty->shape[i].ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(tensor_ty->shape[i]);
-      PrimExpr begin = start;
-      prim::detail::BinaryOpMatchTypes(start, stop, loc);
-      region.push_back(Range(begin, stop));
+      // Retain an explicitly supplied extent before simplifying other endpoints.
+      region.push_back(Range::FromMinExtent(start, SliceExtent(start, stop, analyzer)));
     }
   }
   for (size_t i = slice.size(); i < tensor_ty->shape.size(); ++i) {
@@ -149,6 +157,7 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
     return TensorLoad(source->source.as_or_throw<TensorVar>(), indices, loc);
   }
 
+  sym::Analyzer analyzer;
   ffi::Array<Range> region;
   region.reserve(source->region.size());
   for (size_t i = 0; i < slice.size(); ++i) {
@@ -161,15 +170,10 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
                             .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
                                            ffi::Optional<PrimExpr>>>()
                             .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->end.ty(), 0));
-      PrimExpr stop =
-          descriptor.get<1>().value_or(Range::GetExtent(old_range->begin, old_range->end));
-      PrimExpr begin = old_range->begin + start;
-      prim::detail::BinaryOpMatchTypes(start, stop, loc);
-      PrimExpr end = descriptor.get<1>().has_value() ? old_range->begin + stop : old_range->end;
-      PrimExpr promoted_begin = begin;
-      prim::detail::BinaryOpMatchTypes(promoted_begin, end, loc);
-      region.push_back(Range(begin, end));
+      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
+      PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
+      region.push_back(
+          Range::FromMinExtent(old_range->begin + start, SliceExtent(start, stop, analyzer)));
     }
   }
   for (size_t i = slice.size(); i < source->region.size(); ++i) {

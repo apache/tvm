@@ -120,7 +120,8 @@ class FlopEstimator : private tvm::ExprFunctor<TResult(const Expr& n)>,
   TResult Dispatch_(const prim::GENode* op) override { return TResult(); }
 
   int64_t GetLoopExtent(const ForNode* node, const sym::Analyzer& ana) {
-    int64_t bound = ana->const_int_bound(Range::GetExtent(node->begin, node->end))->max_value;
+    int64_t bound =
+        ana->const_int_bound(Range::GetExtentFromBeginEnd(node->begin, node->end))->max_value;
     if (bound == sym::ConstIntBound::kPosInf) {
       return 1;  // Analyzer could not determine a valid bound, use 1 instead.
     } else {

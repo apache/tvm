@@ -127,14 +127,11 @@ ffi::Array<ffi::Array<sym::IterMark>> TrivialSubspaceDivision(const ffi::Array<I
     sym::IterMark iter_mark{ffi::UnsafeInit{}};
     if (bindings[i].as<PrimVar>()) {
       iter_mark = sym::IterMark(
-          sym::IterSplitExpr(sym::IterMark(
-              bindings[i],
-              Range::GetExtent(iter_vars[i]->dom.value()->begin, iter_vars[i]->dom.value()->end))),
-          Range::GetExtent(iter_vars[i]->dom.value()->begin, iter_vars[i]->dom.value()->end));
+          sym::IterSplitExpr(sym::IterMark(bindings[i], iter_vars[i]->dom.value()->extent)),
+          iter_vars[i]->dom.value()->extent);
     } else {
-      iter_mark = sym::IterMark(
-          sym::IterSumExpr({}, bindings[i]),
-          Range::GetExtent(iter_vars[i]->dom.value()->begin, iter_vars[i]->dom.value()->end));
+      iter_mark =
+          sym::IterMark(sym::IterSumExpr({}, bindings[i]), iter_vars[i]->dom.value()->extent);
     }
     if (outer && !inner) {
       res.push_back({/*outer_iter=*/iter_mark, /*inner_iter=*/unit_iter_mark});
@@ -249,9 +246,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
     IterVar outer_iter(ffi::UnsafeInit{});
     if (reuse_outer) {
       outer_iter = outer_iter_vars->operator[](i);
-      TVM_FFI_ICHECK(ana->CanProveEqual(
-          Range::GetExtent(outer_iter->dom.value()->begin, outer_iter->dom.value()->end),
-          outer_mark->extent));
+      TVM_FFI_ICHECK(ana->CanProveEqual(outer_iter->dom.value()->extent, outer_mark->extent));
       TVM_FFI_ICHECK(
           ana->CanProveEqual(outer_bindings->operator[](i), NormalizeIterMapToExpr(outer_binding)));
     } else {
@@ -659,8 +654,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->begin, f_substitute)
               .as_or_throw<PrimExpr>();
       PrimExpr extent =
-          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-              Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end), f_substitute)
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->extent, f_substitute)
               .as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(min, extent);
       inner_iter_dom.Set(iter->var, sym::IntSet::FromRange(dom));
@@ -697,9 +691,10 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
       new_loop->end =
-          new_loop->begin + ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                Range::GetExtent(new_loop->begin, new_loop->end), f_substitute)
-                                .as_or_throw<PrimExpr>();
+          new_loop->begin +
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              Range::GetExtentFromBeginEnd(new_loop->begin, new_loop->end), f_substitute)
+              .as_or_throw<PrimExpr>();
       stmt = For(new_loop);
     }
     seq_body.push_back(stmt);
@@ -902,7 +897,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = cast(Range::GetExtent(old_region[i]->begin, old_region[i]->end), min.ty());
+      PrimExpr extent = cast(old_region[i]->extent, min.ty());
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_tensor_regions.push_back(

@@ -240,9 +240,9 @@ class SBlockInfoCollector : public StmtExprVisitor {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
           PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                              .as_or_throw<PrimExpr>();
-          PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                Range::GetExtent(range->begin, range->end), f_substitute)
-                                .as_or_throw<PrimExpr>();
+          PrimExpr extent =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                  .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
         reads.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),
@@ -256,9 +256,9 @@ class SBlockInfoCollector : public StmtExprVisitor {
         ffi::Array<Range> mapped_region = region->region.Map([&f_substitute](const Range& range) {
           PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                              .as_or_throw<PrimExpr>();
-          PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                Range::GetExtent(range->begin, range->end), f_substitute)
-                                .as_or_throw<PrimExpr>();
+          PrimExpr extent =
+              ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
+                  .as_or_throw<PrimExpr>();
           return Range::FromMinExtent(min, extent);
         });
         writes.push_back(TensorRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(),

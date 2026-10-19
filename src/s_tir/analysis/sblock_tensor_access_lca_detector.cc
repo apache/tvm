@@ -233,7 +233,8 @@ class LCADetector : public s_tir::StmtExprVisitor {
       // visit region min and max to find the lowest legal lca scope
       for (const Range& range : region->region) {
         ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(range->begin, handle_itervar);
-        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(range->end - 1, handle_itervar);
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(range->begin + range->extent - 1,
+                                                        handle_itervar);
       }
 
       // the scope should be above `highest_reduce_scope` for reduce output tensor.
@@ -282,7 +283,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
     if (!op->source.as<TensorVar>()) return s_tir::StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->begin));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->end));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
     }
     return std::nullopt;
   }

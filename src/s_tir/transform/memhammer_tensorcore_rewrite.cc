@@ -48,8 +48,8 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = Range::GetExtent(loops[n - 1]->begin, loops[n - 1]->end);
-  PrimExpr extent_last2 = Range::GetExtent(loops[n - 2]->begin, loops[n - 2]->end);
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
@@ -145,10 +145,10 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->var,
        IntSet::FromMinExtent(loops[n - 1]->begin,
-                             Range::GetExtent(loops[n - 1]->begin, loops[n - 1]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
       {loops[n - 2]->var,
        IntSet::FromMinExtent(loops[n - 2]->begin,
-                             Range::GetExtent(loops[n - 2]->begin, loops[n - 2]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
@@ -254,10 +254,10 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->var,
        IntSet::FromMinExtent(loops[n - 1]->begin,
-                             Range::GetExtent(loops[n - 1]->begin, loops[n - 1]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
       {loops[n - 2]->var,
        IntSet::FromMinExtent(loops[n - 2]->begin,
-                             Range::GetExtent(loops[n - 2]->begin, loops[n - 2]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
   const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
@@ -410,8 +410,8 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = Range::GetExtent(loops[n - 1]->begin, loops[n - 1]->end);
-  PrimExpr extent_last2 = Range::GetExtent(loops[n - 2]->begin, loops[n - 2]->end);
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
@@ -490,10 +490,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
   ffi::Map<Var, IntSet> var_dom{
       {loops[n - 1]->var,
        IntSet::FromMinExtent(loops[n - 1]->begin,
-                             Range::GetExtent(loops[n - 1]->begin, loops[n - 1]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
       {loops[n - 2]->var,
        IntSet::FromMinExtent(loops[n - 2]->begin,
-                             Range::GetExtent(loops[n - 2]->begin, loops[n - 2]->end))},
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
 
   // Step 2. Find matrixC tensor

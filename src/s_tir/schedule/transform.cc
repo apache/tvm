@@ -186,13 +186,13 @@ UnchangedOr<Stmt> ReplaceTensorMutator::Mutate_(const SBlockNode* block, Inplace
       auto min_result = Mutate(range->begin, InplaceMode::kDisallow);
       bool min_unchanged = min_result.UnchangedOrSameAs(range->begin);
       PrimExpr min = std::move(min_result).ValueOrUnchanged(range->begin);
-      auto end_result = Mutate(range->end, InplaceMode::kDisallow);
-      bool end_unchanged = end_result.UnchangedOrSameAs(range->end);
-      PrimExpr end = std::move(end_result).ValueOrUnchanged(range->end);
-      if (min_unchanged && end_unchanged) {
+      auto extent_result = Mutate(range->extent, InplaceMode::kDisallow);
+      bool extent_unchanged = extent_result.UnchangedOrSameAs(range->extent);
+      PrimExpr extent = std::move(extent_result).ValueOrUnchanged(range->extent);
+      if (min_unchanged && extent_unchanged) {
         return range;
       } else {
-        return Range(min, end);
+        return Range::FromMinExtent(min, extent);
       }
     });
 
@@ -399,8 +399,9 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
     PrimExpr block_extent =
-        analyzer->Simplify(Range::GetExtent(block_loop->begin, block_loop->end));
-    PrimExpr desc_extent = analyzer->Simplify(Range::GetExtent(desc_loop->begin, desc_loop->end));
+        analyzer->Simplify(Range::GetExtentFromBeginEnd(block_loop->begin, block_loop->end));
+    PrimExpr desc_extent =
+        analyzer->Simplify(Range::GetExtentFromBeginEnd(desc_loop->begin, desc_loop->end));
     const auto* int_block_extent = block_extent.as<IntImmNode>();
     const auto* int_desc_extent = desc_extent.as<IntImmNode>();
     TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
@@ -453,8 +454,7 @@ void BlockTensorAccessSimplifier::SimplifyAccessRegion(
     int n = tensor_region->region.size();
     for (int i = 0; i < n; ++i) {
       PrimExpr min = simplified_min[i];
-      PrimExpr extent = analyzer_->Simplify(
-          Range::GetExtent(tensor_region->region[i]->begin, tensor_region->region[i]->end));
+      PrimExpr extent = analyzer_->Simplify(tensor_region->region[i]->extent);
       new_tensor_region.push_back(Range::FromMinExtent(min, extent));
     }
     return TensorRegion(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>(),
@@ -543,7 +543,7 @@ ffi::Optional<ffi::ObjectRef> NormalizeFunction(Schedule sch) {
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
       PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
-      if (!IsOne(Range::GetExtent(iter->dom.value()->begin, iter->dom.value()->end))) {
+      if (!IsOne(iter->dom.value()->extent)) {
         index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;

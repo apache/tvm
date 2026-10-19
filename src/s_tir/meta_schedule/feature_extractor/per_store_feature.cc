@@ -112,7 +112,7 @@ int64_t GetAutoUnrollMaxStep(const ForNode* loop) {
  */
 int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
   if (!loops.empty()) {
-    PrimExpr extent_imm_expr = Range::GetExtent(loops[0]->begin, loops[0]->end);
+    PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loops[0]->begin, loops[0]->end);
     const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
@@ -312,7 +312,8 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         updated.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
         return updated;
       };
-      if (!normalize_thread_bindings_ && IsZero(Range::GetExtent(loop->begin, loop->end))) {
+      if (!normalize_thread_bindings_ &&
+          IsZero(Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
         return Evaluate(0);
       }
       if (normalize_thread_bindings_ && tvm::s_tir::GetThreadBinding(loop).has_value()) {
@@ -330,10 +331,11 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
           // Feature counts describe hardware work, not repeated lexical names
           // for one axis. Normalize only nested aliases in this analysis input.
           sym::Analyzer analyzer;
-          TVM_FFI_CHECK(analyzer->CanProveEqual(loop->begin, outer->begin) &&
-                            analyzer->CanProveEqual(Range::GetExtent(loop->begin, loop->end),
-                                                    Range::GetExtent(outer->begin, outer->end)),
-                        ValueError)
+          TVM_FFI_CHECK(
+              analyzer->CanProveEqual(loop->begin, outer->begin) &&
+                  analyzer->CanProveEqual(Range::GetExtentFromBeginEnd(loop->begin, loop->end),
+                                          Range::GetExtentFromBeginEnd(outer->begin, outer->end)),
+              ValueError)
               << "Incompatible nested thread extents for " << tag;
           auto previous_remap = VarRemapGet(loop->var);
           VarRemapSet(loop->var, prim::cast(outer->var, loop->var.ty()));
@@ -356,8 +358,8 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         return result;
       }
       if (!normalize_thread_bindings_ && IsZero(loop->begin) &&
-          IsOne(Range::GetExtent(loop->begin, loop->end)) && loop->kind == ForKind::kDefault &&
-          loop->annotations.empty()) {
+          IsOne(Range::GetExtentFromBeginEnd(loop->begin, loop->end)) &&
+          loop->kind == ForKind::kDefault && loop->annotations.empty()) {
         VarRemapSet(loop->var, MakeConst(loop->var.ty(), 0.0));
         return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
@@ -442,7 +444,7 @@ struct LoopNest {
    * \return A list of for loops that the loop is bound to
    */
   ForVec* Push(const ForNode* loop, int64_t* auto_unroll_attr) {
-    PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+    PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
@@ -498,7 +500,7 @@ struct LoopNest {
     if (auto_unroll_attr > 0) {
       this->auto_unroll.pop_back();
     }
-    PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+    PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
@@ -728,7 +730,8 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->len = 0;
     this->pos = ForKindFeature::Pos::kPosNone;
   } else {
-    PrimExpr last_loop_extent_imm_expr = Range::GetExtent(loops.back()->begin, loops.back()->end);
+    PrimExpr last_loop_extent_imm_expr =
+        Range::GetExtentFromBeginEnd(loops.back()->begin, loops.back()->end);
     const auto* last_loop_extent_imm = last_loop_extent_imm_expr.as<IntImmNode>();
     auto last_loop_extent =
         last_loop_extent_imm ? last_loop_extent_imm->value.as<int64_t>() : std::nullopt;
@@ -737,7 +740,7 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->pos = ForKindFeature::Pos::kPosMixed;
     int64_t& prod = this->prod = 1;
     for (const ForNode* loop : loops) {
-      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
@@ -1016,7 +1019,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj*
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    PrimExpr extent_imm_expr = Range::GetExtent(loops[j]->begin, loops[j]->end);
+    PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loops[j]->begin, loops[j]->end);
     const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
     if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
         extent.has_value()) {
@@ -1055,7 +1058,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
     if (!region_vars.count(loop->var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
-      PrimExpr extent_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {
@@ -1065,7 +1068,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
       }
       reuse_dis_iter = 1;
       for (int j = n_loops - 1; j > i; --j) {
-        PrimExpr extent_imm_expr = Range::GetExtent(loops[j]->begin, loops[j]->end);
+        PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loops[j]->begin, loops[j]->end);
         const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
         if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
             extent.has_value()) {
@@ -1089,7 +1092,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     const IntVec& touched = tensor_touched_under_loop.at(loop).at(tensor);
     if (touched.size() >= 2) {
       int64_t extent = 1;
-      PrimExpr ext_imm_expr = Range::GetExtent(loop->begin, loop->end);
+      PrimExpr ext_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
       const auto* ext_imm = ext_imm_expr.as<IntImmNode>();
       if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         extent = *ext;
@@ -1223,7 +1226,7 @@ struct Feature {
                                arith_ops.float_math_func + arith_ops.float_other_func;
     total_compute_ops /= loop_nest.prod;
     for (int i = n_loops - 1; i >= 0; --i) {
-      PrimExpr extent_imm_expr = Range::GetExtent(loops[i]->begin, loops[i]->end);
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end);
       const auto* extent_imm = extent_imm_expr.as<IntImmNode>();
       if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
           extent.has_value()) {

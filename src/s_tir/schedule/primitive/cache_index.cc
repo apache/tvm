@@ -322,9 +322,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       const Var& block_var = info->origin_block_vars[expr_index][i];
       PrimType block_var_ty = block_var->ty.as_or_throw<PrimType>();
       PrimVar var("v" + std::to_string(access_indices.size()), block_var_ty);
-      Range range = Range::FromMinExtent(IntImm(block_var_ty, 0),
-                                         Range::GetExtent(info->range_map.at(iter_vars[i])->begin,
-                                                          info->range_map.at(iter_vars[i])->end));
+      Range range =
+          Range::FromMinExtent(IntImm(block_var_ty, 0), info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
@@ -362,9 +361,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
-      body = For(loop_vars[i - 1], 0,
-                 Range::GetExtent(info->range_map.at(iter_vars[i - 1])->begin,
-                                  info->range_map.at(iter_vars[i - 1])->end),
+      body = For(loop_vars[i - 1], 0, info->range_map.at(iter_vars[i - 1])->extent,
                  IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
     }
     bodies.push_back(body);

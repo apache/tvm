@@ -272,8 +272,7 @@ class MatchTensorLower : public StmtExprMutator {
     // Step 2.4. Check and update shape
     for (size_t i = 0; i < tensor.shape().size(); ++i) {
       const Range& range = source->region[i + offset];
-      Bind(tensor.shape()[i], Range::GetExtent(range->begin, range->end),
-           tensor->name + ".shape_" + std::to_string(i));
+      Bind(tensor.shape()[i], range->extent, tensor->name + ".shape_" + std::to_string(i));
     }
   }
 

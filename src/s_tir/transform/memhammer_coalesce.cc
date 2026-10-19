@@ -48,8 +48,9 @@ Stmt FuseNestLoops(Stmt body) {
   ffi::Map<Var, PrimExpr> subst_map;
   PrimExpr tot = fused_var;
   for (int i = n - 1; i >= 0; i--) {
-    subst_map.Set(loops[i]->var, floormod(tot, Range::GetExtent(loops[i]->begin, loops[i]->end)));
-    tot = floordiv(tot, Range::GetExtent(loops[i]->begin, loops[i]->end));
+    subst_map.Set(loops[i]->var,
+                  floormod(tot, Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end)));
+    tot = floordiv(tot, Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end));
   }
   auto f_substitute = [&](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = subst_map.Get(v)) return ffi::Any(*std::move(repl));
@@ -57,7 +58,7 @@ Stmt FuseNestLoops(Stmt body) {
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
-    fused_extent *= Range::GetExtent(loops[i]->begin, loops[i]->end);
+    fused_extent *= Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end);
   }
   body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
              .as_or_throw<Stmt>();
@@ -74,8 +75,10 @@ Stmt FuseNestLoops(Stmt body) {
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent =
-      Range::GetExtent(loop->begin, loop->end).as_or_throw<IntImm>()->value.as<int>().value();
+  int loop_extent = Range::GetExtentFromBeginEnd(loop->begin, loop->end)
+                        .as_or_throw<IntImm>()
+                        ->value.as<int>()
+                        .value();
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -130,7 +133,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   };
   Stmt body =
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
-  PrimExpr predicate = substitute_value < Range::GetExtent(loop->begin, loop->end);
+  PrimExpr predicate = substitute_value < Range::GetExtentFromBeginEnd(loop->begin, loop->end);
   if (!analyzer->CanProve(predicate)) {
     body = If(predicate, body);
   }
@@ -216,7 +219,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Map<Var, PrimExpr> substitute_map;
   // Step 3.1 construct target tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
-    if (IsOne(Range::GetExtent(write_region->region[i]->begin, write_region->region[i]->end))) {
+    if (IsOne(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->begin);
     } else {
       PrimVar var = loop_vars[j].as_or_throw<PrimVar>().CopyWithSuffix("_inverse");
@@ -232,7 +235,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   };
   // Step 3.2 construct source tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(read_region->region.size()); i++) {
-    if (IsOne(Range::GetExtent(read_region->region[i]->begin, read_region->region[i]->end))) {
+    if (IsOne(read_region->region[i]->extent)) {
       read_index.push_back(read_region->region[i]->begin);
     } else {
       PrimExpr inverse = inverse_mapping[loop_vars[j++].as_or_throw<Var>()];
@@ -248,8 +251,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   Stmt ret = new_tensor_store;
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {
-    PrimExpr extent =
-        Range::GetExtent(write_region->region[i]->begin, write_region->region[i]->end);
+    PrimExpr extent = write_region->region[i]->extent;
     ret = For(new_loop_vars[i], 0, extent, IntImm(new_loop_vars[i].ty(), 1), ForKind::kDefault,
               std::move(ret));
   }

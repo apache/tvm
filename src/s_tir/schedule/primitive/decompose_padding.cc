@@ -240,8 +240,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   TensorRegion write_region =
       TensorRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                    block->writes[0]->region.Map([rewrite_expr](const Range& r) {
-                     return Range::FromMinExtent(rewrite_expr(r->begin),
-                                                 rewrite_expr(Range::GetExtent(r->begin, r->end)));
+                     return Range::FromMinExtent(rewrite_expr(r->begin), rewrite_expr(r->extent));
                    }),
                    TensorRegionType());
 
@@ -311,9 +310,8 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     // add new block itervar
     const IterVar& origin_itervar = block->iter_vars[i];
     PrimVar new_var = origin_itervar->var.CopyWithSuffix("");
-    Range new_range = Range::FromMinExtent(
-        IntImm(new_var.ty(), 0),
-        Range::GetExtent(info.in_bound_region[i]->begin, info.in_bound_region[i]->end));
+    Range new_range =
+        Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->begin);
 
@@ -344,8 +342,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   };
   auto rewrite_region = [rewrite_expr](const ffi::Array<Range>& region) {
     return region.Map([rewrite_expr](const Range& r) {
-      return Range::FromMinExtent(rewrite_expr(r->begin),
-                                  rewrite_expr(Range::GetExtent(r->begin, r->end)));
+      return Range::FromMinExtent(rewrite_expr(r->begin), rewrite_expr(r->extent));
     });
   };
 
@@ -377,8 +374,8 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     auto it = new_loop_ranges.find(loop->var);
     PrimExpr min = it == new_loop_ranges.end() ? loop->begin : (*it).second->begin;
     PrimExpr extent = it == new_loop_ranges.end()
-                          ? Range::GetExtent(loop->begin, loop->end)
-                          : Range::GetExtent((*it).second->begin, (*it).second->end);
+                          ? Range::GetExtentFromBeginEnd(loop->begin, loop->end)
+                          : (*it).second->extent;
     nest_stmt_root = For(loop->var, min, min + extent, loop->step, loop->kind, nest_stmt_root,
                          loop->annotations, loop->loc);
     if (loop.same_as(highest_pos_inclusive)) {

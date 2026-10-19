@@ -83,7 +83,8 @@ class GeneralReduction(GPUScheduleRule):
                     loops = sch.get_loops(info.block_rv)
                     if not all(
                         analyzer.can_prove_equal(
-                            Range.get_extent(sch.get(loop).begin, sch.get(loop).end), 1
+                            Range.get_extent_from_begin_end(sch.get(loop).begin, sch.get(loop).end),
+                            1,
                         )
                         for loop in loops
                     ):
@@ -183,7 +184,7 @@ class GeneralReduction(GPUScheduleRule):
                             read_range.begin, (tirx.Var, _visit_expr), order="post"
                         )
                         tvm_ffi.structural_walk(
-                            Range.get_extent(read_range.begin, read_range.end),
+                            read_range.extent,
                             (tirx.Var, _visit_expr),
                             order="post",
                         )
@@ -192,7 +193,10 @@ class GeneralReduction(GPUScheduleRule):
             other_loops = []
             for loop_rv in loops:
                 loop = sch.get(loop_rv)
-                if loop.var in spatial_loops or Range.get_extent(loop.begin, loop.end) == 1:
+                if (
+                    loop.var in spatial_loops
+                    or Range.get_extent_from_begin_end(loop.begin, loop.end) == 1
+                ):
                     s_loops.append(loop_rv)
                 else:
                     other_loops.append(loop_rv)

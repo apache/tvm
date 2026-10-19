@@ -178,7 +178,8 @@ class IntermediateStageRewriter {
     for (auto it = relaxed_loops.rbegin(); it != relaxed_loops.rend(); ++it) {
       const ForNode* relaxed_loop = *it;
       tensor_indices.push_back(relaxed_loop->begin + relaxed_loop->var);
-      new_tensor_shape.push_back(Range::GetExtent(relaxed_loop->begin, relaxed_loop->end));
+      new_tensor_shape.push_back(
+          Range::GetExtentFromBeginEnd(relaxed_loop->begin, relaxed_loop->end));
     }
     static const auto scope_local = runtime::MemoryScope::Get("local");
     TensorVar new_tensor = WithScope(tensor, scope_local);

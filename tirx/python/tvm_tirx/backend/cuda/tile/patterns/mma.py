@@ -50,8 +50,8 @@ def lower(opcode, entry, modifiers, args, params, sctx):
     k = 8 if shape == "m16n8k8" else 16
     ctx = Context(sctx, "warp")
     ng = len(ctx.group_shape)
-    d_shape = tuple(int(Range.get_extent(r.begin, r.end)) for r in args[0].region)[ng:]
-    a_shape = tuple(int(Range.get_extent(r.begin, r.end)) for r in args[1].region)[ng:]
+    d_shape = tuple(int(r.extent) for r in args[0].region)[ng:]
+    a_shape = tuple(int(r.extent) for r in args[1].region)[ng:]
     if len(d_shape) < 4 or len(a_shape) != len(d_shape):
         raise ValueError("mma requires explicit M/N and M/K repeat axes before each atom")
     batch, m, n = d_shape[:-4], d_shape[-4], d_shape[-3]

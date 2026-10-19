@@ -44,7 +44,7 @@ struct DynamicExtentFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-    if (!Range::GetExtent(loop->begin, loop->end)->IsInstance<IntImmNode>()) {
+    if (!Range::GetExtentFromBeginEnd(loop->begin, loop->end)->IsInstance<IntImmNode>()) {
       found_ = true;
     } else {
       return StmtExprVisitor::Visit_(loop);

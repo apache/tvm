@@ -81,7 +81,7 @@ class _TMACounter:
         self.weighted_calls = []
 
     def _visit_for(self, op, visitor):
-        self.loop_extents.append(tvm_tirx.ir.Range.get_extent(op.begin, op.end))
+        self.loop_extents.append(tvm_tirx.ir.Range.get_extent_from_begin_end(op.begin, op.end))
         visitor.default_visit(op)
         self.loop_extents.pop()
 

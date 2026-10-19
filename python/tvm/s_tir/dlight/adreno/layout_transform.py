@@ -143,7 +143,7 @@ class LayoutTransform(AdrenoScheduleRule):
             sch.vectorize(vlp)
 
         b = sch.fuse(*block_loops)
-        tx_extent = min(Range.get_extent(sch.get(b).begin, sch.get(b).end), 256)
+        tx_extent = min(Range.get_extent_from_begin_end(sch.get(b).begin, sch.get(b).end), 256)
         candidates = [1, 2, 4, 8, 16, 32]
         bx, tx = sch.split(b, [None, 256], preserve_unit_iters=True)
         sch.bind(bx, "blockIdx.x")

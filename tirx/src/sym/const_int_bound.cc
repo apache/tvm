@@ -110,16 +110,10 @@ class ConstIntBoundAnalyzer::Impl final
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
     Entry a = Dispatch(range->begin);
+    Entry b = Dispatch(range->extent);
     Entry ret;
     ret.min_value = a.min_value;
-    if (const auto* end = range->end.as<IntImmNode>()) {
-      // Subtract before saturation, including unsigned zero and INT64_MAX.
-      ffi::BigInt maximum = end->value - 1;
-      ret.max_value = maximum.as<int64_t>().value_or(maximum < 0 ? kNegInf : kPosInf);
-    } else {
-      Entry b = Dispatch(Range::GetExtent(range->begin, range->end));
-      ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
-    }
+    ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
     Update(var, ret, allow_override);
   }
 
