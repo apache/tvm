@@ -328,7 +328,8 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
             global symbol matching its name. Defaults to False.
         check_well_formed : bool, optional
             Whether to check that the constructed function is well formed.
-            Defaults to True.
+            Defaults to True. Module construction does not validate the completed
+            module; call the language analysis API explicitly.
         persistent : bool, optional
             For ``T.function``, mark the resulting function as a persistent
             kernel. Defaults to False. See

@@ -559,7 +559,7 @@ def test_free_vars_primitive_definition_sites(definition_site):
         bb.emit_func_output(output)
 
     inner = bb.get()["inner"]
-    assert rx.analysis.check_well_formed(inner)
+    rx.analysis.check_well_formed(inner)
     assert not free_vars(inner)
 
 

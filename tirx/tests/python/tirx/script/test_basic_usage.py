@@ -579,9 +579,9 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 
     # Direct construction retains the native statement for an explicit verifier pass.
     ir.assert_structural_equal(invalid.body, tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Break()]))
-    assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
+    assert not tirx.analysis.check_well_formed(invalid, assert_mode=False)
     with pytest.raises(RuntimeError, match="requires an enclosing loop"):
-        tirx.analysis.verify_well_formed(invalid)
+        tirx.analysis.check_well_formed(invalid)
 
     @T.function
     def valid():
@@ -596,11 +596,28 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         bad = invalid
 
     assert Unchecked["bad"].same_as(invalid)
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
 
-        @I.ir_module(extra_vars={"invalid": invalid})
-        class Rejected:
-            bad = invalid
+    @I.ir_module(extra_vars={"invalid": invalid})
+    class Explicit:
+        bad = invalid
+
+    assert Explicit["bad"].same_as(invalid)
+    with pytest.raises(RuntimeError, match="requires an enclosing loop"):
+        tirx.analysis.check_well_formed(Explicit)
+
+
+def test_function_validation_opt_out():
+    source = """
+@T.function(check_well_formed=False)
+def unchecked():
+    break
+"""
+    invalid = tvm_tirx.script.from_source(source, extra_vars={"T": T})
+    assert not tvm_tirx.tirx.analysis.check_well_formed(invalid, assert_mode=False)
+    with pytest.raises(ValueError, match="requires an enclosing loop"):
+        tvm_tirx.script.from_source(
+            source.replace("check_well_formed=False", "check_well_formed=True"), extra_vars={"T": T}
+        )
 
 
 def test_roundtrip_break_for():

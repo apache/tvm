@@ -24,6 +24,5 @@ from . import ir as _ir
 from . import parser_protocol as _protocol
 from .ir import *
 from .parser_protocol import *
-from .parser_protocol import _check_module_well_formed
 
 __all__ = [*_shared_exports, *_ir.__all__, *_protocol.__all__]

@@ -63,18 +63,3 @@ def _initialize_script_namespace():
 from tvm_tirx.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("s_tir",))
-
-
-def _check_script_module(module):
-    from tvm_tirx.tirx import Function
-
-    if any(
-        isinstance(fn, Function) and fn.attrs.get("s_tir", False)
-        for fn in module.functions.values()
-    ):
-        from tvm.s_tir.script.ir_builder import _check_module_well_formed
-
-        _check_module_well_formed(module)
-
-
-tvm_tirx.script.register_module_validator(_check_script_module)

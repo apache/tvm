@@ -25,52 +25,16 @@ import importlib
 import importlib.machinery
 import importlib.util
 import sys
-from collections.abc import Callable
 from typing import Any
 
 _DIALECT_REGISTRY: dict[str, str] = {}
 _DIALECT_BUILDER_REGISTRY: dict[str, str] = {}
-# Language variants register whole-module checks at import, independently of source decorators.
-# Callbacks own concrete eligibility; this list retains no source or construction state.
-_MODULE_VALIDATORS: list[Callable[[Any], None]] = []
 
 # Public parser and builder compatibility paths consume dialect-owned registrations.
 _REDIRECTED_SUBPACKAGES = {
     "tvm_tirx.script.parser": _DIALECT_REGISTRY,
     "tvm_tirx.script.ir_builder": _DIALECT_BUILDER_REGISTRY,
 }
-
-
-def register_module_validator(validator: Callable[[Any], None], *, prepend: bool = False) -> None:
-    """Register an opaque language variant check over a completed module.
-
-    Parameters
-    ----------
-    validator : Callable[[Any], None]
-        Whole-module validator. It owns concrete IR eligibility and raises on
-        failure; shared coordination forwards its exception unchanged.
-    prepend : bool, optional
-        Run this check before existing callbacks. False appends it instead.
-        Re-registering the same callback is a no-op and preserves its position.
-
-    Returns
-    -------
-    None
-        Registration changes no IR and returns no source-visible result.
-
-    Notes
-    -----
-    Register beside language variant initialization so captured and preexisting functions
-    are checked even when no corresponding source decorator appears. A callback
-    may lazily import its language variant implementation to preserve import order. The
-    registry owns static hooks only, never source scopes, frames or IR results.
-    """
-    if any(existing is validator for existing in _MODULE_VALIDATORS):
-        return
-    if prepend:
-        _MODULE_VALIDATORS.insert(0, validator)
-    else:
-        _MODULE_VALIDATORS.append(validator)
 
 
 def register_dialect(name: str, module_path: str, *, builder_path: str | None = None) -> None:
@@ -119,7 +83,7 @@ def _redirect_target(fullname: str) -> str | None:
     Returns ``None`` if ``fullname`` is not a redirected name.
     """
     if fullname.startswith("tvm_tirx.script."):
-        # tvm.script.<language variant>[.subpath]
+        # tvm_tirx.script.<language variant>[.subpath]
         rest = fullname[len("tvm_tirx.script.") :]
         head, _, tail = rest.partition(".")
         if head in _DIALECT_REGISTRY and "." not in head:
@@ -208,7 +172,7 @@ class _AliasLoader:
             module.__loader__ = self._loader
 
 
-# Install the redirect finder once. Re-importing tvm.script (e.g. during a
+# Install the redirect finder once. Re-importing tvm_tirx.script (e.g. during a
 # pytest reload) must not stack duplicates.
 if not any(isinstance(f, _DialectRedirectFinder) for f in sys.meta_path):
     # Handle deep aliases before PathFinder can execute a canonical source file
@@ -223,8 +187,8 @@ def __getattr__(name: str) -> Any:
         return module
     if name == "ir":
         # IR is foundational — its parser is a real submodule under
-        # tvm.script.parser.ir, exposed here as `tvm.script.ir` for the
-        # legacy `from tvm.script import ir as I` pattern.
+        # tvm_tirx.script.parser.ir, exposed here as `tvm_tirx.script.ir` for the
+        # legacy `from tvm_tirx.script import ir as I` pattern.
         ir_parser = importlib.import_module("tvm_tirx.script.parser.ir")
         globals()["ir"] = ir_parser
         return ir_parser
@@ -235,7 +199,7 @@ def __getattr__(name: str) -> Any:
         globals()["parse"] = parse
         return parse
     if name == "ir_module":
-        # ir_module lives in the IR parser at tvm.script.parser.ir; the IR
+        # ir_module lives in the IR parser at tvm_tirx.script.parser.ir; the IR
         # layer is foundational, so we resolve it directly rather than via
         # the language variant registry.
         ir_parser = importlib.import_module("tvm_tirx.script.parser.ir")

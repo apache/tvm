@@ -24,7 +24,6 @@
  * This pass is supposed to be applied to normalized Relax AST.
  * If it's malformed, an ffi::Error is thrown on the first violation, seeded
  * with the offending node so the caller can resolve a precise access path.
- * Use `check_well_formed` for a boolean answer.
  * This pass will check:
  *    1. Each Expr should have `ty` field already populated, when
  *      `check_ty` is true.
@@ -735,25 +734,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
 };
 
-void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {
+void CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {
   WellFormedChecker::Check(obj, check_ty);
 }
 
-bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {
-  try {
-    WellFormed(obj, check_ty);
-    return true;
-  } catch (const ffi::Error&) {
-    return false;
-  }
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.analysis.well_formed",
-           [](ffi::Variant<IRModule, Function> obj, bool check_ty) { WellFormed(obj, check_ty); })
-      .def("relax.analysis.check_well_formed", CheckWellFormed);
+  ffi::reflection::GlobalDef().def("relax.analysis.check_well_formed", CheckWellFormed);
 }
 
 }  // namespace relax

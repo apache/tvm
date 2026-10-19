@@ -1909,7 +1909,7 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
 
     old_extent = Before["main"].params[1]
     after = relax.transform.LiftTransformParams(shared_transform=False)(Before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     transform = after["main_transform_params"]
     bundled_ty = transform.params[0].ty

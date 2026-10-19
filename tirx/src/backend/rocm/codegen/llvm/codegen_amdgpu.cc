@@ -326,7 +326,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 
   auto flink = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_link");
   TVM_FFI_ICHECK(flink.has_value())
-      << "Require tvm_callback_rocm_link to exist, do import tvm.support.rocm";
+      << "Require tvm_callback_rocm_link to exist, do import tvm_tirx.support.rocm";
 
   TVMFFIByteArray arr;
   arr.data = &obj[0];

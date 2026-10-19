@@ -18,7 +18,6 @@
 """S-TIR construction and validation over shared TIRx syntax."""
 
 from tvm_tirx import ir as _ir
-from tvm_tirx import tirx as _tir
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
 from tvm_tirx.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
@@ -58,25 +57,12 @@ def check_well_formed_(function):
     from tvm.s_tir import analysis
 
     try:
-        analysis.verify_well_formed(_ir.IRModule.from_expr(function))
+        analysis.check_well_formed(_ir.IRModule.from_expr(function))
     except Exception as error:
         raise ValueError(
             "Program is not well-formed. If this is deliberate, set "
             f"check_well_formed=False in the top-level decorator.\n{error}"
         ) from error
-
-
-def _check_module_well_formed(module):
-    """Validate S-TIR functions independently of other module dialects."""
-    from tvm.s_tir import analysis
-
-    functions = {
-        gv: fn
-        for gv, fn in module.functions.items()
-        if isinstance(fn, _tir.Function) and fn.attrs.get("s_tir", False)
-    }
-    if functions:
-        analysis.verify_well_formed(_ir.IRModule(functions))
 
 
 # --------------------------------------

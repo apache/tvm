@@ -705,7 +705,7 @@ auto WellFormednessVerifier::Visit_(const TensorLoadNode* op) -> Result {
   return this->Visit(op->indices);
 }
 
-bool VerifyWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
+bool CheckWellFormedCommon(const ffi::ObjectRef& node, bool assert_mode) {
   using Check = WellFormednessVerifier::Check;
   for (Check check :
        {Check::kVariables, Check::kTensors, Check::kTensorLoadType, Check::kLoopControl}) {
@@ -722,35 +722,34 @@ bool VerifyThreadBindings(const ffi::ObjectRef& node, bool assert_mode) {
 
 }  // namespace
 
-bool VerifyWellFormed(const tirx::Function& func, bool assert_mode) {
-  return VerifyThreadBindings(func, assert_mode) &&
-         BlockVarAccessVerifier::Verify(func, assert_mode) &&
-         VerifyWellFormedCommon(func, assert_mode);
+void CheckWellFormed(const tirx::Function& func) {
+  VerifyThreadBindings(func, true);
+  BlockVarAccessVerifier::Verify(func, true);
+  CheckWellFormedCommon(func, true);
 }
 
-bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
-  if (!VerifyThreadBindings(mod, assert_mode)) return false;
+void CheckWellFormed(const IRModule& mod) {
+  VerifyThreadBindings(mod, true);
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto func = base_func.as<tirx::Function>()) {
-      if (!BlockVarAccessVerifier::Verify(func.value(), assert_mode)) return false;
+      BlockVarAccessVerifier::Verify(func.value(), true);
     }
   }
-  return VerifyWellFormedCommon(mod, assert_mode);
+  CheckWellFormedCommon(mod, true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def(
-      "s_tir.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
-        if (auto func = obj.as<tirx::Function>()) {
-          return s_tir::VerifyWellFormed(func.value(), assert_mode);
-        }
-        if (auto mod = obj.as<IRModule>()) {
-          return s_tir::VerifyWellFormed(mod.value(), assert_mode);
-        }
-        TVM_FFI_THROW(TypeError) << "Expected a Function or IRModule, but received "
-                                 << obj->GetTypeKey();
-        TVM_FFI_UNREACHABLE();
-      });
+  ffi::reflection::GlobalDef().def("s_tir.analysis.CheckWellFormed", [](const ffi::ObjectRef& obj) {
+    if (auto func = obj.as<tirx::Function>()) {
+      return s_tir::CheckWellFormed(func.value());
+    }
+    if (auto mod = obj.as<IRModule>()) {
+      return s_tir::CheckWellFormed(mod.value());
+    }
+    TVM_FFI_THROW(TypeError) << "Expected a Function or IRModule, but received "
+                             << obj->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
+  });
 }
 }  // namespace s_tir
 }  // namespace tvm

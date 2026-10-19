@@ -94,7 +94,7 @@ def gen_ground_truth(mod, target):
             [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
-    relax.analysis.well_formed(new_mod)
+    relax.analysis.check_well_formed(new_mod)
     return tvm.compile(new_mod, target, params={})
 
 
@@ -192,7 +192,7 @@ def test_mix_use_tensorrt_and_tvm():
                     relax.transform.MetaScheduleApplyDatabase(work_dir),
                 ]
             )(mod)
-    relax.analysis.well_formed(new_mod)
+    relax.analysis.check_well_formed(new_mod)
     with transform.PassContext(opt_level=0):
         ex0 = tvm.compile(new_mod, target, params={})
 

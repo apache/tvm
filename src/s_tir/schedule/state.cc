@@ -436,7 +436,7 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
     const BaseFunc& base_func = kv.second;
     if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
-      s_tir::VerifyWellFormed(func);
+      s_tir::CheckWellFormed(func);
       if (func->body.has_value()) {
         SBlockInfoCollector::Collect(self, func->body.value());
       }

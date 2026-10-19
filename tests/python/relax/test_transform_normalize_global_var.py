@@ -32,7 +32,7 @@ from tvm_tirx.script import tirx as T
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_relax_function():
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function(private=True)
         def f():
@@ -59,14 +59,15 @@ def test_normalize_relax_function():
 
     After = relax.transform.NormalizeGlobalVar()(Before)
 
-    assert not relax.analysis.check_well_formed(Before)
-    relax.analysis.well_formed(After)
+    with pytest.raises((ValueError, TypeError)):
+        relax.analysis.check_well_formed(Before)
+    relax.analysis.check_well_formed(After)
     assert_structural_equal(After, Expected)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_tir_function():
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @Ts.function(private=True)
         def f(x: T.Tensor((1,), "int32")):
@@ -95,8 +96,9 @@ def test_normalize_tir_function():
 
     After = relax.transform.NormalizeGlobalVar()(Before)
 
-    assert not relax.analysis.check_well_formed(Before)
-    relax.analysis.well_formed(After)
+    with pytest.raises((ValueError, TypeError)):
+        relax.analysis.check_well_formed(Before)
+    relax.analysis.check_well_formed(After)
     assert_structural_equal(After, Expected)
 
 

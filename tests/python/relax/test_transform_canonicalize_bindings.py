@@ -1468,7 +1468,7 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
     expected_vdevice = Before["main"].body.blocks[0].bindings[1].value.ty_args[0].fields[0].vdevice
     for output in (transposed, extra):
         tvm_tirx.ir.assert_structural_equal(output.vdevice, expected_vdevice)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
 
 def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
@@ -1512,4 +1512,4 @@ def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
             # Rebuilding the call re-runs the validator, so this passes only when the
             # out_ty agrees with the argument types.
             relax.Call(value.op, value.args, value.attrs, value.ty_args)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)

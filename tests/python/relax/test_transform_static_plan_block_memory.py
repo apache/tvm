@@ -1920,7 +1920,7 @@ def test_if_branches_do_not_share_storage_var():
             return z
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    assert relax.analysis.check_well_formed(after)
+    relax.analysis.check_well_formed(after)
     assert _count_alloc_storage(after["main"]) == 2
 
 
@@ -1952,7 +1952,7 @@ def test_if_branch_storage_not_reused_after_if():
             return out1
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    assert relax.analysis.check_well_formed(after)
+    relax.analysis.check_well_formed(after)
     assert _count_alloc_storage(after["main"]) == 2
 
 
@@ -1984,7 +1984,7 @@ def test_if_branches_share_storage_allocated_before_if():
             return z
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
-    assert relax.analysis.check_well_formed(after)
+    relax.analysis.check_well_formed(after)
     assert _count_alloc_storage(after["main"]) == 1
 
 

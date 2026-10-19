@@ -46,14 +46,11 @@ class WellFormedInstrument:
 
     def run_before_pass(self, mod, pass_info):
         if self.validate_before_transform:
-            self._check(mod, pass_info.name, "Before")
+            self._check(mod, pass_info.name)
 
     def run_after_pass(self, mod, pass_info):
-        self._check(mod, pass_info.name, "After")
+        self._check(mod, pass_info.name)
 
-    def _check(self, mod, pass_name, name_prefix):
+    def _check(self, mod, pass_name):
         if pass_name not in self.skip_pass_name:
-            is_well_formed = relax.analysis.check_well_formed(mod, self.check_ty)
-            if not is_well_formed:
-                mod.show(name=f"{name_prefix}{pass_name}")
-            assert is_well_formed
+            relax.analysis.check_well_formed(mod, self.check_ty)

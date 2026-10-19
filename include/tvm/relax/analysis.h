@@ -616,7 +616,7 @@ TVM_DLL bool ContainsImpureCall(
  *
  * Throws an ffi::Error on the first well-formedness violation. The error is
  * seeded with the offending node so a pass runner can resolve a precise access
- * path. Use \ref CheckWellFormed for a boolean answer.
+ * path.
  *
  * \param obj The IRModule or relax::Function to check.
  * \param check_ty If true, verify that every Expr has ty populated.
@@ -624,19 +624,7 @@ TVM_DLL bool ContainsImpureCall(
  * where `check_ty` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having type information.
  */
-TVM_DLL void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty = true);
-
-/*!
- * \brief Return whether an IRModule or Function is well-formed.
- *
- * Wraps \ref WellFormed, returning false instead of throwing on the first
- * violation.
- *
- * \param obj The IRModule or relax::Function to check.
- * \param check_ty If true, verify that every Expr has ty populated.
- * \return true if the object is well-formed, false otherwise.
- */
-TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty = true);
+TVM_DLL void CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks

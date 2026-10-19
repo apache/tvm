@@ -1440,7 +1440,7 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1452,13 +1452,13 @@ def test_symbolic_prim_arg_after_tensor_arg():
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_before_tensor_arg():
@@ -1517,7 +1517,7 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1529,13 +1529,13 @@ def test_symbolic_prim_arg_before_tensor_arg():
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
@@ -1615,7 +1615,7 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
@@ -1736,7 +1736,7 @@ def test_primitive_call_arg_not_inlined():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1747,13 +1747,13 @@ def test_primitive_call_arg_not_inlined():
     assert sum(isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params) == 1
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_primitive_call_arg_used_by_output_shape_not_inlined():
@@ -1797,7 +1797,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1878,7 +1878,7 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1890,13 +1890,13 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_shape_expr_arg():

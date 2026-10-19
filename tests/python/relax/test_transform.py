@@ -398,7 +398,7 @@ def test_call_dps_packed_rewrite_nested_tuple_output():
         builder.emit_func_output(out)
 
     after = relax.transform.CallTIRRewrite()(builder.get())
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
     func = after["main"]
     block = func.body.blocks[0]
 
@@ -617,56 +617,56 @@ def test_call_tir_inplace_some_new():
 
 
 def test_call_tir_inplace_repeated_input():
-    with pytest.raises(ValueError):
+    @tvm_tirx.script.ir_module
+    class Input:
+        @Ts.function
+        def func(
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            C: T.Tensor((2, 3), "int32"),
+        ):
+            T.evaluate(0)
 
-        @tvm_tirx.script.ir_module
-        class Input:
-            @Ts.function
-            def func(
-                A: T.Tensor((2, 3), "int32"),
-                B: T.Tensor((2, 3), "int32"),
-                C: T.Tensor((2, 3), "int32"),
-            ):
-                T.evaluate(0)
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), "int32"),
+            y: R.Tensor((2, 3), "int32"),
+            z: R.Tensor((2, 3), "int32"),
+        ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
+            R.func_attr({"relax.force_pure": True})
+            gv0 = R.call_tir_inplace(
+                Input.func,
+                (x, y, z),
+                # repeated 0 -> that's an error
+                inplace_indices=[0, 0],
+                ty_args=[
+                    _TupleType([R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")])
+                ],
+            )
+            return gv0
 
-            @R.function
-            def foo(
-                x: R.Tensor((2, 3), "int32"),
-                y: R.Tensor((2, 3), "int32"),
-                z: R.Tensor((2, 3), "int32"),
-            ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
-                R.func_attr({"relax.force_pure": True})
-                gv0 = R.call_tir_inplace(
-                    Input.func,
-                    (x, y, z),
-                    # repeated 0 -> that's an error
-                    inplace_indices=[0, 0],
-                    ty_args=[
-                        _TupleType(
-                            [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")]
-                        )
-                    ],
-                )
-                return gv0
+    with pytest.raises(ValueError, match="All in-place indices must be unique"):
+        relax.analysis.check_well_formed(Input)
 
 
 def test_call_tir_inplace_all_new():
-    with pytest.raises(ValueError):
+    @tvm_tirx.script.ir_module
+    class Input:
+        @Ts.function
+        def func(A: T.Tensor((2, 3), "int32")):
+            T.evaluate(0)
 
-        @tvm_tirx.script.ir_module
-        class Input:
-            @Ts.function
-            def func(A: T.Tensor((2, 3), "int32")):
-                T.evaluate(0)
+        @R.function
+        def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
+            R.func_attr({"relax.force_pure": True})
+            # cannot make the only output a fresh one
+            gv0 = R.call_tir_inplace(
+                Input.func, x, inplace_indices=-1, ty_args=[R.Tensor((2, 3), dtype="int32")]
+            )
+            return gv0
 
-            @R.function
-            def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
-                R.func_attr({"relax.force_pure": True})
-                # cannot make the only output a fresh one
-                gv0 = R.call_tir_inplace(
-                    Input.func, x, inplace_indices=-1, ty_args=[R.Tensor((2, 3), dtype="int32")]
-                )
-                return gv0
+    with pytest.raises(ValueError, match="out_ty is incompatible with the native function"):
+        relax.analysis.check_well_formed(Input)
 
 
 def test_inplace_mutation_with_tuple_argument_raises_error():
@@ -682,25 +682,29 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
     triggered a segfault rather than raising an exception.
 
     """
-    with pytest.raises(ValueError):
 
-        @I.ir_module
-        class Module:
-            @R.function
-            def main(A: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
-                cls = Module
-                gv1 = R.call_tir_inplace(
-                    cls.multiply_by_two,
-                    [[A]],
-                    ty_args=[R.Tensor((16,), dtype="float32")],
-                    inplace_indices=[0],
-                )
-                return gv1
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
+            cls = Module
+            gv1 = R.call_tir_inplace(
+                cls.multiply_by_two,
+                [[A]],
+                ty_args=[R.Tensor((16,), dtype="float32")],
+                inplace_indices=[0],
+            )
+            return gv1
 
-            @Ts.function(private=True)
-            def multiply_by_two(A: T.Tensor((16,), "float32")):
-                for i in range(16):
-                    A[i] = A[i] * T.float32(2)
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor((16,), "float32")):
+            for i in range(16):
+                A[i] = A[i] * T.float32(2)
+
+    with pytest.raises(
+        ValueError, match="Argument 0 type mismatch: expected R.Tensor.*given T.Tuple"
+    ):
+        relax.analysis.check_well_formed(Module)
 
 
 def test_inplace_mutation_with_non_tensor_argument_raises_error():
@@ -714,24 +718,28 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
     triggered a segfault rather than raising an exception.
 
     """
-    with pytest.raises(ValueError):
 
-        @I.ir_module
-        class Module:
-            @R.function
-            def main(A: R.Any):
-                gv1 = R.call_tir_inplace(
-                    Module.multiply_by_two,
-                    [A],
-                    ty_args=[R.Tensor((16,), dtype="float32")],
-                    inplace_indices=[0],
-                )
-                return gv1
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Any):
+            gv1 = R.call_tir_inplace(
+                Module.multiply_by_two,
+                [A],
+                ty_args=[R.Tensor((16,), dtype="float32")],
+                inplace_indices=[0],
+            )
+            return gv1
 
-            @Ts.function(private=True)
-            def multiply_by_two(A: T.Tensor((16,), "float32")):
-                for i in range(16):
-                    A[i] = A[i] * T.float32(2)
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor((16,), "float32")):
+            for i in range(16):
+                A[i] = A[i] * T.float32(2)
+
+    with pytest.raises(
+        ValueError, match="Argument 0 type mismatch: expected R.Tensor.*given T.Any"
+    ):
+        relax.analysis.check_well_formed(Module)
 
 
 def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
@@ -743,24 +751,28 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
     different than the output's shape (`[32]` as opposed to `[16]`).
 
     """
-    with pytest.raises(ValueError):
 
-        @I.ir_module
-        class Module:
-            @R.function
-            def main(A: R.Tensor([32], dtype="float32")):
-                gv1 = R.call_tir_inplace(
-                    Module.multiply_by_two,
-                    [A],
-                    ty_args=[R.Tensor((16,), dtype="float32")],
-                    inplace_indices=[0],
-                )
-                return gv1
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([32], dtype="float32")):
+            gv1 = R.call_tir_inplace(
+                Module.multiply_by_two,
+                [A],
+                ty_args=[R.Tensor((16,), dtype="float32")],
+                inplace_indices=[0],
+            )
+            return gv1
 
-            @Ts.function(private=True)
-            def multiply_by_two(A: T.Tensor((16,), "float32")):
-                for i in range(16):
-                    A[i] = A[i] * T.float32(2)
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor((16,), "float32")):
+            for i in range(16):
+                A[i] = A[i] * T.float32(2)
+
+    with pytest.raises(
+        ValueError, match=r"Argument 0 type mismatch: expected R.Tensor.*given R.Tensor\(\(32,\)"
+    ):
+        relax.analysis.check_well_formed(Module)
 
 
 def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
@@ -772,24 +784,28 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
     different than the output's dtype (`int32` as opposed to `float32`).
 
     """
-    with pytest.raises(ValueError):
 
-        @I.ir_module
-        class Module:
-            @R.function
-            def main(A: R.Tensor([16], dtype="int32")):
-                gv1 = R.call_tir_inplace(
-                    Module.multiply_by_two,
-                    [A],
-                    ty_args=[R.Tensor((16,), dtype="float32")],
-                    inplace_indices=[0],
-                )
-                return gv1
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], dtype="int32")):
+            gv1 = R.call_tir_inplace(
+                Module.multiply_by_two,
+                [A],
+                ty_args=[R.Tensor((16,), dtype="float32")],
+                inplace_indices=[0],
+            )
+            return gv1
 
-            @Ts.function(private=True)
-            def multiply_by_two(A: T.Tensor((16,), "float32")):
-                for i in range(16):
-                    A[i] = A[i] * T.float32(2)
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor((16,), "float32")):
+            for i in range(16):
+                A[i] = A[i] * T.float32(2)
+
+    with pytest.raises(
+        ValueError, match="Argument 0 type mismatch: expected R.Tensor.*given R.Tensor.*int32"
+    ):
+        relax.analysis.check_well_formed(Module)
 
 
 if __name__ == "__main__":
