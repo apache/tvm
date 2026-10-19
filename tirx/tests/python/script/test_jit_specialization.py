@@ -25,10 +25,11 @@ from __future__ import annotations
 import gc
 import weakref
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 
-from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.ir import NoneType, assert_structural_equal
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.script.ir_builder import IRBuilder
@@ -64,7 +65,6 @@ def test_annotation_constructor_executes_in_required_builder_context(jit_languag
 def test_optional_annotation_is_evaluated_only_for_present_parameters(jit_language):
     # A selected absence skips its annotation entirely; a present optional unwraps once.
     M = jit_language.M
-    M.Optional = T.Optional
     calls = []
 
     def annotation():
@@ -72,11 +72,12 @@ def test_optional_annotation_is_evaluated_only_for_present_parameters(jit_langua
         return M.Tensor((5,))
 
     @M.jit
-    def function(value: M.Optional(annotation())):
+    def function(value: Optional[annotation()]):  # noqa: UP045
         M.record(value)
 
     absent = function.specialize(value=None)
-    assert absent.params == [] and absent.body == [("emit", None)]
+    assert len(absent.params) == 1 and absent.body == [("emit", None)]
+    assert isinstance(absent.params[0].args[0], NoneType)
     assert calls == []
     present = function.specialize()
     assert calls == ["annotation"]
@@ -213,14 +214,14 @@ def test_tirx_jit_specializes_captured_shape_and_value():
 
 def test_optional_missing_annotation_stays_lazy(jit_language):
     M = jit_language.M
-    M.Optional = T.Optional
 
     @M.jit
-    def function(value: M.Optional(missing_annotation)):  # noqa: F821
+    def function(value: missing_annotation | None):  # noqa: F821
         M.record(value)
 
     absent = function.specialize(value=None)
-    assert absent.params == [] and absent.body == [("emit", None)]
+    assert len(absent.params) == 1 and absent.body == [("emit", None)]
+    assert isinstance(absent.params[0].args[0], NoneType)
     with pytest.raises(NameError, match="missing_annotation"):
         function.specialize()
 
@@ -276,7 +277,8 @@ def kernel(output: Script.Tensor((1,), "int32"), *, value: Script.constexpr,
     assert kernel.constexpr_names == {"value"}
     assert kernel.optional_names == {"optional"}
     result = kernel.specialize(value=3, optional=None)
-    assert len(result.params) == 1
+    assert len(result.params) == 2
+    assert isinstance(result.params[1].ty, NoneType)
     assert int(result.body[0].value) == 3
 
 
@@ -301,6 +303,8 @@ def test_postponed_jit_uses_registered_constexpr_syntax(jit_language, monkeypatc
     def ordinary(
         value: Ordinary.constexpr,
         optional: Ordinary.Optional(unavailable()),
+        standard: Ordinary.Optional[unavailable()],
+        union: M.int32 | M.float32,
         alias: M.marker_alias,
     ):
         M.record(value)

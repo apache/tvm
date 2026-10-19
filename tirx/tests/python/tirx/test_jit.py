@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import traceback
 import typing
 
@@ -26,7 +27,9 @@ import pytest
 
 import tvm_tirx
 from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.script.jit import JITFunction
 
 
 def test_int_constexpr_specializes_loop_bound():
@@ -259,17 +262,22 @@ def test_optional_param_present_and_absent_ir():
         out[0] = A[0]
 
     @T.function(private=True)
-    def expected_absent(out: T.Tensor((1,), "int32")):
+    def expected_absent(a: I.NoneType(), out: T.Tensor((1,), "int32")):
         out[0] = -1
 
     present = kernel.specialize()
     absent = kernel.specialize(a=None)
+    assert isinstance(kernel, JITFunction)
     assert_structural_equal(present, expected_present, map_free_vars=True)
     assert_structural_equal(absent, expected_absent, map_free_vars=True)
     assert [param.name for param in present.params] == ["a", "out"]
-    assert [param.name for param in absent.params] == ["out"]
+    assert [param.name for param in absent.params] == ["a", "out"]
     assert all(tvm_tirx.tirx.is_tensor_var(param) for param in present.params)
-    assert all(tvm_tirx.tirx.is_tensor_var(param) for param in absent.params)
+    assert isinstance(absent.params[0].ty, tvm_tirx.ir.NoneType)
+    assert tvm_tirx.tirx.is_tensor_var(absent.params[1])
+    assert_structural_equal(
+        tvm_tirx.script.from_source(absent.script(), extra_vars={"I": I, "T": T}), absent
+    )
 
 
 def test_optional_specialization_cache_includes_presence():
@@ -311,13 +319,16 @@ def test_multiple_optional_params_preserve_runtime_order():
     ]
     assert [param.name for param in kernel.specialize(a=None).params] == [
         "first",
+        "a",
         "scale",
         "b",
         "out",
     ]
     assert [param.name for param in kernel.specialize(a=None, b=None).params] == [
         "first",
+        "a",
         "scale",
+        "b",
         "out",
     ]
 
@@ -333,19 +344,28 @@ def test_optional_only_accepts_none_at_specialization_time():
         kernel.specialize(a=object())
 
 
-def test_only_explicit_t_optional_is_specializable():
+def test_standard_optional_annotations_are_specializable():
+    from typing import Optional
+
     @T.jit(private=True)
-    def typing_optional(a: typing.Optional[T.handle], out_h: T.handle):  # noqa: UP045
+    def typing_optional(
+        a: typing.Optional[T.Tensor((1,), "int32")],  # noqa: UP045
+        out: Optional[T.Tensor((1,), "int32")],  # noqa: UP045
+    ):
         T.evaluate(0)
 
     @T.jit(private=True)
-    def union_optional(a: T.handle | None, out_h: T.handle):
+    def union_optional(a: T.Tensor((1,), "int32") | None, out: T.Tensor((1,), "int32")):
         T.evaluate(0)
 
-    with pytest.raises(TypeError, match="unexpected"):
-        typing_optional.specialize(a=None)
-    with pytest.raises(TypeError, match="unexpected"):
-        union_optional.specialize(a=None)
+    for kernel in (typing_optional, union_optional):
+        present = kernel.specialize()
+        absent = kernel.specialize(a=None)
+        assert all(tvm_tirx.tirx.is_tensor_var(param) for param in present.params)
+        assert [param.name for param in absent.params] == ["a", "out"]
+        assert isinstance(absent.params[0].ty, tvm_tirx.ir.NoneType)
+        assert tvm_tirx.tirx.is_tensor_var(absent.params[1])
+    assert isinstance(typing_optional.specialize(out=None).params[1].ty, tvm_tirx.ir.NoneType)
 
 
 def test_t_optional_is_restricted_to_jit():
@@ -368,7 +388,7 @@ def test_compile_time_if_binding_uses_python_scope():
     present = kernel.specialize()
     absent = kernel.specialize(a=None)
     assert len(present.params) == 2
-    assert len(absent.params) == 1
+    assert len(absent.params) == 2
     assert sum(tvm_tirx.tirx.is_tensor_var(param) for param in present.params) == 2
     assert sum(tvm_tirx.tirx.is_tensor_var(param) for param in absent.params) == 1
 
@@ -386,7 +406,7 @@ def test_compile_time_bool_ops_and_if_expression_short_circuit():
         out[0] = 3 if T.constexpr(a is None) else fail_if_evaluated()
 
     absent = kernel.specialize(a=None)
-    assert [param.name for param in absent.params] == ["out"]
+    assert [param.name for param in absent.params] == ["a", "out"]
 
 
 def test_runtime_tir_if_cannot_guard_absent_optional_param():
@@ -429,6 +449,24 @@ def test_present_optional_param_still_rejects_ffi_none():
     executable = tvm_tirx.tirx.compile(kernel.specialize(), target="llvm", pipeline="tirx")
     with pytest.raises(TypeError, match="expected Tensor"):
         executable(None)
+
+
+def test_none_specialization_checks_unused_packed_argument():
+    @T.jit
+    def kernel(before: T.int32, value: T.Tensor((1,), "int32") | None, after: T.int32):
+        T.evaluate(before + after)
+
+    executable = tvm_tirx.tirx.compile(
+        kernel.specialize(value=None), target="llvm", pipeline="tirx"
+    )
+    executable(1, None, 2)
+    tensor = tvm_tirx.runtime.empty((1,), "int32")
+    for value in (0, False, 1.0, "not None", tensor, ctypes.c_void_p()):
+        with pytest.raises(
+            TypeError,
+            match=r"Mismatched type on argument #1[\s\S]*kernel[\s\S]*value:[\s\S]*expected None",
+        ):
+            executable(1, value, 2)
 
 
 if __name__ == "__main__":
