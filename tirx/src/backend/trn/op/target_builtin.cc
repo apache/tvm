@@ -69,7 +69,7 @@ TVM_FFI_NO_INLINE std::string MakeNKIIntrinsicName(const char* op_name) {
 
 TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def) {
   def.set_attr(tvm::op_attr::kFixedReturnType, PrimType::Void())
-      .set_attr(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr(tvm::op_attr::kCallEffectKind, CallEffectKind::kOpaque);
 }
 
 template <typename... Specs>

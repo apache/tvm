@@ -687,8 +687,7 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
         return StmtExprVisitor::Visit_(op);
       }
       static auto op_call_effect_ = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
-      CallEffectKind effect_kind =
-          static_cast<CallEffectKind>(op_call_effect_[op->op.as_or_throw<Op>()]);
+      CallEffectKind effect_kind = op_call_effect_[op->op.as_or_throw<Op>()];
       bool is_pure =
           effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
       if (is_pure) {

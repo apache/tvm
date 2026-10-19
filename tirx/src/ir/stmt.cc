@@ -1088,12 +1088,11 @@ TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
   static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidateByTy.name);
-  auto validate = validate_column[dest->ty->type_index()];
-  TVM_FFI_CHECK(validate != nullptr, TypeError)
+  auto validate =
+      type_attr::kTensorStoreValidateByTy.ValueFrom(validate_column[dest->ty->type_index()]);
+  TVM_FFI_CHECK(validate.has_value(), TypeError)
       << "Type " << dest->ty->GetTypeKey() << " does not support TensorStore";
-  validate.cast<decltype(type_attr::kTensorStoreValidateByTy)::ValueType>()
-      .CallExpected(dest, indices, value)
-      .value();
+  validate->CallExpected(dest, indices, value).value();
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
   node->loc = loc;

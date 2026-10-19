@@ -56,7 +56,7 @@ class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
       }
       return Dispatch(op->args[0]);
     } else if (auto opt = op->op.as<Op>()) {
-      auto effect_kind = static_cast<CallEffectKind>(op_call_effect_[opt.value()]);
+      auto effect_kind = op_call_effect_[opt.value()];
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
         for (const Expr& arg : op->args) {
           if (Dispatch(arg)) return true;
@@ -122,8 +122,7 @@ class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
     return Dispatch(op->a) || Dispatch(op->b);
   }
 
-  decltype(Op::GetAttrMap(tvm::op_attr::kCallEffectKind)) op_call_effect_ =
-      Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
+  OpAttrMap<CallEffectKind> op_call_effect_ = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
 };
 
 class UnsafeSelectRewriter : public StmtExprMutator {

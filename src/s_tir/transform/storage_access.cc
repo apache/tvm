@@ -396,7 +396,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     auto effect_map = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     auto callee = op->op.as<Op>();
     if (!callee.has_value() || !effect_map.count(callee.value()) ||
-        effect_map[callee.value()] > static_cast<int>(CallEffectKind::kPure)) {
+        effect_map[callee.value()] > CallEffectKind::kPure) {
       in_opaque_call_ = true;
     }
     auto result = StmtExprVisitor::Visit_(op);

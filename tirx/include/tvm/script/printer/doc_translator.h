@@ -451,9 +451,9 @@ inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView va
       tvm::script::printer::type_attr::kDocTranslate.name);
   ffi::AnyView attr = column[value.type_index()];
   if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
-               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(attr.cast<void*>())(
-                   this, value, destination))
+    return type_attr::kDocTranslate.ValueFrom(attr)
+        .value()
+        .CallExpected(this, value, destination)
         .value();
   }
   if (attr.type_index() == ffi::TypeIndex::kTVMFFIFunction) {

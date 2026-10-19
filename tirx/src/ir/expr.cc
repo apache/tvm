@@ -739,15 +739,13 @@ TensorLoad::TensorLoad(Expr source, ffi::Array<PrimExpr> indices, Location loc)
       << "TensorLoad requires a source with a defined type";
   namespace refl = ffi::reflection;
   static const refl::TypeAttrColumn infer_column(type_attr::kTensorLoadInferType.name);
-  auto infer = infer_column[source->ty->type_index()];
-  TVM_FFI_CHECK(infer != nullptr, TypeError)
+  auto infer = type_attr::kTensorLoadInferType.ValueFrom(infer_column[source->ty->type_index()]);
+  TVM_FFI_CHECK(infer.has_value(), TypeError)
       << "Type " << source->ty->GetTypeKey() << " does not support TensorLoad";
   auto node = ffi::make_object<TensorLoadNode>(std::move(source));
   node->indices = std::move(indices);
   node->loc = loc;
-  PrimType ty = infer.cast<decltype(type_attr::kTensorLoadInferType)::ValueType>()
-                    .CallExpected(node.get())
-                    .value();
+  PrimType ty = infer->CallExpected(node.get()).value();
   TVM_FFI_CHECK(ty.defined() && ty.as<PrimTypeNode>(), TypeError)
       << "TensorLoad inference requires a concrete PrimType";
   node->ty = std::move(ty);

@@ -674,8 +674,8 @@ class Call : public Expr {
 };
 
 namespace op_attr {
-/*! \brief Use integer to record the kind. */
-inline constexpr ffi::reflection::AttrKey<int64_t> kCallEffectKind{"TCallEffectKind"};
+/*! \brief The runtime effect of an operator call. */
+inline constexpr ffi::reflection::AttrKey<CallEffectKind> kCallEffectKind{"TCallEffectKind"};
 }  // namespace op_attr
 
 /*! \brief range over one dimension */
