@@ -431,6 +431,50 @@ def module_pass(pass_func=None, opt_level=None, name=None):
         The returned decorator has two behaviors depending on the input:
         A new ModulePass will be returned when we decorate a pass function.
         A new ModulePass class will be returned when we decorate a class type.
+
+    Examples
+    --------
+    Decorate a class for a configurable pass, or a function for a fixed pass.
+    Both forms below simplify a TIRx module.
+
+    .. code:: python
+
+        import tvm_tirx as tvm
+        from tvm_tirx.script import ir as I, tirx as T
+
+        @I.ir_module
+        class Before:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), "int32")):
+                for i in T.serial(4):
+                    A[i] = i // 4
+
+        @I.ir_module
+        class Expected:
+            @T.function(private=True)
+            def main(A: T.Tensor((4,), "int32")):
+                for i in T.serial(4):
+                    A[i] = 0
+
+        @tvm.ir.transform.module_pass(opt_level=0)
+        class CustomPipeline:
+            def __init__(self, enable_simplify=True):
+                self.enable_simplify = enable_simplify
+
+            def transform_module(self, mod, ctx):
+                if self.enable_simplify:
+                    mod = tvm.tirx.transform.StmtSimplify()(mod)
+                return mod
+
+        pipeline = CustomPipeline()
+        tvm.ir.assert_structural_equal(pipeline(Before), Expected)
+        tvm.ir.assert_structural_equal(CustomPipeline(False)(Before), Before)
+
+        @tvm.ir.transform.module_pass(opt_level=0)
+        def simplify(mod, ctx):
+            return tvm.tirx.transform.StmtSimplify()(mod)
+
+        tvm.ir.assert_structural_equal(simplify(Before), Expected)
     """
     if opt_level is None:
         raise ValueError("Please provide opt_level for the module pass.")
