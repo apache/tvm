@@ -297,28 +297,28 @@ void CodeGenTrainium::Dispatch_(const RegionStmtNode* op) {
 void CodeGenTrainium::Dispatch_(const ForNode* op) {
   bool is_outermost_loop = is_outermost_loop_;
   is_outermost_loop_ = false;
-  std::string extent = PrintExpr(op->extent);
+  std::string end = PrintExpr(op->end);
   PrintIndent();
-  std::string vid = AllocVarID(op->loop_var.get());
-  TVM_FFI_ICHECK(IsZero(op->min));
+  std::string vid = AllocVarID(op->var.get());
+  TVM_FFI_ICHECK(IsZero(op->begin));
+  TVM_FFI_ICHECK(op->HasTrivialStep()) << "Trainium codegen requires unit-step loops";
   if (ctx_.tensorizing) {
-    stream << vid << " = nl.arange(" << extent << ")\n";
+    stream << vid << " = nl.arange(" << end << ")\n";
     if (op->annotations.count(tvm::backend::trn::attr::kNkiDim.name)) {
-      ctx_.loopvar2dim[op->loop_var.get()] =
+      ctx_.loopvar2dim[op->var.get()] =
           op->annotations[tvm::backend::trn::attr::kNkiDim.name].as_or_throw<ffi::String>();
     }
-    ctx_.tensorized_loop_vars.insert(op->loop_var.get());
+    ctx_.tensorized_loop_vars.insert(op->var.get());
     TVM_FFI_ICHECK(ctx_.loopvar2dim.empty() ||
                    ctx_.loopvar2dim.size() == ctx_.tensorized_loop_vars.size())
         << "nki_dim attribute must be specified for all tensorized loop variables or none of them";
     PrintStmt(op->body);
-    ctx_.tensorized_loop_vars.erase(op->loop_var.get());
+    ctx_.tensorized_loop_vars.erase(op->var.get());
   } else {
     if (is_outermost_loop) {
-      stream << "for " << vid << " in nl.sequential_range(" << extent
-             << ", body_no_reorder=True):\n";
+      stream << "for " << vid << " in nl.sequential_range(" << end << ", body_no_reorder=True):\n";
     } else {
-      stream << "for " << vid << " in nl.sequential_range(" << extent << "):\n";
+      stream << "for " << vid << " in nl.sequential_range(" << end << "):\n";
     }
     int for_scope = BeginScope();
     PrintStmt(op->body);

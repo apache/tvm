@@ -170,9 +170,10 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     expr_touched_->Reset(false);
-    expr_touched_->Visit(op->min);
-    expr_touched_->Visit(op->extent);
-    Record(op->loop_var.get(), *expr_touched_);
+    expr_touched_->Visit(op->begin);
+    expr_touched_->Visit(op->end);
+    expr_touched_->Visit(op->step);
+    Record(op->var.get(), *expr_touched_);
     return this->Visit(op->body);
   }
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
@@ -460,10 +461,10 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
   }
   // For
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK(IsZero(op->min));
-    auto extent_result = this->Mutate(op->extent, inplace_mode);
-    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
-    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
+    TVM_FFI_ICHECK(IsZero(op->begin));
+    auto extent_result = this->Mutate(op->end, inplace_mode);
+    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->end);
+    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->end);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(ffi::GetRef<Stmt>(op), true);
       ++max_loop_depth_;
@@ -479,12 +480,12 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
         auto* writable = const_cast<ForNode*>(op);
-        writable->extent = std::move(extent);
+        writable->end = std::move(extent);
         writable->body = std::move(body);
         return ffi::Unchanged();
       } else {
         auto copy = ffi::make_object<ForNode>(*op);
-        copy->extent = std::move(extent);
+        copy->end = std::move(extent);
         copy->body = std::move(body);
         return For(std::move(copy));
       }
@@ -664,7 +665,8 @@ class VTInjector : public s_tir::StmtExprMutatorWithAnalyzer {
       stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
-                 prim::MakeConst(idx_dtype, num_threads_), ForKind::kDefault, stmt);
+                 prim::MakeConst(idx_dtype, num_threads_),
+                 IntImm(idx.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
     }
   }
 
@@ -723,8 +725,8 @@ class VirtualThreadInjector : public s_tir::StmtExprMutatorWithAnalyzer {
       if (vs->has_opaque_region_) {
         // Keep unknown operations and their result definitions inside one
         // lexical loop; they have no sharing or distribution semantics.
-        return For(var, IntImm(var.ty(), 0), op->args[1].as_or_throw<PrimExpr>(), ForKind::kDefault,
-                   op->body);
+        return For(var, IntImm(var.ty(), 0), op->args[1].as_or_throw<PrimExpr>(),
+                   IntImm(var.ty(), 1), ForKind::kDefault, op->body);
       }
       auto injector =
           ffi::make_object<VTInjector>(analyzer_, var, nthread, touched, /*allow_share=*/true);

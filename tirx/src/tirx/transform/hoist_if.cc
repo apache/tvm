@@ -155,9 +155,9 @@ class IfHoister : public StmtExprMutator {
     // Preserve the same synchronization boundary before thread-binding lowering.
     // Only ordinary serial loops permit code motion across their execution scope.
     // Hoisting must not suppress evaluation of an effectful loop header either.
-    if (op->kind != ForKind::kDefault || SideEffect(op->min) > CallEffectKind::kReadState ||
-        SideEffect(op->extent) > CallEffectKind::kReadState ||
-        (op->step && SideEffect(op->step.value()) > CallEffectKind::kReadState)) {
+    if (op->kind != ForKind::kDefault || SideEffect(op->begin) > CallEffectKind::kReadState ||
+        SideEffect(op->end) > CallEffectKind::kReadState ||
+        SideEffect(op->step) > CallEffectKind::kReadState) {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }
     auto& scope = scopes_.Current();
@@ -166,7 +166,7 @@ class IfHoister : public StmtExprMutator {
     if (active_loops_++ == 0) split_in_nest_ = false;
     // Snapshot ancestors outside this loop so they do not require a false-path copy.
     LoopState loop{else_depth_, {}};
-    const VarNode* var = op->loop_var.get();
+    const VarNode* var = op->var.get();
     // Register this destination and its variable together. An index in loops
     // identifies both where to wrap a lifted If and which variables it must avoid.
     scope.loop_depths[var] = scope.loops.size();

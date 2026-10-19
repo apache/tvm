@@ -290,11 +290,11 @@ def test_effectful_enclosing_condition():
     tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.parametrize("field", ["min", "extent", "step"])
+@pytest.mark.parametrize("field", ["begin", "end", "step"])
 def test_effectful_loop_header(field):
     value = tvm_tirx.tirx.call_extern("loop_header", ty="int32")
-    start = value if field == "min" else 0
-    stop = value if field == "extent" else 4
+    start = value if field == "begin" else 0
+    stop = value if field == "end" else 4
     step = value if field == "step" else 1
 
     @I.ir_module

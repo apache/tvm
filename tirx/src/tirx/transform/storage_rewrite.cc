@@ -710,8 +710,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       op = stmt.as<ForNode>();
-      return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
-                 op->annotations, op->step);
+      return For(op->var, op->begin, op->end, op->step, op->kind, MakeAttach(svec, op->body),
+                 op->annotations);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }

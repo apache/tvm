@@ -390,7 +390,7 @@ bool HasReshapePattern(const tirx::Function& func) {
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
-      ana_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      ana_->Bind(loop->var, Range(loop->begin, loop->end));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
       if (loop->body->size() != 1 ||
@@ -430,8 +430,8 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       ffi::Map<PrimVar, Range> var_range;
       for (const s_tir::IterVar& v : block->iter_vars) {
-        ana_->Bind(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
-        var_range.Set(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
+        ana_->Bind(v->var, v->dom.value());
+        var_range.Set(v->var, v->dom.value());
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -481,7 +481,7 @@ bool HasReshapePattern(const tirx::Function& func) {
         }
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
-                this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->min,
+                this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->begin,
                                           IntImm::Int64(/*value=*/0)) &&
                 this->ana_->CanProveEqual(tensor.shape()[i],
                                           block->iter_vars[i]->dom.value()->extent))) {

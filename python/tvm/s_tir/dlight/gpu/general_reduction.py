@@ -21,6 +21,7 @@ import tvm_ffi
 
 from tvm import s_tir
 from tvm_tirx import sym, tirx
+from tvm_tirx.ir import Range
 from tvm_tirx.runtime import MemoryScope
 from tvm_tirx.target import Target
 
@@ -80,7 +81,13 @@ class GeneralReduction(GPUScheduleRule):
                 analyzer = sym.Analyzer()
                 for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
                     loops = sch.get_loops(info.block_rv)
-                    if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
+                    if not all(
+                        analyzer.can_prove_equal(
+                            Range.get_extent_from_begin_end(sch.get(loop).begin, sch.get(loop).end),
+                            1,
+                        )
+                        for loop in loops
+                    ):
                         continue
 
                     other_block_tensors = [
@@ -163,7 +170,7 @@ class GeneralReduction(GPUScheduleRule):
             block_var_to_loop_var = {}
             loops = sch.get_loops(block_infos[-1].block_rv)
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
-                block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
+                block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).var
 
             def _visit_expr(e: tirx.Var):
                 if e in block_var_to_loop_var:
@@ -174,17 +181,22 @@ class GeneralReduction(GPUScheduleRule):
                 if tensor in reduced_tensors:
                     for read_range in tensor_read.region:
                         tvm_ffi.structural_walk(
-                            read_range.min, (tirx.Var, _visit_expr), order="post"
+                            read_range.begin, (tirx.Var, _visit_expr), order="post"
                         )
                         tvm_ffi.structural_walk(
-                            read_range.extent, (tirx.Var, _visit_expr), order="post"
+                            read_range.extent,
+                            (tirx.Var, _visit_expr),
+                            order="post",
                         )
 
             s_loops = []
             other_loops = []
             for loop_rv in loops:
                 loop = sch.get(loop_rv)
-                if loop.loop_var in spatial_loops or loop.extent == 1:
+                if (
+                    loop.var in spatial_loops
+                    or Range.get_extent_from_begin_end(loop.begin, loop.end) == 1
+                ):
                     s_loops.append(loop_rv)
                 else:
                     other_loops.append(loop_rv)

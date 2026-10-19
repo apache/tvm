@@ -67,7 +67,7 @@ def _count_s2c_ops(impl):
     total = 0
 
     def visit_for(op, visitor):
-        loop_extents.append(op.extent)
+        loop_extents.append(tvm_tirx.ir.Range.get_extent_from_begin_end(op.begin, op.end))
         visitor.default_visit(op)
         loop_extents.pop()
 
@@ -205,7 +205,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_value_1 = copy_src_tensor_1[
                             tuple(
                                 [
-                                    copy_src_1.region[k].min
+                                    copy_src_1.region[k].begin
                                     + copy_index_1
                                     // math.prod(
                                         [int(s.extent) for s in copy_src_1.region[k + 1 :]]
@@ -218,7 +218,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_dst_index_1 = T.meta_var(
                             tuple(
                                 [
-                                    copy_dst_1.region[k].min
+                                    copy_dst_1.region[k].begin
                                     + copy_index_1
                                     // math.prod(
                                         [int(s.extent) for s in copy_dst_1.region[k + 1 :]]
@@ -256,7 +256,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_value_2 = copy_src_tensor_2[
                             tuple(
                                 [
-                                    copy_src_2.region[k].min
+                                    copy_src_2.region[k].begin
                                     + copy_index_2
                                     // math.prod(
                                         [int(s.extent) for s in copy_src_2.region[k + 1 :]]
@@ -269,7 +269,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
                         copy_dst_index_2 = T.meta_var(
                             tuple(
                                 [
-                                    copy_dst_2.region[k].min
+                                    copy_dst_2.region[k].begin
                                     + copy_index_2
                                     // math.prod(
                                         [int(s.extent) for s in copy_dst_2.region[k + 1 :]]

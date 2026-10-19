@@ -130,14 +130,17 @@ class For(Stmt):
 
     Parameters
     ----------
-    loop_var : Var
+    var : Var
         The loop variable.
 
-    min : Expr
+    begin : Expr
         The beginning value.
 
-    extent : Expr
-        The length of the loop.
+    end : Expr
+        The exclusive end of the loop.
+
+    step : Expr
+        The required loop step, including a typed one for unit stride.
 
     kind : ForKind
         The type of the for.
@@ -148,42 +151,39 @@ class For(Stmt):
     annotations: Optional[Mapping[str, tvm_ffi.Object]]
         Additional loop annotations interpreted by the consuming dialect.
 
-    step : Expr
-        The loop step. Defaults to None, which represents one.
-
     loc : Location, optional
         The location of the stmt in the source code.
     """
 
-    loop_var: Var
-    min: Expr
-    extent: Expr
+    var: Var
+    begin: Expr
+    end: Expr
+    step: Expr
     kind: ForKind
     body: "SeqStmt"
     annotations: Mapping[str, tvm_ffi.Object]
-    step: Expr | None
     loc: Location
 
     def __init__(
         self,
-        loop_var: Var,
-        min: Expr,  # pylint: disable=redefined-builtin
-        extent: Expr,
+        var: Var,
+        begin: Expr,
+        end: Expr,
+        step: Expr,
         kind: ForKind,
         body: Stmt | Sequence[Stmt],
         annotations: Mapping[str, tvm_ffi.Object] | None = None,
-        step: Expr | None = None,
         loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.For,  # type: ignore
-            loop_var,
-            min,
-            extent,
+            var,
+            begin,
+            end,
+            step,
             kind,
             body,
             annotations,
-            step,
             loc,
         )
 

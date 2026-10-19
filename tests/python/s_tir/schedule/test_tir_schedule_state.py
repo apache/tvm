@@ -340,9 +340,10 @@ def test_replace_block_in_opaque_block():
     for_loop = s.mod["main"].body[0].block.body[0].body[0].block.body[1].then_case[0].block.body[0]
     sref = s.get_sref(for_loop)
     new_for_loop = tvm_tirx.ir.For(
-        loop_var=for_loop.loop_var,
-        min=0,
-        extent=128,
+        var=for_loop.var,
+        begin=0,
+        end=128,
+        step=tvm_tirx.ir.IntImm(for_loop.var.ty, 1),
         kind=tvm_tirx.ir.ForKind.DEFAULT,
         body=tvm_tirx.ir.Evaluate(0),
         annotations=None,

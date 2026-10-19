@@ -161,7 +161,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
     if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->begin));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
     }
     return std::nullopt;
@@ -193,19 +193,19 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    Range loop_range = Range::FromMinExtent(op->min, op->extent);
+    Range loop_range = Range(op->begin, op->end);
     IterVar iter = tvm::s_tir::GetThreadBinding(op).has_value()
-                       ? IterVar(std::nullopt, op->loop_var, IterVarType::kThreadIndex,
+                       ? IterVar(std::nullopt, op->var, IterVarType::kThreadIndex,
                                  tvm::s_tir::GetThreadBinding(op).value())
-                       : IterVar(std::nullopt, op->loop_var, IterVarType::kDataPar);
+                       : IterVar(std::nullopt, op->var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
-    dom_analyzer_->Bind(op->loop_var, loop_range);
-    dom_map_.Set(op->loop_var, sym::IntSet::FromRange(loop_range));
+    dom_analyzer_->Bind(op->var, loop_range);
+    dom_map_.Set(op->var, sym::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_tensors_.size();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     // Compact flat AllocTensors defined inside this For scope
     CompactPendingFlatAllocTensors(n_pending_before);
-    dom_map_.erase(op->loop_var);
+    dom_map_.erase(op->var);
     ancestor_iters_.pop_back();
     return std::nullopt;
   }
@@ -492,7 +492,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
       PrimExpr min{ffi::UnsafeInit{}};
       PrimExpr extent{ffi::UnsafeInit{}};
       if (collect_inbound_) {
-        min = dom_analyzer_->Simplify(tvm::max(0, range->min));
+        min = dom_analyzer_->Simplify(tvm::max(0, range->begin));
         extent = range->extent;
         // Apply stronger symbolic proof to help us remove symbolic min here.
         if (!dom_analyzer_->CanProveLessEqualThanSymbolicShapeValue(extent, original_shape[i])) {
@@ -500,7 +500,7 @@ class TensorAccessRegionCollector : public StmtExprVisitor {
         }
         extent = dom_analyzer_->Simplify(extent);
       } else {
-        min = dom_analyzer_->Simplify(range->min);
+        min = dom_analyzer_->Simplify(range->begin);
         extent = dom_analyzer_->Simplify(range->extent);
       }
 
@@ -713,7 +713,7 @@ class TensorCompactor : public StmtExprMutator {
     ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      new_indices.push_back((*indices)[i] - info.region[i]->min);
+      new_indices.push_back((*indices)[i] - info.region[i]->begin);
     }
     *tensor = info.new_tensor;
     *indices = std::move(new_indices);
@@ -731,7 +731,8 @@ class TensorCompactor : public StmtExprMutator {
     new_region.reserve(info.region.size());
     for (size_t i = 0; i < info.region.size(); ++i) {
       const Range& range = (*region)[i];
-      new_region.push_back(Range::FromMinExtent(range->min - info.region[i]->min, range->extent));
+      new_region.push_back(
+          Range::FromMinExtent(range->begin - info.region[i]->begin, range->extent));
     }
     *tensor = info.new_tensor;
     *region = std::move(new_region);

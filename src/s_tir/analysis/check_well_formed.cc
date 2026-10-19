@@ -89,10 +89,10 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    TVM_FFI_ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
-    loop_vars_[op->loop_var.get()] = block_stack_.size();
+    TVM_FFI_ICHECK(loop_vars_.find(op->var.get()) == loop_vars_.end());
+    loop_vars_[op->var.get()] = block_stack_.size();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    loop_vars_.erase(op->loop_var.get());
+    loop_vars_.erase(op->var.get());
     return std::nullopt;
   }
 
@@ -108,7 +108,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     // Step 1. Visit read/write regions
     auto fvisit_tensor_region = [this](const TensorRegion& s) -> ffi::Optional<VisitInterrupt> {
       for (const auto& range : s->region) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->min));
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->begin));
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(range->extent));
       }
       return std::nullopt;
@@ -482,17 +482,17 @@ class WellFormednessVerifier : public StmtExprVisitor {
             << "ValueError: Thread binding loops require a unit step at <current location>";
       }
     }
-    this->Visit(op->min);
-    this->Visit(op->extent);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
     if (check_ == Check::kLoopControl) {
-      this->Visit(op->step);
       ++loop_depth_;
       this->Visit(op->body);
       --loop_depth_;
       return std::nullopt;
     }
     return WithScope([&]() -> Result {
-      Define(op->loop_var, AccessPath::Root()->Attr("loop_var"));
+      Define(op->var, AccessPath::Root()->Attr("var"));
       return WithScope([&]() { return this->Visit(op->body); });
     });
   }

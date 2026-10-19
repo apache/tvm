@@ -176,15 +176,15 @@ class IterMapRewriter : public tvm::ExprMutator {
       const PrimVar& var = kv.first;
       const Range& vrng = kv.second;
       if (simplify_trivial_iterators && IsOne(vrng->extent)) {
-        var_map_.insert_or_assign(var, IterSumExpr({}, vrng->min));
-      } else if (IsZero(vrng->min)) {
+        var_map_.insert_or_assign(var, IterSumExpr({}, vrng->begin));
+      } else if (IsZero(vrng->begin)) {
         IterMark mark(var.as_or_throw<PrimExpr>(), vrng->extent);
         var_map_.insert_or_assign(var, IterSplitExpr(mark));
         input_marks_.push_back(mark);
       } else {
-        IterMark mark(var.as_or_throw<PrimExpr>() - vrng->min, vrng->extent);
+        IterMark mark(var.as_or_throw<PrimExpr>() - vrng->begin, vrng->extent);
         IterSumExpr sum_expr = ToIterSumExpr(IterSplitExpr(mark));
-        sum_expr.CopyOnWrite()->base = vrng->min;
+        sum_expr.CopyOnWrite()->base = vrng->begin;
         var_map_.insert_or_assign(var, sum_expr);
         input_marks_.push_back(mark);
       }
@@ -1487,8 +1487,8 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<PrimVar, Range>* input_iters,
         auto var = opt.value();
         auto it = input_iters->find(var);
         if (it != input_iters->end()) {
-          PrimExpr iter_min = (*it).second->min;
-          PrimExpr iter_max = (*it).second->min + (*it).second->extent;
+          PrimExpr iter_min = (*it).second->begin;
+          PrimExpr iter_max = (*it).second->begin + (*it).second->extent;
           if (lower_bound.has_value()) iter_min = max(iter_min, lower_bound.value());
           if (upper_bound.has_value()) iter_max = min(iter_max, upper_bound.value());
           input_iters->Set(var, Range(iter_min, iter_max));
@@ -1514,7 +1514,7 @@ bool IterRangeSanityCheck(const ffi::Map<PrimVar, Range>& iter_ranges) {
                         : ffi::WalkResult::Advance();
   };
   for (const auto& it : iter_ranges) {
-    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(it.second->min, walkfn).has_value() ||
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(it.second->begin, walkfn).has_value() ||
         ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(it.second->extent, walkfn).has_value()) {
       return false;
     }

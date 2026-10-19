@@ -134,10 +134,9 @@ UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inp
 }
 
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
-  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  With<sym::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-  With<sym::ConstraintContext> ctx2(analyzer_,
-                                    static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
+  analyzer_->Bind(op->var, Range(op->begin, op->end));
+  With<sym::ConstraintContext> ctx1(analyzer_, op->var >= op->begin);
+  With<sym::ConstraintContext> ctx2(analyzer_, static_cast<PrimExpr>(op->var) < op->end);
   return Parent::Mutate_(op, inplace_mode);
 }
 

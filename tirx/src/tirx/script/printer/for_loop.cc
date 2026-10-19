@@ -59,16 +59,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     default:
       TVM_FFI_THROW(TypeError) << "printer unknown loop kind";
   }
-  ExprDoc min = d->Translate(loop->min).value();
-  ExprDoc extent = d->Translate(loop->extent).value();
-  ExprDoc end = OperationDoc(OperationDocNode::Kind::kAdd, {min, extent});
-  if (prim::IsZero(loop->min)) {
-    end = extent;
-  } else if (loop->min.as<IntImmNode>() && loop->extent.as<IntImmNode>()) {
-    // Python integer addition can widen the endpoint before the builder sees
-    // it. Keep the IR operation and its dtype for literal bounds as well.
-    end = NamespaceDoc("tirx")->Attr("Add")->Call({min, extent});
-  }
+  ExprDoc begin = d->Translate(loop->begin).value();
+  ExprDoc end = d->Translate(loop->end).value();
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
   bool unroll_option = false;
@@ -103,26 +95,25 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     keys.push_back("annotations");
     values.push_back(DictDoc(annotation_keys, annotation_values));
   }
-  if (loop->step.has_value()) {
+  if (!prim::IsOne(loop->step)) {
     keys.push_back("step");
-    values.push_back(d->Translate(loop->step.value()).value());
+    values.push_back(d->Translate(loop->step).value());
   }
   // For requires the bounds and index to have the same type. Their typed
   // expressions therefore carry the index dtype without a separate keyword.
   ForDoc doc(ffi::UnsafeInit{});
   {
-    IdDoc var = VarDoc(d, loop->loop_var);
-    ffi::Array<ExprDoc> bounds = {min, end};
+    IdDoc var = VarDoc(d, loop->var);
+    ffi::Array<ExprDoc> bounds = {begin, end};
     ExprDoc callee = NamespaceDoc("tirx")->Attr(method);
     if (loop->kind == ForKind::kDefault && loop->annotations.empty()) {
       callee = IdDoc("range");
-      // range's step is positional. Retain even an explicit unit step because
-      // it is part of the source For node, unlike an absent step.
-      if (loop->step.has_value()) {
+      // range's step is positional. The builder restores an omitted unit step.
+      if (!prim::IsOne(loop->step)) {
         bounds.push_back(values.back());
         keys.pop_back();
         values.pop_back();
-      } else if (prim::IsZero(loop->min) && loop->min.ty() == PrimType::Int(32)) {
+      } else if (prim::IsZero(loop->begin) && loop->begin.ty() == PrimType::Int(32)) {
         bounds.erase(bounds.begin());
       }
     }

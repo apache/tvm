@@ -164,7 +164,7 @@ class CandidateSelector final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     if (IsVirtualThread(op)) return StmtExprVisitor::Visit_(op);
-    const VarNode* var = op->loop_var.get();
+    const VarNode* var = op->var.get();
     if (HasPartitionHint(op)) {
       candidates.insert(ffi::GetRef<Stmt>(op));
       return StmtExprVisitor::Visit_(op);
@@ -174,7 +174,8 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
-    if (!IsConstInt(op->min) || !IsConstInt(op->extent) || partition_const_loop_) {
+    if (!IsConstInt(op->begin) || !IsConstInt(Range::GetExtentFromBeginEnd(op->begin, op->end)) ||
+        partition_const_loop_) {
       record_.insert({var, false});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (record_.at(var) && !no_split_) {
@@ -287,14 +288,16 @@ class PartitionFinder : public StmtExprVisitor {
       return f_vset_contains(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                         : ffi::WalkResult::Advance();
     };
-    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->min, walkfn).has_value() ||
-        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->extent, walkfn).has_value()) {
+    if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(op->begin, walkfn).has_value() ||
+        ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+            Range::GetExtentFromBeginEnd(op->begin, op->end), walkfn)
+            .has_value()) {
       return std::nullopt;
     }
 
-    const Var& var = op->loop_var;
-    hint_map_.Set(var, IntSet::Interval(op->min, op->min + op->extent - 1));
-    relax_map_.Set(var, IntSet::Interval(op->min, op->min + op->extent - 1));
+    const Var& var = op->var;
+    hint_map_.Set(var, IntSet::Interval(op->begin, op->end - 1));
+    relax_map_.Set(var, IntSet::Interval(op->begin, op->end - 1));
     auto result = StmtExprVisitor::Visit_(op);
     relax_map_.erase(var);
     hint_map_.erase(var);
@@ -526,11 +529,10 @@ class LoopPartitioner : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (IsVirtualThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
     bool thread_scope = tvm::s_tir::GetThreadBinding(op).has_value();
-    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
+    analyzer_->Bind(op->var, Range(op->begin, op->end), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
-      auto s =
-          TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, thread_scope);
+      auto s = TryPartition(fs, op->var, op->begin, op->end - 1, op->body, thread_scope);
       if (s.has_value()) return s.value();
     }
 
@@ -538,10 +540,10 @@ class LoopPartitioner : public StmtExprMutator {
     bool relax = thread_scope &&
                  support::GPUThreadTag::Parse(tvm::s_tir::GetThreadBinding(op).value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
-    ranges.Set(op->loop_var, IntSet::Interval(op->min, op->min + op->extent - 1));
+    ranges.Set(op->var, IntSet::Interval(op->begin, op->end - 1));
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    ranges.erase(op->loop_var);
+    ranges.erase(op->var);
     return res;
   }
 
@@ -919,8 +921,8 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
       for_node->annotations.size() ==
           for_node->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name)) {
     // If the loop extent is 1, do not create the loop anymore
-    auto f_substitute = [loop_var = for_node->loop_var](
-                            const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    auto f_substitute =
+        [loop_var = for_node->var](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.same_as(loop_var)) return ffi::Any(IntImm::Int32(0));
       return ffi::Unchanged();
     };
@@ -928,8 +930,8 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
   } else {
     TVM_FFI_ICHECK(!tvm::s_tir::GetThreadBinding(for_node).has_value());
     auto new_loop = ffi::make_object<ForNode>(*for_node);
-    new_loop->min = IntImm(for_node->min.ty(), 0);
-    new_loop->extent = extent;
+    new_loop->begin = IntImm(for_node->begin.ty(), 0);
+    new_loop->end = extent;
     new_loop->body = body;
     return For(new_loop);
   }

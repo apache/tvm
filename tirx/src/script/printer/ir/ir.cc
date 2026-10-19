@@ -155,8 +155,8 @@ ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input
                                          const ffi::Object*) {
   const auto* range =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(input);
-  ExprDoc min = d->Translate(range->min).value();
-  ExprDoc end = d->Translate(range->min + range->extent).value();
+  ExprDoc min = d->Translate(range->begin).value();
+  ExprDoc end = d->Translate(range->begin + range->extent).value();
   return NamespaceDoc("ir")->Attr("Range")->Call({min, end});
 }
 

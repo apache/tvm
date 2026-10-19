@@ -122,8 +122,8 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {
     const For& loop = loops[i];
-    input_iters.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    var2id.emplace(loop->loop_var.get(), i);
+    input_iters.Set(loop->var, Range(loop->begin, loop->end));
+    var2id.emplace(loop->var.get(), i);
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
   auto f_flatten_index =

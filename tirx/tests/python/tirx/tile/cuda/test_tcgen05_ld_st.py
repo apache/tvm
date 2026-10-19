@@ -56,7 +56,7 @@ from tvm_tirx.tirx.layout import S, TileLayout
 def _window(region):
     """Keep the original region's storage and offsets in a zero-copy view."""
     if isinstance(region, tvm_tirx.ir.TensorRegion):
-        return region.source.sub[tuple(slice(r.min, r.min + r.extent) for r in region.region)]
+        return region.source.sub[tuple(slice(r.begin, r.begin + r.extent) for r in region.region)]
     return region
 
 

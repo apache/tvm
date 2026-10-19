@@ -182,12 +182,12 @@ ffi::Array<ffi::Array<sym::IterMark>> SubspaceDivide(const SBlockRealize& realiz
     const ForNode* loop = static_cast<const ForNode*>(sref->stmt);
     if (inner) {
       loops->push_back(loop);
-      inner_vars.push_back(loop->loop_var);
-      primitive_inner_vars.push_back(loop->loop_var);
+      inner_vars.push_back(loop->var);
+      primitive_inner_vars.push_back(loop->var);
     } else {
-      outer_vars.push_back(loop->loop_var);
+      outer_vars.push_back(loop->var);
     }
-    primitive_loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    primitive_loop_var_domain.Set(loop->var, Range(loop->begin, loop->end));
     if ((loop_sref_as_outer && sref->parent == loop_sref.get()) || sref == loop_sref.get()) {
       inner = false;
     }
@@ -367,8 +367,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   // Step 3. Create the loop nest on top of the block
   for (const ForNode* loop : loops) {
     bool is_init_loop = false;
-    auto walkfn = [target =
-                       loop->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [target = loop->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                  : ffi::WalkResult::Advance();
     };
@@ -380,9 +379,9 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
     }
     if (is_init_loop) {
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
-      new_loop->loop_var = loop->loop_var.CopyWithSuffix("");
+      new_loop->var = loop->var.CopyWithSuffix("");
       new_loop->body = std::move(stmt);
-      subst_map.Set(loop->loop_var, new_loop->loop_var);
+      subst_map.Set(loop->var, new_loop->var);
       stmt = For(new_loop);
     }
   }
@@ -652,7 +651,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     ffi::Map<Var, sym::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
       PrimExpr min =
-          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->min, f_substitute)
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->begin, f_substitute)
               .as_or_throw<PrimExpr>();
       PrimExpr extent =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->extent, f_substitute)
@@ -691,8 +690,10 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     for (const ForNode* loop : loops) {
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
-      new_loop->extent =
-          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_loop->extent, f_substitute)
+      new_loop->end =
+          new_loop->begin +
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              Range::GetExtentFromBeginEnd(new_loop->begin, new_loop->end), f_substitute)
               .as_or_throw<PrimExpr>();
       stmt = For(new_loop);
     }
@@ -762,8 +763,8 @@ class BlockizeRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
-      return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->annotations, loop->step, loop->loc);
+      return For(loop->var, loop->begin, loop->end, loop->step, loop->kind, RewriteSeq(loop->body),
+                 loop->annotations, loop->loc);
     }
     return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
@@ -831,7 +832,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& tensor_regions) {
     for (const TensorRegion& tensor_region : tensor_regions) {
       for (const auto& range : tensor_region->region) {
-        index_dtype_bits = std::max(index_dtype_bits, range->min.ty().bits());
+        index_dtype_bits = std::max(index_dtype_bits, range->begin.ty().bits());
       }
     }
   };

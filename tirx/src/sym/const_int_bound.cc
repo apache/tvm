@@ -109,7 +109,7 @@ class ConstIntBoundAnalyzer::Impl final
   bool IsBound(const Var& var) const { return var_map_.find(var) != var_map_.end(); }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
-    Entry a = Dispatch(range->min);
+    Entry a = Dispatch(range->begin);
     Entry b = Dispatch(range->extent);
     Entry ret;
     ret.min_value = a.min_value;

@@ -148,7 +148,9 @@ def test_error_undeclared_tensor_in_schedulable_tir():
 
     function = tvm_tirx.tirx.Function(
         params=[A, B_data],
-        body=tvm_tirx.ir.For(i, 0, n, tvm_tirx.ir.ForKind.DEFAULT, block_realize),
+        body=tvm_tirx.ir.For(
+            i, 0, n, tvm_tirx.ir.IntImm(i.ty, 1), tvm_tirx.ir.ForKind.DEFAULT, block_realize
+        ),
         # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclTensor node (which we intentionally omit here).
     )

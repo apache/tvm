@@ -204,9 +204,11 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         const PrimExpr& tensor_dim = old_tensor_.shape()[i];
         PrimExpr index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->indices[i], f_substitute)
                              .as_or_throw<PrimExpr>();
-        bool is_loop_over_axis = index.same_as(loop->loop_var) && IsConstInt(loop->min, 0) &&
-                                 prim::ExprDeepEqual()(loop->extent, tensor_dim) &&
-                                 loop->kind == ForKind::kDefault;
+        bool is_loop_over_axis =
+            index.same_as(loop->var) && IsConstInt(loop->begin, 0) &&
+            prim::ExprDeepEqual()(Range::GetExtentFromBeginEnd(loop->begin, loop->end),
+                                  tensor_dim) &&
+            loop->kind == ForKind::kDefault;
         if (!is_loop_over_axis) {
           return false;
         }
@@ -259,7 +261,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
           analyzer(analyzer) {
       TVM_FFI_ICHECK_EQ(info.dependent_loopnest.size(), inverse->final_indices.size());
       for (size_t i = 0; i < info.dependent_loopnest.size(); i++) {
-        Var var = info.dependent_loopnest[i]->loop_var;
+        Var var = info.dependent_loopnest[i]->var;
         PrimExpr expr = inverse->final_indices[i];
         VarRemapSet(var, expr);
       }
@@ -540,7 +542,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_tensor.shape()[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent,
+                 IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
     }
     return ProloguePlan{stmt};
   }
@@ -574,7 +577,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_tensor.shape()[i];
-        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
+        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent,
+                   IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
       }
 
       return stmt;
@@ -634,7 +638,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_tensor.shape()[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent,
+                 IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -651,8 +656,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
   }
 
   struct BindLoopVar {
-    BindLoopVar(TransformLayoutPlanner* self, For for_node)
-        : self_(self), var_(for_node->loop_var) {
+    BindLoopVar(TransformLayoutPlanner* self, For for_node) : self_(self), var_(for_node->var) {
       size_t loop_depth = self_->active_loops_.size();
       self_->loop_depth_lookup_[var_.get()] = {loop_depth, loop_depth};
       self_->active_loops_.push_back(std::move(for_node));
@@ -1458,7 +1462,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   std::unordered_set<const VarNode*> loop_vars;       // loop vars of the outer loops
   for (const StmtSRef& loop_sref : loops) {
     CheckLoopStartsWithZero(self, loop_sref, analyzer.get());
-    loop_vars.emplace(loop_sref->StmtAs<ForNode>()->loop_var.get());
+    loop_vars.emplace(loop_sref->StmtAs<ForNode>()->var.get());
   }
 
   // Step 2: Check the all outer loops have a single child and the block bindings are trivial (all
@@ -1485,7 +1489,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     block_vars.push_back(iter_var->var);
     block_iter_dom.Set(iter_var->var, iter_var->dom.value());
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
-    TVM_FFI_ICHECK(IsZero(iter_var->dom.value()->min));
+    TVM_FFI_ICHECK(IsZero(iter_var->dom.value()->begin));
     block_iter_range_array.push_back(iter_var->dom.value()->extent);
   }
 
@@ -1574,7 +1578,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
     body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, new_block_iter_range[i],
-               ForKind::kDefault, std::move(body));
+               IntImm(new_loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
+               std::move(body));
   }
 
   // Step 6: Do the actual replacement

@@ -44,7 +44,7 @@ def test_ssa_across_entire_module():
                     T.evaluate(i)
 
     after = tvm_tirx.tirx.transform.SplitHostDevice()(before)
-    loop_var = after["main"].body[0].loop_var
+    loop_var = after["main"].body[0].var
     param_var = after["main_kernel"].params[0]
 
     assert not loop_var.same_as(param_var)

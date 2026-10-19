@@ -199,7 +199,7 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
       for (const IterVar& axis : reduce->axis) {
-        visit(axis->dom.value()->min);
+        visit(axis->dom.value()->begin);
         visit(axis->dom.value()->extent);
       }
       for (const PrimExpr& source : reduce->source) visit(source);

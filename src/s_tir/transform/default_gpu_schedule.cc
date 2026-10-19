@@ -68,8 +68,12 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (sch->Get(fused)->extent->IsInstance<IntImmNode>()) {
-    product = static_cast<int64_t>(sch->Get(fused)->extent.as<IntImmNode>()->value);
+  if (Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+          ->IsInstance<IntImmNode>()) {
+    product = static_cast<int64_t>(
+        Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+            .as<IntImmNode>()
+            ->value);
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
@@ -148,7 +152,8 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   s_tir::SBlockRealize inner_realize(
       /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
       /*predicate=*/realize->predicate, inner_block);
-  Stmt for_stmt = For(loop_var.as_or_throw<PrimVar>(), zero, one, ForKind::kDefault, inner_realize);
+  Stmt for_stmt =
+      For(loop_var.as_or_throw<PrimVar>(), zero, one, one, ForKind::kDefault, inner_realize);
   s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<s_tir::IterVar>{},
                            /*reads=*/ffi::Array<tvm::TensorRegion>{},
                            /*writes=*/ffi::Array<tvm::TensorRegion>{},

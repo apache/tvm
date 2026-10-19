@@ -53,38 +53,43 @@ def test_ir_builder_tir_for():
 
     # the expected for
     thread_binding_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "int32"),
-        min=0,
-        extent=8,
+        var=tirx.Var("", "int32"),
+        begin=0,
+        end=8,
+        step=1,
         kind=tvm_tirx.ir.ForKind.PARALLEL,
         body=tvm_tirx.ir.Evaluate(0),
         annotations={"thread_binding": "threadIdx.x"},
     )
     unroll_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "int32"),
-        min=0,
-        extent=16,
+        var=tirx.Var("", "int32"),
+        begin=0,
+        end=16,
+        step=1,
         kind=tvm_tirx.ir.ForKind.UNROLLED,
         body=thread_binding_expected,
     )
     vectorized_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "int32"),
-        min=0,
-        extent=32,
+        var=tirx.Var("", "int32"),
+        begin=0,
+        end=32,
+        step=1,
         kind=tvm_tirx.ir.ForKind.VECTORIZED,
         body=unroll_expected,
     )
     parallel_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "int32"),
-        min=0,
-        extent=64,
+        var=tirx.Var("", "int32"),
+        begin=0,
+        end=64,
+        step=1,
         kind=tvm_tirx.ir.ForKind.PARALLEL,
         body=vectorized_expected,
     )
     for_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "int32"),
-        min=0,
-        extent=128,
+        var=tirx.Var("", "int32"),
+        begin=0,
+        end=128,
+        step=1,
         kind=tvm_tirx.ir.ForKind.DEFAULT,
         body=parallel_expected,
     )
@@ -102,9 +107,10 @@ def test_ir_builder_tir_for_uint():
     for_actual = ib.get()
 
     for_expected = tvm_tirx.ir.For(
-        loop_var=tirx.Var("", "uint32"),
-        min=tirx.const(0, "uint32"),
-        extent=tirx.const(128, "uint32"),
+        var=tirx.Var("", "uint32"),
+        begin=tirx.const(0, "uint32"),
+        end=tirx.const(128, "uint32"),
+        step=1,
         kind=tvm_tirx.ir.ForKind.DEFAULT,
         body=tvm_tirx.ir.Evaluate(0),
     )

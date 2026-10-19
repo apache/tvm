@@ -801,20 +801,11 @@ void CodeGenSPIRV::Dispatch_(const TensorStoreNode* op) {
 }
 
 void CodeGenSPIRV::Dispatch_(const ForNode* op) {
-  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  spirv::Value init_value = MakeValue(op->min);
-  PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
-  spirv::Value end_value = MakeValue(end);
+  analyzer_->Bind(op->var, Range(op->begin, op->end));
+  spirv::Value init_value = MakeValue(op->begin);
+  spirv::Value end_value = MakeValue(op->end);
 
-  // loop step
-  spirv::Value step;
-  if (op->HasTrivialStep()) {
-    step = op->loop_var.ty().MatchesCode(DLDataTypeCode::kDLInt)
-               ? builder_->IntImm(init_value.stype, 1)
-               : builder_->UIntImm(init_value.stype, 1);
-  } else {
-    step = MakeValue(tvm::prim::cast(*op->step, end.ty()));
-  }
+  spirv::Value step = MakeValue(op->step);
 
   // Must get init label after making value(to make sure they are correct)
   spirv::Label init_label = builder_->CurrentLabel();
@@ -841,7 +832,7 @@ void CodeGenSPIRV::Dispatch_(const ForNode* op) {
 
   // loop body
   builder_->StartLabel(body_label);
-  var_map_[op->loop_var.get()] = spirv::Value(loop_var);
+  var_map_[op->var.get()] = spirv::Value(loop_var);
   this->Dispatch(op->body);
   builder_->MakeInst(spv::OpBranch, continue_label);
 

@@ -180,7 +180,7 @@ class PipelineOpaqueAccessRewriter {
                        IntImm::Int32(1), old_tensor.shape()),
                  fragment_size);
     new_tensor_offset +=
-        floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor.shape()[0]) * offset;
+        floormod(pipeline_loop_->var - pipeline_loop_->begin, new_tensor.shape()[0]) * offset;
     return new_tensor_offset;
   }
 
@@ -236,9 +236,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
       Range accessed_version =
           access_all_versions_
               ? Range::FromMinExtent(0, new_tensor.shape()[0])
-              : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
-                                              new_tensor.shape()[0]),
-                                     IntImm::Int32(1));
+              : Range::FromMinExtent(
+                    floormod((pipeline_loop_->var - pipeline_loop_->begin), new_tensor.shape()[0]),
+                    IntImm::Int32(1));
       new_region.insert(new_region.begin(), accessed_version);
       return TensorRegion(new_tensor, new_region, TensorRegionType());
     }
@@ -278,7 +278,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     auto* n = store.CopyOnWrite();
     n->dest = new_tensor;
     PrimExpr version =
-        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor.shape()[0]);
+        floormod((pipeline_loop_->var - pipeline_loop_->begin), new_tensor.shape()[0]);
     n->indices.insert(n->indices.begin(), version);
     return store;
   }
@@ -291,7 +291,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
                        .as_or_throw<ffi::Array<PrimExpr>>();
     TensorVar new_tensor = replacement.value();
     PrimExpr version =
-        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_tensor.shape()[0]);
+        floormod((pipeline_loop_->var - pipeline_loop_->begin), new_tensor.shape()[0]);
     indices.insert(indices.begin(), version);
     return TensorLoad(new_tensor, indices, op->loc);
   }
@@ -314,7 +314,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
         PrimType dtype = tensor.dtype();
         int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
         PrimExpr version =
-            floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_tensor.shape()[0]);
+            floormod(pipeline_loop_->var - pipeline_loop_->begin, new_tensor.shape()[0]);
         return Call(op->ty, tirx::ptr_byte_offset_op(),
                     {new_tensor.data(), version * stride * bytes}, {}, {}, op->loc);
       }
@@ -390,25 +390,25 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     // Step 2: Emit the pipeline prologue, body and epilogue.
-    Stmt prologue = EmitImpl(pipeline_loop_->min, pipeline_loop_->min + max_stage_, true);
-    Stmt body = EmitImpl(pipeline_loop_->min + max_stage_,
-                         pipeline_loop_->min + pipeline_loop_->extent, false);
+    Stmt prologue = EmitImpl(pipeline_loop_->begin, pipeline_loop_->begin + max_stage_, true);
+    Stmt body = EmitImpl(pipeline_loop_->begin + max_stage_, pipeline_loop_->end, false);
     // introduce extra lowerbound when the loop length is smaller than num stages
     // to ensure the epilogue interval do not overlap the prologue interval.
-    PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
+    PrimExpr epigogue_start = pipeline_loop_->end;
     ffi::Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
-    if (max_stage_ > 1 && !analyzer_->CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
+    if (max_stage_ > 1 &&
+        !analyzer_->CanProveGreaterEqual(
+            Range::GetExtentFromBeginEnd(pipeline_loop_->begin, pipeline_loop_->end), max_stage_)) {
       if (IsConstInt(epigogue_start)) {
-        epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
+        epigogue_start = max(epigogue_start, pipeline_loop_->begin + max_stage_);
       } else {
         // for dynamic case, introduce extra lowerbound as loop predicate
         // to ensure the epilogue part unrollable.
-        extra_epilogue_lower_bound = pipeline_loop_->min + max_stage_;
+        extra_epilogue_lower_bound = pipeline_loop_->begin + max_stage_;
       }
     }
-    Stmt epilogue =
-        EmitImpl(epigogue_start, pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true,
-                 extra_epilogue_lower_bound);
+    Stmt epilogue = EmitImpl(epigogue_start, pipeline_loop_->end + max_stage_, true,
+                             extra_epilogue_lower_bound);
 
     SeqStmt stmt = SeqStmt({prologue, body, epilogue});
 
@@ -872,15 +872,15 @@ class PipelineRewriter : public StmtExprMutator {
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
-      new_loop_var = pipeline_loop_->loop_var.CopyWithSuffix("");
+      new_loop_var = pipeline_loop_->var.CopyWithSuffix("");
       analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 
     // In contrast to analyzer_ which is bound to [start, end), this one is bound to
-    // the "normalized" range, [pipeline_loop_->min, extent).
+    // the "normalized" range, [pipeline_loop_->begin, extent).
     sym::Analyzer ana_normalized;
     if (!is_unit_loop) {
-      ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->min, extent));
+      ana_normalized->Bind(new_loop_var.as_or_throw<Var>(), Range(pipeline_loop_->begin, extent));
     }
 
     std::vector<RewrittenSBlockInfo> new_blocks;
@@ -892,8 +892,8 @@ class PipelineRewriter : public StmtExprMutator {
     for (const SBlock& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       PrimExpr skewed_loop_var = new_loop_var - stage;
-      PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->min <= skewed_loop_var) &&
-                         (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
+      PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->begin <= skewed_loop_var) &&
+                         (skewed_loop_var < pipeline_loop_->end);
       if (extra_loop_lower_bound.has_value()) {
         inbound = analyzer_->Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
       }
@@ -907,7 +907,7 @@ class PipelineRewriter : public StmtExprMutator {
               .ValueOrUnchanged(block)
               .as_or_throw<SBlock>();
 
-      PrimExpr delta = start - pipeline_loop_->min;
+      PrimExpr delta = start - pipeline_loop_->begin;
       // This variable corresponds to
       // - "producer_head" if this stage is an async producer
       // - "consumer_head" if this stage reads from asynchronously written tensors.
@@ -915,7 +915,7 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_prim : skewed_loop_prim + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
-      //  [pipeline_loop_->min, extent).
+      //  [pipeline_loop_->begin, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
         auto f_substitute = [loop_iter,
@@ -931,7 +931,7 @@ class PipelineRewriter : public StmtExprMutator {
 
       auto f_substitute = [this, &normalized_access_index](
                               const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-        if (var.same_as(pipeline_loop_->loop_var)) {
+        if (var.same_as(pipeline_loop_->var)) {
           return ffi::Any(normalized_access_index);
         }
         return ffi::Unchanged();
@@ -1005,9 +1005,11 @@ class PipelineRewriter : public StmtExprMutator {
     Stmt new_loop = SeqStmt(stmts);
 
     if (!is_unit_loop) {
-      new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
-                     unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-                     preserved_annotations_, std::nullopt);
+      new_loop =
+          For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->begin,
+              pipeline_loop_->begin + extent, IntImm(new_loop_var.as_or_throw<PrimVar>().ty(), 1),
+              unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
+              preserved_annotations_);
     }
 
     // Update producer heads in the global async states.

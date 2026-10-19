@@ -1011,21 +1011,21 @@ class Call : public Expr {
 /*! \brief range over one dimension */
 class RangeNode : public ffi::Object {
  public:
-  /*! \brief beginning of the node */
-  PrimExpr min;
-  /*! \brief the extend of range */
+  /*! \brief Inclusive beginning of the range. */
+  PrimExpr begin;
+  /*! \brief Extent of the range. */
   PrimExpr extent;
   /*! \brief the location of this range in the source */
   mutable Location loc = UnknownLoc();
   /*! \brief constructor */
-  explicit RangeNode(ffi::UnsafeInit tag) : min(tag), extent(tag) {}
-  RangeNode(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc())
-      : min(min), extent(extent), loc(loc) {}
+  explicit RangeNode(ffi::UnsafeInit tag) : begin(tag), extent(tag) {}
+  RangeNode(PrimExpr begin, PrimExpr extent, Location loc = UnknownLoc())
+      : begin(begin), extent(extent), loc(loc) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RangeNode>()
-        .def_ro("min", &RangeNode::min)
+        .def_ro("begin", &RangeNode::begin)
         .def_ro("extent", &RangeNode::extent)
         .def_ro("loc", &RangeNode::loc, refl::AttachFieldFlag::SEqHashIgnore());
   }
@@ -1057,6 +1057,13 @@ class Range : public ffi::ObjectRef {
    */
   TVM_TIRX_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent,
                                           Location loc = UnknownLoc());
+  /*!
+   * \brief Extract the interval width from its endpoints without an analyzer.
+   *
+   * For begin + extent or extent + begin, return the original extent operand.
+   * Otherwise form end - begin using primitive arithmetic.
+   */
+  TVM_TIRX_DLL static PrimExpr GetExtentFromBeginEnd(const PrimExpr& begin, const PrimExpr& end);
   // declare range.
   explicit Range(ffi::UnsafeInit tag, ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);

@@ -1269,14 +1269,14 @@ def test_tensor_contiguous_regions():
     reg = A[:, :, 8:16]
     assert isinstance(reg, TensorRegion)
     assert len(reg.region) == 3
-    assert (int(reg.region[2].min), int(reg.region[2].extent)) == (8, 8)
+    assert (int(reg.region[2].begin), int(reg.region[2].extent)) == (8, 8)
     reg2 = A[3, :, 0:8]
-    assert (int(reg2.region[0].min), int(reg2.region[0].extent)) == (3, 1)
+    assert (int(reg2.region[0].begin), int(reg2.region[0].extent)) == (3, 1)
     reg_c = C[:, 256:384]
-    assert (int(reg_c.region[1].min), int(reg_c.region[1].extent)) == (256, 128)
+    assert (int(reg_c.region[1].begin), int(reg_c.region[1].extent)) == (256, 128)
     c = T.Var(name="c", ty="int32")
     dynamic = A[:, :, c * 8 : c * 8 + 8]
-    assert_structural_equal(dynamic.region[2].min, c * 8)
+    assert_structural_equal(dynamic.region[2].begin, c * 8)
     assert tvm_tirx.sym.Analyzer().can_prove_equal(dynamic.region[2].extent, 8)
 
 
@@ -1325,7 +1325,7 @@ def test_tensor_slice_region():
     narrowed = br[4:12, 2:10]
     assert isinstance(narrowed, TensorRegion)
     assert narrowed.source.same_as(buf)
-    assert [(int(dim.min), int(dim.extent)) for dim in narrowed.region] == [
+    assert [(int(dim.begin), int(dim.extent)) for dim in narrowed.region] == [
         (36, 8),
         (2, 8),
     ]
@@ -1337,7 +1337,7 @@ def test_tensor_slice_region():
 
     point_then_region = br[3]
     assert isinstance(point_then_region, TensorRegion)
-    assert [(int(dim.min), int(dim.extent)) for dim in point_then_region.region] == [
+    assert [(int(dim.begin), int(dim.extent)) for dim in point_then_region.region] == [
         (35, 1),
         (0, 32),
     ]

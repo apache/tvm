@@ -128,7 +128,7 @@ class InstructionGenerator:
             bound = self.analyzer.const_int_bound(r.extent)
             if not self.analyzer.can_prove_equal(bound.max_value, r.extent):
                 changed = True
-            region.append(Range.from_min_extent(r.min, bound.max_value))
+            region.append(Range.from_min_extent(r.begin, bound.max_value))
         if changed:
             bound_region = TensorRegion(tensor_region.source, region, ty=TensorRegionType())
             self.bound_regions[tensor_region] = bound_region
@@ -143,7 +143,7 @@ class InstructionGenerator:
         new_seps = [0]
         for i in range(len(seps) - 1):
             r = tensor_region.region[i]
-            st = r.min
+            st = r.begin
             ext = r.extent
             reversed_shard = []
             for j in reversed(range(seps[i], seps[i + 1])):
@@ -466,7 +466,7 @@ class InstructionGenerator:
 
     def generate_indices(self, tensor_region: TensorRegion) -> list[Expr]:
         axes = self.generate_axes(tensor_region)
-        return [axes[i] + r.min for i, r in enumerate(tensor_region.region)]
+        return [axes[i] + r.begin for i, r in enumerate(tensor_region.region)]
 
     def _get_inst_logical_iter_list(
         self,

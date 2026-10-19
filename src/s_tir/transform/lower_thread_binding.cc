@@ -56,26 +56,27 @@ class ThreadBindingLowerer : public StmtExprMutator {
       loop.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
       return loop;
     }
-    PrimExpr min = Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
-    PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
+    PrimExpr min = Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
+    PrimExpr end = Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
+    PrimExpr extent = Range::GetExtentFromBeginEnd(min, end);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(tvm::s_tir::GetThreadBinding(op).has_value());
     TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint.name) ||
                    op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint.name) == nullptr)
         << "Run LoopPartition before LowerThreadBinding";
-    PrimVar launch_var(op->loop_var->name, extent.ty());
-    auto previous_remap = VarRemapGet(op->loop_var);
-    VarRemapSet(op->loop_var, prim::cast(launch_var, op->loop_var.ty()));
+    PrimVar launch_var(op->var->name, extent.ty());
+    auto previous_remap = VarRemapGet(op->var);
+    VarRemapSet(op->var, prim::cast(launch_var, op->var.ty()));
     auto annotations = Mutate(op->annotations, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
                            .ValueOrUnchanged(op->annotations);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    VarRemapSet(op->loop_var, previous_remap);
+    VarRemapSet(op->var, previous_remap);
     annotations.erase(tvm::s_tir::attr::kThreadBinding.name);
     if (!annotations.empty()) {
-      PrimType ty = op->loop_var.ty();
-      body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
-                 std::move(body), std::move(annotations), std::nullopt, op->loc);
+      PrimType ty = op->var.ty();
+      body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), IntImm(ty, 1),
+                 ForKind::kDefault, std::move(body), std::move(annotations), op->loc);
     }
     return RegionStmt(tirx::launch_thread_op(),
                       {StringImm(tvm::s_tir::GetThreadBinding(op).value()), extent}, {launch_var},

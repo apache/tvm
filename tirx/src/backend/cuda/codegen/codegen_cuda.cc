@@ -392,10 +392,9 @@ void CodeGenCUDA::Dispatch_(const ForNode* op) {
   // requires #pragma unroll to immediately precede the loop it controls; if
   // those declarations are printed between the pragma and the for statement,
   // nvcc is free to unroll the loop despite disable_unroll.
-  std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
-  std::string end_str = PrintExpr(end);
-  std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
+  std::string begin_str = PrintExpr(op->begin);
+  std::string end_str = PrintExpr(op->end);
+  std::string step_str = op->HasTrivialStep() ? "" : PrintExpr(op->step);
   if (op->annotations.count(tvm::tirx::attr::kDisableUnroll.name)) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
@@ -414,9 +413,9 @@ void CodeGenCUDA::Dispatch_(const ForNode* op) {
     stream << "\n";
   }
   PrintIndent();
-  std::string vid = AllocVarID(op->loop_var.get());
+  std::string vid = AllocVarID(op->var.get());
   stream << "for (";
-  PrintType(op->loop_var.ty(), stream);
+  PrintType(op->var.ty(), stream);
   stream << ' ' << vid << " = " << begin_str << "; " << vid << " < " << end_str << "; ";
   if (step_str.empty()) {
     stream << "++" << vid;

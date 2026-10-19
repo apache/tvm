@@ -48,24 +48,20 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
                                   << ffi::AnyView(result).GetTypeKey();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
-  PrimExpr e = Mutate(op->loop_var, inplace_mode).ValueOrUnchanged(op->loop_var);
+  PrimExpr e = Mutate(op->var, inplace_mode).ValueOrUnchanged(op->var);
   Var var = e.as_or_throw<Var>();
   PrimType var_ty = var->ty.as_or_throw<PrimType>();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* n = const_cast<ForNode*>(op);
-    n->min = prim::cast(op->min, var_ty);
-    n->extent = prim::cast(op->extent, var_ty);
-    if (op->step.has_value()) {
-      n->step = prim::cast(*op->step, var_ty);
-    }
+    n->begin = prim::cast(op->begin, var_ty);
+    n->end = prim::cast(op->end, var_ty);
+    n->step = prim::cast(op->step, var_ty);
     return result;
   }
   auto n = ffi::make_object<ForNode>(*op);
-  n->min = prim::cast(op->min, var_ty);
-  n->extent = prim::cast(op->extent, var_ty);
-  if (op->step.has_value()) {
-    n->step = prim::cast(*op->step, var_ty);
-  }
+  n->begin = prim::cast(op->begin, var_ty);
+  n->end = prim::cast(op->end, var_ty);
+  n->step = prim::cast(op->step, var_ty);
   return For(n);
 }
 
@@ -427,25 +423,27 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode 
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
   PrimVar new_loop_var =
-      Mutate(op->loop_var, inplace_mode).ValueOrUnchanged(op->loop_var).as_or_throw<PrimVar>();
-  auto min_result = Mutate(op->min, inplace_mode);
-  bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
-  PrimExpr min = std::move(min_result).ValueOrUnchanged(op->min);
-  auto extent_result = Mutate(op->extent, inplace_mode);
-  bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
-  PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
+      Mutate(op->var, inplace_mode).ValueOrUnchanged(op->var).as_or_throw<PrimVar>();
+  auto begin_result = Mutate(op->begin, inplace_mode);
+  bool begin_unchanged = begin_result.UnchangedOrSameAs(op->begin);
+  PrimExpr begin = std::move(begin_result).ValueOrUnchanged(op->begin);
+  auto end_result = Mutate(op->end, inplace_mode);
+  bool end_unchanged = end_result.UnchangedOrSameAs(op->end);
+  PrimExpr end = std::move(end_result).ValueOrUnchanged(op->end);
+  PrimExpr step = Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
   is_enabled_ = is_enabled;
   auto new_body_result = Mutate(op->body, inplace_mode);
   bool new_body_unchanged = new_body_result.UnchangedOrSameAs(op->body);
   Stmt new_body = std::move(new_body_result).ValueOrUnchanged(op->body);
 
-  if (!new_loop_var.same_as(op->loop_var) || !min_unchanged || !extent_unchanged ||
-      !new_body_unchanged) {
+  if (!new_loop_var.same_as(op->var) || !begin_unchanged || !end_unchanged ||
+      !step.same_as(op->step) || !new_body_unchanged) {
     For new_for = ffi::GetRef<For>(op);
     auto* n = new_for.CopyOnWrite();
-    n->loop_var = new_loop_var;
-    n->min = prim::cast(min, new_loop_var.ty());
-    n->extent = prim::cast(extent, new_loop_var.ty());
+    n->var = new_loop_var;
+    n->begin = prim::cast(begin, new_loop_var.ty());
+    n->end = prim::cast(end, new_loop_var.ty());
+    n->step = prim::cast(step, new_loop_var.ty());
     n->body = new_body;
     return new_for;
 

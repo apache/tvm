@@ -57,7 +57,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
-      thread_bound_loop_vars_.insert(loop->loop_var.get());
+      thread_bound_loop_vars_.insert(loop->var.get());
     }
     return StmtExprVisitor::Visit_(loop);
   }

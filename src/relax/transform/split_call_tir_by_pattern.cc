@@ -269,13 +269,13 @@ class ForMatcher : public TensorizeComparator {
       return false;
     }
     // Build mapping between the loop vars
-    if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
+    if (!DefEqual(op->var, rhs->var)) return false;
     // Only handle the case where the loop start from 0
-    if (!IsZero(op->min) || !IsZero(rhs->min)) return false;
+    if (!IsZero(op->begin) || !IsZero(rhs->begin)) return false;
     if (op->kind != ForKind::kDefault || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
-    if (!Dispatch(op->extent, rhs->extent)) return false;
+    if (!Dispatch(op->end, rhs->end) || !Dispatch(op->step, rhs->step)) return false;
     return Dispatch(op->body->seq[0], rhs->body->seq[0]);
   }
 
@@ -314,10 +314,10 @@ class ForMatcher : public TensorizeComparator {
     const auto* rhs = other.as<s_tir::SBlockRealizeNode>();
     // Only allow trivial bindings
     for (size_t i = 0; i < op->iter_values.size(); ++i) {
-      if (!op->iter_values[i].same_as(loop_stack_lhs_[i]->loop_var)) return false;
+      if (!op->iter_values[i].same_as(loop_stack_lhs_[i]->var)) return false;
     }
     for (size_t i = 0; i < rhs->iter_values.size(); ++i) {
-      if (!rhs->iter_values[i].same_as(loop_stack_rhs_[i]->loop_var)) return false;
+      if (!rhs->iter_values[i].same_as(loop_stack_rhs_[i]->var)) return false;
     }
     // Disallow predicates now
     if (!IsOne(op->predicate) || !IsOne(rhs->predicate)) return false;

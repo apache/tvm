@@ -366,17 +366,17 @@ class WellFormednessVerifier : public StmtExprVisitor {
   }
 
   Result Visit_(const ForNode* op) override {
-    this->Visit(op->min);
-    this->Visit(op->extent);
+    this->Visit(op->begin);
+    this->Visit(op->end);
+    this->Visit(op->step);
     if (check_ == Check::kLoopControl) {
-      this->Visit(op->step);
       ++loop_depth_;
       this->Visit(op->body);
       --loop_depth_;
       return std::nullopt;
     }
     return WithScope([&]() -> Result {
-      Define(op->loop_var, AccessPath::Root()->Attr("loop_var"));
+      Define(op->var, AccessPath::Root()->Attr("var"));
       return WithScope([&]() { return this->Visit(op->body); });
     });
   }
