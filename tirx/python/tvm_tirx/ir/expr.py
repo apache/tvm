@@ -700,7 +700,8 @@ class Call(_CallableExprWithOp):
     or a missing type when no deduction is available. Explicit types, including
     ``Type.missing()``, are preserved exactly. Inference errors propagate.
     Construction permits provisional IR; :meth:`validate` checks the operator
-    contract explicitly after inputs are ready.
+    contract explicitly after inputs are ready. Constructing a ``Call`` never
+    emits a builder statement, including calls to allocation operators.
 
     Parameters
     ----------
