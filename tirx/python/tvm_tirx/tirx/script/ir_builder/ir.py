@@ -213,6 +213,31 @@ def alloc_tensor(
     receipt. Outside a builder return
     the allocation Call. Construct ``ir.Call("tirx.alloc_tensor", ...)`` directly
     when a pure expression is needed inside a builder.
+
+    Examples
+    --------
+    Parsed TVMScript uses an ordinary assignment. The allocation creates one
+    binding, and subsequent tensor accesses use its variable.
+
+    .. code-block:: python
+
+        from tvm_tirx import ir
+        from tvm_tirx.script import tirx as T
+        from tvm_tirx.script.ir_builder import IRBuilder
+
+        @T.function(private=True)
+        def example():
+            tensor = T.alloc_tensor(ty_args=[T.Tensor((4,), "int32", scope="local")])
+            tensor[0] = 1
+
+        tensor_type = T.Tensor((4,), "int32", scope="local")
+        with IRBuilder() as builder:
+            raw = ir.Call("tirx.alloc_tensor", [], ty_args=[tensor_type])
+            tensor = T.alloc_tensor(ty_args=[tensor_type])
+        binding = builder.get()
+        assert isinstance(binding, ir.Bind)
+        assert binding.var.same_as(tensor)
+        assert not binding.value.same_as(raw)
     """
     if attrs is not None and annotations is not None:
         raise TypeError("alloc_tensor cannot mix attrs and annotations")
