@@ -188,7 +188,7 @@ def test_opencl_type_casting():
         fun = tvm_tirx.tirx.compile(Module, target=target).mod
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
-        rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
+        rcond = "(convert_uint4(((((int4)((((convert_int(get_local_id(0))) * 4))+(1*0), (((convert_int(get_local_id(0))) * 4))+(1*1), (((convert_int(get_local_id(0))) * 4))+(1*2), (((convert_int(get_local_id(0))) * 4))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
         pattern_cond = f"({lcond} && {rcond})"
         assert assembly.count(pattern_cond) != 0
 
@@ -196,6 +196,8 @@ def test_opencl_type_casting():
             dev = tvm_tirx.opencl(0)
             c = tvm_tirx.runtime.empty((n,), dtype, dev)
             fun(c)
+            expected = [float(i // 4 == 3 and i % 3 == 1) for i in range(n)]
+            tvm_tirx.testing.assert_allclose(c.numpy(), expected)
 
         tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
