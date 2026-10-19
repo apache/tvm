@@ -87,6 +87,7 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
 
 
 def test_profiler_constructor_owns_each_allocation_once():
+    pytest.importorskip("triton.profiler")
     pytest.importorskip("torch")
     from tvm_tirx.testing.bench import CudaProfiler
 
