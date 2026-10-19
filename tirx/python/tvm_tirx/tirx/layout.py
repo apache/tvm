@@ -292,6 +292,16 @@ class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
     Use ``Axis.get(name)`` or a registered attribute such as ``Axis.m``. Axis
     metadata identifies memory or thread coordinates and any owning backend;
     ``value @ axis`` attaches a stride or offset to that coordinate.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        memory = T.Axis.get("m")  # Also available as T.Axis.m.
+        layout = T.TileLayout(T.S[8 : 2 @ memory])
+        assert int(layout.apply(3)["m"]) == 6
     """
 
     @property
@@ -570,7 +580,6 @@ class TileLayout(Layout):
     ``shard`` holds the factors for distinct logical elements; ``replica`` holds
     factors for copies of those elements. ``offset`` gives an origin per axis.
     Use :meth:`from_iters` to construct these fields directly.
-    For example, ``TileLayout(S[4, 8])`` describes a contiguous 4-by-8 tile.
 
     Parameters
     ----------
@@ -579,6 +588,15 @@ class TileLayout(Layout):
         replica factors, and offsets with ``+``. Integer strides use the memory
         axis ``m``; ``stride @ Axis.name`` selects another axis. Omitted strides
         use contiguous row-major memory order.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        layout = T.TileLayout(T.S[4, 8])  # Contiguous 4-by-8 tile.
+        assert int(layout.apply(1, 2)["m"]) == 10
     """
 
     shard: list[Iter]
@@ -693,6 +711,17 @@ class ComposeLayout(Layout):
     swizzle_inner : bool, optional
         If true, XOR the higher group into the lower group; otherwise XOR the
         lower group into the higher group. Defaults to true.
+
+    Examples
+    --------
+    .. code:: python
+
+        from tvm_tirx.script import tirx as T
+
+        tile = T.TileLayout(T.S[8, 8])
+        layout = T.ComposeLayout(0, 2, 3, tile)
+        # Memory offset 10 becomes 10 ^ ((10 >> 3) & 3) = 11.
+        assert int(layout.apply(1, 2)["m"]) == 11
     """
 
     per_element: int
