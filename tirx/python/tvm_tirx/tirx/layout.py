@@ -32,15 +32,15 @@ from .thread_scope import ThreadScope
 
 @tvm_ffi.register_object("tirx.Layout")
 class Layout(tvm_ffi.Object):
-    def verify_well_formed(self) -> bool:
-        """Verify if the layout is well-formed.
+    def check_well_formed(self) -> None:
+        """Check whether the layout is well formed.
 
-        Returns
-        -------
-        bool
-            True if the layout is well-formed, False otherwise
+        Raises
+        ------
+        ValueError, RuntimeError
+            If the layout is not well formed.
         """
-        return _ffi_api.LayoutVerifyWellFormed(self)  # pylint: disable=no-member
+        _ffi_api.LayoutCheckWellFormed(self)  # pylint: disable=no-member
 
     def size(self, axis_name: str | None = None):
         """Get the size of the layout.
@@ -263,10 +263,10 @@ class Layout(tvm_ffi.Object):
 
 
 # Set of axis names registered on the C++ side. Used for lazy resolution of
-# both module-level (`from tvm.tirx.layout import m`) and class-attribute
+# both module-level (`from tvm_tirx.tirx.layout import m`) and class-attribute
 # (`Axis.m`) accesses. The actual FFI call to look up each axis is
-# deferred until first access — keeps `import tvm.tirx.layout` runtime-safe
-# (compiler-side FFI need not be present, matching apache's discipline).
+# deferred until first access — keeps `import tvm_tirx.tirx.layout` runtime-safe
+# (compiler-side FFI need not be present).
 _AXIS_NAMES = ("m",)
 
 
@@ -326,9 +326,9 @@ class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
 # ------------------------------------------------------------------
 # 2)  Lazy module-level axis lookup
 # ------------------------------------------------------------------
-# PEP 562 module-level __getattr__ for `from tvm.tirx.layout import m`.
+# PEP 562 module-level __getattr__ for `from tvm_tirx.tirx.layout import m`.
 # The FFI call to look up each axis is deferred until first access; bare
-# `import tvm.tirx.layout` performs zero compiler-side FFI calls.
+# `import tvm_tirx.tirx.layout` performs zero compiler-side FFI calls.
 def __getattr__(name):
     if name in _AXIS_NAMES:
         return Axis.get(name)

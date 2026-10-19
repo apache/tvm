@@ -308,7 +308,7 @@ ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, Til
   n->swizzle_len = swizzle_len;
   n->atom_len = atom_len;
   n->swizzle_inner = swizzle_inner;
-  TVM_FFI_ICHECK(n->VerifyWellFormed()) << "ValueError: The compose layout is not well-formed";
+  n->CheckWellFormed();
   int swizzle_mask = (1 << swizzle_len) - 1;
   n->inner_mask = swizzle_mask;
   n->outer_mask = swizzle_mask << atom_len;
@@ -323,11 +323,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool ComposeLayoutNode::VerifyWellFormed() const {
-  if (!(per_element >= 0 && swizzle_len >= 0 && atom_len >= swizzle_len)) {
-    return false;
-  }
-  return tile_layout->VerifyWellFormed();
+void ComposeLayoutNode::CheckWellFormed() const {
+  TVM_FFI_CHECK(per_element >= 0 && swizzle_len >= 0 && atom_len >= swizzle_len, ValueError)
+      << "A compose layout requires nonnegative per_element and swizzle_len, and "
+      << "atom_len >= swizzle_len";
+  tile_layout->CheckWellFormed();
 }
 
 PrimExpr ComposeLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {

@@ -361,7 +361,7 @@ def test_dynamic_launch_thread():
 
     after = tvm_tirx.tirx.transform.SplitHostDevice()(before)
 
-    tvm_tirx.tirx.analysis.verify_well_formed(after)
+    tvm_tirx.tirx.analysis.check_well_formed(after)
     tvm_tirx.ir.assert_structural_equal(expected, after)
 
 

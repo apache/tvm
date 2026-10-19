@@ -96,7 +96,7 @@ if TYPE_CHECKING or not _is_config_mode():
     sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
 
     # Autoload loads built-in and out-of-tree backends. Out-of-tree extensions opt
-    # into being loaded automatically at ``import tvm`` time by declaring an entry
+    # into being loaded automatically at ``import tvm_tirx`` time by declaring an entry
     # point in the ``tvm.backends`` group:
     # [project.entry-points."tvm.backends"] tvm_foo = "tvm_foo:_autoload".
     # Autoload can be disabled via ``TVM_DEVICE_BACKEND_AUTOLOAD=0``.

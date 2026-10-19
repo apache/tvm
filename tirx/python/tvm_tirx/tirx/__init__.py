@@ -99,16 +99,6 @@ if not _RUNTIME_ONLY_TIRX:
     )
 
 
-def _check_script_module(module: "tvm_tirx.ir.IRModule") -> None:
-    # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
-    from tvm_tirx.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
-
-    _check_module_well_formed(module)
-
-
-tvm_tirx.script.register_module_validator(_check_script_module)
-
-
 def _initialize_script_namespace() -> None:
     from . import script
 

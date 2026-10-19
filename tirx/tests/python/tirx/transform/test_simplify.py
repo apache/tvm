@@ -838,7 +838,7 @@ def test_simplify_tensor_identity_well_formed():
 
     after = _apply_simplify(before)
     tvm_tirx.ir.assert_structural_equal(after, expected)
-    tvm_tirx.tirx.analysis.verify_well_formed(after)
+    tvm_tirx.tirx.analysis.check_well_formed(after)
 
 
 def test_tensor_shape_constraint():
