@@ -36,6 +36,11 @@ def test_missing_type():
 
     assert isinstance(missing, tvm_tirx.ir.Type)
     assert isinstance(missing, tvm_tirx.ir.MissingType)
+    none = tvm_tirx.ir.NoneType()
+    assert isinstance(none, tvm_tirx.ir.Type)
+    assert not tvm_ffi.structural_equal(none, missing)
+    assert not tvm_ffi.structural_equal(none, tvm_tirx.ir.TupleType([]))
+    check_json_roundtrip(none)
 
 
 def test_prim_type():

@@ -538,6 +538,13 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
+  if (param->ty.as<NoneTypeNode>()) {
+    // A None parameter still occupies an ABI slot, even when the body ignores it.
+    EmitTypeIndexCheck(param_index,
+                       type_index.as_or_throw<PrimExpr>() == ffi::TypeIndex::kTVMFFINone, "None");
+    return;
+  }
+
   if (param->ty.as<TensorTypeNode>()) {
     Var handle(param->name + ".handle", PtrType::VoidPtrType());
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());

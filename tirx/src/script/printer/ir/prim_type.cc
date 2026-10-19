@@ -48,6 +48,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&MemoryScopeDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> NoneTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
+  return NamespaceDoc("ir")->Attr("NoneType")->Call({});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<NoneTypeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
+      FDocTranslate::FromNative<&NoneTypeDocTranslate>());
+}
+
 bool HasPrimTypeShorthand(const PrimType& type) {
   bool supported_element =
       (type.MatchesCode(kDLInt, kDLUInt) &&

@@ -35,6 +35,20 @@
 
 namespace tvm {
 
+/*! \brief The type whose only value is None. */
+class NoneTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<NoneTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.NoneType", NoneTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to NoneTypeNode. */
+class NoneType : public Type {
+ public:
+  TVM_TIRX_DLL NoneType();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NoneType, Type, NoneTypeNode);
+};
+
 /*!
  * \brief The top type, which admits any value.
  *

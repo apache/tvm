@@ -20,17 +20,19 @@ from __future__ import annotations
 
 import ast
 import inspect
+import typing
 from collections.abc import Callable, Mapping
-from types import FunctionType
+from types import FunctionType, UnionType
 from typing import Any
 
 from tvm_tirx.script.ir_builder.ir import constexpr
 from tvm_tirx.script.parser import protocol_registry
+from tvm_tirx.script.parser.jit_support import optional_annotation_body
 from tvm_tirx.tirx import Function
 
 
 class OptionalAnnotation:
-    """Retain the runtime annotation of a removable JIT parameter."""
+    """Retain the runtime annotation of an optional JIT parameter."""
 
     def __init__(self, annotation: Any) -> None:
         self.annotation = annotation
@@ -66,12 +68,12 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
         private: bool = False,
         check_well_formed: bool = True,
         persistent: bool = False,
-    ) -> TIRJit | Callable[[FunctionType], TIRJit]:
+    ) -> JITFunction | Callable[[FunctionType], JITFunction]:
         """Decorator: capture the kernel and defer parsing until ``.specialize()``.
 
         Use ``@T.jit`` (instead of ``@T.function``) when the kernel takes
-        compile-time parameters annotated with ``T.constexpr`` or runtime
-        parameters that may be removed with ``T.Optional``. The resulting object
+        compile-time parameters annotated with ``T.constexpr`` or optional runtime
+        parameters that may specialize to ``ir.NoneType``. The resulting object
         exposes ``.specialize(**const_args)``, which returns a
         ``tvm_tirx.tirx.Function``.
 
@@ -90,7 +92,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
 
         Returns
         -------
-        TIRJit or Callable[[types.FunctionType], TIRJit]
+        JITFunction or Callable[[types.FunctionType], JITFunction]
             Deferred kernel, or its definition-site decorator when func is None.
 
         Raises
@@ -125,7 +127,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
 
             @T.jit
             def guarded(
-                optional: T.Optional(T.Tensor((1,), "int32")),
+                optional: T.Tensor((1,), "int32") | None,
                 output: T.Tensor((1,), "int32"),
             ):
                 if T.constexpr(optional is not None):
@@ -137,7 +139,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
             absent = guarded.specialize(optional=None)
         """
 
-        def apply(function: FunctionType) -> TIRJit:
+        def apply(function: FunctionType) -> JITFunction:
             from tvm_tirx.script.parser.inspect_source import (
                 capture_definition_scope,
                 require_definition_site,
@@ -153,7 +155,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
                 definition_scope = capture_definition_scope(frame)
             finally:
                 del frame
-            return TIRJit(
+            return JITFunction(
                 function,
                 check_well_formed,
                 persistent,
@@ -167,7 +169,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
     return jit
 
 
-class TIRJit:
+class JITFunction:
     """Top-level kernel decorator with compile-time ``.specialize()`` params.
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
@@ -178,6 +180,11 @@ class TIRJit:
     Constexpr params are removed from the resulting Function's parameter list;
     their values are baked into the IR (e.g. into ``T.Tensor((M, K), ...)``
     shape annotations and into the body).
+
+    Optional parameters accept ``annotation | None``, ``typing.Optional[annotation]``
+    and ``T.Optional(annotation)``. Selecting None preserves their parameter slots
+    with ``ir.NoneType``; the body sees Python None for compile-time guards.
+    Use ``from __future__ import annotations`` for deferred tensor annotations.
     """
 
     def __init__(
@@ -256,6 +263,9 @@ class TIRJit:
                     node = ast.parse(ann, mode="eval").body
                     if isinstance(node, ast.Constant) and isinstance(node.value, str):
                         node = ast.parse(node.value, mode="eval").body
+                    if optional_annotation_body(node, annotation_scope) is not None:
+                        optional_names.add(name)
+                        continue
                     key = (
                         resolve_namespace_key(node, annotation_scope)
                         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
@@ -279,6 +289,10 @@ class TIRJit:
                     constexpr_defaults[name] = param.default
             if ann is OptionalAnnotation or isinstance(ann, OptionalAnnotation):
                 optional_names.add(name)
+            elif typing.get_origin(ann) in (typing.Union, UnionType):
+                args = typing.get_args(ann)
+                if len(args) == 2 and type(None) in args:
+                    optional_names.add(name)
         self.constexpr_names: frozenset[str] = frozenset(constexpr_names)
         self.constexpr_defaults: dict[str, Any] = constexpr_defaults
         self.optional_names: frozenset[str] = frozenset(optional_names)
@@ -290,9 +304,9 @@ class TIRJit:
         Parameters
         ----------
         **const_args : Any
-            One hashable value per ``T.constexpr``-annotated parameter.  A
-            ``T.Optional`` parameter may additionally be supplied as ``None``
-            to remove it from the resulting Function ABI.  Omitting an
+            One hashable value per ``T.constexpr``-annotated parameter. An
+            optional parameter may additionally be supplied as ``None``
+            to retain its ABI slot with ``ir.NoneType``. Omitting an
             optional parameter keeps it as a normal runtime parameter.
 
         Returns
@@ -311,8 +325,8 @@ class TIRJit:
         Notes
         -----
         No supplied kwargs still selects JIT construction with an empty map when
-        no constexpr defaults exist. Selected None optional values omit parameters
-        and skip their annotations. Source and builder exceptions propagate unchanged.
+        no constexpr defaults exist. Selected None optional values retain parameters
+        and skip their original annotations. Source and builder exceptions propagate unchanged.
         """
         from tvm_tirx.script.parser.entry import parse
 
@@ -330,7 +344,7 @@ class TIRJit:
         }
         if invalid_optional:
             raise TypeError(
-                f"{self.func.__name__}.specialize(): T.Optional parameters only accept None; "
+                f"{self.func.__name__}.specialize(): optional parameters only accept None; "
                 f"pass actual tensors when calling the compiled kernel (got: {invalid_optional!r})"
             )
 
