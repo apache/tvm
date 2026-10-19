@@ -1161,8 +1161,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   // A single iteration needs no nested threadpool launch.  Keep an explicit
   // parallel_launch region's first loop distributed across its existing tasks.
-  if (op->kind == ForKind::kParallel && IsOne(op->extent) && op->HasTrivialStep() &&
-      op->annotations.empty() &&
+  if (op->kind == ForKind::kParallel && IsOne(Range::GetExtentFromBeginEnd(op->begin, op->end)) &&
+      op->HasTrivialStep() && op->annotations.empty() &&
       (parallel_env_.penv == nullptr || parallel_env_.in_parallel_loop)) {
     auto serial = ffi::make_object<ForNode>(*op);
     serial->kind = ForKind::kDefault;
@@ -1172,26 +1172,25 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   if (op->kind == ForKind::kDefault || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
   } else if (op->kind == ForKind::kParallel) {
-    TVM_FFI_ICHECK(IsZero(op->min))
+    TVM_FFI_ICHECK(IsZero(op->begin))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())
         << "Parallel launch require canonical loop with trivial loop step";
     if (parallel_env_.penv == nullptr) {
       auto copy_node = For(ffi::make_object<ForNode>(*op));
-      CreateParallelLaunch(copy_node, 0,
-                           std::string("loop_parallel_") + op->loop_var->name.c_str());
+      CreateParallelLaunch(copy_node, 0, std::string("loop_parallel_") + op->var->name.c_str());
     } else {
       // already in parallel env.
       TVM_FFI_ICHECK(parallel_env_.task_id.has_value());
       TVM_FFI_ICHECK(parallel_env_.num_task.has_value());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
-      PrimType t(op->extent.ty()->dtype);
+      PrimType t = op->var.ty();
       PrimExpr num_task = cast(parallel_env_.num_task.value().as_or_throw<PrimExpr>(), t);
       PrimExpr task_id = cast(parallel_env_.task_id.value().as_or_throw<PrimExpr>(), t);
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
-      PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+      PrimExpr end = op->end;
       bool stride_pattern = false;
       if (auto it = op->annotations.find(tvm::codegen::attr::kParallelStridePattern.name);
           it != op->annotations.end()) {
@@ -1206,14 +1205,13 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
         }
       }
       if (stride_pattern) {
-        CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->loop_var,
-                        op->body);
+        CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->var, op->body);
       } else {
-        PrimExpr step = (op->extent + num_task - IntImm(t, 1)) / num_task;
-        PrimExpr begin = min(task_id * step, op->extent);
+        PrimExpr step = (op->end + num_task - IntImm(t, 1)) / num_task;
+        PrimExpr begin = min(task_id * step, op->end);
         end = min((task_id + IntImm(t, 1)) * step, end);
         CreateSerialFor(MakeValue(begin), MakeValue(end),
-                        llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->loop_var, op->body);
+                        llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->var, op->body);
       }
       parallel_env_.in_parallel_loop = false;
       ++parallel_env_.parallel_loop_count;

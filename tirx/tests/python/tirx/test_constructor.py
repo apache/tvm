@@ -292,10 +292,10 @@ def test_stmt_constructor():
     assert len(x.message_parts) == 1
     assert x.message_parts[0].value == "hellow"
 
-    x = tvm_tirx.ir.For(tvm_tirx.tirx.Var("x", "int32"), 0, 10, tvm_tirx.ir.ForKind.DEFAULT, nop)
+    x = tvm_tirx.ir.For(tvm_tirx.tirx.Var("x", "int32"), 0, 10, 1, tvm_tirx.ir.ForKind.DEFAULT, nop)
     assert isinstance(x, tvm_tirx.ir.For)
-    assert x.min.value == 0
-    assert x.extent.value == 10
+    assert x.begin.value == 0
+    assert x.end.value == 10
     assert len(x.body) == 1 and x.body[0] == nop
 
     tensor_var = tvm_tirx.tirx.Var("buf", tvm_tirx.ir.PtrType(tvm_tirx.ir.PrimType("bool")))

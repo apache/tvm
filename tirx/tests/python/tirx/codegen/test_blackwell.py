@@ -450,7 +450,7 @@ def test_tcgen05_cp_ld_roundtrip():
                 copy_value_1 = copy_src_tensor_1[
                     tuple(
                         [
-                            copy_src_1.region[k].min
+                            copy_src_1.region[k].begin
                             + copy_index_1
                             // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
                             % copy_src_1.region[k].extent
@@ -461,7 +461,7 @@ def test_tcgen05_cp_ld_roundtrip():
                 copy_dst_index_1 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_1.region[k].min
+                            copy_dst_1.region[k].begin
                             + copy_index_1
                             // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
                             % copy_dst_1.region[k].extent
@@ -611,7 +611,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_value_2 = copy_src_tensor_2[
                     tuple(
                         [
-                            copy_src_2.region[k].min
+                            copy_src_2.region[k].begin
                             + copy_index_2
                             // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
                             % copy_src_2.region[k].extent
@@ -622,7 +622,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_dst_index_2 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_2.region[k].min
+                            copy_dst_2.region[k].begin
                             + copy_index_2
                             // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
                             % copy_dst_2.region[k].extent
@@ -643,7 +643,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_value_3 = copy_src_tensor_3[
                     tuple(
                         [
-                            copy_src_3.region[k].min
+                            copy_src_3.region[k].begin
                             + copy_index_3
                             // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
                             % copy_src_3.region[k].extent
@@ -654,7 +654,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
                 copy_dst_index_3 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_3.region[k].min
+                            copy_dst_3.region[k].begin
                             + copy_index_3
                             // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
                             % copy_dst_3.region[k].extent

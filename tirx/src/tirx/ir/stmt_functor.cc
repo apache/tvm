@@ -146,11 +146,9 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const RegionStmtNode* op) 
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ForNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->min));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->extent));
-  if (op->step.has_value()) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(*op->step));
-  }
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->begin));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->end));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->step));
   return this->Visit(op->body);
 }
 
@@ -277,24 +275,24 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const RegionStmtNode* op, InplaceMode
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
-  auto min = Mutate(op->min, inplace_mode);
-  auto extent = Mutate(op->extent, inplace_mode);
-  auto step = Mutate(op->step, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>();
+  auto begin = Mutate(op->begin, inplace_mode);
+  auto end = Mutate(op->end, inplace_mode);
+  auto step = Mutate(op->step, inplace_mode);
   auto body = Mutate(op->body, inplace_mode);
-  if (min.UnchangedOrSameAs(op->min) && extent.UnchangedOrSameAs(op->extent) &&
+  if (begin.UnchangedOrSameAs(op->begin) && end.UnchangedOrSameAs(op->end) &&
       step.UnchangedOrSameAs(op->step) && body.UnchangedOrSameAs(op->body))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<ForNode*>(op);
-    if (!min.IsUnchanged()) writable->min = std::move(min).ValueUnchecked();
-    if (!extent.IsUnchanged()) writable->extent = std::move(extent).ValueUnchecked();
+    if (!begin.IsUnchanged()) writable->begin = std::move(begin).ValueUnchecked();
+    if (!end.IsUnchanged()) writable->end = std::move(end).ValueUnchecked();
     if (!step.IsUnchanged()) writable->step = std::move(step).ValueUnchecked();
     if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<ForNode>(*op);
-  if (!min.IsUnchanged()) copy->min = std::move(min).ValueUnchecked();
-  if (!extent.IsUnchanged()) copy->extent = std::move(extent).ValueUnchecked();
+  if (!begin.IsUnchanged()) copy->begin = std::move(begin).ValueUnchecked();
+  if (!end.IsUnchanged()) copy->end = std::move(end).ValueUnchecked();
   if (!step.IsUnchanged()) copy->step = std::move(step).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));

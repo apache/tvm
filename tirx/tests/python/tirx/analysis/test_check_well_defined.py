@@ -58,6 +58,7 @@ def test_error_for_out_of_scope_usage():
         tvm_tirx.tirx.Var("j", "int32"),
         0,
         1,
+        1,
         tvm_tirx.ir.ForKind.DEFAULT,
         tvm_tirx.ir.SeqStmt([tvm_tirx.ir.Bind(i, 42), tvm_tirx.ir.Evaluate(i)]),
     )

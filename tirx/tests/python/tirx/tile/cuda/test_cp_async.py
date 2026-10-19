@@ -117,7 +117,7 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
                 copy_value_1 = copy_src_tensor_1[
                     tuple(
                         [
-                            copy_src_1.region[k].min
+                            copy_src_1.region[k].begin
                             + copy_index_1
                             // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
                             % copy_src_1.region[k].extent
@@ -128,7 +128,7 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
                 copy_dst_index_1 = T.meta_var(
                     tuple(
                         [
-                            copy_dst_1.region[k].min
+                            copy_dst_1.region[k].begin
                             + copy_index_1
                             // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
                             % copy_dst_1.region[k].extent

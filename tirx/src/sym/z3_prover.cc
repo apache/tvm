@@ -222,7 +222,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
             ApplyBindValue(entry.var.value(), entry.value.value());
             break;
           case Scope::BindRange:
-            ApplyBindRange(entry.var.value(), entry.min.value(), entry.extent.value());
+            ApplyBindRange(entry.var.value(), entry.begin.value(), entry.extent.value());
             break;
           case Scope::Constraint:
             ApplyConstraint(entry.constraint.value(), entry.is_assume, scope_index);
@@ -264,7 +264,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
     } kind;
     ffi::Optional<Var> var;
     ffi::Optional<PrimExpr> value;
-    ffi::Optional<PrimExpr> min;
+    ffi::Optional<PrimExpr> begin;
     ffi::Optional<PrimExpr> extent;
     ffi::Optional<PrimExpr> constraint;
     /// Assume-mode constraints keep side-effectful expressions memoized for
@@ -407,12 +407,12 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
   void Bind(const Var& var, const Range& range, bool allow_override = false) {
     if (!IsZ3SupportedExpr(var.get())) return;
     scope_stack_.back().push_back(
-        Scope{Scope::BindRange, var, std::nullopt, range->min, range->extent});
+        Scope{Scope::BindRange, var, std::nullopt, range->begin, range->extent});
     if (!solver) return;  // journaled; translated when the solver materializes
-    ApplyBindRange(var, range->min, range->extent);
+    ApplyBindRange(var, range->begin, range->extent);
   }
 
-  void ApplyBindRange(const Var& var, const PrimExpr& min, const PrimExpr& extent) {
+  void ApplyBindRange(const Var& var, const PrimExpr& begin, const PrimExpr& extent) {
     // 1. Create a placeholder for the var, and save it in the memo
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
@@ -424,11 +424,11 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    instead of adding an unsat constraint, we just skip the range constraint to leave it a
     //    free var
     //
-    //    NOTE: min + extent builds a fresh AddNode that is not folded, so we must
-    //    test IsConstInt on min and extent individually and add the two constants
+    //    NOTE: begin + extent builds a fresh AddNode that is not folded, so we must
+    //    test IsConstInt on begin and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
-    if (auto min_imm = min.as<IntImm>(), extent_imm = extent.as<IntImm>();
+    if (auto min_imm = begin.as<IntImm>(), extent_imm = extent.as<IntImm>();
         min_imm.has_value() && extent_imm.has_value()) {
       const ffi::BigInt& min_value = (*min_imm)->value;
       ffi::BigInt max_value = min_value + (*extent_imm)->value;
@@ -438,7 +438,7 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
       }
     } else {
       PrimExpr prim_var = var.as_or_throw<PrimExpr>();
-      solver->add(ConvertBool(extent <= 0 || (min <= prim_var && prim_var < min + extent)));
+      solver->add(ConvertBool(extent <= 0 || (begin <= prim_var && prim_var < begin + extent)));
     }
   }
 
@@ -529,8 +529,8 @@ class Z3Prover::Impl final : tvm::ExprFunctor<z3::expr(const Expr&)> {
             ss << "; bind value: " << s.var.value() << " = " << s.value.value() << "\n";
             break;
           case Scope::BindRange:
-            ss << "; bind range: " << s.var.value() << " in [" << s.min.value() << ", "
-               << s.min.value() + s.extent.value() << ")\n";
+            ss << "; bind range: " << s.var.value() << " in [" << s.begin.value() << ", "
+               << s.begin.value() + s.extent.value() << ")\n";
             break;
         }
       }

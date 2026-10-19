@@ -570,8 +570,9 @@ class CSEPlanner : public StmtExprVisitor {
 
   /*! \brief For loops: bounds in parent scope, body in child scope. */
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->extent));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->begin));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->end));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->step));
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));

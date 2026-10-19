@@ -189,7 +189,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_mo
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
-  const Var& v = op->loop_var;
+  const Var& v = op->var;
   if (defined_.count(v.get())) {
     return scope_.WithNewScope([&]() -> Stmt {
       Var new_var = MakeNewVar(v);
@@ -197,7 +197,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_m
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
       auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-      n->loop_var = new_var.as_or_throw<PrimVar>();
+      n->var = new_var.as_or_throw<PrimVar>();
       return For(n);
     });
   } else {

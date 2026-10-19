@@ -2123,18 +2123,16 @@ void CodeGenLLVM::Dispatch_(const TensorStoreNode* op) {
 
 void CodeGenLLVM::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
-  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+  analyzer_->Bind(op->var, Range(op->begin, op->end));
   if (op->kind == ForKind::kUnrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
   } else {
     TVM_FFI_ICHECK(op->kind == ForKind::kDefault);
   }
-  PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
-  PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
-  llvm::Value* begin_value = MakeValue(op->min);
-  llvm::Value* end_value = MakeValue(end);
-  CreateSerialFor(begin_value, end_value, MakeValue(step), op->loop_var, op->body);
+  llvm::Value* begin_value = MakeValue(op->begin);
+  llvm::Value* end_value = MakeValue(op->end);
+  CreateSerialFor(begin_value, end_value, MakeValue(op->step), op->var, op->body);
 }
 
 void CodeGenLLVM::Dispatch_(const WhileNode* op) {

@@ -418,7 +418,7 @@ void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range, boo
   auto it = prev_bindings_.find(var);
   if (it != prev_bindings_.end()) {
     prim::ExprDeepEqual expr_equal;
-    bool differs_from_previous = !expr_equal(range->min, (*it).second->min) ||
+    bool differs_from_previous = !expr_equal(range->begin, (*it).second->begin) ||
                                  !expr_equal(range->extent, (*it).second->extent);
     if (differs_from_previous) {
       TVM_FFI_ICHECK(allow_override) << "Binding of variable " << var << " as " << range
@@ -435,10 +435,10 @@ void KnownComparisonAnalyzer::Impl::Bind(const Var& var, const Range& range, boo
 
   PrimExpr prim_var = var.as_or_throw<PrimExpr>();
   if (IsConstInt(range->extent, 1)) {
-    AddKnown(prim_var == range->min, &knowns_);
+    AddKnown(prim_var == range->begin, &knowns_);
   } else {
-    AddKnown(prim_var >= range->min, &knowns_);
-    AddKnown(prim_var < range->min + range->extent, &knowns_);
+    AddKnown(prim_var >= range->begin, &knowns_);
+    AddKnown(prim_var < range->begin + range->extent, &knowns_);
   }
 }
 

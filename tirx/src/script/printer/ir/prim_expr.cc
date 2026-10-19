@@ -109,20 +109,20 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   if (indexable) {
     for (size_t i = 0; i < region->region.size(); ++i) {
       const Range& range = region->region[i];
-      if (range->min.ty()->dtype.lanes != 1 || range->extent.ty()->dtype.lanes != 1) {
+      if (range->begin.ty()->dtype.lanes != 1 || range->extent.ty()->dtype.lanes != 1) {
         indexable = false;
         break;
       }
-      ExprDoc start = d->Translate(range->min).value();
+      ExprDoc start = d->Translate(range->begin).value();
       const auto* extent = range->extent.as<IntImmNode>();
       bool point =
-          extent && extent->value == 1 && ffi::StructuralEqual()(extent->ty, range->min.ty());
+          extent && extent->value == 1 && ffi::StructuralEqual()(extent->ty, range->begin.ty());
       if (point && (has_slice || i + 1 < region->region.size())) {
         slices.push_back(start);
-        indices.push_back(range->min);
+        indices.push_back(range->begin);
       } else {
         try {
-          PrimExpr stop = range->min + range->extent;
+          PrimExpr stop = range->begin + range->extent;
           // Scalar constructors accept signed 64-bit Python literals. A computed
           // endpoint outside that range cannot reconstruct through indexing.
           if (const auto* imm = stop.as<IntImmNode>();
@@ -132,7 +132,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
             break;
           }
           slices.push_back(SliceDoc(start, d->Translate(stop).value(), std::nullopt));
-          indices.push_back(Slice(range->min, stop, std::nullopt));
+          indices.push_back(Slice(range->begin, stop, std::nullopt));
           has_slice = true;
         } catch (const ffi::Error&) {
           indexable = false;
@@ -161,7 +161,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
         NamespaceDoc("ir")
             ->Attr("Range")
             ->Attr("from_min_extent")
-            ->Call({d->Translate(range->min).value(), d->Translate(range->extent).value()}));
+            ->Call({d->Translate(range->begin).value(), d->Translate(range->extent).value()}));
   }
   return NamespaceDoc("ir")
       ->Attr("TensorRegion")

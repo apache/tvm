@@ -63,10 +63,12 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
     PrimExpr>>;
 
 PrimExpr SliceExtent(const PrimExpr& start, const PrimExpr& stop, const sym::Analyzer& analyzer) {
-  if (const auto* add = stop.as<AddNode>(); add && ffi::StructuralEqual()(add->a, start)) {
-    return add->b;
+  PrimExpr extent = Range::GetExtentFromBeginEnd(start, stop);
+  if (const auto* add = stop.as<AddNode>();
+      add && (extent.same_as(add->a) || extent.same_as(add->b))) {
+    return extent;
   }
-  return analyzer->Simplify(stop - start);
+  return analyzer->Simplify(extent);
 }
 
 ffi::ObjectRef RealizeTensorSubscript(
@@ -150,7 +152,7 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
     ffi::Array<PrimExpr> indices;
     indices.reserve(slice.size());
     for (size_t i = 0; i < slice.size(); ++i) {
-      indices.push_back(source->region[i]->min + slice[i].as<PrimExpr>().value());
+      indices.push_back(source->region[i]->begin + slice[i].as<PrimExpr>().value());
     }
     return TensorLoad(source->source.as_or_throw<TensorVar>(), indices, loc);
   }
@@ -161,7 +163,7 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
   for (size_t i = 0; i < slice.size(); ++i) {
     const Range& old_range = source->region[i];
     if (auto point = slice[i].as<PrimExpr>()) {
-      PrimExpr new_min = old_range->min + point.value();
+      PrimExpr new_min = old_range->begin + point.value();
       region.push_back(Range::FromMinExtent(new_min, IntImm(point.value().ty(), 1)));
     } else {
       auto descriptor = slice[i]
@@ -171,7 +173,7 @@ ffi::ObjectRef RealizeTensorRegionSubscript(Expr value, SubscriptSlice slice, Lo
       PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
       PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
       region.push_back(
-          Range::FromMinExtent(old_range->min + start, SliceExtent(start, stop, analyzer)));
+          Range::FromMinExtent(old_range->begin + start, SliceExtent(start, stop, analyzer)));
     }
   }
   for (size_t i = slice.size(); i < source->region.size(); ++i) {

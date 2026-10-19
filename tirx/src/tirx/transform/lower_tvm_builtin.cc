@@ -365,12 +365,13 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    auto min_result = this->Mutate(op->min, inplace_mode);
-    bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
-    PrimExpr min = std::move(min_result).ValueOrUnchanged(op->min);
-    auto extent_result = this->Mutate(op->extent, inplace_mode);
-    bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
-    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
+    auto begin_result = this->Mutate(op->begin, inplace_mode);
+    bool begin_unchanged = begin_result.UnchangedOrSameAs(op->begin);
+    PrimExpr begin = std::move(begin_result).ValueOrUnchanged(op->begin);
+    auto end_result = this->Mutate(op->end, inplace_mode);
+    bool end_unchanged = end_result.UnchangedOrSameAs(op->end);
+    PrimExpr end = std::move(end_result).ValueOrUnchanged(op->end);
+    PrimExpr step = Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
     Stmt body = op->body;
 
     if (op->kind == ForKind::kParallel) {
@@ -382,19 +383,21 @@ class BuiltinLower : public StmtExprMutator {
       });
     }
 
-    if (min_unchanged && extent_unchanged && body.same_as(op->body)) {
+    if (begin_unchanged && end_unchanged && step.same_as(op->step) && body.same_as(op->body)) {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
         auto* n = const_cast<ForNode*>(op);
-        n->min = std::move(min);
-        n->extent = std::move(extent);
+        n->begin = std::move(begin);
+        n->end = std::move(end);
+        n->step = step;
         n->body = std::move(body);
         return ffi::Unchanged();
       }
       auto n = ffi::make_object<ForNode>(*op);
-      n->min = std::move(min);
-      n->extent = std::move(extent);
+      n->begin = std::move(begin);
+      n->end = std::move(end);
+      n->step = step;
       n->body = std::move(body);
       return Stmt(n);
     }

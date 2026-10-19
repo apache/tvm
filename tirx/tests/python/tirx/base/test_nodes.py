@@ -132,8 +132,8 @@ def test_basic():
 
 def test_stmt():
     x = tvm_tirx.ir.Evaluate(0)
-    tvm_tirx.ir.For(tvm_tirx.tirx.Var("i", "int32"), 0, 1, tvm_tirx.ir.ForKind.DEFAULT, x)
-    tvm_tirx.ir.For(tvm_tirx.tirx.Var("i", "int32"), 0, 1, tvm_tirx.ir.ForKind.UNROLLED, x, step=2)
+    tvm_tirx.ir.For(tvm_tirx.tirx.Var("i", "int32"), 0, 1, 1, tvm_tirx.ir.ForKind.DEFAULT, x)
+    tvm_tirx.ir.For(tvm_tirx.tirx.Var("i", "int32"), 0, 1, 2, tvm_tirx.ir.ForKind.UNROLLED, x)
 
 
 def test_dir():
