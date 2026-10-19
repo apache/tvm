@@ -29,6 +29,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
+from tvm.testing import device_enabled
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -73,7 +74,7 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_index_tensor():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -179,7 +180,7 @@ def test_index_tensor():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_full():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -197,7 +198,7 @@ def test_full():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_full_like():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -216,7 +217,7 @@ def test_full_like():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_ones():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -234,7 +235,7 @@ def test_ones():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_sort():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -263,7 +264,7 @@ def test_sort():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_tensor_clamp():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -348,7 +349,7 @@ def test_tensor_clamp():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_tensor_expand_as():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -399,7 +400,7 @@ def test_tensor_expand_as():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_copy_():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -421,7 +422,7 @@ def test_copy_():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_upsample_with_size():
     """
     The Upsample module can be used with the size arugment or the scale
@@ -442,7 +443,7 @@ def test_upsample_with_size():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_detach_no_change():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -459,7 +460,7 @@ def test_detach_no_change():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_upsample_with_scale_factor():
     """
     The Upsample module can be used with the size arugment or the scale
@@ -481,7 +482,7 @@ def test_upsample_with_scale_factor():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_linalg_vector_norm():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -516,7 +517,7 @@ def test_linalg_vector_norm():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_batch_norm_prog():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -539,7 +540,7 @@ def test_batch_norm_prog():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_split_size():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -567,7 +568,7 @@ def test_split_size():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_split_sections_list():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -595,7 +596,7 @@ def test_split_sections_list():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_batch_norm0():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -609,7 +610,7 @@ def test_batch_norm0():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_batch_norm1():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -623,7 +624,7 @@ def test_batch_norm1():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_batch_norm2():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -637,7 +638,7 @@ def test_batch_norm2():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_batch_norm3():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -651,7 +652,7 @@ def test_batch_norm3():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_chunk_even():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -679,7 +680,7 @@ def test_chunk_even():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_chunk_uneven():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -707,7 +708,7 @@ def test_chunk_uneven():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_chunk_too_many():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -735,7 +736,7 @@ def test_chunk_too_many():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_arange():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -772,7 +773,7 @@ def test_arange():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_index_select():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -788,7 +789,7 @@ def test_index_select():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_stack():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -807,7 +808,7 @@ def test_stack():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_sum():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -823,7 +824,7 @@ def test_sum():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_mul():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -842,7 +843,7 @@ def test_mul():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_concat():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -864,7 +865,7 @@ def test_concat():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_leakyrelu_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -883,7 +884,7 @@ def test_leakyrelu_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_log_softmax_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -902,7 +903,7 @@ def test_log_softmax_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_softmax_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -921,7 +922,7 @@ def test_softmax_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_adaptive_avg_pool2d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -940,7 +941,7 @@ def test_adaptive_avg_pool2d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_avg_pool2d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -959,7 +960,7 @@ def test_avg_pool2d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_conv1d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -978,7 +979,7 @@ def test_conv1d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_conv2d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -997,7 +998,7 @@ def test_conv2d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_conv3d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1016,7 +1017,7 @@ def test_conv3d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_group_norm_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1035,7 +1036,7 @@ def test_group_norm_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_layer_norm_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1054,7 +1055,7 @@ def test_layer_norm_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_linear_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1073,7 +1074,7 @@ def test_linear_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_max_pool2d_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1092,7 +1093,7 @@ def test_max_pool2d_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_embedding_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1111,7 +1112,7 @@ def test_embedding_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_flatten_module():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1130,7 +1131,7 @@ def test_flatten_module():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_numel():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1145,7 +1146,7 @@ def test_numel():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_size():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1160,7 +1161,7 @@ def test_size():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_tensor():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1175,7 +1176,7 @@ def test_tensor():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_type():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1190,7 +1191,7 @@ def test_type():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_float():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1205,7 +1206,7 @@ def test_float():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_half():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1220,7 +1221,7 @@ def test_half():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_getattr():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1236,7 +1237,7 @@ def test_getattr():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_sym_size_int():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1251,7 +1252,7 @@ def test_sym_size_int():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_interpolate():
     target = "cuda"
     dev = tvm_tirx.cuda()
@@ -1267,7 +1268,7 @@ def test_interpolate():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_cross_entropy_module():
     target = "cuda"
     dev = tvm_tirx.cuda()

@@ -145,7 +145,8 @@ marks are as follows.
 
 Parent library integrations and RPC setup are checked separately with
 :py:mod:`tvm.testing.env`; local device probes do not imply that an optional
-parent integration is available.
+parent integration is available. Parent tests that need target selection use
+:py:func:`tvm.testing.device_enabled`.
 
 Tests that execute on a local GPU must put the complete live-device
 lifetime in a small callback passed to
@@ -193,6 +194,11 @@ To run the Python unit tests locally, use the command ``pytest`` in
 the ``${TVM_HOME}`` directory.
 
 - Environment variables
+    - Parent TVM tests may select targets with ``TVM_TEST_TARGETS``, a
+      semicolon-separated list of target strings or JSON target dictionaries.
+      ``tvm.testing.device_enabled`` applies this selection; TIRX device probes
+      do not read it and report only actual local availability.
+
     - ``TVM_LIBRARY_PATH`` should be a path to the ``libtvm.so``
       library. This can be used, for example, to run tests using a
       debug build. If unset, will search for ``libtvm.so`` relative to

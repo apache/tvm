@@ -29,6 +29,7 @@ import tvm_tirx
 import tvm_tirx.testing
 from tvm import rpc, te
 from tvm.contrib import random
+from tvm.testing import device_enabled
 
 
 def test_randint():
@@ -38,7 +39,7 @@ def test_randint():
     A = random.randint(-127, 128, size=(m, n), dtype="int32")
 
     def verify(target="llvm"):
-        if not tvm_tirx.testing.device_enabled(target):
+        if not device_enabled(target):
             print(f"skip because {target} is not enabled...")
             return
         if not tvm_ffi.get_global_func("tvm.contrib.random.randint", True):
@@ -63,7 +64,7 @@ def test_uniform():
     A = random.uniform(0, 1, size=(m, n))
 
     def verify(target="llvm"):
-        if not tvm_tirx.testing.device_enabled(target):
+        if not device_enabled(target):
             print(f"skip because {target} is not enabled...")
             return
         if not tvm_ffi.get_global_func("tvm.contrib.random.uniform", True):
@@ -88,7 +89,7 @@ def test_normal():
     A = random.normal(3, 4, size=(m, n))
 
     def verify(target="llvm"):
-        if not tvm_tirx.testing.device_enabled(target):
+        if not device_enabled(target):
             print(f"skip because {target} is not enabled...")
             return
         if not tvm_ffi.get_global_func("tvm.contrib.random.normal", True):
@@ -123,7 +124,7 @@ def test_normal():
 )
 def test_random_fill(target):
     """Tests random_fill function"""
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip("target is unavailable")
     if not tvm_ffi.get_global_func("tvm.contrib.random.random_fill", True):
         pytest.skip("random_fill is not built")
@@ -147,7 +148,7 @@ def test_random_fill(target):
         if not tvm_ffi.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
-        if not tvm_tirx.testing.device_enabled("rpc") or not tvm_tirx.runtime.enabled("llvm"):
+        if not device_enabled("rpc") or not tvm_tirx.runtime.enabled("llvm"):
             return
 
         def check_remote(server):

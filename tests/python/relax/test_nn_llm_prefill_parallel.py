@@ -29,6 +29,7 @@ from tvm.relax.frontend.nn.llm._prefill_parallel import (
     _attention_prefill_paged_parallel,
     _attention_prefill_ragged_parallel,
 )
+from tvm.testing import device_enabled
 
 
 @pytest.mark.parametrize("layout", ["ragged", "paged", "sliding"])
@@ -56,7 +57,7 @@ def rope(values, positions):
 @pytest.mark.parametrize("causal", [0, 1])
 @pytest.mark.parametrize("first_kv_length", [1, 23])
 def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
-    if not tvm_tirx.testing.device_enabled(device_type):
+    if not device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
     device = tvm_ffi.device(device_type)
     target = tvm_tirx.target.Target.from_device(device)

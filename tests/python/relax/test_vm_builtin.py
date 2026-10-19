@@ -24,6 +24,7 @@ import tvm_tirx.script
 import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import script as R
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 
 
@@ -56,7 +57,7 @@ def test_multinomial_from_uniform():
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_alloc_tensor_raises_out_of_memory():
     """Out-of-memory exceptions may be raised from VM
 

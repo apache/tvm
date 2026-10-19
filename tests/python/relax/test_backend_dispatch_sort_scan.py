@@ -30,6 +30,7 @@ from tvm.contrib.thrust import can_use_thrust
 from tvm.relax import script as R
 from tvm.relax.backend import DispatchSortScan
 from tvm.s_tir import dlight
+from tvm.testing import device_enabled
 from tvm_tirx import tirx
 from tvm_tirx.ir.base import assert_structural_equal
 from tvm_tirx.script import ir as I
@@ -423,7 +424,7 @@ def test_dispatch_topk_gpu():
 @pytest.mark.parametrize("size", [300, 600])
 def test_dispatch_sort_cuda_large_batch(size):
     target = "cuda"
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     m = T.dynamic("m", "int64")
@@ -459,7 +460,7 @@ def test_dispatch_sort_cuda_large_batch(size):
 @pytest.mark.gpu
 def test_dispatch_topk_cuda_large_batch():
     target = "cuda"
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     m = T.dynamic("m", "int64")
@@ -526,7 +527,7 @@ def test_dispatch_sort_webgpu_merge_grid(op, size):
 @pytest.mark.parametrize("index_bits", [None, 64])
 def test_dispatch_cumsum_gpu(target, index_bits):
     """Test cumsum kernel dispatch and numerical correctness"""
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     m = T.dynamic("m", "int64")
@@ -591,7 +592,7 @@ def test_dispatch_cumsum_invalid_index_width(index_bits):
 def test_dispatch_cumprod_cuda_large_batch():
     """Test that GPU scan supports more batches than CUDA's grid-y limit."""
     target = "cuda"
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     m = T.dynamic("m", "int64")
@@ -739,7 +740,7 @@ def test_dispatch_cumsum_webgpu_symbolic_non_contiguous_axis():
 )
 def test_gpu_axis_1_cumsum_numerical(target, in_dtype, out_dtype):
     """The fallback matches a sequential cumsum for supported WebGPU dtypes."""
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
     from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel

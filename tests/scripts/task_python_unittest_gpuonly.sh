@@ -21,10 +21,7 @@ set -euxo pipefail
 # Every GPU test carries the `gpu` marker; the specific backend is gated by skipif.
 export TVM_TEST_MARKER="gpu"
 
-# Keep dedicated Vulkan coverage limited to its existing smoke-test files.
-./tests/scripts/task_python_unittest.sh \
-    tests/python tirx/tests/python --ignore=tirx/tests/python/backend/vulkan
+# Parent TVM target selection; TIRX probes only the runtimes in this wheel.
+export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 
-./tests/scripts/task_python_unittest.sh \
-    tirx/tests/python/backend/vulkan/codegen/test_basic.py \
-    tirx/tests/python/backend/vulkan/test_module_export.py
+./tests/scripts/task_python_unittest.sh

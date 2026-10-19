@@ -30,6 +30,7 @@ import tvm_tirx.testing
 from tvm import relax
 from tvm.relax import script as R
 from tvm.relax.frontend.torch import from_exported_program
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
 from tvm_tirx.testing import env
@@ -6497,7 +6498,7 @@ def test_masked_select():
     verify_model(MaskedSelect(), example_args, {}, Expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_masked_select_numerically():
     class MaskedSelect(Module):
         def forward(self, data: torch.Tensor, mask: torch.Tensor):

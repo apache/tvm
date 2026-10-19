@@ -44,6 +44,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_with_paged_kv_cache,
 )
 from tvm.s_tir import dlight as dl
+from tvm.testing import device_enabled
 from tvm_tirx.testing import env
 
 reserved_nseq = 32
@@ -97,7 +98,7 @@ _COMPILED_KERNEL_CACHE = {}
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.parametrize("device_type", ["cuda", "metal"])
 def test_paged_prefill_layer_sliding_window_mask(device_type):
-    if not tvm_tirx.testing.device_enabled(device_type):
+    if not device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
 
     dev = tvm_ffi.device(device_type)
@@ -160,7 +161,7 @@ def test_paged_prefill_layer_sliding_window_mask(device_type):
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.parametrize("device_type", ["cuda", "metal"])
 def test_paged_attention_kv_cache_sliding_window_two_sequences(device_type):
-    if not tvm_tirx.testing.device_enabled(device_type):
+    if not device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
 
     head_dim = 64

@@ -25,6 +25,7 @@ from tvm.relax import script as R
 from tvm.relax.training import SetupTrainer, Trainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, Adam
+from tvm.testing import device_enabled
 from tvm_tirx.script import ir as I
 
 
@@ -54,7 +55,7 @@ def _make_dataset():
     return [[np.ones((1, 10)).astype(np.float32), np.array([[0, 0, 1, 0, 0]], np.float32)]] * N
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_execute():
     target = "llvm"
     dev = tvm_tirx.device_from_target(target)
@@ -80,7 +81,7 @@ def test_execute():
     trainer.update(dataset[0][0], dataset[0][1])
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_execute_numeric():
     target = "llvm"
     dev = tvm_tirx.device_from_target(target)
@@ -111,7 +112,7 @@ def test_execute_numeric():
     tvm_tirx.testing.assert_allclose(result.numpy(), result_expected)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_load_export_params():
     target = "llvm"
     dev = tvm_tirx.device_from_target(target)
@@ -148,7 +149,7 @@ def test_load_export_params():
     )
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 def test_setting_error():
     target = "llvm"
     dev = tvm_tirx.device_from_target(target)

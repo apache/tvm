@@ -17,3 +17,4 @@
 """Test helpers for parent TVM integrations."""
 
 from . import env
+from .env import device_enabled

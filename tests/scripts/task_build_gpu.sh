@@ -40,14 +40,13 @@ export CMAKE_ARGS="
     -DTVM_HIDE_PRIVATE_SYMBOLS=ON
     -DTVM_USE_CUTLASS=ON
     -DCMAKE_CUDA_ARCHITECTURES=75
-    -DTVM_USE_CLML=ON
+    -DTVM_USE_CLML=OFF
     -DTVM_USE_CCACHE=OFF
     -DTVM_USE_INSTALLED_TIRX=OFF
     -DBUILD_TESTING=OFF
     -DTVM_TIRX_BUILD_TESTS=OFF
-    -DTVM_TIRX_USE_VULKAN=ON
-    -DTVM_TIRX_USE_OPENCL=ON
-    -DTVM_TIRX_USE_OPENCL_GTEST=/googletest
+    -DTVM_TIRX_USE_VULKAN=OFF
+    -DTVM_TIRX_USE_OPENCL=OFF
     -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-15 --link-static'
 "
 uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx/3rdparty/tvm-ffi
