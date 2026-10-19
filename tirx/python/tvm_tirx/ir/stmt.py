@@ -472,21 +472,3 @@ def stmt_seq(*args: Expr | Stmt) -> SeqStmt:
             value = Evaluate(value)
         ret.append(value)
     return SeqStmt(ret)
-
-
-def stmt_list(stmt: Stmt) -> list[Stmt]:
-    """Make list of stmt from blocks.
-
-    Parameters
-    ----------
-    stmt : Stmt
-        The input statement.
-
-    Returns
-    -------
-    stmt_list : List[Stmt]
-        The unpacked list of statements
-    """
-    if isinstance(stmt, SeqStmt):
-        return list(stmt.seq)
-    return [stmt]

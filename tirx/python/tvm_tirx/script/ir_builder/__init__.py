@@ -17,6 +17,7 @@
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
 from tvm_tirx.ir import (
+    Bind,
     Call,
     DataTypeImm,
     FuncType,
@@ -68,6 +69,7 @@ from .parser_protocol import (
 __all__ = [
     "MISSING",
     "AlreadyEmitted",
+    "Bind",
     "Call",
     "DataTypeImm",
     "FuncType",

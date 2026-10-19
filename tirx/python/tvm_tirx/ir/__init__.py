@@ -85,7 +85,6 @@ from .stmt import (
     RegionStmt,
     TensorStore,
     stmt_seq,
-    stmt_list,
 )
 
 # Load passes after the common IR classes used by transformations are registered.

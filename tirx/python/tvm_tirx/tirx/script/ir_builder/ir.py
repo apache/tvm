@@ -194,6 +194,7 @@ def elected():
     )
 
 
+@_register_mutable_decl("tirx.alloc_tensor")
 def alloc_tensor(
     placement=None,
     *,
@@ -202,12 +203,16 @@ def alloc_tensor(
     annotations: dict[str, Any] | None = None,
     loc: Location = UNKNOWN_LOC,
     ty=None,
-) -> ir.Call:
+) -> ir.Call | AlreadyEmitted[ir.Var]:
     """Allocate the tensor described by one explicit ``Tensor`` type argument.
 
     Optional placement is an ordinary tuple operand. Allocation annotations
     belong to ``attrs``; ``annotations`` accepts a Python dictionary whose
-    scalar values are normalized to typed IR constants.
+    scalar values are normalized to typed IR constants. Under an active builder,
+    emit one binding and return its tensor variable in an ``AlreadyEmitted``
+    receipt. Outside a builder return
+    the allocation Call. Construct ``ir.Call("tirx.alloc_tensor", ...)`` directly
+    when a pure expression is needed inside a builder.
     """
     if attrs is not None and annotations is not None:
         raise TypeError("alloc_tensor cannot mix attrs and annotations")
@@ -236,7 +241,7 @@ def alloc_tensor(
             )
             placement = ir.Tuple([normalize(value) for value in placement])
         args.append(placement)
-    return ir.Call(
+    value = ir.Call(
         "tirx.alloc_tensor",
         args,
         attrs=attrs,
@@ -245,11 +250,17 @@ def alloc_tensor(
         ty=ty,
     )
 
+    return AlreadyEmitted(_bind_tensor(value)) if IRBuilder.is_in_scope() else value
+
 
 def _bind_tensor(value):
-    from tvm_tirx.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.script.ir_builder.stmt import (
+        add_to_parent,  # pylint: disable=import-outside-toplevel
+    )
 
-    tensor = bind(value)
+    IRBuilder.current()._attach_loc(value)
+    tensor = ir.Var("v", value.ty)
+    add_to_parent(ir.Bind(tensor, value))
     _record_meta_resource(tensor, skip_frames=2)
     return tensor
 
@@ -263,8 +274,9 @@ def _alloc_tensor(
     layout=MISSING,
     allocated_addr=None,
     annotations=None,
-):
-    """Implement separately named allocation conveniences using the canonical Op."""
+) -> AlreadyEmitted[ir.Var]:
+    """Emit a tensor allocation and return its bound variable in a receipt."""
+    IRBuilder.current()
     scope = MemoryScope(scope)
     if allocated_addr is not None:
         if scope in (_SCOPE_GLOBAL, _SCOPE_SHARED, _SCOPE_SHARED_DYN, _SCOPE_LOCAL):
@@ -281,9 +293,7 @@ def _alloc_tensor(
         layout,
         data=data,
     )
-    return _bind_tensor(
-        alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
-    )
+    return alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
 
 
 class LetAnnotation:
@@ -363,16 +373,18 @@ def alloc_scalar(
     scope: str | MemoryScope = _SCOPE_GLOBAL,
     *,
     annotations: dict[str, Any] | None = None,
-) -> _ir.TensorLoad:
+) -> AlreadyEmitted[_ir.TensorLoad]:
     """Allocate a zero-dimensional tensor (scalar), with optional allocation annotations."""
-    buf = _alloc_tensor(shape=(1,), dtype=dtype, scope=scope, layout=None, annotations=annotations)
+    buf = _alloc_tensor(
+        shape=(1,), dtype=dtype, scope=scope, layout=None, annotations=annotations
+    ).value
     assert is_tensor_var(buf)
     scalar = buf[0]
-    return scalar
+    return AlreadyEmitted(scalar)
 
 
 @_register_mutable_decl("tirx.decl_scalar")
-def decl_scalar(dtype, data, scope, layout=None) -> _ir.TensorLoad:
+def decl_scalar(dtype, data, scope, layout=None) -> AlreadyEmitted[_ir.TensorLoad]:
     """Declare a zero-dimensional tensor (scalar) from a pointer."""
     buf = _bind_tensor(
         decl_tensor(
@@ -390,13 +402,13 @@ def decl_scalar(dtype, data, scope, layout=None) -> _ir.TensorLoad:
     )
     assert is_tensor_var(buf)
     scalar = buf[0]
-    return scalar
+    return AlreadyEmitted(scalar)
 
 
 @_register_mutable_decl("tirx.shared_scalar")
 def shared_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
-) -> _ir.TensorLoad:
+) -> AlreadyEmitted[_ir.TensorLoad]:
     """Allocate a zero-dimensional tensor in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
@@ -408,7 +420,7 @@ def local_scalar(
     *,
     name: str | None = None,
     annotations: dict[str, Any] | None = None,
-) -> _ir.TensorLoad:
+) -> AlreadyEmitted[_ir.TensorLoad]:
     """Allocate scalar local storage, optionally naming and initializing it.
 
     Parameters
@@ -425,15 +437,16 @@ def local_scalar(
 
     Returns
     -------
-    scalar : TensorLoad
-        A load from index zero of the one-element local tensor, with no layout.
+    scalar : AlreadyEmitted[TensorLoad]
+        A receipt for the load from index zero of the one-element local tensor.
     """
-    scalar = alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    result = alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
+    scalar = result.value
     if name is not None:
         IRBuilder.name(name, scalar.source)
     if init is not None:
         assign(scalar, init)
-    return scalar
+    return result
 
 
 def assign(dst: _ir.TensorLoad | _ir.Var, value: Any) -> AlreadyEmitted[_ir.Stmt]:

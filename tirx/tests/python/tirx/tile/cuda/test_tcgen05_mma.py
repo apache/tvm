@@ -430,7 +430,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
 
 def _mapa(ptr, rank):
     """`mapa.u64` into a declared register, returned as a value."""
-    mapped = T.alloc_local([1], "uint64", layout="default")
+    mapped = T.bind_(T.alloc_local([1], "uint64", layout="default"))
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     return mapped[0]
 

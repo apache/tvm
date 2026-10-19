@@ -228,7 +228,7 @@ def test_explicit_loc_on_global_var_lambda_and_min_max():
     assert isinstance(T.max(a, b), prim.Max)
 
 
-def test_native_bind_keeps_returned_and_stored_variable_identity():
+def test_explicit_bind_keeps_stored_and_aliased_variable_identity():
     # Aliases of an explicitly produced native variable must not rename, reloc or bind it again.
     from tvm_tirx import ir
 
@@ -247,7 +247,8 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
 
     @T.function
     def main(x: T.int32):
-        renamed = T.bind(argument(x), var=produced)
+        T.Bind(produced, argument(x))
+        renamed = produced
         alias = renamed
         called = argument(alias)
         observe(renamed)

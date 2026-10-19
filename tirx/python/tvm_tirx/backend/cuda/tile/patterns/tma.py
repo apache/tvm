@@ -202,7 +202,7 @@ def _tensor_map(ctx, region, rank, box, encoding):
 
     @T.function(check_well_formed=False)
     def encode():
-        T.bind(T.stack_alloca("tensormap", 1), var=tensor_map)
+        T.Bind(tensor_map, T.stack_alloca("tensormap", 1))
         T.cuda.tensormap_encode_tiled(
             tensor_map,
             tensor.ptr_to(starts),

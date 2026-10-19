@@ -30,7 +30,7 @@ from typing import Any
 
 import tvm_tirx
 from tvm_tirx import ir as _ir
-from tvm_tirx.ir import Expr, IntImm, TensorRegion, Type, Var
+from tvm_tirx.ir import Expr, IntImm, TensorRegion, Var
 from tvm_tirx.ir import StringImm as _StringImm
 from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
@@ -53,8 +53,19 @@ def _as_expr(value):
 
 
 def _enter_concise(frame: _base.IRBuilderFrame) -> Any:
-    # add_callback registers on the active parent before the child enters.
-    # Later statements emit into the child; parent exit closes this scope.
+    """Enter a child scope that lasts until the active parent exits.
+
+    Register the child's exit callback on the parent before entering the child.
+    Subsequent statements are emitted into the child; exiting the parent first
+    closes the child and incorporates its statements into the parent.
+
+    For example, inside an active IRBuilder::
+
+        with T.function():
+            T.func_name_("example")
+            i = _enter_concise(T.serial(4))
+            T.evaluate(i)  # Emitted inside the loop, closed on function exit.
+    """
     frame.add_callback(_partial(frame.__exit__, None, None, None))
     return frame.__enter__()
 
@@ -66,41 +77,6 @@ def unpack_(value: Any) -> Any:
     if isinstance(value, _ir.Expr) and isinstance(value.ty, _ir.TupleType):
         return _python.tuple(_ir.TupleGetItem(value, i) for i in range(len(value.ty.fields)))
     return value
-
-
-def bind(  # pylint: disable=invalid-name
-    value: Expr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> Var:
-    """Create a Bind (variable binding).
-
-    Emits a flat Bind statement to the current frame and returns the bound variable.
-
-    Parameters
-    ----------
-    value : Expr
-        The value to be bound.
-    type_annotation : Optional[Type] = None
-        The type annotation of the binding. Usually it is used for fine-grained var typing,
-        particularly, PtrType.
-    var : Optional[Var] = None
-        The variable to bind. If not specified, a new variable will be created.
-
-    Returns
-    -------
-    var : Var
-        The bound variable.
-    """
-    if type_annotation is not None:
-        # Canonical Vars are callable when they denote functions.  Here a Var is
-        # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr | _ir.Type):
-            type_annotation = type_annotation()
-        if isinstance(type_annotation, _ir.Var):
-            type_annotation = type_annotation.ty
-    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def evaluate(

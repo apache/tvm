@@ -1275,15 +1275,17 @@ def test_lower_alloc_decl_tensor_outside_of_parser():
     @T.meta_class
     class State:
         def __init__(self, smem):
-            self.A = T.alloc_local([1], "float16")
-            self.B = T.alloc_local([1], "float16")
-            self.C = T.bind(
-                T.decl_tensor(smem, ty_args=[T.Tensor([1], "float16", scope="shared.dyn")])
+            self.A = T.bind_(T.alloc_local([1], "float16"))
+            self.B = T.bind_(T.alloc_local([1], "float16"))
+            declaration = T.decl_tensor(
+                smem, ty_args=[T.Tensor([1], "float16", scope="shared.dyn")]
             )
+            self.C = tvm_tirx.ir.Var("C", declaration.ty)
+            T.emit_(T.Bind(self.C, declaration))
 
     @register_mutable_decl("TestMutableCells.int_var1")
     def int_var1(val):
-        buf = T.local_scalar("int32")
+        buf = T.bind_(T.local_scalar("int32"))
         if val is not None:
             T.tensor_store(buf.source, 0, val)
         return buf
@@ -1292,7 +1294,7 @@ def test_lower_alloc_decl_tensor_outside_of_parser():
     register_namespace("TestMutableCells", TestMutableCells)
 
     def int_var2(val):
-        buf = T.alloc_local([1], "int32")
+        buf = T.bind_(T.alloc_local([1], "int32"))
         if val is not None:
             T.tensor_store(buf, 0, val)
         return buf
