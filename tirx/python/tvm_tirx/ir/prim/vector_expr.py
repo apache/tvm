@@ -25,7 +25,7 @@ from . import _ffi_api as _prim_ffi_api
 
 @tvm_ffi.register_object("prim.Ramp")
 class Ramp(ExprWithOp):
-    """Ramp node.
+    """Construct a vector whose lane ``i`` equals ``base + i * stride``.
 
     Parameters
     ----------
@@ -36,7 +36,7 @@ class Ramp(ExprWithOp):
         The stride of the ramp.
 
     lanes : Expr
-        The lanes of the expression.
+        The number of vector lanes.
 
     loc : Location, optional
         The location of this expression in the source code.
@@ -58,7 +58,7 @@ class Ramp(ExprWithOp):
 
 @tvm_ffi.register_object("prim.Broadcast")
 class Broadcast(ExprWithOp):
-    """Broadcast node.
+    """Repeat a scalar value across all lanes of a vector.
 
     Parameters
     ----------
@@ -66,7 +66,7 @@ class Broadcast(ExprWithOp):
         The value of the expression.
 
     lanes : Expr
-        The lanes of the expression.
+        The number of vector lanes.
 
     loc : Location, optional
         The location of this expression in the source code.
@@ -81,15 +81,15 @@ class Broadcast(ExprWithOp):
 
 @tvm_ffi.register_object("prim.Shuffle")
 class Shuffle(ExprWithOp):
-    """Shuffle node.
+    """Select output lanes from the concatenation of the input vectors.
 
     Parameters
     ----------
     vectors : List[Expr]
-        The vectors
+        Input vectors concatenated in the given order.
 
     indices : List[Expr]
-        The indices
+        Lane indices into the concatenated input; one index per output lane.
 
     loc : Location, optional
         The location of this expression in the source code.

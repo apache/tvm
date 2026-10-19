@@ -547,12 +547,28 @@ _TCGEN05_CTA_GROUP = (1, 2)
 
 @tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
 class TCGen05InstrDescriptorAttrs(Attrs):
-    """Static options for the dense tcgen05 instruction descriptor."""
+    """Static options carried by :func:`tcgen05_encode_instr_descriptor`.
+
+    ``d_dtype``, ``a_dtype`` and ``b_dtype`` name the output and input element
+    types; ``M``, ``N`` and ``K`` give the matrix tile dimensions. ``trans_a``
+    and ``trans_b`` select input transposition. ``n_cta_groups`` is 1 or 2;
+    ``neg_a``, ``neg_b``, ``sat_d`` and ``is_sparse`` select the instruction
+    modifiers. These are call attributes, not runtime descriptor operands;
+    the operator wrapper constructs them from its keyword arguments.
+    """
 
 
 @tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs")
 class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
-    """Static options for the block-scaled tcgen05 instruction descriptor."""
+    """Static options carried by :func:`tcgen05_encode_instr_descriptor_block_scaled`.
+
+    ``d_dtype``, ``a_dtype`` and ``b_dtype`` name the matrix element types;
+    ``sfa_dtype`` and ``sfb_dtype`` name the scale-factor types. ``M``, ``N``
+    and ``K`` give tile dimensions. ``trans_a``, ``trans_b``, ``n_cta_groups``
+    (1 or 2), ``neg_a``, ``neg_b`` and ``is_sparse`` select instruction
+    modifiers. The operator wrapper constructs these attributes from its
+    keyword arguments; descriptor pointers remain call operands.
+    """
 
 
 _encode_instr_descriptor = _make_op_api(
@@ -1473,7 +1489,22 @@ def nvshmem_barrier_all(*, ty=None, loc: Location = UNKNOWN_LOC):
 
 @tvm_ffi.register_object("tirx.cuda.TensorMapEncodeTiledAttr")
 class TensorMapEncodeTiledAttr(Attrs):
-    """Descriptor dtype and fixed options for tiled tensor-map encoding."""
+    """Fixed options for :func:`tensormap_encode_tiled`.
+
+    Parameters
+    ----------
+    descriptor_dtype : str or tvm_ffi.dtype
+        Tensor element dtype encoded in the descriptor.
+    rank : int
+        Number of tensor dimensions. Dimensions, strides and pointers are
+        separate operands of the encoding call, not fields of this object.
+    interleave, swizzle, l2_promotion, oob_fill : int
+        CUDA tensor-map enum values for the corresponding encoding modes.
+        Each defaults to zero.
+    force_cu_dtype : int
+        Explicit CUDA tensor-map dtype enum, or -1 to derive it from
+        ``descriptor_dtype``.
+    """
 
     def __init__(
         self,

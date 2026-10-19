@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""IRModule that holds the functions and type definitions."""
+"""Modules containing global functions and shared metadata."""
 
 import tvm_ffi
 
@@ -27,14 +27,19 @@ from .function import BaseFunc
 
 @tvm_ffi.register_object("ir.IRModule")
 class IRModule(Node, Scriptable):
-    """IRModule that holds functions and type definitions.
+    """A collection of global functions and module-level metadata.
 
-    IRModule is the basic unit for all IR transformations across the stack.
+    Modules are the input and output of compiler passes. Functions can be looked
+    up by their :class:`GlobalVar` or name.
 
     Parameters
     ----------
-    functions: Optional[dict].
-        Map of global var to BaseFunc
+    functions : dict[GlobalVar or str, BaseFunc], optional
+        Global function definitions. String keys are converted to GlobalVar objects.
+    attrs : dict, optional
+        Module attributes, stored as DictAttrs.
+    global_infos : dict[str, list[GlobalInfo]], optional
+        Named groups of global information referenced by the IR.
     """
 
     def __init__(self, functions=None, attrs=None, global_infos=None):
@@ -83,10 +88,10 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ---------
-        var: GlobalVar
-            The global variable.
+        var: str or GlobalVar
+            The global variable or its name.
 
-        val: Union[Function, Type]
+        val: BaseFunc
             The value.
         """
         return self._add(var, val, True)
@@ -105,13 +110,13 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ----------
-        var: Union[String, GlobalVar, GlobalTypeVar]
+        var: str or GlobalVar
             The name or global variable.
 
         Returns
         -------
-        val: Union[Function, Type]
-            The definition referenced by :code:`var` (either a function or type).
+        val: BaseFunc
+            The function referenced by :code:`var`.
         """
         if isinstance(var, str):
             return _ffi_api.IRModuleLookupStr(self, var)
@@ -143,8 +148,8 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ----------
-        var: GlobalVar
-            The global variable.
+        var: str or GlobalVar
+            The global variable or its name.
 
         func: tvm_tirx.ir.BaseFunc
             The function to be inserted.

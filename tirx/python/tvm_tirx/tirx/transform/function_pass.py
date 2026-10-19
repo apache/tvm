@@ -29,8 +29,10 @@ from . import _ffi_api
 
 @tvm_ffi.register_object("tirx.FunctionPass")
 class FunctionPass(Pass):
-    """A pass that works on each :py:func:`tvm_tirx.tirx.Function` in a module. A function
-    pass class should be created through py:func:`tvm_tirx.tirx.transform.function_pass`.
+    """A pass that transforms each :py:class:`tvm_tirx.tirx.Function` in a module.
+
+    Create instances or subclasses with :py:func:`function_pass`, which supplies
+    pass metadata and adapts a Python callback to the pass manager.
     """
 
 
@@ -72,69 +74,59 @@ def function_pass(
     opt_level: int | None = None,
     name: str | None = None,
 ) -> Callable | FunctionPass:
-    """Decorate a function pass.
+    """Create a TIRx function pass from a callback or class.
 
-    This function returns a callback when pass_func
-    is provided. Otherwise, it returns the created function pass using the
-    given optimization function.
+    The callback receives ``(function, module, context)`` and returns the
+    transformed Function. A decorated class instead implements
+    ``transform_function(self, function, module, context)``. With no
+    ``pass_func``, returns a decorator for either form.
 
     Parameters
     ----------
-    pass_func : Optional[Callable[
-        (tvm_tirx.tirx.Function, IRModule, PassContext) -> tvm_tirx.tirx.Function]]
-        The transformation function or class.
-
+    pass_func : Callable or type, optional
+        Transformation callback, or class implementing ``transform_function``.
     opt_level : int
-        The optimization level of this module pass.
-
-    name : Optional[str]
-        The name of the function pass. The name could be empty. In this case, the
-        name of the optimization function will be used as the pass name.
+        Required optimization level for the pass.
+    name : str, optional
+        Pass name. Defaults to the callback or class name.
 
     Returns
     -------
-    create_function_pass : Union[Callable, FunctionPass]
-
-        A decorator will be returned if pass_func is not provided,
-        otherwise return the decorated result.
-        The returned decorator has two behaviors depending on the input:
-        A new FunctionPass will be returned when we decorate a pass function.
-        A new FunctionPass class will be returned when we decorate a class type.
+    result : FunctionPass, type, or Callable
+        A pass instance for a callback, a pass class for a class, or a decorator
+        when ``pass_func`` is omitted.
 
     Examples
     --------
-    The following code block decorates a function pass class.
+    Create and invoke a pass that adds a function attribute::
+
+        @tvm_tirx.tirx.transform.function_pass(opt_level=0)
+        def mark(func, mod, ctx):
+            return func.with_attr("example", 1)
+
+        after = mark(before)  # before is an IRModule
+
+    TVMScript body fragments for a function in the module:
 
     .. code-block:: python
 
-        @tvm_tirx.tirx.transform.function_pass(opt_level=1)
-        class TestReplaceFunc:
-            def __init__(self, new_func):
-                self.new_func = new_func
+        # Before
+        T.evaluate(0)
+        # After
+        T.func_attr({"example": 1})
+        T.evaluate(0)
+
+    The class form allows pass parameters::
+
+        @tvm_tirx.tirx.transform.function_pass(opt_level=0)
+        class Mark:
+            def __init__(self, value):
+                self.value = value
 
             def transform_function(self, func, mod, ctx):
-                # just for demo purposes
-                # transform func to new_func
-                return self.new_func
+                return func.with_attr("example", self.value)
 
-    The following code creates a function pass by decorating
-    a user defined transform function.
-
-    .. code-block:: python
-
-        @tvm_tirx.tirx.transform.function_pass(opt_level=2)
-        def transform(func, mod, ctx):
-            # my transformations here.
-            return func
-
-        function_pass = transform
-        assert isinstance(function_pass, transform.FunctionPass)
-        assert function_pass.info.opt_level == 2
-
-        # Given a module m, the optimization could be invoked as the following:
-        updated_mod = function_pass(m)
-        # Now constant folding should have been applied to every function in
-        # the provided module m. And the updated module will be returned.
+        after = Mark(1)(before)
     """
 
     if opt_level is None:

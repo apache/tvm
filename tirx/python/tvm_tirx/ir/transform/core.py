@@ -194,7 +194,7 @@ def pass_instrument(pi_cls=None):
 
     Parameters
     ----------
-    pi_class : class
+    pi_cls : class
         Instrument class. See example below.
 
     Examples
@@ -216,7 +216,7 @@ def pass_instrument(pi_cls=None):
             #    pass
 
             # If pass name contains keyword, skip it by return False. (return True: not skip)
-            def should_run(self, mod, pass_info)
+            def should_run(self, mod, pass_info):
                 if self.skip_pass_name in pass_info.name:
                     return False
                 return True
@@ -229,9 +229,9 @@ def pass_instrument(pi_cls=None):
             # def run_after_pass(self, mod, pass_info):
             #    pass
 
-        skip_annotate = SkipPass("AnnotateSpans")
+        skip_annotate = SkipPass("PrintIR")
         with tvm_tirx.ir.transform.PassContext(instruments=[skip_annotate]):
-            tvm.compile(mod, "llvm")
+            output = tvm_tirx.ir.transform.PrintIR()(mod)
     """
 
     def create_pass_instrument(pi_cls):
@@ -247,19 +247,18 @@ def pass_instrument(pi_cls=None):
 
 @tvm_ffi.register_object("transform.PassContext")
 class PassContext(tvm_ffi.Object):
-    """The basis where a TVM optimization/analysis runs on.
-    Each pass context contains a number of auxiliary information that is used
-    to help an optimization pass. Such information includes the error reporter
-    to record the errors of during the optimization, etc.
+    """Scope optimization levels, pass selection, instruments, and pass options.
 
+    Parameters
+    ----------
     opt_level : Optional[int]
-        The optimization level of this pass.
+        Maximum optimization level enabled in sequential pipelines (default 2).
 
     required_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
-        The list of passes that are required by a certain pass.
+        Pass names to enable regardless of their optimization level.
 
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
-        The list of passes that are disabled.
+        Pass names to skip in sequential pipelines, even if required.
 
     instruments : Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
@@ -335,9 +334,12 @@ class PassContext(tvm_ffi.Object):
 
 @tvm_ffi.register_object("transform.Pass")
 class Pass(tvm_ffi.Object):
-    """The base class of all passes. All methods here are just simple wrappers
-    that are implemented in the backend. They are defined for users to
-    conveniently interact with the base class.
+    """Base interface for callable IRModule transformations and analyses.
+
+    Obtain a concrete pass from a pass factory or :func:`module_pass`, then
+    call ``after = pass_object(before)``. The :attr:`info` property exposes
+    its name and optimization level. The base class defines no transformation
+    of its own.
     """
 
     __slots__ = ("__dict__",)
@@ -365,12 +367,13 @@ class Pass(tvm_ffi.Object):
 
 @tvm_ffi.register_object("transform.ModulePass")
 class ModulePass(Pass):
-    """A pass that works on tvm_tirx.IRModule. Users don't need to interact with
-    this class directly. Instead, a module pass should be created through
-    `module_pass`, because the design of the `module_pass` API is flexible
-    enough to handle the creation of a module pass in different manners. In
-    addition, all members of a module pass can be accessed from the base class.
-    The same rule applies to FunctionPass as well.
+    """A pass whose callback receives and returns a complete IRModule.
+
+    Create instances with :func:`module_pass`, which accepts a function or a
+    class defining ``transform_module``. Call ``after = pass_object(before)``
+    to execute the callback under the current PassContext. Its callback,
+    rather than this wrapper class, defines how the IR changes; see
+    :func:`module_pass` for a TVMScript before/after example.
     """
 
 
@@ -390,11 +393,29 @@ class Sequential(Pass):
     opt_level : Optional[int]
         The optimization level of this sequential pass.
         The opt_level of a default sequential pass is set to 0.
-        Note that some of the passes within the Sequantial may still not be executed
-        if their opt_level is higher than the provided opt_level.
+        Child passes use the active PassContext's optimization level.
 
     name : Optional[str]
         The name of the sequential pass.
+
+    Examples
+    --------
+    Run two passes on an IRModule ``mod``::
+
+        from tvm_tirx.ir.transform import Sequential
+        from tvm_tirx.tirx.transform import StmtSimplify, RemoveNoOp
+
+        after = Sequential([StmtSimplify(), RemoveNoOp()])(mod)
+
+    The corresponding function-body TVMScript (``T`` is
+    ``tvm_tirx.script.tirx``) can simplify as follows::
+
+        # Before
+        for i in T.serial(4):
+            A[i] = i // 4
+        # After
+        for i in T.serial(4):
+            A[i] = 0
     """
 
     def __init__(self, passes=None, opt_level=0, name="sequential"):
@@ -468,43 +489,29 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
     Examples
     --------
-    The following code block decorates a module pass class.
+    Wrap a transformation and apply it to an IRModule ``mod``::
 
-    .. code-block:: python
+        from tvm_tirx.ir.transform import module_pass
+        from tvm_tirx.tirx.transform import StmtSimplify
 
-        @tvm_tirx.ir.transform.module_pass
-        class CustomPipeline:
-            def __init__(self, enable_fold):
-                self.enable_fold = enable_fold
-                self.const_fold = relax.transform.FoldConstant()
+        @module_pass(opt_level=0)
+        def simplify(mod, ctx):
+            return StmtSimplify()(mod)
 
-            def transform_module(self, mod, ctx):
-                if self.enable_fold:
-                    mod = self.const_fold(mod, ctx)
-                return mod
+        after = simplify(mod)
 
-        # create an instance of customized pipeline
-        pipeline = CustomPipeline(enable_fold=False)
-        assert isinstance(pipeline, transform.ModulePass)
-        # run the pipeline.
-        output_module = pipeline(input_module)
+    The callback determines the change; the decorator itself only constructs
+    a pass. In this example the function-body TVMScript becomes::
 
-    The following code creates a module pass by decorating
-    a user defined transform function.
+        # Before (T = tvm_tirx.script.tirx)
+        for i in T.serial(4):
+            A[i] = i // 4
+        # After
+        for i in T.serial(4):
+            A[i] = 0
 
-    .. code-block:: python
-
-        @tvm_tirx.ir.transform.module_pass(opt_level=2)
-        def transform(mod, ctx):
-            return relax.transform.FoldConstant(mod)
-
-        module_pass = transform
-        assert isinstance(module_pass, transform.ModulePass)
-        assert module_pass.info.opt_level == 2
-
-        # Given a module m, the optimization could be invoked as the follwoing:
-        updated_mod = module_pass(m)
-        # Now a function abs should be added to the module m.
+    A decorated class instead defines ``transform_module(self, mod, ctx)``;
+    instantiate that class before calling the resulting pass on a module.
     """
     if opt_level is None:
         raise ValueError("Please provide opt_level for the module pass.")
@@ -525,7 +532,7 @@ def module_pass(pass_func=None, opt_level=None, name=None):
 
 
 def PrintIR(header=""):
-    """A special trace pass that prints the header and IR.
+    """Log the header and module IR, returning the module unchanged.
 
     Parameters
     ----------
@@ -533,7 +540,26 @@ def PrintIR(header=""):
         The header to be displayed along with the dump.
 
     Returns
+    -------
+    fpass : Pass
+        A module pass with optimization level zero.
+
+    Examples
     --------
-    The pass
+    Inspect an IRModule ``mod``::
+
+        from tvm_tirx.ir.transform import PrintIR
+
+        after = PrintIR("before lowering")(mod)
+
+    This is an observation pass. Function-body TVMScript is identical before
+    and after (``T`` is ``tvm_tirx.script.tirx``)::
+
+        # Before
+        for i in T.serial(4):
+            A[i] = i
+        # After
+        for i in T.serial(4):
+            A[i] = i
     """
     return _ffi_transform_api.PrintIR(header)

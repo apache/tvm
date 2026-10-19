@@ -27,12 +27,49 @@ from tvm_tirx.backend.cuda import transform as cuda_transform
 
 
 def default_tir_pipeline(*, target=None):
-    """The default pipeline for TIRx primitive functions."""
+    """Return :func:`tirx_pipeline` with its standard lowering stages.
+
+    ``lower, host_factory, device_factory = default_tir_pipeline(target=target)``
+    returns the lowering pass and two finalization factories. Apply ``lower(mod)``
+    to prepare the module before host/device code generation. For example, the
+    simplification stage uses the loop range in this TVMScript body fragment::
+
+        # Before
+        for i in T.serial(4):
+            T.call_extern("consume", i // 4, ty="void")
+        # After
+        for i in T.serial(4):
+            T.call_extern("consume", 0, ty="void")
+
+    ABI and target annotations may also change; see :func:`tirx_pipeline`.
+    """
     return tirx_pipeline(target=target)
 
 
 def tirx_pipeline(*, prepare_only=False, target=None):
-    """The TIRX pipeline used in tvm_tirx.tirx.compile"""
+    """Prepare TIRx functions and optionally lower their module-wide ABI.
+
+    Bind ``target`` when supplied, dispatch tile instructions, lower layouts,
+    flatten tensors, simplify indices and loops, and verify memory accesses.
+    ``prepare_only=True`` stops before :func:`finalize_tir_pipeline`. The return
+    value is ``(lowering_pass, host_finalization_factory, device_finalization_factory)``.
+
+    Examples
+    --------
+    ``lower, _, _ = tirx_pipeline(target=target, prepare_only=True)`` followed by
+    ``after = lower(mod)`` prepares a module. With a C target,
+    this TVMScript body fragment simplifies as follows::
+
+        # Before
+        for i in T.serial(4):
+            T.call_extern("consume", i // 4, ty="void")
+        # After
+        for i in T.serial(4):
+            T.call_extern("consume", 0, ty="void")
+
+    Tile programs require the appropriate target, layouts and dispatch rules;
+    this scalar example illustrates only the simplification stage.
+    """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(
@@ -124,7 +161,22 @@ def _with_target_binding(pipeline, target, *, original_mod=None, prepared_mod=No
 
 
 def finalize_tir_pipeline():
-    """Lower module-wide calling conventions after all dialects are prepared."""
+    """Split host/device functions, legalize low-precision types and lower the ABI.
+
+    Apply ``after = finalize_tir_pipeline()(prepared_mod)`` after dialect-specific
+    preparation and target binding. It also annotates the entry function,
+    lowers CUDA helpers and creates packed entry wrappers where required.
+    For a module containing one private function, the entry-attribute fragment
+    changes as follows (the function body is omitted)::
+
+        # Before
+        T.func_attr({"target": T.target("c")})
+        # After
+        T.func_attr({"target": T.target("c"), "tirx.is_entry_func": True})
+
+    Public functions with a global symbol additionally acquire the packed ABI;
+    see :func:`~tvm_tirx.tirx.transform.MakePackedAPI`.
+    """
     return tvm_tirx.ir.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
@@ -141,7 +193,19 @@ def finalize_tir_pipeline():
 
 
 def finalize_host_passes():  # pylint: disable=unused-argument
-    """The default finalization passes for TIR backend."""
+    """Lower runtime builtins and target intrinsics in host functions.
+
+    Use ``after = finalize_host_passes()(host_mod)`` after ABI lowering and
+    host/device splitting. Functions must carry their host target. For target
+    ``c`` and ``x: T.float32``, an expression inside a TVMScript body changes to::
+
+        # Before
+        T.exp(x)
+        # After
+        T.call_pure_extern("expf", x, ty="float32")
+
+    Packed calls and allocation builtins are also lowered before code generation.
+    """
     host_pass_list = [
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
@@ -150,7 +214,21 @@ def finalize_host_passes():  # pylint: disable=unused-argument
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
-    """The default finalization passes for TIR backend."""
+    """Simplify device statements and lower target intrinsics.
+
+    Use ``after = finalize_device_passes()(device_mod)`` after host/device
+    splitting, with a target on each device function. For example, the following
+    TVMScript body fragment simplifies division using the loop range::
+
+        # Before
+        for i in T.serial(4):
+            T.call_extern("consume", i // 4, ty="void")
+        # After
+        for i in T.serial(4):
+            T.call_extern("consume", 0, ty="void")
+
+    Intrinsic expansion depends on the device target's registered lowering rules.
+    """
     device_pass_list = [
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),

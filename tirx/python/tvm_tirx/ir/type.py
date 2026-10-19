@@ -110,12 +110,12 @@ class OpaqueType(Type):
 
 @tvm_ffi.register_object("ir.PrimType")
 class PrimType(Type):
-    """Primitive data type in the low level IR
+    """A primitive scalar or vector data type, including the ``void`` sentinel.
 
     Parameters
     ----------
-    dtype : str
-        The runtime data type relates to the primtype.
+    dtype : str or tvm_ffi.dtype
+        Element kind, bit width, and optional vector lane count, such as ``float32x4``.
     """
 
     def __init__(self, dtype):
@@ -186,7 +186,7 @@ class StringType(Type):
 
 @tvm_ffi.register_object("ir.PtrType")
 class PtrType(Type):
-    """PtrType used in the low-level TIR.
+    """A pointer to an element type in a specified memory scope.
 
     Parameters
     ----------
@@ -228,10 +228,7 @@ class TupleType(Type):
 class FuncType(Type):
     """Function type.
 
-    A function type consists of a list of type parameters to enable
-    the definition of generic functions,
-    a set of type constraints which we omit for the time being,
-    a sequence of argument types, and a return type.
+    Records the argument types in order and a single return type.
 
     Parameters
     ----------

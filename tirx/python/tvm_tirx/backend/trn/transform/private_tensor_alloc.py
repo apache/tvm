@@ -139,7 +139,40 @@ def private_alloc(stmt: Stmt, target: Target) -> Stmt:
 
 @function_pass(opt_level=0, name="TrnPrivateTensorAlloc")
 class TrnPrivateTensorAlloc:
-    """Generate private tensor allocations for each tensor instruction Call"""
+    """Allocate and initialize instruction-private Trainium workspaces.
+
+    Ask each registered tile instruction for its private tensors, insert their
+    allocations/initializers at the device-entry root, and attach workspace
+    operands to the calls. Run before tile dispatch, with a target attribute
+    on the function or an active Target scope. Calls needing no workspace are
+    unchanged.
+
+    Examples
+    --------
+    Apply to an IRModule ``mod``::
+
+        from tvm_tirx.backend.trn.transform import TrnPrivateTensorAlloc
+        from tvm_tirx.target import Target
+
+        with Target("aws/trn1/trn1.2xlarge"):
+            after = TrnPrivateTensorAlloc()(mod)
+
+    For an activation with scalar bias, the device-entry body gains a constant
+    bias workspace. Below, ``A``/``C`` are SBUF tensors with a partition/free
+    layout and ``T`` is ``tvm_tirx.script.tirx``; their existing allocations are
+    omitted::
+
+        # Before
+        T.trn.tile.activation(C, A, bias=T.float32(1), scale=T.float32(2), opcode="exp")
+        # After: initialization is inserted before the original allocations/call
+        const_bias = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        with T.nki.tensorized_instruction():
+            for p in T.serial(128, annotations={"nki_dim": "P"}):
+                for f in T.serial(512, annotations={"nki_dim": "F"}):
+                    T.nki.memset(const_bias[p, f], T.float32(1))
+        T.trn.tile.activation(C, A, bias=T.float32(1), scale=T.float32(2),
+                              const_bias=const_bias, opcode="exp")
+    """
 
     def transform_function(self, func, mod, ctx):
         target = func.attrs.get("target", None)

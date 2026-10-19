@@ -15,7 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Namespace of all TIR transformations"""
+"""Transformation passes for lowering and optimizing tensor-level IR.
+
+Pass factories return callable passes: ``after = PassName()(before)``, where
+``before`` is an IRModule. Examples use ``T`` for ``tvm_tirx.script.tirx`` and
+``I`` for ``tvm_tirx.script.ir``. Body and signature fragments omit their
+surrounding function or module; any additional prerequisites are stated locally.
+"""
 # pylint: disable=wildcard-import, invalid-name
 
 from .function_pass import function_pass, FunctionPass

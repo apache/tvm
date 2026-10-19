@@ -48,9 +48,10 @@ class Node(tvm_ffi.Object):
 
 @register_object("ir.EnvFunc")
 class EnvFunc(tvm_ffi.Object):
-    """Environment function.
+    """A registered global function referenced and serialized by name.
 
-    This is a global function object that can be serialized by its name.
+    Use ``EnvFunc.get(name)`` to look up a function and call the returned object
+    with its arguments. Deserialization resolves the same name in the registry.
     """
 
     def __call__(self, *args):

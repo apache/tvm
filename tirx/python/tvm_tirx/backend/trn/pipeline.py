@@ -24,7 +24,48 @@ from . import transform as trn_transform
 
 
 def trn_pipeline(*, target=None):
-    """The Trainium pipeline used in tvm_tirx.tirx.compile."""
+    """Construct Trainium lowering and host/device finalization stages.
+
+    The lowering pass binds the target, prepares instruction workspaces and
+    allocation addresses, dispatches tiles, lowers layouts, simplifies the IR,
+    splits host/device functions, and creates packed host entry points.
+
+    Parameters
+    ----------
+    target : Target or None
+        Target to bind before lowering. If omitted, leave existing function
+        target attributes unchanged.
+
+    Returns
+    -------
+    stages : tuple
+        The lowering ModulePass, host-finalization factory, and
+        device-finalization factory consumed by ``tvm_tirx.tirx.compile``.
+
+    Examples
+    --------
+    Apply the lowering stage to an IRModule ``mod``::
+
+        from tvm_tirx.backend.trn.pipeline import trn_pipeline
+        from tvm_tirx.target import Target
+
+        lower, finalize_host, finalize_device = trn_pipeline(
+            target=Target("aws/trn1/trn1.2xlarge"))
+        after = lower(mod)
+
+    A device-body TVMScript excerpt illustrates allocation and layout lowering.
+    Surrounding function attributes and any generated host wrapper are omitted;
+    ``T`` is ``tvm_tirx.script.tirx`` and ``P``/``F`` are Trainium axes::
+
+        # Before: inside T.device_entry()
+        A = T.alloc_tensor(ty_args=[T.Tensor(
+            (128, 2, 2), "float32", scope="trn.sbuf",
+            layout=T.TileLayout(T.S[(128, 4):(1 @ P, 1 @ F)]))])
+        A[0, 1, 0] = T.float32(1)
+        # After: lowered function body
+        A = T.alloc_tensor((0,), ty_args=[T.Tensor((128, 4), "float32", scope="trn.sbuf")])
+        A[0, 2] = T.float32(1)
+    """
 
     @tvm_tirx.ir.transform.module_pass(opt_level=0)
     def _pipeline(
@@ -52,7 +93,26 @@ def trn_pipeline(*, target=None):
 
 
 def finalize_device_passes_trn():  # pylint: disable=unused-argument
-    """The finalization passes for the Trainium backend."""
+    """Construct the statement-simplification stage for Trainium device IR.
+
+    Examples
+    --------
+    Apply to an IRModule ``device_mod`` after host/device separation::
+
+        from tvm_tirx.backend.trn.pipeline import finalize_device_passes_trn
+
+        after = finalize_device_passes_trn()(device_mod)
+
+    Function-body TVMScript can simplify as follows (``T`` is
+    ``tvm_tirx.script.tirx``)::
+
+        # Before
+        for i in T.serial(4):
+            A[i] = i // 4
+        # After
+        for i in T.serial(4):
+            A[i] = 0
+    """
     return tvm_tirx.ir.transform.Sequential([tirx.transform.StmtSimplify()])
 
 
