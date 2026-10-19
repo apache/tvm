@@ -32,18 +32,18 @@ def test_reuse_in_sequential_bind():
     class Before:
         @T.function(private=True)
         def main():
-            T.bind(16, var=var)
+            T.Bind(var, 16)
             T.evaluate(var)
-            T.bind(32, var=var)
+            T.Bind(var, 32)
             T.evaluate(var)
 
     assert Before["main"].body[0].var.same_as(Before["main"].body[2].var)
 
     @T.function(private=True)
     def expected():
-        var1 = T.bind(T.int32(16))
+        var1 = T.int32(16)
         T.evaluate(var1)
-        var2 = T.bind(T.int32(32))
+        var2 = T.int32(32)
         T.evaluate(var2)
 
     After = tvm_tirx.tirx.transform.ConvertSSA()(Before)
@@ -58,9 +58,9 @@ def test_reuse_in_nested_bind():
     class Before:
         @T.function(private=True)
         def main():
-            T.bind(32, var=var)
+            T.Bind(var, 32)
             T.evaluate(var)
-            T.bind(16, var=var)
+            T.Bind(var, 16)
             T.evaluate(var)
             T.evaluate(var)
 
@@ -68,9 +68,9 @@ def test_reuse_in_nested_bind():
     class Expected:
         @T.function(private=True)
         def main():
-            var1 = T.bind(32)
+            var1 = 32
             T.evaluate(var1)
-            var2 = T.bind(16)
+            var2 = 16
             T.evaluate(var2)
             T.evaluate(var2)
 
@@ -84,7 +84,7 @@ def test_reused_var_across_module():
 
     @T.function(private=True)
     def func():
-        var = T.bind(10)
+        var = 10
         T.evaluate(var)
 
     @I.ir_module(check_well_formed=False)

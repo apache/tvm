@@ -89,35 +89,41 @@ def sparse_reshape(
             prev_shape_size = prev_shape_ptr.shape[0]
             new_shape_size = new_shape_ptr.shape[0]
 
-            multipliers_buf = T.bind(
-                T.alloc_tensor(
-                    ty_args=[T.Tensor([prev_shape_size], new_shape_ptr.dtype, scope="local")]
-                )
+            multipliers_buf_alloc = T.alloc_tensor(
+                ty_args=[T.Tensor([prev_shape_size], new_shape_ptr.dtype, scope="local")]
             )
+            multipliers_buf = T.Var("", multipliers_buf_alloc.ty)
+            T.emit_(T.Bind(multipliers_buf, multipliers_buf_alloc))
             multipliers = multipliers_buf
-            dividers_buf = T.bind(
-                T.alloc_tensor(
-                    ty_args=[T.Tensor([new_shape_size], new_shape_ptr.dtype, scope="local")]
-                )
+            dividers_buf_alloc = T.alloc_tensor(
+                ty_args=[T.Tensor([new_shape_size], new_shape_ptr.dtype, scope="local")]
             )
+            dividers_buf = T.Var("", dividers_buf_alloc.ty)
+            T.emit_(T.Bind(dividers_buf, dividers_buf_alloc))
             dividers = dividers_buf
-            flattened_indices_buf = T.bind(
-                T.alloc_tensor(
-                    ty_args=[
-                        T.Tensor([sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local")
-                    ]
-                )
+            flattened_indices_buf_alloc = T.alloc_tensor(
+                ty_args=[
+                    T.Tensor([sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local")
+                ]
             )
+            flattened_indices_buf = T.Var("", flattened_indices_buf_alloc.ty)
+            T.emit_(T.Bind(flattened_indices_buf, flattened_indices_buf_alloc))
             flattened_indices = flattened_indices_buf
-            total_ele_buf = T.bind(
-                T.alloc_tensor(ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")])
+            total_ele_buf_alloc = T.alloc_tensor(
+                ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")]
             )
+            total_ele_buf = T.Var("", total_ele_buf_alloc.ty)
+            T.emit_(T.Bind(total_ele_buf, total_ele_buf_alloc))
             total_ele = total_ele_buf
-            division_total_ele_buf = T.bind(
-                T.alloc_tensor(ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")])
+            division_total_ele_buf_alloc = T.alloc_tensor(
+                ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")]
             )
+            division_total_ele_buf = T.Var("", division_total_ele_buf_alloc.ty)
+            T.emit_(T.Bind(division_total_ele_buf, division_total_ele_buf_alloc))
             division_total_ele = division_total_ele_buf
-            equal_shape_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], "bool", scope="local")]))
+            equal_shape_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], "bool", scope="local")])
+            equal_shape_buf = T.Var("", equal_shape_buf_alloc.ty)
+            T.emit_(T.Bind(equal_shape_buf, equal_shape_buf_alloc))
             equal_shape = equal_shape_buf
 
             T.tensor_store(
@@ -243,11 +249,11 @@ def sparse_reshape(
                             )
 
                     with T.parallel(0, new_sparse_indices_ptr.shape[0]) as i:
-                        current_element_buf = T.bind(
-                            T.alloc_tensor(
-                                ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")]
-                            )
+                        current_element_buf_alloc = T.alloc_tensor(
+                            ty_args=[T.Tensor([1], new_shape_ptr.dtype, scope="local")]
                         )
+                        current_element_buf = T.Var("", current_element_buf_alloc.ty)
+                        T.emit_(T.Bind(current_element_buf, current_element_buf_alloc))
                         current_element = current_element_buf
                         T.tensor_store(
                             current_element,

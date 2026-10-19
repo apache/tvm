@@ -26,7 +26,7 @@ def test_function_pass(capsys):
     class Before:
         @T.function(private=True)
         def main(x: T.int32, y: T.int32, B: T.Tensor((16,), "float32")):
-            value = T.bind(10)
+            value = 10
             T.evaluate(value + 1)
 
     @I.ir_module

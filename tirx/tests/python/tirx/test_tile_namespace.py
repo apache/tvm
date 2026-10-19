@@ -104,8 +104,12 @@ def test_omitted_and_explicit_none_layout(scope):
     with IRBuilder():
         with I.function():
             tensor_type = I.Tensor((4, 8), "float32", scope=scope)
-            allocated = I.bind(I.alloc_tensor(ty_args=[tensor_type]))
-            declared = I.bind(I.decl_tensor(allocated.data, ty_args=[tensor_type]))
+            allocated_value = I.alloc_tensor(ty_args=[tensor_type])
+            allocated = tvm_tirx.ir.Var("allocated", allocated_value.ty)
+            I.emit_(I.Bind(allocated, allocated_value))
+            declared_value = I.decl_tensor(allocated.data, ty_args=[tensor_type])
+            declared = tvm_tirx.ir.Var("declared", declared_value.ty)
+            I.emit_(I.Bind(declared, declared_value))
             assert allocated.layout is None and declared.layout is None
 
 
@@ -149,12 +153,12 @@ def test_none_layout_views_keep_offsets_and_strides():
     builder = IRBuilder()
     with builder:
         with I.function():
-            source = I.bind(
-                I.decl_tensor(
-                    I.ptr("float32"),
-                    ty_args=[I.Tensor((4, 8), "float32", layout=T.TileLayout(T.S[(4, 8)] + (5)))],
-                )
+            source_value = I.decl_tensor(
+                I.ptr("float32"),
+                ty_args=[I.Tensor((4, 8), "float32", layout=T.TileLayout(T.S[(4, 8)] + (5)))],
             )
+            source = tvm_tirx.ir.Var("source", source_value.ty)
+            I.emit_(I.Bind(source, source_value))
             reshaped = source.view(2, 2, 8)
             permuted = source.permute(1, 0)
             sliced = source.sub[1:3, 2:6]
@@ -204,7 +208,9 @@ def test_none_layout_dtype_views(dtype, new_dtype, old_shape, new_shape):
     builder = IRBuilder()
     with builder:
         with I.function():
-            source = I.bind(I.decl_tensor(I.ptr(dtype), ty_args=[I.Tensor(old_shape, dtype)]))
+            source_value = I.decl_tensor(I.ptr(dtype), ty_args=[I.Tensor(old_shape, dtype)])
+            source = tvm_tirx.ir.Var("source", source_value.ty)
+            I.emit_(I.Bind(source, source_value))
             viewed = source.view(new_dtype)
             assert viewed.layout is None
             assert list(map(int, viewed.shape)) == list(new_shape)
@@ -215,16 +221,18 @@ def test_none_layout_dtype_view_accepts_symbolic_extent():
     with IRBuilder():
         with I.function():
             size = tvm_tirx.tirx.Var("size", "int32")
-            source = I.bind(I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((size,), "float32")]))
+            source_value = I.decl_tensor(I.ptr("float32"), ty_args=[I.Tensor((size,), "float32")])
+            source = tvm_tirx.ir.Var("source", source_value.ty)
+            I.emit_(I.Bind(source, source_value))
             viewed = source.view("uint64")
             assert viewed.layout is None
             assert_structural_equal(viewed.shape[0], size // 2)
-            misaligned = I.bind(
-                I.decl_tensor(
-                    I.ptr("float32"),
-                    ty_args=[I.Tensor((8,), "float32", layout=T.TileLayout(T.S[(8,)] + (1)))],
-                )
+            misaligned_value = I.decl_tensor(
+                I.ptr("float32"),
+                ty_args=[I.Tensor((8,), "float32", layout=T.TileLayout(T.S[(8,)] + (1)))],
             )
+            misaligned = tvm_tirx.ir.Var("misaligned", misaligned_value.ty)
+            I.emit_(I.Bind(misaligned, misaligned_value))
             with pytest.raises(ValueError, match="align"):
                 misaligned.view("uint64")
 

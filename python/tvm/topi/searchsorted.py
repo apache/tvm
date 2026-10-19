@@ -38,8 +38,12 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     Note that we index N-D Buffer by 1-D linearlized indices.
 
     """
-    lo_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
-    hi_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
+    lo_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")])
+    lo_buf = T.Var("", lo_buf_alloc.ty)
+    T.emit_(T.Bind(lo_buf, lo_buf_alloc))
+    hi_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")])
+    hi_buf = T.Var("", hi_buf_alloc.ty)
+    T.emit_(T.Bind(hi_buf, hi_buf_alloc))
     lo = lo_buf
     hi = hi_buf
 

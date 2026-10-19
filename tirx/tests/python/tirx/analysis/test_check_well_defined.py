@@ -79,8 +79,8 @@ def test_error_for_nested_rebind_usage():
 
     @T.function(check_well_formed=False)
     def func():
-        T.bind(42, var=i)
-        T.bind(42, var=i)
+        T.Bind(i, 42)
+        T.Bind(i, 42)
         T.evaluate(i)
 
     with pytest.raises(
@@ -102,9 +102,9 @@ def test_error_for_repeated_binding():
 
     @T.function(check_well_formed=False)
     def func():
-        T.bind(42, var=i)
+        T.Bind(i, 42)
         T.evaluate(i)
-        T.bind(17, var=i)
+        T.Bind(i, 17)
         T.evaluate(i)
 
     with pytest.raises(
@@ -123,12 +123,12 @@ def test_error_for_cross_function_reuse():
     class mod:
         @T.function
         def func1():
-            T.bind(42, var=i)
+            T.Bind(i, 42)
             T.evaluate(i)
 
         @T.function
         def func2():
-            T.bind(42, var=i)
+            T.Bind(i, 42)
             T.evaluate(i)
 
     with pytest.raises((ValueError, RuntimeError), match="multiple definitions of variable i"):
@@ -214,10 +214,10 @@ def test_error_message_without_previous_definition_location():
 
     @T.function(check_well_formed=False)
     def func():
-        T.bind(42, var=x)
+        T.Bind(x, 42)
         T.evaluate(x)
 
-        T.bind(99, var=x)  # This should trigger the error
+        T.Bind(x, 99)  # This should trigger the error
         T.evaluate(x)
 
     with pytest.raises((ValueError, RuntimeError)) as exc_info:
@@ -241,8 +241,8 @@ def test_error_message_with_previous_definition_location():
 
     @T.function(check_well_formed=False)
     def func():
-        T.bind(42, var=x)
-        T.bind(99, var=x)  # This should trigger the error
+        T.Bind(x, 42)
+        T.Bind(x, 99)  # This should trigger the error
         T.evaluate(x)
 
     with pytest.raises((ValueError, RuntimeError)) as exc_info:
@@ -270,10 +270,10 @@ def test_sequential_redefinition_with_location():
 
     @T.function(check_well_formed=False)
     def func():
-        T.bind(1, var=x)
+        T.Bind(x, 1)
         T.evaluate(x)
 
-        T.bind(2, var=x)  # This should trigger the error
+        T.Bind(x, 2)  # This should trigger the error
         T.evaluate(x)
 
     with pytest.raises((ValueError, RuntimeError)) as exc_info:

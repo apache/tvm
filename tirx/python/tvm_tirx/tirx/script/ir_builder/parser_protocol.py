@@ -31,9 +31,6 @@ from typing import Any
 import tvm_ffi
 
 import tvm_tirx
-
-# isort: off
-# isort: on
 from tvm_tirx import ir as _ir
 from tvm_tirx import tirx as _tir
 from tvm_tirx.ir import IntImm, is_prim_expr
@@ -43,51 +40,26 @@ from tvm_tirx.script.ir_builder import base as _base
 from tvm_tirx.script.ir_builder import frame as _shared_frame
 from tvm_tirx.script.ir_builder.base import AlreadyEmitted
 from tvm_tirx.script.ir_builder.base import IRBuilder as _IRBuilder
+
+# isort: off
 from tvm_tirx.script.ir_builder.stmt import (
     _enter_concise as _enter_concise,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     add_to_parent as add_to_parent,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     assert_ as assert_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
-    bind as _bind,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     break_ as break_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     continue_ as continue_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     else_ as else_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     evaluate as evaluate,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     grid as grid,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     if_ as if_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     region as region,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     return_ as return_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     then_ as then_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     unpack_ as unpack_,
-)
-from tvm_tirx.script.ir_builder.stmt import (
     while_ as while_,
 )
+
+# isort: on
 from tvm_tirx.tirx import Expr
 
 from . import _ffi_api, frame
@@ -233,14 +205,6 @@ def _name(value: Any, name: str | None, loc: _Loc) -> Any:
     return _base.at_(loc, value)
 
 
-def bind(value, type_annotation=None, *, var=None):
-    """Bind an expression and track tensor resources created in meta classes."""
-    result = _bind(value, type_annotation, var=var)
-    if _tir.is_tensor_var(result):
-        _native._record_meta_resource(result)
-    return result
-
-
 def bind_(
     value: Any = _base.MISSING,
     *,
@@ -280,7 +244,7 @@ def bind_(
         if not isinstance(value, _ir.Var):
             _base.at_(value_loc, value)
         variable = _name(ty.as_var(rhs_dtype=value.ty), name, name_loc)
-        _base.with_at_group_(loc, lambda: bind(value, var=variable))
+        _base.with_at_group_(loc, lambda: emit_(_ir.Bind(variable, value)))
         return variable
     if ty is not None:
         annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr | _ir.Type) else ty
@@ -289,7 +253,8 @@ def bind_(
         if not isinstance(value, _ir.Var):
             _base.at_(value_loc, value)
         variable = _ir.Var(name or "", annotation)
-        return _name(_base.with_at_group_(loc, lambda: bind(value, var=variable)), name, name_loc)
+        _base.with_at_group_(loc, lambda: emit_(_ir.Bind(variable, value)))
+        return _name(variable, name, name_loc)
     if value is _base.MISSING:
         raise ValueError("An uninitialized binding requires a scalar type annotation")
     if isinstance(value, _base.AlreadyEmitted):
@@ -306,7 +271,9 @@ def bind_(
     if not isinstance(value, _ir.Expr | _python.int | _python.float | _python.bool | str):
         return value
     value = _base.at_(value_loc, _op._as_expr(value))
-    return _name(_base.with_at_group_(loc, lambda: bind(value)), name, name_loc)
+    variable = _ir.Var("v", value.ty)
+    _base.with_at_group_(loc, lambda: emit_(_ir.Bind(variable, value)))
+    return _name(variable, name, name_loc)
 
 
 def decl_mutable_cell_(
@@ -398,6 +365,8 @@ def emit_(value: Any, *, loc: _Loc = None) -> None:
             _enter_concise(_base.at_(loc, frame))
     elif isinstance(value, tvm_tirx.ir.Stmt):
         add_to_parent(_base.at_(loc, value))
+        if isinstance(value, _ir.Bind) and _tir.is_tensor_var(value.var):
+            _native._record_meta_resource(value.var)
     else:
         # Native conversion owns Python literals; annotate the exact expression
         # it stored, as well as the statement, without converting or emitting twice.
@@ -795,7 +764,6 @@ __all__ = [
     "and_",
     "arg_",
     "assert_",
-    "bind",
     "bind_",
     "break_",
     "call_global_var_",

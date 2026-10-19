@@ -116,8 +116,11 @@ def _map_buffer_into_cta(ptr, rank, depth):
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-    T.bind(T.reinterpret(mapped[0], ty=ptr_ty), var=remote_ptr)
-    return T.bind(T.decl_tensor(remote_ptr, ty_args=[T.Tensor([depth], "uint64", scope="shared")]))
+    T.emit_(T.Bind(remote_ptr, T.reinterpret(mapped[0], ty=ptr_ty)))
+    value = T.decl_tensor(remote_ptr, ty_args=[T.Tensor([depth], "uint64", scope="shared")])
+    remote_barrier = TIRVar("remote_mbar", value.ty)
+    T.emit_(T.Bind(remote_barrier, value))
+    return remote_barrier
 
 
 def _mbarrier_arrive_remote(bar, pred=None, count=None):

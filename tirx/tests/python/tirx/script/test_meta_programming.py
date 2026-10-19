@@ -33,7 +33,9 @@ def test_meta_class_constructor_rejects_unowned_resource():
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.bind(T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")]))
+            allocation = T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
+            tmp = tvm_tirx.ir.Var("tmp", allocation.ty)
+            T.emit_(T.Bind(tmp, allocation))
 
     with pytest.raises(ValueError):
 
@@ -50,7 +52,9 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
     class Holder:
         def __init__(self, external):
             self.external = external
-            self.buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")]))
+            allocation = T.alloc_tensor(ty_args=[T.Tensor((2,), "int32", scope="local")])
+            self.buf = tvm_tirx.ir.Var("buf", allocation.ty)
+            T.emit_(T.Bind(self.buf, allocation))
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 

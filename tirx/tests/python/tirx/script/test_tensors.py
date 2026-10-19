@@ -1212,11 +1212,11 @@ def test_tensor_factored_views():
     """Splitting and selecting logical factors preserves the physical mapping."""
     with IRBuilder():
         with Tx_builder.function():
-            A = Tx_builder.bind(
-                Tx_builder.alloc_tensor(
-                    ty_args=[T.Tensor((3, 64, 512), "float16", scope="shared", layout="default")]
-                )
+            A_value = Tx_builder.alloc_tensor(
+                ty_args=[T.Tensor((3, 64, 512), "float16", scope="shared", layout="default")]
             )
+            A = tvm_tirx.ir.Var("A", A_value.ty)
+            Tx_builder.emit_(Tx_builder.Bind(A, A_value))
             w = tvm_tirx.tirx.Var("w", "int32")
             B = A.view(3, 4, 4, 4, 512).sub[:, :, w].view(3, 16, 512)
             D = A.sub[:, 2::4]

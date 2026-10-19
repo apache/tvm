@@ -247,9 +247,12 @@ def alloc_tensor(
 
 
 def _bind_tensor(value):
-    from tvm_tirx.script.ir_builder.stmt import bind  # pylint: disable=import-outside-toplevel
+    from tvm_tirx.script.ir_builder.stmt import (
+        add_to_parent,  # pylint: disable=import-outside-toplevel
+    )
 
-    tensor = bind(value)
+    tensor = ir.Var("v", value.ty)
+    add_to_parent(ir.Bind(tensor, value))
     _record_meta_resource(tensor, skip_frames=2)
     return tensor
 

@@ -41,7 +41,6 @@ def _initialize() -> None:
             (name, value) for name, value in vars(builder).items() if not name.startswith("_")
         )
         globals().update(
-            bind=builder.bind,
             ir_module=entry.ir_module,
             pyfunc=entry.pyfunc,
             function=entry.make_decorator(builder, namespace_path="tirx.function"),

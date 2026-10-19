@@ -288,21 +288,6 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  Expr value_expr = value;
-  Var bind_var = [&]() {
-    if (var.has_value()) {
-      return var.value();
-    } else if (type_annotation.has_value()) {
-      return Var("v", type_annotation.value());
-    } else {
-      return Var("v", value_expr->ty);
-    }
-  }();
-  AddToParent(tvm::Bind(bind_var, value_expr));
-  return bind_var;
-}
-
 RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> body_params,
                    DictAttrs attrs) {
   TVM_FFI_CHECK(tvm::IsRegionOp(op), ValueError)
@@ -383,7 +368,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.For", For)
       .def("script.ir_builder.Grid", Grid)
       .def("script.ir_builder.Assert", Assert)
-      .def("script.ir_builder.Bind", Bind)
       .def("script.ir_builder.While", While)
       .def("script.ir_builder.Return", Return)
       .def("script.ir_builder.Break", Break)

@@ -179,7 +179,9 @@ def main(A: T.Tensor((128, 128), T.float32), B: T.Tensor((256, 256), T.float32))
 def test_bind():
     with IRBuilder() as ib:
         with TB.function():
-            v = TB.bind(TB.float32(10))
+            v_value = TB.float32(10)
+            v = tvm_tirx.ir.Var("", v_value.ty)
+            TB.emit_(TB.Bind(v, v_value))
             ib.name("v", v)
             TB.evaluate(1)
     obj = ib.get()
