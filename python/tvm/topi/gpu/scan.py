@@ -133,19 +133,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << l2_width
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf_alloc = T.alloc_tensor(
-                        ty_args=[T.Tensor([1], "int32", scope="local")]
-                    )
-                    start_buf = T.Var("", start_buf_alloc.ty)
-                    T.emit_(T.Bind(start_buf, start_buf_alloc))
-                    middle_buf_alloc = T.alloc_tensor(
-                        ty_args=[T.Tensor([1], "int32", scope="local")]
-                    )
-                    middle_buf = T.Var("", middle_buf_alloc.ty)
-                    T.emit_(T.Bind(middle_buf, middle_buf_alloc))
-                    end_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
-                    end_buf = T.Var("", end_buf_alloc.ty)
-                    T.emit_(T.Bind(end_buf, end_buf_alloc))
+                    start_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    middle_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    end_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),
@@ -231,24 +221,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     width = 2 << (lim - l2_width - 1)
 
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf_alloc = T.alloc_tensor(
-                        ty_args=[T.Tensor([1], "int32", scope="local")]
-                    )
-                    start_buf = T.Var("", start_buf_alloc.ty)
-                    T.emit_(T.Bind(start_buf, start_buf_alloc))
-                    middle_buf_alloc = T.alloc_tensor(
-                        ty_args=[T.Tensor([1], "int32", scope="local")]
-                    )
-                    middle_buf = T.Var("", middle_buf_alloc.ty)
-                    T.emit_(T.Bind(middle_buf, middle_buf_alloc))
-                    end_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
-                    end_buf = T.Var("", end_buf_alloc.ty)
-                    T.emit_(T.Bind(end_buf, end_buf_alloc))
-                    tmp_buf_alloc = T.alloc_tensor(
-                        ty_args=[T.Tensor([1], out_dtype, scope="local")]
-                    )
-                    tmp_buf = T.Var("", tmp_buf_alloc.ty)
-                    T.emit_(T.Bind(tmp_buf, tmp_buf_alloc))
+                    start_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    middle_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    end_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+                    tmp_buf = T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")])
                     with T.frame_scope(
                         [
                             T.launch_thread("threadIdx.x", nthread_tx),

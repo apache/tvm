@@ -68,12 +68,8 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
 
     Must be called within an IRBuilder context.
     """
-    lo_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
-    lo_buf = T.Var("", lo_buf_alloc.ty)
-    T.emit_(T.Bind(lo_buf, lo_buf_alloc))
-    hi_buf_alloc = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
-    hi_buf = T.Var("", hi_buf_alloc.ty)
-    T.emit_(T.Bind(hi_buf, hi_buf_alloc))
+    lo_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
+    hi_buf = T.alloc_tensor(ty_args=[T.Tensor([1], "int32", scope="local")])
     lo = lo_buf
     hi = hi_buf
     T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))

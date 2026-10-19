@@ -185,9 +185,7 @@ class SMEMPool:
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
         if ptr is _POOL_UNSET:
-            self.buf = ir._bind_tensor(
-                ir.alloc_tensor(ty_args=[ir.Tensor([0], "uint8", scope="shared.dyn")])
-            )
+            self.buf = ir.alloc_tensor(ty_args=[ir.Tensor([0], "uint8", scope="shared.dyn")])
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:

@@ -283,6 +283,14 @@ def decl_mutable_cell_(
     allocate their declared shape. Var declaration producers retain their own effects.
     """
     name_loc = loc if name_loc is None else name_loc
+    if _tir.is_tensor_var(value) and ty is not None:
+        if isinstance(ty, _native.LetAnnotation):
+            annotation = ty.as_var(rhs_dtype=value.ty).ty
+        else:
+            annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr | _ir.Type) else ty
+            annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
+        _ir.assert_structural_equal(value.ty, annotation)
+        return _name(value, name, name_loc)
     if isinstance(ty, _PrimTypeArrayAnnotation):
         if value is not _base.MISSING:
             raise ValueError("Vector annotation does not support an initializer")

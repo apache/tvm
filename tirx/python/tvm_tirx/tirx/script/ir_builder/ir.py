@@ -194,6 +194,7 @@ def elected():
     )
 
 
+@_register_mutable_decl("tirx.alloc_tensor")
 def alloc_tensor(
     placement=None,
     *,
@@ -202,12 +203,15 @@ def alloc_tensor(
     annotations: dict[str, Any] | None = None,
     loc: Location = UNKNOWN_LOC,
     ty=None,
-) -> ir.Call:
+) -> ir.Call | ir.Var:
     """Allocate the tensor described by one explicit ``Tensor`` type argument.
 
     Optional placement is an ordinary tuple operand. Allocation annotations
     belong to ``attrs``; ``annotations`` accepts a Python dictionary whose
-    scalar values are normalized to typed IR constants.
+    scalar values are normalized to typed IR constants. Under an active builder,
+    emit one binding and return its tensor variable. Outside a builder return
+    the allocation Call. Construct ``ir.Call("tirx.alloc_tensor", ...)`` directly
+    when a pure expression is needed inside a builder.
     """
     if attrs is not None and annotations is not None:
         raise TypeError("alloc_tensor cannot mix attrs and annotations")
@@ -236,7 +240,7 @@ def alloc_tensor(
             )
             placement = ir.Tuple([normalize(value) for value in placement])
         args.append(placement)
-    return ir.Call(
+    value = ir.Call(
         "tirx.alloc_tensor",
         args,
         attrs=attrs,
@@ -245,12 +249,15 @@ def alloc_tensor(
         ty=ty,
     )
 
+    return _bind_tensor(value) if IRBuilder.is_in_scope() else value
+
 
 def _bind_tensor(value):
     from tvm_tirx.script.ir_builder.stmt import (
         add_to_parent,  # pylint: disable=import-outside-toplevel
     )
 
+    IRBuilder.current()._attach_loc(value)
     tensor = ir.Var("v", value.ty)
     add_to_parent(ir.Bind(tensor, value))
     _record_meta_resource(tensor, skip_frames=2)
@@ -284,9 +291,7 @@ def _alloc_tensor(
         layout,
         data=data,
     )
-    return _bind_tensor(
-        alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
-    )
+    return alloc_tensor(allocated_addr, ty_args=[tensor_type], annotations=annotations)
 
 
 class LetAnnotation:

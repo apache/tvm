@@ -93,9 +93,7 @@ def test_backend_tile_namespace_emits_once(trace):
     with IRBuilder() as builder:
         with I.function_():
             source = I.arg_("source", T.Tensor((1, 4), T.float32))
-            dest_value = T.alloc_tensor(ty_args=[T.Tensor((1, 4), T.float32, scope="local")])
-            dest = tvm_tirx.ir.Var("dest", dest_value.ty)
-            I.emit_(I.Bind(dest, dest_value))
+            dest = T.alloc_tensor(ty_args=[T.Tensor((1, 4), T.float32, scope="local")])
             with builder.line_trace_scope() if trace else nullcontext():
                 receipt = T.cuda.tile.apply(T.ptx["ld.global.v4.f32"], dest, source)
                 assert isinstance(receipt, AlreadyEmitted)
