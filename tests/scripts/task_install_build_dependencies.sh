@@ -18,6 +18,9 @@
 
 set -euxo pipefail
 
+# Forget compiler wrappers cached by earlier dependency builds.
+rm -f 3rdparty/tvm-tirx/3rdparty/tvm-ffi/build/CMakeCache.txt
+
 rm -rf dist
 uv pip install --python python3 --target .local/python \
     "scikit-build-core>=0.11,!=1.1.0" "setuptools-scm>=8" "cython>=3.2.8" "mlc-z3-static>=4.16.0"

@@ -93,7 +93,7 @@ ALLOW_FILE_NAME = {
 }
 
 # List of specific files allowed in relpath to <proj_root>
-ALLOW_SPECIFIC_FILE = {"LICENSE", "NOTICE", "KEYS", "tirx/LICENSE", "tirx/NOTICE"}
+ALLOW_SPECIFIC_FILE = {"LICENSE", "NOTICE", "KEYS"}
 
 
 def filename_allowed(name: str) -> bool:
@@ -121,7 +121,7 @@ def filename_allowed(name: str) -> bool:
     if basename == "Dockerfile" or basename.startswith("Dockerfile."):
         return True
 
-    if name.startswith(("3rdparty", "tirx/3rdparty")):
+    if name.startswith("3rdparty"):
         return True
 
     if name.startswith(".txdev") or name.startswith(".claude"):

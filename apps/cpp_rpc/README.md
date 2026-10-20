@@ -41,7 +41,7 @@ cmake -S . -B build -DTVM_USE_CPP_RPC=ON \
 ```
 
 For OpenCL support, add `-DTVM_TIRX_USE_OPENCL=ON`. The
-[OpenCL wrapper](../../tirx/src/runtime/opencl/opencl_wrapper) dynamically loads
+[OpenCL wrapper](../../3rdparty/tvm-tirx/src/runtime/opencl/opencl_wrapper) dynamically loads
 the device's OpenCL library when a system OpenCL SDK is unavailable. The device
 must provide an OpenCL library at runtime. To link against a custom OpenCL SDK,
 pass `-DTVM_TIRX_USE_OPENCL=/path/to/opencl-sdk`; that SDK should contain the

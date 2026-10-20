@@ -287,10 +287,11 @@ If you want to run a single test:
 .. code:: bash
 
   # let python know where to find tvm related libraries
-  export PYTHONPATH="$PWD/tirx/python:$PWD/python:${PYTHONPATH:-}"
+  export PYTHONPATH="$PWD/3rdparty/tvm-tirx/python:$PWD/python:${PYTHONPATH:-}"
+  export TVM_TIRX_LIBRARY_PATH="${PWD}/build/lib"
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
-  python -m pytest -v tirx/tests/python/tirx/transform/test_storage_rewrite.py
+  python -m pytest -v 3rdparty/tvm-tirx/tests/python/tirx/transform/test_storage_rewrite.py
 
   # Additionally if you want to run a single test, for example test_add_one_2d inside a file.
   python -m pytest -v -k "test_add_one_2d" tests/python/relax/test_frontend_tflite.py

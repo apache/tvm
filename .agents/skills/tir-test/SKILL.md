@@ -3,8 +3,8 @@ name: tir-test
 description: Run TVM's in-tree TIRx tests and tirx-kernels import and correctness checks.
 ---
 
-Run the compiler suite in `tirx/tests/python/tirx/`, using the `tvm_tirx` package
-in `tirx/python/`, together with the downstream correctness test in
+Run the compiler suite in `3rdparty/tvm-tirx/tests/python/tirx/`, using the `tvm_tirx` package
+in `3rdparty/tvm-tirx/python/`, together with the downstream correctness test in
 `tests/python/tirx/test_tirx_kernels_registry_correctness.py`.
 
 Both tirx-kernels import gates and its correctness coverage are enabled by
@@ -25,9 +25,9 @@ Run all commands below in the same Bash shell from the TVM repository root.
    export TIR_TEST_XDIST_WORKERS="${TIR_TEST_XDIST_WORKERS:-16}"
    export TIR_TEST_WITH_KERNELS="${TIR_TEST_WITH_KERNELS:-1}"
 
-   [[ -d "$TIR_TEST_TVM_ROOT/tirx/python/tvm_tirx" &&
-      -d "$TIR_TEST_TVM_ROOT/tirx/tests/python/tirx" ]] || {
-     echo "run from the TVM repository root containing tirx/" >&2
+   [[ -d "$TIR_TEST_TVM_ROOT/3rdparty/tvm-tirx/python/tvm_tirx" &&
+      -d "$TIR_TEST_TVM_ROOT/3rdparty/tvm-tirx/tests/python/tirx" ]] || {
+     echo "run from the TVM repository root containing 3rdparty/tvm-tirx/" >&2
      exit 2
    }
    [[ "$TIR_TEST_WITH_KERNELS" == 0 || "$TIR_TEST_WITH_KERNELS" == 1 ]] || {
@@ -89,7 +89,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
    export CUDA_VISIBLE_DEVICES
    CUDA_VISIBLE_DEVICES="$(IFS=,; printf '%s' "${TIR_TEST_SELECTED_GPUS[*]}")"
    # Preserve reference packages and other paths supplied by branch-shell.
-   export PYTHONPATH="${TIR_TEST_TVM_ROOT}/.local/python:${TIR_TEST_TVM_ROOT}/tirx/python:${TIR_TEST_TVM_ROOT}/python:${PYTHONPATH:-}"
+   export PYTHONPATH="${TIR_TEST_TVM_ROOT}/.local/python:${TIR_TEST_TVM_ROOT}/3rdparty/tvm-tirx/python:${TIR_TEST_TVM_ROOT}/python:${PYTHONPATH:-}"
    export TVM_LIBRARY_PATH="${TIR_TEST_TVM_ROOT}/build/lib"
    export TVM_TIRX_LIBRARY_PATH="${TIR_TEST_TVM_ROOT}/build/lib"
 
@@ -111,7 +111,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
    from tvm_tirx.base import _LOADED_LIBS, _RUNTIME_ONLY
 
    root = Path(os.environ["TIR_TEST_TVM_ROOT"])
-   assert Path(tvm_tirx.__file__).resolve().is_relative_to(root / "tirx/python"), (
+   assert Path(tvm_tirx.__file__).resolve().is_relative_to(root / "3rdparty/tvm-tirx/python"), (
        f"imported another TIRx worktree: {tvm_tirx.__file__}"
    )
    assert not _RUNTIME_ONLY, "build the TIRx compiler before running its tests"
@@ -147,14 +147,14 @@ Run all commands below in the same Bash shell from the TVM repository root.
    `TIR_TEST_NUM_GPUS=4` to cap the count or `TIR_TEST_GPUS=3,4,5,6` to override
    selection with exact physical IDs.
 
-   Use dependencies compatible with `tirx/pyproject.toml`. A non-editable FFI
+   Use dependencies compatible with `3rdparty/tvm-tirx/pyproject.toml`. A non-editable FFI
    installation in `.local/python/` takes priority over the inherited environment.
    If native libraries are missing or stale, build this worktree with the same
    `PYTHONPATH` before testing.
 
 2. Run downstream import gates and select the full test coverage:
    ```bash
-   TIR_TEST_PATHS=(tirx/tests/python/tirx/)
+   TIR_TEST_PATHS=(3rdparty/tvm-tirx/tests/python/tirx/)
    if [[ "$TIR_TEST_WITH_KERNELS" == 1 ]]; then
      TIR_TEST_KERNELS_ROOT="${TIR_TEST_KERNELS_ROOT:-$(dirname "$TIR_TEST_TVM_ROOT")/tirx-kernels}"
      [[ -d "$TIR_TEST_KERNELS_ROOT/tirx_kernels" ]] || {
@@ -178,7 +178,7 @@ Run all commands below in the same Bash shell from the TVM repository root.
    "$PYTHON_BIN" -m pytest "${TIR_TEST_PATHS[@]}" -n "$TIR_TEST_XDIST_WORKERS" 2>&1 | tee "$TIR_TEST_LOG"
    ```
 
-   `tirx/tests/python/tirx/conftest.py` uses `tvm_tirx.testing._pytest` to assign
+   `3rdparty/tvm-tirx/tests/python/tirx/conftest.py` uses `tvm_tirx.testing._pytest` to assign
    each xdist worker's PyTorch current device round-robin across the visible
    GPUs. Tests that explicitly use `tvm_tirx.cuda(0)` still run on the first
    selected physical GPU.

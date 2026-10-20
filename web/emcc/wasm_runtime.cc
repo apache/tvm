@@ -35,6 +35,8 @@
 #include <cstring>
 #include <limits>
 
+// Keep the amalgamated source initialization order stable.
+// clang-format off
 #include "src/runtime/extra/contrib/sort/sort.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
@@ -44,30 +46,30 @@
 #include "src/runtime/rpc/rpc_session.cc"
 #include "src/runtime/timer.cc"
 #include "src/runtime/vm/params.cc"
-#include "tirx/src/runtime/cpu_device_api.cc"
-#include "tirx/src/runtime/device_api.cc"
-#include "tirx/src/runtime/logging.cc"
-#include "tirx/src/runtime/metadata.cc"
-#include "tirx/src/runtime/tensor.cc"
-#include "tirx/src/runtime/workspace_pool.cc"
+#include "3rdparty/tvm-tirx/src/runtime/cpu_device_api.cc"
+#include "3rdparty/tvm-tirx/src/runtime/device_api.cc"
+#include "3rdparty/tvm-tirx/src/runtime/logging.cc"
+#include "3rdparty/tvm-tirx/src/runtime/metadata.cc"
+#include "3rdparty/tvm-tirx/src/runtime/tensor.cc"
+#include "3rdparty/tvm-tirx/src/runtime/workspace_pool.cc"
 // relax setup
-#include "tirx/3rdparty/tvm-ffi/src/ffi/backtrace.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/container.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/custom_allocator.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/dtype.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/error.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/json_parser.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/json_writer.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/extra/module.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/function.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/init_once.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/object.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/tensor.cc"
-#include "tirx/3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/backtrace.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/custom_allocator.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/dtype.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/error.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/env_context.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/json_parser.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/json_writer.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/extra/module.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/init_once.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/object.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/tensor.cc"
+#include "3rdparty/tvm-tirx/3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
 // Enum registration requires the FFI type-attribute registry above.
 #include "src/runtime/vm/attn_backend.cc"
 #include "src/runtime/vm/builtin.cc"
@@ -79,7 +81,8 @@
 #include "src/runtime/vm/rnn_state.cc"
 #include "src/runtime/vm/tensor_cache_support.cc"
 #include "src/runtime/vm/vm.cc"
-#include "tirx/src/runtime/memory_scope.cc"
+#include "3rdparty/tvm-tirx/src/runtime/memory_scope.cc"
+// clang-format on
 
 // --- Implementations of backend and wasm runtime API. ---
 

@@ -591,6 +591,6 @@ new ``PassInstrument`` are called.
 
 .. _python/tvm/ir/transform/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/transform/instrument.py
 
-.. _src/tirx/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tirx/transform/unroll_loop.cc
+.. _src/tirx/transform/unroll_loop.cc: https://github.com/apache/tvm-tirx/blob/main/src/tirx/transform/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/docs/how_to/tutorials/customize_opt.py

@@ -85,7 +85,7 @@ set_property(CACHE TVM_USE_GTEST PROPERTY STRINGS AUTO ON OFF)
 # ######### Core dependencies ##########
 
 set(_installed_tirx ON)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tirx/CMakeLists.txt")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/tvm-tirx/CMakeLists.txt")
   set(_installed_tirx OFF)
 endif()
 option(TVM_USE_INSTALLED_TIRX "Build against an installed apache-tvm-tirx package" ${_installed_tirx})
@@ -149,8 +149,8 @@ if(TVM_USE_INSTALLED_TIRX)
         "TVM_OPENCL_DLL=__attribute__((visibility(\"default\")))")
     endif()
   endif()
-  if(NOT TVM_TIRX_VERSION STREQUAL "0.1.0a0")
-    message(FATAL_ERROR "TVM requires apache-tvm-tirx 0.1.0a0")
+  if(NOT TVM_TIRX_VERSION STREQUAL "0.1.0a2")
+    message(FATAL_ERROR "TVM requires apache-tvm-tirx 0.1.0a2")
   endif()
 else()
   # Keep source-built core libraries beside the parent libraries.
@@ -161,7 +161,7 @@ else()
       list(APPEND _tirx_output_defaults ${_kind})
     endif()
   endforeach()
-  add_subdirectory(tirx)
+  add_subdirectory(3rdparty/tvm-tirx)
   if(TARGET tirx_cpptest)
     set_target_properties(tirx_cpptest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
@@ -234,7 +234,7 @@ add_library(tvm_runtime_extra_defs INTERFACE)
 target_link_libraries(tvm_runtime_extra_defs INTERFACE
   tvm_runtime::shared tvm_ffi::shared)
 target_include_directories(tvm_runtime_extra_defs SYSTEM INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
+  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/compiler-rt")
 target_compile_definitions(tvm_runtime_extra_defs INTERFACE TVM_RUNTIME_EXTRA_EXPORTS TVM_FFI_EXPORTS)
 target_compile_features(tvm_runtime_extra_defs INTERFACE cxx_std_20)
 target_link_libraries(tvm_runtime_extra PRIVATE tvm_runtime_extra_defs)
@@ -304,7 +304,7 @@ endif()
 if(TARGET tvm_clml_objs)
   # CLML shares OpenCL implementation types; these are source inputs, not an
   # installed core interface. The parent sdist carries their bounded closure.
-  target_include_directories(tvm_clml_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tirx/src")
+  target_include_directories(tvm_clml_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/tvm-tirx/src")
 endif()
 # Retain the upstream runtime-extra assembly module and its target composition.
 include(cmake/modules/RuntimeExtra.cmake)
@@ -313,7 +313,7 @@ target_sources(tvm_compiler PRIVATE ${COMPILER_SRCS})
 target_compile_definitions(tvm_compiler PRIVATE TVM_EXPORTS TVM_FFI_EXPORTS)
 target_link_libraries(tvm_compiler PUBLIC tvm_tirx_compiler::shared tvm_ffi::shared tvm_runtime_extra)
 target_include_directories(tvm_compiler SYSTEM PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}/tirx/3rdparty/compiler-rt")
+  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/compiler-rt")
 foreach(_target tvm_compiler tvm_runtime_extra)
   target_include_directories(${_target} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

@@ -363,7 +363,7 @@ html_favicon = "_static/img/tvm-logo-square.png"
 
 # The Apache trademark/copyright footer is rendered through sphinx-book-theme's
 # ``extra_footer`` hook (see footer_html below). This mirrors how the tvm-ffi docs
-# (tirx/3rdparty/tvm-ffi/docs/conf.py) preserve the ASF menu under the book theme.
+# (3rdparty/tvm-tirx/3rdparty/tvm-ffi/docs/conf.py) preserve the ASF menu under the book theme.
 footer_dropdown = {
     "name": "ASF",
     "items": [

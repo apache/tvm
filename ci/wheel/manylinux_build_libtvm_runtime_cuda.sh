@@ -49,7 +49,7 @@ rm -rf "${build_dir}"
 # intentionally not set: it would be a no-op here for the same reason (verified --
 # the .so is byte-identical across arch values and carries no device code), and
 # modern CMake fills in a default so configure does not fail without it.
-cmake -S "${repo_root}/tirx" -B "${build_dir}" \
+cmake -S "${repo_root}/3rdparty/tvm-tirx" -B "${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DTVM_TIRX_BUILD_TESTS=OFF \
   -DTVM_TIRX_BUILD_PYTHON_MODULE=ON \

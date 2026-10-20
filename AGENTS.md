@@ -62,7 +62,8 @@ cmake --build build --parallel
 Development should use `PYTHONPATH`, not editable installs:
 
 ```bash
-export PYTHONPATH="$(pwd)/python:$(pwd)/.local/python"
+export PYTHONPATH="$(pwd)/python:$(pwd)/3rdparty/tvm-tirx/python:$(pwd)/.local/python"
+export TVM_TIRX_LIBRARY_PATH="$(pwd)/build/lib"
 ```
 
 Do not use `pip install -e` for TVM or `tvm-ffi`; editable installs can make
@@ -73,8 +74,8 @@ one worktree silently import another worktree's code.
 Run the smallest relevant test first, then broaden as needed. Common examples:
 
 ```bash
-python -m pytest tirx/tests/python/codegen/llvm/test_minimal.py -xvs
-python -m pytest tirx/tests/python/tirx/test_base.py -xvs
+python -m pytest 3rdparty/tvm-tirx/tests/python/codegen/llvm/test_minimal.py -xvs
+python -m pytest 3rdparty/tvm-tirx/tests/python/tirx/test_base.py -xvs
 ./build/cpptest
 ```
 

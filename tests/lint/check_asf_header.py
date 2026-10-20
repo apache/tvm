@@ -183,7 +183,6 @@ FMT_MAP = {
 # Files and patterns to skip (3rdparty, generated files, etc.).
 SKIP_LIST: list[str] = [
     "3rdparty/*",
-    "tirx/3rdparty/*",
     "ffi/3rdparty/*",
     ".github/*",
     ".txdev/*",

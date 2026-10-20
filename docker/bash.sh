@@ -549,7 +549,8 @@ fi
 
 # Set TVM import path inside the docker image
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    DOCKER_ENV+=( --env PYTHONPATH="${REPO_MOUNT_POINT}/tirx/python:${REPO_MOUNT_POINT}/python" )
+    DOCKER_ENV+=( --env PYTHONPATH="${REPO_MOUNT_POINT}/3rdparty/tvm-tirx/python:${REPO_MOUNT_POINT}/python" )
+    DOCKER_ENV+=( --env TVM_TIRX_LIBRARY_PATH="${REPO_MOUNT_POINT}/build/lib" )
 fi
 
 

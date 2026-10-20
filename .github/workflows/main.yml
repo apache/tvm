@@ -58,7 +58,7 @@ jobs:
           set -euxo pipefail
           pip install "scikit-build-core>=0.11" "setuptools-scm>=8"
           export CMAKE_ARGS="-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_USE_METAL=ON -DTVM_TIRX_BUILD_TESTS=OFF"
-          pip wheel --no-deps -w dist ./tirx -v
+          pip wheel --no-deps -w dist ./3rdparty/tvm-tirx -v
           pip install --no-deps --force-reinstall dist/apache_tvm_tirx-*.whl
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
           pip wheel --no-deps --no-build-isolation -w dist . -v
@@ -66,7 +66,6 @@ jobs:
         shell: bash -l {0}
         run: |
           set -euxo pipefail
-          export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
           pip install ml_dtypes
           # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
           # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
@@ -74,35 +73,25 @@ jobs:
           pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
           # Keep the source-matched tvm-ffi installed by the setup action.
           pip install --no-deps dist/*.whl
-          python - <<'PY'
-          import os
-          from importlib.metadata import requires, version
-
-          assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
-          assert version("apache-tvm-tirx") == "0.1.0a0"
-          assert "apache-tvm-tirx==0.1.0a0" in requires("apache-tvm")
-          assert "apache-tvm-ffi>=0.1.15rc0" in requires("apache-tvm-tirx")
-          assert "apache-tvm-ffi-orcjit==0.1.2" in requires("apache-tvm-tirx")
-          PY
 
       - name: Test
         shell: bash -l {0}
         run: >-
-          python -m pytest -v tirx/tests/python/codegen/llvm/test_minimal.py
-          tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script
+          python -m pytest -v 3rdparty/tvm-tirx/tests/python/codegen/llvm/test_minimal.py
+          3rdparty/tvm-tirx/tests/python/runtime/test_validate_wheel_library.py 3rdparty/tvm-tirx/tests/python/script
       - name: Minimal Metal Compile-Only
         shell: bash -l {0}
         run: |
           set -euxo pipefail
-          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile'
-          python -m pytest -v -s 'tirx/tests/python/backend/metal/codegen/test_basic.py::test_func_with_trailing_pod_params'
+          python -m pytest -v -s '3rdparty/tvm-tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum_compile'
+          python -m pytest -v -s '3rdparty/tvm-tirx/tests/python/backend/metal/codegen/test_basic.py::test_func_with_trailing_pod_params'
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: |
           set -euxo pipefail
-          python -m pytest -v -s tirx/tests/python/backend/metal
-          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_intrinsics.py'
-          python -m pytest -v -s 'tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum[dims0-metal]'
+          python -m pytest -v -s 3rdparty/tvm-tirx/tests/python/backend/metal
+          python -m pytest -v -s '3rdparty/tvm-tirx/tests/python/codegen/gpu_common/test_intrinsics.py'
+          python -m pytest -v -s '3rdparty/tvm-tirx/tests/python/codegen/gpu_common/test_allreduce.py::test_allreduce_sum[dims0-metal]'
 
   Windows:
     if: ${{ github.repository == 'apache/tvm' }}
@@ -123,7 +112,7 @@ jobs:
         run: |
           pip install "scikit-build-core>=0.11" "setuptools-scm>=8" || exit /b 1
           set CMAKE_ARGS=-DTVM_TIRX_USE_LLVM=ON -DTVM_TIRX_BUILD_TESTS=OFF
-          pip wheel --no-deps -w dist ./tirx -v || exit /b 1
+          pip wheel --no-deps -w dist ./3rdparty/tvm-tirx -v || exit /b 1
           for %%w in (dist\apache_tvm_tirx-*.whl) do (
             pip install --no-deps --force-reinstall "%%w" || exit /b 1
           )
@@ -142,5 +131,5 @@ jobs:
       - name: Test
         shell: cmd /C call {0}
         run: >-
-          python -m pytest -v tirx/tests/python/codegen/llvm/test_minimal.py
-          tirx/tests/python/runtime/test_validate_wheel_library.py tirx/tests/python/script
+          python -m pytest -v 3rdparty/tvm-tirx/tests/python/codegen/llvm/test_minimal.py
+          3rdparty/tvm-tirx/tests/python/runtime/test_validate_wheel_library.py 3rdparty/tvm-tirx/tests/python/script

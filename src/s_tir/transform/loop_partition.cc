@@ -34,7 +34,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/support/gpu_thread_tag.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/sym/bound.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op/gpu.h>
