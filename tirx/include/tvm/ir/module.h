@@ -353,19 +353,6 @@ inline constexpr ffi::reflection::AttrKey<ffi::Array<ffi::Module>> kExternalMods
  */
 inline constexpr ffi::reflection::AttrKey<ffi::String> kSystemLibPrefix{"system_lib_prefix"};
 
-/*!
- * \brief All the named Tensors accumulated during compilation by external codegen.
- * Generally the associated runtime::Module will indicate it requires bindings for these names,
- * and during module initialization these bindings will be recovered from a ConstLoaderModule.
- *
- * Type: ffi::Map<ffi::String, Tensor>
- */
-inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Tensor>> kConstNameToConstant{
-    "const_name_to_constant"};
-
-inline constexpr ffi::reflection::AttrKey<ffi::Map<GlobalVar, ffi::String>> kDeviceContexts{
-    "device_contexts"};
-
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

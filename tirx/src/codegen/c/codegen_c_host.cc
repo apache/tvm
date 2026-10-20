@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -44,7 +43,7 @@ CodeGenCHost::CodeGenCHost() {
 }
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl,
-                        std::string target_str, const std::unordered_set<std::string>& devices) {
+                        std::string target_str) {
   emit_asserts_ = emit_asserts;
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   declared_globals_.clear();
@@ -378,17 +377,8 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   bool emit_asserts = true;
   bool emit_fwd_func_decl = true;
 
-  std::unordered_set<std::string> devices;
-  if (mod->GetAttr(tvm::attr::kDeviceContexts) != nullptr) {
-    ffi::Map<GlobalVar, ffi::String> device_contexts =
-        mod->GetAttr(tvm::attr::kDeviceContexts).value();
-    for (auto const& context : device_contexts) {
-      devices.insert(context.second.data());
-    }
-  }
-
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
+  cg.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str());
   cg.SetConstantsByteAlignment(target->GetAttr<int64_t>("constants-byte-alignment").value_or(16));
 
   std::vector<std::pair<GlobalVar, Function>> funcs;

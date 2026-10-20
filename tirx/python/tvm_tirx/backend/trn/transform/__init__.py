@@ -23,6 +23,7 @@ import tvm_tirx
 from tvm_tirx import tirx
 
 _LAZY_TRANSFORMS = {
+    "AnnotateKernelArguments": ".annotate_kernel_arguments",
     "TrnNaiveAllocator": ".naive_allocator",
     "TrnPrivateTensorAlloc": ".private_tensor_alloc",
 }
@@ -90,4 +91,10 @@ def __getattr__(name):
     return getattr(import_module(target, __name__), name)
 
 
-__all__ = ["LowerTIRx", "LowerTrainiumLayout", "TrnNaiveAllocator", "TrnPrivateTensorAlloc"]
+__all__ = [
+    "AnnotateKernelArguments",
+    "LowerTIRx",
+    "LowerTrainiumLayout",
+    "TrnNaiveAllocator",
+    "TrnPrivateTensorAlloc",
+]
