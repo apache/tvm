@@ -20,10 +20,13 @@ tvm_tirx.script.ir_builder
 
 tvm_tirx.script.ir_builder
 **************************
+
+Shared IR classes are documented in :mod:`tvm_tirx.ir`.
+
 .. automodule:: tvm_tirx.script.ir_builder
    :members:
    :imported-members:
-   :exclude-members: Call, DataTypeImm, FuncType, GenericConst, MissingType, Op, PrimType, Range, StringImm, StringType, TensorRegion, TensorRegionType, Tuple, Type, Var
+   :exclude-members: Bind, Call, DataTypeImm, FuncType, GenericConst, MissingType, NoneType, Op, PrimType, Range, StringImm, StringType, TensorRegion, TensorRegionType, Tuple, Type, Var
 
 tvm.relax.script.ir_builder.distributed
 ***************************************
