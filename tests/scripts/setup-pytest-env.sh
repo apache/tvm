@@ -27,7 +27,8 @@ fi
 set -ux
 
 export TVM_PATH=`pwd`
-export PYTHONPATH="${TVM_PATH}/tirx/python:${TVM_PATH}/python"
+export PYTHONPATH="${TVM_PATH}/3rdparty/tvm-tirx/python:${TVM_PATH}/python"
+export TVM_TIRX_LIBRARY_PATH="${TVM_PATH}/build/lib"
 
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
 mkdir -p "${TVM_PYTEST_RESULT_DIR}"

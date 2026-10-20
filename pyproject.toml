@@ -20,7 +20,7 @@
 requires = [
   "scikit-build-core>=0.11",
   "setuptools-scm>=8",
-  "apache-tvm-tirx==0.1.0a0",
+  "apache-tvm-tirx==0.1.0a1",
 ]
 build-backend = "scikit_build_core.build"
 
@@ -49,7 +49,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["apache-tvm-tirx==0.1.0a0"]
+dependencies = ["apache-tvm-tirx==0.1.0a1"]
 
 [project.scripts]
 tvm-config = "tvm.config:__main__"
@@ -117,13 +117,13 @@ sdist.include = [
   "/web/**",
   # Private build inputs remain in the source distribution, outside the core's
   # installed public-header interface.
-  "/tirx/3rdparty/compiler-rt/builtin_fp16.h",
-  "/tirx/src/backend/opencl/memory_scope.h",
-  "/tirx/src/backend/opencl/runtime/opencl_common.h",
-  "/tirx/src/backend/opencl/runtime/texture.h",
-  "/tirx/src/runtime/metadata.h",
-  "/tirx/src/runtime/pack_args.h",
-  "/tirx/src/runtime/workspace_pool.h",
+  "/3rdparty/tvm-tirx/3rdparty/compiler-rt/builtin_fp16.h",
+  "/3rdparty/tvm-tirx/src/backend/opencl/memory_scope.h",
+  "/3rdparty/tvm-tirx/src/backend/opencl/runtime/opencl_common.h",
+  "/3rdparty/tvm-tirx/src/backend/opencl/runtime/texture.h",
+  "/3rdparty/tvm-tirx/src/runtime/metadata.h",
+  "/3rdparty/tvm-tirx/src/runtime/pack_args.h",
+  "/3rdparty/tvm-tirx/src/runtime/workspace_pool.h",
   "/3rdparty/cutlass/**",
   "/3rdparty/cutlass_fpA_intB_gemm/**",
   "/3rdparty/libflash_attn/**",
@@ -172,8 +172,6 @@ markers = [
 [tool.ruff]
 include = [
   "python/**/*.py",
-  "tirx/python/**/*.py",
-  "tirx/tests/**/*.py",
   "tests/**/*.py",
   "docs/**/*.py",
   "apps/**/*.py",
@@ -213,8 +211,6 @@ unfixable = []
 "docs/how_to/tutorials/mix_python_and_tvm_with_pymodule.py" = ["RUF003"]
 "python/tvm/relax/frontend/tflite/tflite_frontend.py" = ["E501"]
 "python/tvm/relax/transform/legalize_ops/nn.py" = ["E501"]
-# TIRx parser and lowering tests intentionally retain unused IR bindings.
-"tirx/tests/python/tirx/**/*.py" = ["F841"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tvm", "tvm_tirx"]
@@ -232,7 +228,7 @@ docstring-code-line-length = "dynamic"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 build-verbosity = 1
 test-requires = ["pytest", "numpy"]
-test-command = "pytest -vvs {project}/tirx/tests/python/codegen/llvm/test_minimal.py"
+test-command = "pytest -vvs {project}/3rdparty/tvm-tirx/tests/python/codegen/llvm/test_minimal.py"
 
 [tool.cibuildwheel.linux]
 repair-wheel-command = "auditwheel repair --exclude libtvm_tirx_compiler.so --exclude libtvm_runtime.so --exclude libtvm_ffi.so --exclude libtvm_runtime_cuda.so --exclude 'libcuda.so.*' --exclude 'libcudart.so.*' --exclude 'libnvrtc.so.*' --exclude 'libnvrtc-builtins.so.*' -w {dest_dir} {wheel}"

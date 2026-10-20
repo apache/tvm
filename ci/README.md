@@ -99,7 +99,7 @@ The native Jenkins pipelines source
 install build backend and Z3 prerequisites. They then invoke
 `tests/scripts/task_build_<platform>.sh`. Each root platform script sets the full
 platform CMake options and directly builds the pinned-source FFI wheel from
-`tirx/3rdparty/tvm-ffi`, followed by the TIRx and TVM wheels. All three wheel
+`3rdparty/tvm-tirx/3rdparty/tvm-ffi`, followed by the TIRx and TVM wheels. All three wheel
 builds use the same root CMake source and absolute `build/` directory, with fixed
 package-specific install components. They perform normal CMake configuration
 passes over the shared native build graph. The root script also runs enabled

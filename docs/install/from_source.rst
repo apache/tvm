@@ -69,7 +69,7 @@ one may simply use:
     # create the conda environment with build dependency
     conda create -n tvm-build-venv -c conda-forge \
         "llvmdev>=15" \
-        "cmake>=3.24" \
+        "cmake>=3.26" \
         git \
         python=3.11
     # enter the build environment
@@ -91,6 +91,11 @@ You can also choose to clone the source repo from GitHub.
 .. code:: bash
 
     git clone --recursive https://github.com/apache/tvm tvm
+
+TVM pins the standalone `Apache TIRx <https://github.com/apache/tvm-tirx>`_
+compiler and core runtime in ``3rdparty/tvm-tirx``. Recursive submodule
+initialization also checks out its FFI dependency. After updating TVM, run
+``git submodule update --init --recursive`` to restore the pinned versions.
 
 .. note::
     It's important to use the ``--recursive`` flag when cloning the TVM repository, which will
@@ -150,7 +155,7 @@ Therefore, after we finish the build, we need to install the tvm-ffi package.
 
 .. code-block:: bash
 
-    cd tirx/3rdparty/tvm-ffi; pip install .; cd ..
+    pip install ./3rdparty/tvm-tirx/3rdparty/tvm-ffi
 
 
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
@@ -160,8 +165,9 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    pip install --target=$TVM_HOME/python $TVM_HOME/tirx/3rdparty/tvm-ffi
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-tirx/3rdparty/tvm-ffi
+    export PYTHONPATH=$TVM_HOME/3rdparty/tvm-tirx/python:$TVM_HOME/python:$PYTHONPATH
+    export TVM_TIRX_LIBRARY_PATH=$TVM_HOME/build/lib
 
 - Install via pip local project
 
@@ -169,8 +175,9 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 
     conda activate your-own-env
     conda install python # make sure python is installed
-    export TVM_LIBRARY_PATH=/path-to-tvm/build
-    pip install -e /path-to-tvm
+    pip install "scikit-build-core>=0.11" "setuptools-scm>=8"
+    pip install /path-to-tvm/3rdparty/tvm-tirx
+    pip install --no-build-isolation /path-to-tvm
 
 Step 4. Validate Installation
 -----------------------------

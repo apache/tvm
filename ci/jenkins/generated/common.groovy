@@ -352,7 +352,7 @@ def download_artifacts(tag) {
 
 def docker_init(image) {
   // Forget compiler wrappers cached before the temporary sccache bypass.
-  sh 'rm -f build/CMakeCache.txt tirx/3rdparty/tvm-ffi/build/CMakeCache.txt'
+  sh 'rm -f build/CMakeCache.txt 3rdparty/tvm-tirx/3rdparty/tvm-ffi/build/CMakeCache.txt'
   // Clear out all Docker images that aren't going to be used
   sh(
     script: """

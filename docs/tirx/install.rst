@@ -95,12 +95,12 @@ Standalone CMake build
 The core can be built independently from the repository checkout. Initialize
 its bundled FFI dependency, then use native CMake options (CMake 3.26 or newer)::
 
-    git submodule update --init --recursive tirx/3rdparty/tvm-ffi
-    cmake -S tirx -B tirx/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    git submodule update --init --recursive 3rdparty/tvm-tirx
+    cmake -S 3rdparty/tvm-tirx -B 3rdparty/tvm-tirx/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
         -DTVM_TIRX_BUILD_TESTS=ON
-    cmake --build tirx/build
-    ctest --test-dir tirx/build
-    cmake --install tirx/build --prefix /path/to/install
+    cmake --build 3rdparty/tvm-tirx/build
+    ctest --test-dir 3rdparty/tvm-tirx/build
+    cmake --install 3rdparty/tvm-tirx/build --prefix /path/to/install
 
 Core feature options use the ``TVM_TIRX_USE_`` prefix. SDK selectors such as
 ``TVM_TIRX_USE_CUDA`` and ``TVM_TIRX_USE_LLVM`` also accept an SDK path or

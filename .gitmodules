@@ -7,6 +7,6 @@
 [submodule "3rdparty/libflash_attn"]
 	path = 3rdparty/libflash_attn
 	url = https://github.com/tlc-pack/libflash_attn
-[submodule "3rdparty/tvm-ffi"]
-	path = tirx/3rdparty/tvm-ffi
-	url = https://github.com/apache/tvm-ffi
+[submodule "3rdparty/tvm-tirx"]
+	path = 3rdparty/tvm-tirx
+	url = https://github.com/apache/tvm-tirx.git

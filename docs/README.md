@@ -70,8 +70,9 @@ see [Helper Scripts](#helper-scripts) below.
    ```bash
    export TVM_HOME=/path-to-tvm
    export TVM_LIBRARY_PATH=$TVM_HOME/build
-   pip install --target=$TVM_HOME/python $TVM_HOME/tirx/3rdparty/tvm-ffi
-   export PYTHONPATH="$TVM_HOME/tirx/python:$TVM_HOME/python:${PYTHONPATH:-}"
+   pip install --target=$TVM_HOME/python $TVM_HOME/3rdparty/tvm-tirx/3rdparty/tvm-ffi
+   export PYTHONPATH="$TVM_HOME/3rdparty/tvm-tirx/python:$TVM_HOME/python:${PYTHONPATH:-}"
+   export TVM_TIRX_LIBRARY_PATH="${TVM_HOME}/build/lib"
    ```
 
    `docs/conf.py` unconditionally imports `tvm` at startup, so the build will

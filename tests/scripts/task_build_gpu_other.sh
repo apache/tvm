@@ -20,7 +20,7 @@
 set -euxo pipefail
 
 # Keep these libraries separate from the published GPU wheel artifacts.
-uv pip install --python python3 --no-deps --target build/python ./tirx/3rdparty/tvm-ffi
+uv pip install --python python3 --no-deps --target build/python ./3rdparty/tvm-tirx/3rdparty/tvm-ffi
 export PYTHONPATH="$PWD/build/python"
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DTVM_TIRX_USE_OPENCL=ON -DTVM_TIRX_USE_VULKAN=ON -DTVM_TIRX_USE_ROCM=ON \

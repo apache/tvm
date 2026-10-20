@@ -39,8 +39,8 @@ export CMAKE_ARGS="
     -DBUILD_TESTING=ON
     -DTVM_TIRX_BUILD_TESTS=ON
 "
-uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx/3rdparty/tvm-ffi
-uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./3rdparty/tvm-tirx/3rdparty/tvm-ffi
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./3rdparty/tvm-tirx
 uv build --wheel --no-build-isolation --offline --python python3
 
 ./build/tirx_cpptest

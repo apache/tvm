@@ -49,6 +49,6 @@ export CMAKE_ARGS="
     -DTVM_TIRX_USE_OPENCL=OFF
     -DTVM_TIRX_USE_LLVM='/usr/bin/llvm-config-15 --link-static'
 "
-uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx/3rdparty/tvm-ffi
-uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./tirx
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./3rdparty/tvm-tirx/3rdparty/tvm-ffi
+uv build --wheel --no-build-isolation --offline --python python3 --out-dir dist ./3rdparty/tvm-tirx
 uv build --wheel --no-build-isolation --offline --python python3

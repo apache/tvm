@@ -110,7 +110,7 @@ runs:
     - name: Build and test TIRx core wheel
       uses: pypa/cibuildwheel@294735312765b09d24a2fbec22660ce817587d55  # v4.1.0
       with:
-        package-dir: tirx
+        package-dir: 3rdparty/tvm-tirx
         output-dir: wheelhouse
       env:
         CIBW_BUILD: ${{ inputs.build }}
@@ -139,7 +139,7 @@ runs:
           PATH="C:/opt/llvm/Library/bin;$PATH"
           CMAKE_ARGS="-DTVM_TIRX_USE_LLVM='C:/opt/llvm/Library/bin/llvm-config.exe --link-static' -DZLIB_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=C:/opt/llvm/Library ${{ inputs.cmake_defines }} -DTVM_TIRX_PACKAGE_EXTRA_LIBS=${{ env.TVM_CUDA_EXTRA_LIB }}"
         # Turns the wheel-specific assertions in
-        # tirx/tests/python/runtime/test_validate_wheel_library.py
+        # 3rdparty/tvm-tirx/tests/python/runtime/test_validate_wheel_library.py
         # ON (they skip unless these are set). Every published wheel is LLVM-enabled,
         # so TVM_WHEEL_EXPECT_LLVM is always "1"; the CUDA runtime is only bundled on
         # the CUDA wheels, so TVM_WHEEL_EXPECT_CUDA_RUNTIME is "0" for CPU wheels.
