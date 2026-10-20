@@ -19,6 +19,9 @@
 # Compile the backends excluded from the GPU test wheel without running them.
 set -euxo pipefail
 
+# Forget compiler wrappers cached by earlier dependency builds.
+rm -f 3rdparty/tvm-tirx/3rdparty/tvm-ffi/build/CMakeCache.txt
+
 # Keep these libraries separate from the published GPU wheel artifacts.
 uv pip install --python python3 --no-deps --target build/python ./3rdparty/tvm-tirx/3rdparty/tvm-ffi
 export PYTHONPATH="$PWD/build/python"
