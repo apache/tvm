@@ -448,6 +448,53 @@ def test_llvm_cast_float_to_bool():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_bool_arith():
+    # As in the C target, bool +, - and * compute in int and convert back: non-zero is true.
+    @I.ir_module
+    class Serial:
+        @T.function
+        def main(
+            A: T.Tensor((4,), "bool"),
+            B: T.Tensor((4,), "bool"),
+            C_add: T.Tensor((4,), "bool"),
+            C_sub: T.Tensor((4,), "bool"),
+            C_mul: T.Tensor((4,), "bool"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i in range(4):
+                C_add[i] = A[i] + B[i]
+                C_sub[i] = A[i] - B[i]
+                C_mul[i] = A[i] * B[i]
+
+    @I.ir_module
+    class Vectorized:
+        @T.function
+        def main(
+            A: T.Tensor((4,), "bool"),
+            B: T.Tensor((4,), "bool"),
+            C_add: T.Tensor((4,), "bool"),
+            C_sub: T.Tensor((4,), "bool"),
+            C_mul: T.Tensor((4,), "bool"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for i in T.vectorized(4):
+                C_add[i] = A[i] + B[i]
+                C_sub[i] = A[i] - B[i]
+                C_mul[i] = A[i] * B[i]
+
+    dev = tvm_tirx.cpu(0)
+    a_np = np.array([False, False, True, True])
+    b_np = np.array([False, True, False, True])
+    for Module in [Serial, Vectorized]:
+        f = tvm_tirx.tirx.compile(Module, target="llvm")
+        outs = [tvm_tirx.runtime.empty((4,), dtype="bool", device=dev) for _ in range(3)]
+        f(tvm_tirx.runtime.tensor(a_np, dev), tvm_tirx.runtime.tensor(b_np, dev), *outs)
+        tvm_tirx.testing.assert_allclose(outs[0].numpy(), a_np | b_np)
+        tvm_tirx.testing.assert_allclose(outs[1].numpy(), a_np ^ b_np)
+        tvm_tirx.testing.assert_allclose(outs[2].numpy(), a_np & b_np)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rank_zero():
     @I.ir_module
     class Module:
