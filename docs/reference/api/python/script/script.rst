@@ -29,10 +29,11 @@ tvm.relax.script
 ****************
 
 Operator attributes re-exported by this namespace are documented in :mod:`tvm.relax.op`.
+The shared ``NoneType`` class is documented in :mod:`tvm_tirx.ir`.
 
 .. automodule:: tvm.relax.script
    :members:
-   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range, function, macro,
+   :exclude-members: ExternFunc, NoneType, ShapeExpr, TupleGetItem, Range, function, macro,
       ArgmaxArgminAttrs, ArgsortAttrs, AstypeAttrs, CallInplacePackedAttrs, CallTIRInplaceAttrs,
       CallTIRWithGradAttrs, ConcatAttrs, EinsumAttrs, ExpandDimsAttrs, FlipAttrs,
       GatherElementsAttrs, GatherNDAttrs, HintOnDeviceAttrs, IndexPutAttrs, InitAttrs,
@@ -56,8 +57,8 @@ The canonical ``MemoryScope`` class is documented in :mod:`tvm_tirx.runtime`.
 
 .. automodule:: tvm_tirx.script.tirx
    :members:
-   :exclude-members: AlreadyEmitted, DataTypeImm, FuncType, GenericConst, IRBuilder,
-      IRModuleFrame, MemoryScope, MissingType, Op, PrimType, StringImm, StringType, TensorLoad, TensorRegion,
+   :exclude-members: AlreadyEmitted, Bind, DataTypeImm, FuncType, GenericConst, IRBuilder,
+      IRModuleFrame, MemoryScope, MissingType, NoneType, Op, PrimType, StringImm, StringType, TensorLoad, TensorRegion,
       TensorRegionType, Type, Range, meta_var, Var, Call, CommReducer, Reduce, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar, ComposeLayout, DtypeConstructor, ThreadScope, Iter, Layout, LetAnnotation, LocalVectorAnnotation, TileLayout, CallFFIKernelAttr, TensorMapEncodeTiledAttr, function, jit, inline, macro
 
 .. autofunction:: tvm_tirx.script.tirx.function

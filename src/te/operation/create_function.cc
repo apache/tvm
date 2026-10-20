@@ -916,7 +916,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
                                      /*ret_type=*/VoidType()),
                             {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
                              {tvm::tirx::attr::kNoAlias.name, true},
-                             {tvm::attr::kSTir.name, true}});
+                             {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
@@ -988,7 +988,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
                                      /*ret_type=*/VoidType()),
                             {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
                              {tvm::tirx::attr::kNoAlias.name, true},
-                             {tvm::attr::kSTir.name, true}});
+                             {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();

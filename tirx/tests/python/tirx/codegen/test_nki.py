@@ -40,7 +40,7 @@ def test_nki_add_1():
     # fmt: off
     @T.function
     def func(A: T.Tensor((128, 512), "float32"), B: T.Tensor((128, 512), "float32")):
-        T.func_attr({"num_inputs": 1})
+        T.func_attr({"trn.num_input_args": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
@@ -94,7 +94,7 @@ def test_nki_add_2():
     # fmt: off
     @T.function
     def func(A: T.Tensor((128, 2048), "float32"), B: T.Tensor((128, 2048), "float32")):
-        T.func_attr({"num_inputs": 1})
+        T.func_attr({"trn.num_input_args": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
@@ -174,7 +174,7 @@ def test_nki_matmul_1():
         rhs: T.Tensor((K, N), "float16"),
         result: T.Tensor((M, N), "float16"),
     ):
-        T.func_attr({"num_inputs": 2})
+        T.func_attr({"trn.num_input_args": 2})
         result_tiles = T.alloc_tensor(
             ty_args=[
                 T.Tensor(

@@ -866,7 +866,6 @@ class FusedTIRConstructor : public ExprVisitor {
   tirx::Function ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tvm::tirx::attr::kNoAlias.name, true);
-    attr_map.Set(tvm::attr::kSTir.name, true);
     attr_map.Set(tvm::attr::kScriptNamespace.name, ffi::String("s_tir"));
     auto subst = ffi::make_object<tirx::FuseTIRTensorSubstitutor>(func_info_.tensor_subst_map,
                                                                   func_info_.symbolic_var_remap);

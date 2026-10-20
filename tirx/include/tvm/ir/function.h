@@ -252,30 +252,12 @@ inline constexpr ffi::reflection::AttrKey<Target> kTarget{"target"};
 inline constexpr ffi::reflection::AttrKey<ffi::String> kGlobalSymbol{"global_symbol"};
 
 /*!
- * \brief The function uses s_tir (apache-derived TIR) semantics:
- *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
- *        independent of the script construction namespace.
- *        Default (attr absent or False) is tirx semantics.
- *
- * Type: IntImm (bool dtype)
- */
-inline constexpr ffi::reflection::AttrKey<bool> kSTir{"s_tir"};
-
-/*!
- * \brief Script construction namespace used to select the function decorator.
- * Absent metadata selects the function kind's default namespace. This does not
- * change the function's semantic dialect.
+ * \brief Script namespace used to select construction, printing, and dialect lowering.
+ * Absent metadata selects the function kind's default namespace.
  *
  * Type: String
  */
 inline constexpr ffi::reflection::AttrKey<ffi::String> kScriptNamespace{"script.namespace"};
-
-/*!
- * \brief Number of inputs of the Function
- *
- * Type: Int
- */
-inline constexpr ffi::reflection::AttrKey<int64_t> kNumInputs{"num_inputs"};
 
 }  // namespace attr
 

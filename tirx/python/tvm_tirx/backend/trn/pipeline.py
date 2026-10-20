@@ -56,6 +56,7 @@ def trn_pipeline(*, target=None):
             tirx.transform.RemoveNoOp(),
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
+            trn_transform.AnnotateKernelArguments(),
             tirx.transform.MakePackedAPI(),
         ]
         return tvm_tirx.ir.transform.Sequential(passes)(mod)

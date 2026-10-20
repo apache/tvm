@@ -142,7 +142,7 @@ def test_remap():
 
 @Ts.function
 def main():
-    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+    T.func_attr({"script.namespace": "s_tir"})
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
@@ -190,7 +190,7 @@ def test_root_block():
 
 @Ts.function
 def main():
-    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+    T.func_attr({"script.namespace": "s_tir"})
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()

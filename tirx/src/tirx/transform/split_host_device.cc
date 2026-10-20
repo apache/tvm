@@ -157,27 +157,17 @@ class HostDeviceSplitter : public StmtExprMutator {
 
       // Sort first by variable type, then by variable name
       std::vector<Var> params{undefined.begin(), undefined.end()};
-      if (device_target->kind->name != "trn") {
-        std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
-          auto sort_key = [](const Var& var) {
-            bool is_handle =
-                var->ty.as<PtrTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
-            return std::tuple{
-                !is_handle,
-                var->name,
-            };
+      std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
+        auto sort_key = [](const Var& var) {
+          bool is_handle =
+              var->ty.as<PtrTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
+          return std::tuple{
+              !is_handle,
+              var->name,
           };
-          return sort_key(a) < sort_key(b);
-        });
-      } else {
-        std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
-        for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>()] = i;
-        }
-        // sort by original order
-        std::sort(params.begin(), params.end(),
-                  [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
-      }
+        };
+        return sort_key(a) < sort_key(b);
+      });
       return {params, tensors};
     }();
 
@@ -246,18 +236,10 @@ class HostDeviceSplitter : public StmtExprMutator {
       device_func = WithAttr(std::move(device_func), tvm::attr::kScriptNamespace.name,
                              script_namespace.value());
     }
-    bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir.name);
-    if (is_stir) {
-      device_func = WithAttr(std::move(device_func), tvm::attr::kSTir.name, true);
-    }
     if (auto launch_params = cur_func_->GetAttr<ffi::Array<ffi::String>>(
             tvm::tirx::attr::kKernelLaunchParams.name)) {
       device_func = WithAttr(std::move(device_func), tvm::tirx::attr::kKernelLaunchParams.name,
                              launch_params.value());
-    }
-    auto num_inputs = cur_func_->GetAttr(tvm::attr::kNumInputs);
-    if (num_inputs.has_value()) {
-      device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs.name, num_inputs);
     }
     GlobalVar kernel_symbol_global = var_supply_();
     if (region->attrs->dict.count(tvm::backend::cuda::attr::kLaunchFields.name)) {

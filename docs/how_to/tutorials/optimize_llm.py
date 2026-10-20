@@ -45,6 +45,7 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # - **Build and Universal Deployment**: Build the optimized model to a deployable module to the
 #   universal runtime, and execute it on different devices, such as CPU, GPU, or other accelerators.
 #
+
 ######################################################################
 # Construct the model architecture
 # --------------------------------

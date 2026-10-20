@@ -33,20 +33,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   FunctionFrameObj::RegisterReflection();
   SBlockFrameObj::RegisterReflection();
   BlockInitFrameObj::RegisterReflection();
-  tirx::FunctionFrameObj::RegisterAttrValidator(
-      tvm::attr::kSTir.name, [](const tirx::FunctionFrameObj* frame, const ffi::Any& value) {
-        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameObj>(), ValueError)
-            << "The s_tir attribute requires Ts.function";
-        bool enabled = false;
-        if (auto flag = value.as<bool>()) {
-          enabled = *flag;
-        } else if (auto flag = value.as<int64_t>()) {
-          enabled = *flag != 0;
-        } else if (auto flag = value.as<tvm::IntImm>()) {
-          enabled = !tvm::prim::IsZero(*flag);
-        }
-        TVM_FFI_CHECK(enabled, ValueError) << "Ts.function cannot disable the s_tir attribute";
-      });
 }
 
 tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func) {
@@ -54,7 +40,6 @@ tvm::tirx::Function FunctionFrameObj::FinalizeFunction(tvm::tirx::Function func)
   TVM_FFI_CHECK(!is_declaration || root_alloc_tensors.empty(), ValueError)
       << "A function declaration cannot allocate tensors";
   if (!is_declaration) {
-    func = WithAttr(std::move(func), tvm::attr::kSTir.name, true);
     func =
         tvm::s_tir::ScriptComplete(std::move(func), root_alloc_tensors, root_allocated_addresses);
   }
