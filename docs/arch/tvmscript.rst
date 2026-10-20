@@ -140,7 +140,9 @@ lookup in the active module.
 Public script namespaces expose decorators and construction operations. The same
 underlying builders can also be used directly from Python. The transpiler therefore
 needs no separate mutable IR representation: it generates calls to this construction
-protocol.
+protocol. ``script.namespace`` records the construction namespace for printing
+and dialect lowering. S-TIR functions use ``"s_tir"``; their builders own block
+completion and validation.
 
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as

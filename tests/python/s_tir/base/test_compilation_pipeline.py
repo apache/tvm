@@ -41,6 +41,8 @@ def test_default_pipeline_selects_dialect(mixed):
         for i in range(16):
             B[i] = A[i] + T.float32(2)
 
+    assert "s_tir" not in scheduled.attrs
+    assert scheduled.attrs["script.namespace"] == "s_tir"
     functions = {"scheduled": scheduled}
     if mixed:
         functions["native"] = native

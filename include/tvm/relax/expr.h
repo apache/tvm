@@ -495,6 +495,16 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 // TODO(@sunggg): Investigate the exact usage of kComposite, kPartitionedFromPattern, and
 // kPrimitive.
 namespace attr {
+/*!
+ * \brief All the named Tensors accumulated during compilation by external codegen.
+ * Generally the associated runtime::Module will indicate it requires bindings for these names,
+ * and during module initialization these bindings will be recovered from a ConstLoaderModule.
+ *
+ * Type: ffi::Map<ffi::String, Tensor>
+ */
+inline constexpr ffi::reflection::AttrKey<ffi::Map<ffi::String, ffi::Tensor>> kConstNameToConstant{
+    "const_name_to_constant"};
+
 /*! \brief Mark the function as a primitive function. */
 inline constexpr ffi::reflection::AttrKey<bool> kPrimitive{"Primitive"};
 /*!

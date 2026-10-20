@@ -50,7 +50,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   using CodeGenCHost::Dispatch_;
 
   void Init(Target target) {
-    CodeGenCHost::Init(false, true, true, target->str(), {});
+    CodeGenCHost::Init(false, true, true, target->str());
     // Retain C-host wrapper initialization, with an FFI/CUDA-only prelude.
     decl_stream.str("");
     decl_stream.clear();

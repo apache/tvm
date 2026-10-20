@@ -42,7 +42,7 @@ def test_ir_builder_tir_function_base():
         params=[],
         body=tvm_tirx.ir.Evaluate(0),
         ret_type=None,
-        attrs=tvm_tirx.ir.make_node("ir.DictAttrs", **{"s_tir": True, "script.namespace": "s_tir"}),
+        attrs=tvm_tirx.ir.make_node("ir.DictAttrs", **{"script.namespace": "s_tir"}),
     )
 
     # Check if the generated ir is expected
@@ -80,7 +80,7 @@ def test_ir_builder_tir_function_complete():
         body=tvm_tirx.ir.Evaluate(0),
         ret_type=tvm_tirx.ir.PrimType("int64"),
         attrs=tvm_tirx.ir.make_node(
-            "ir.DictAttrs", **{"key": "value", "s_tir": True, "script.namespace": "s_tir"}
+            "ir.DictAttrs", **{"key": "value", "script.namespace": "s_tir"}
         ),
     )
 

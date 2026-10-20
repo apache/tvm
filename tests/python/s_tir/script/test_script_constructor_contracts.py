@@ -42,7 +42,7 @@ def test_cast_script_positional_and_keyword_type():
         S.evaluate(S.cast(x, ty="float32"))
 
     assert S.cast is T.cast
-    assert positional.attrs["s_tir"]
+    assert "s_tir" not in positional.attrs
     assert positional.attrs["script.namespace"] == "s_tir"
     ir.assert_structural_equal(positional, keyword)
     cast_expr = positional.body[0].value

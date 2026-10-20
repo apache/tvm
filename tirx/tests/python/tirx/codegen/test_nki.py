@@ -16,6 +16,9 @@
 # under the License.
 
 
+import pytest
+import tvm_ffi
+
 import tvm_tirx
 import tvm_tirx.testing
 from tvm_tirx.script import tirx as T
@@ -40,7 +43,7 @@ def test_nki_add_1():
     # fmt: off
     @T.function
     def func(A: T.Tensor((128, 512), "float32"), B: T.Tensor((128, 512), "float32")):
-        T.func_attr({"num_inputs": 1})
+        T.func_attr({"trn.num_input_args": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
@@ -94,7 +97,7 @@ def test_nki_add_2():
     # fmt: off
     @T.function
     def func(A: T.Tensor((128, 2048), "float32"), B: T.Tensor((128, 2048), "float32")):
-        T.func_attr({"num_inputs": 1})
+        T.func_attr({"trn.num_input_args": 1})
         T.device_entry()
         A_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
         B_sbuf = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
@@ -174,7 +177,7 @@ def test_nki_matmul_1():
         rhs: T.Tensor((K, N), "float16"),
         result: T.Tensor((M, N), "float16"),
     ):
-        T.func_attr({"num_inputs": 2})
+        T.func_attr({"trn.num_input_args": 2})
         result_tiles = T.alloc_tensor(
             ty_args=[
                 T.Tensor(
@@ -338,6 +341,100 @@ def func_kernel(lhsT_ptr, rhs_ptr, result_ptr: nt.mutable_tensor, ):
         nl.store(result_ptr_buffer[(((((m_1 * 4194304) + (bm_1 * 262144)) + (i_6[:, None, ] * 2048)) + (n * 512)) + j_6[None, :, ])], result_packed_ptr[i_6[:, None, ], j_6[None, :, ]])
   return result_ptr"""  # noqa: E501
     assert compare_strings_ignore_whitespace(src, expected)
+
+
+@pytest.mark.parametrize("host_target", [None, "llvm"])
+def test_split_kernel_argument_contract(host_target):
+    from tvm_tirx.backend.trn.pipeline import _split_host_device
+
+    @T.function
+    def func(
+        unused: T.Tensor((4,), "float32"),
+        Z: T.Tensor((4,), "float32"),
+        A: T.Tensor((4,), "float32"),
+        B: T.Tensor((4,), "float32"),
+    ):
+        T.func_attr(
+            {
+                "trn.num_input_args": 2,
+                "target": T.target("trn", host=host_target),
+                "unrelated": "host-only",
+            }
+        )
+        captured = T.alloc_tensor(ty_args=[T.Tensor((4,), "float32")])
+        output = T.decl_tensor(A.data, ty_args=[T.Tensor((4,), "float32")])
+        with T.region("tirx.device_scope", [], attrs={"target": T.target("trn")}):
+            for i in range(4):
+                output[i] = Z[i] + captured[i]
+        with T.region("tirx.device_scope", [], attrs={"target": T.target("trn")}):
+            for i in range(4):
+                B[i] = Z[i]
+
+    mod = _split_host_device(tvm_tirx.IRModule({"main": func}))
+    kernels = {gv.name_hint: fn for gv, fn in mod.functions.items() if gv.name_hint != "main"}
+    assert len(kernels) == 2
+    for kernel in kernels.values():
+        assert "unrelated" not in kernel.attrs
+        assert "num_inputs" not in kernel.attrs
+        names = [param.name for param in kernel.params]
+        if "captured_ptr" in names:
+            assert names == ["Z_ptr", "captured_ptr", "output_ptr"]
+            assert kernel.attrs["trn.num_input_args"] == 2
+        else:
+            assert names == ["Z_ptr", "B_ptr"]
+            assert kernel.attrs["trn.num_input_args"] == 1
+    assert "trn.num_input_args" not in mod["main"].attrs
+
+    def check_call(call):
+        if isinstance(call.op, tvm_tirx.ir.GlobalVar):
+            kernel = kernels[call.op.name_hint]
+            args = call.args
+        elif isinstance(call.op, tvm_tirx.ir.Op) and call.op.name == "tirx.call_ffi_kernel":
+            kernel = kernels[call.args[0].value]
+            args = call.args[1:]
+        else:
+            return
+        names = [arg.args[0].name + "_ptr" for arg in args]
+        assert names == [param.name for param in kernel.params]
+
+    tvm_ffi.structural_walk(mod["main"].body, (tvm_tirx.ir.Call, check_call))
+
+
+def test_nki_input_output_order():
+    @T.function
+    def func(
+        Z: T.Tensor((128, 512), "float32"),
+        A: T.Tensor((128, 512), "float32"),
+    ):
+        T.func_attr({"trn.num_input_args": 1})
+        T.device_entry()
+        value = T.alloc_tensor(ty_args=[T.Tensor((128, 512), "float32", scope="trn.sbuf")])
+        with T.nki.tensorized_instruction():
+            for i in range(128):
+                for j in range(512):
+                    T.nki.load(value[i, j], Z[i, j])
+        with T.nki.tensorized_instruction():
+            for i in range(128):
+                for j in range(512):
+                    T.nki.store(A[i, j], value[i, j])
+
+    source = lower_and_get_source(func)
+    assert "def func_kernel(Z_ptr, A_ptr: nt.mutable_tensor, ):" in source
+    assert "return A_ptr" in source
+
+
+@pytest.mark.parametrize("count", [-1, 3])
+def test_invalid_input_count(count):
+    from tvm_tirx.backend.trn.pipeline import _split_host_device
+
+    @T.function
+    def func(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+        T.func_attr({"target": T.target("trn", host="llvm")})
+        T.evaluate(0)
+
+    mod = tvm_tirx.IRModule({"main": func.with_attr("trn.num_input_args", count)})
+    with pytest.raises(ValueError, match="trn.num_input_args"):
+        _split_host_device(mod)
 
 
 if __name__ == "__main__":

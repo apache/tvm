@@ -127,7 +127,7 @@ def _partition_dialects(mod):
     for gv, func in mod.functions.items():
         group = (
             scheduled
-            if isinstance(func, tirx.Function) and func.attrs.get("s_tir", False)
+            if isinstance(func, tirx.Function) and func.attrs.get("script.namespace") == "s_tir"
             else native
         )
         group[gv] = func

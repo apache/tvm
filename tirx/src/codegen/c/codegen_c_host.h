@@ -28,7 +28,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -41,8 +40,7 @@ namespace codegen {
 class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str,
-            const std::unordered_set<std::string>& devices);
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str);
 
   void InitGlobalContext();
 

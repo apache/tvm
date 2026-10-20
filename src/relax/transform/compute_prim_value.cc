@@ -118,7 +118,6 @@ class PrimExprComputeInjector : public ExprMutator {
 
     tirx::Function func(param_vars, tvm::SeqStmt(body), ret_ty,
                         DictAttrs({{tvm::tirx::attr::kIsHostFunc.name, true},
-                                   {tvm::attr::kSTir.name, true},
                                    {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}}));
     func = tirx::RenewDef(func);
 

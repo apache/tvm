@@ -22,6 +22,7 @@
  */
 #include "codegen_trn.h"
 
+#include <tvm/backend/trn/attr.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
@@ -114,8 +115,10 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
 
   // Buffer arguments
-  auto num_inputs = func->GetAttr(tvm::attr::kNumInputs);
-  TVM_FFI_ICHECK(num_inputs.has_value());
+  auto num_inputs = func->GetAttr(tvm::backend::trn::attr::kNumInputArgs);
+  TVM_FFI_CHECK(num_inputs.has_value(), ValueError) << "Trainium requires trn.num_input_args";
+  TVM_FFI_CHECK_GE(num_inputs.value(), 0, ValueError);
+  TVM_FFI_CHECK_LE(num_inputs.value(), static_cast<int64_t>(func->params.size()), ValueError);
   std::vector<std::string> output_vids;
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {

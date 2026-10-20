@@ -100,7 +100,8 @@ class CodeGenRunner : ExprMutator {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
         constants.Set(name, constant->value.cast<ffi::Tensor>());
       }
-      out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant.name, std::move(constants));
+      out_mod =
+          WithAttr(out_mod, tvm::relax::attr::kConstNameToConstant.name, std::move(constants));
     }
 
     // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
