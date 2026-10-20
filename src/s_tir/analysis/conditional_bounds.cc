@@ -28,7 +28,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/sym/pattern.h>
 #include <tvm/tirx/analysis.h>
 
 #include <algorithm>
@@ -302,7 +301,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const prim::LENode* le = ineq.as<prim::LENode>()) {
-      ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(le->a, {var});
+      ffi::Array<PrimExpr> coef = tirx::DetectLinearEquation(le->a, {var});
       const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;
@@ -317,7 +316,7 @@ void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current
         continue;
       }
     } else if (const prim::EQNode* eq = ineq.as<prim::EQNode>()) {
-      ffi::Array<PrimExpr> coef = sym::DetectLinearEquation(eq->a, {var});
+      ffi::Array<PrimExpr> coef = tirx::DetectLinearEquation(eq->a, {var});
       const auto* imm = !coef.empty() ? coef[0].as<IntImmNode>() : nullptr;
       if (auto value = imm ? imm->value.as<int64_t>() : std::nullopt; value.has_value()) {
         int64_t coef0 = *value;

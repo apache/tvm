@@ -32,7 +32,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/sym/pattern.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/type.h>
@@ -316,7 +316,7 @@ class MatchTensorLower : public StmtExprMutator {
         if (VarRemapGet(var) == nullptr) unknown.push_back(var.as_or_throw<PrimVar>());
       }
       if (unknown.size() == 1 && arg_prim) {
-        auto coefficients = sym::DetectLinearEquation(arg_prim.value(), unknown);
+        auto coefficients = tirx::DetectLinearEquation(arg_prim.value(), unknown);
         if (coefficients.size() == 2 && coefficients[0].as<IntImmNode>() &&
             !IsZero(coefficients[0])) {
           PrimExpr delta = analyzer_->Simplify(value.as_or_throw<PrimExpr>() - coefficients[1]);

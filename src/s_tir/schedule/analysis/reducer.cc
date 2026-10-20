@@ -35,7 +35,7 @@ using namespace tvm::tirx;
 /*!
  * \brief PrimExpr pattern matcher.
  *
- * It is different from the pattern matcher in sym/pattern_match.h, which is dedicated
+ * It is different from the pattern matcher in tvm/ir/prim/pattern_match.h, which is dedicated
  * for compile-time constant patterns. This pattern matcher can work on dynamic user-specific
  * patterns.
  *

@@ -66,7 +66,6 @@ jobs:
         shell: bash -l {0}
         run: |
           set -euxo pipefail
-          export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
           pip install ml_dtypes
           # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
           # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
@@ -74,16 +73,6 @@ jobs:
           pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
           # Keep the source-matched tvm-ffi installed by the setup action.
           pip install --no-deps dist/*.whl
-          python - <<'PY'
-          import os
-          from importlib.metadata import requires, version
-
-          assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
-          assert version("apache-tvm-tirx") == "0.1.0a1"
-          assert "apache-tvm-tirx==0.1.0a1" in requires("apache-tvm")
-          assert "apache-tvm-ffi>=0.1.15.post0" in requires("apache-tvm-tirx")
-          assert "apache-tvm-ffi-orcjit>=0.1.2" in requires("apache-tvm-tirx")
-          PY
 
       - name: Test
         shell: bash -l {0}

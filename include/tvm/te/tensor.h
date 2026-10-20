@@ -29,7 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/iter_var.h>
-#include <tvm/sym/bound.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/expr.h>
 
 #include <string>
