@@ -249,11 +249,23 @@ class LambdaLifter : public ExprMutator {
     current_lambda_var_ = binding->var;
 
     auto new_value = VisitExpr(binding->value);
+    const auto* call = new_value.as<CallNode>();
+    if (call && call->op.same_as(make_closure_op_)) {
+      closures_.insert(binding->var);
+    }
     if (!rebind_map_.count(binding->var)) {
       ReEmitBinding(binding, new_value);
     }
 
     current_lambda_var_ = cache;
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const VarNode* var_node) final {
+    auto new_value = VisitExpr(ffi::GetRef<Var>(var_node));
+    if (IsClosure(new_value)) {
+      closures_.insert(binding->var);
+    }
+    ReEmitBinding(binding, new_value);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
@@ -368,11 +380,14 @@ class LambdaLifter : public ExprMutator {
 
       // Call "relax.invoke_closure" to invoke closure
 
-      auto bound_value = LookupBinding(var);
-      if (IsClosure(var) && bound_value.as<CallNode>()) {
+      if (IsClosure(var)) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = bound_value.value().as_or_throw<Call>();
+        auto bound_value = LookupBinding(var);
         bool is_pure = [&]() -> bool {
+          if (!bound_value.as<CallNode>()) {
+            return GetType(var).as_or_throw<FuncType>()->purity;
+          }
+          Call orig_call = bound_value.value().as_or_throw<Call>();
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
             return purity_map.get(op.value(), false);
