@@ -24,21 +24,24 @@
  * algorithm described below. By grouping bindings into new Relax functions, we substitute the
  * bindings in the function being manipulated into function calls to the new grouped function.
  *
- * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+ * A follow-up pass named "FuseTIR" will generate a TIR tirx::Function for each grouped function.
  */
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 
 #include <optional>
@@ -57,8 +60,8 @@ struct ExprIdentityLess {
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  transform::FusionPatternNode::RegisterReflection();
-  transform::PatternCheckContextNode::RegisterReflection();
+  transform::FusionPatternObj::RegisterReflection();
+  transform::PatternCheckContextObj::RegisterReflection();
 }
 
 /*
@@ -105,7 +108,9 @@ using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.FuseOps.max_depth", int64_t);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<int64_t>("relax.FuseOps.max_depth");
+}
 
 class GraphCreator : public ExprVisitor {
  public:
@@ -119,16 +124,16 @@ class GraphCreator : public ExprVisitor {
   static IndexedForwardGraph Create(IRModule mod, support::Arena* arena) {
     GraphCreator creator(mod, arena);
     for (const auto& it : mod->functions) {
-      // Only visit Relax functions with neither attr::kPrimitive nor
-      // attr::kCodegen.  Relax functions with `attr::kPrimitive` are
+      // Only visit Relax functions with neither attr::kPrimitive.name nor
+      // attr::kCodegen.name.  Relax functions with `attr::kPrimitive.name` are
       // previously fused functions, potentially from a previous use
       // of `FuseOps` or `FuseOpsByPattern`.  Relax functions with
-      // `attr::kCodegen` are previously fused functions from
+      // `attr::kCodegen.name` are previously fused functions from
       // `FuseOpsByPattern`, when the `annotate_codegen` option is
       // true.
       const auto* func = it.second.as<FunctionNode>();
-      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
-          func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+      if (func == nullptr || func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name) ||
+          func->GetAttr(tvm::relax::attr::kCodegen).has_value()) {
         continue;
       }
       creator(ffi::GetRef<Function>(func));
@@ -157,7 +162,7 @@ class GraphCreator : public ExprVisitor {
       SetNodePattern(param_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(param_node, param.get());
     }
-    if (auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput)) {
+    if (auto opt_num_input = func->GetAttr(tvm::relax::attr::kNumInput)) {
       for (int i = static_cast<int>(opt_num_input.value());
            i < static_cast<int>(func->params.size()); ++i) {
         input_params_.insert(func->params[i].get());
@@ -205,19 +210,19 @@ class GraphCreator : public ExprVisitor {
     OpPatternKind pattern = OpPatternKind::kOpaque;
     ffi::Array<Expr> args = call->args;
 
-    // - If the op being called is a TIR PrimFunc, we get the function op pattern directly from the
-    // function attribute and visit the arguments one by one.
+    // - If the op being called is a TIR tirx::Function, we get the function op pattern directly
+    // from the function attribute and visit the arguments one by one.
     // - Otherwise, the pattern of the current binding variable node is set to `kOpaque`, and we
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get() || op == call_tir_inplace_op_.get()) {
       const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
-      tirx::PrimFunc func = mod_->Lookup(global_var).as_or_throw<tirx::PrimFunc>();
+      tirx::Function func = mod_->Lookup(global_var).as_or_throw<tirx::Function>();
 
       // Override args for call_tir
       args = call->args[1].as_or_throw<Tuple>()->fields;
 
-      ffi::Optional<int64_t> opt_pattern = func->GetAttr<int64_t>("op_pattern");
+      ffi::Optional<int64_t> opt_pattern = func->GetAttr(tvm::relax::attr::kOpPattern);
       if (opt_pattern.has_value()) {
         pattern = static_cast<OpPatternKind>(opt_pattern.value());
       } else {
@@ -515,7 +520,7 @@ class FunctionCreator : public ExprMutator {
         Var item_param(param_name + "_" + std::to_string(item_idx), param_ty->fields[item_idx]);
         item_args.push_back(TupleGetItem(ffi::GetRef<Expr>(tuple_arg), item_idx));
         item_params.push_back(item_param);
-        tuple_get_item_remap[tuple_arg][item_idx] = item_param;
+        tuple_get_item_remap[tuple_arg].insert_or_assign(item_idx, item_param);
       }
       arguments_.erase(arguments_.begin() + param_idx);
       arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
@@ -528,7 +533,7 @@ class FunctionCreator : public ExprMutator {
     InlineShapeDependentPrimArgs();
 
     // Step 4. Visit each binding and collect outputs one by one.
-    ffi::Array<Expr> outputs(output_vars_.size(), Expr());
+    std::vector<ffi::Optional<Expr>> output_slots(output_vars_.size());
     for (const Binding& binding : bindings_) {
       // Special handing for TupleGetItem.
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
@@ -536,9 +541,9 @@ class FunctionCreator : public ExprMutator {
           auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
           if (it != tuple_get_item_remap.end()) {
             TVM_FFI_ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
-            var_remap_[var_binding->var] = it->second[tuple_get_item->index];
+            var_remap_.insert_or_assign(var_binding->var, it->second.at(tuple_get_item->index));
             if (auto output_idx = GetOutputIndex(binding->var)) {
-              outputs.Set(*output_idx, it->second[tuple_get_item->index]);
+              output_slots[*output_idx] = it->second.at(tuple_get_item->index);
             }
             continue;
           }
@@ -551,12 +556,19 @@ class FunctionCreator : public ExprMutator {
         const auto* var_binding = binding.as<VarBindingNode>();
         TVM_FFI_ICHECK_NOTNULL(var_binding);
         Var output_var = builder_->EmitOutput(VisitExpr(var_binding->value));
-        var_remap_[var_binding->var] = output_var;
-        outputs.Set(*output_idx, output_var);
+        var_remap_.insert_or_assign(var_binding->var, output_var);
+        output_slots[*output_idx] = output_var;
       } else {
         // Case 2. It is an internal binding, add it to the binding list.
         VisitBinding(binding);
       }
+    }
+
+    ffi::Array<Expr> outputs;
+    outputs.reserve(output_slots.size());
+    for (const auto& output : output_slots) {
+      TVM_FFI_ICHECK(output.has_value()) << "Missing fused function output";
+      outputs.push_back(output.value());
     }
 
     // Step 5. Finish constructing the new block.
@@ -570,14 +582,14 @@ class FunctionCreator : public ExprMutator {
       Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
-      group_attrs.Set(tvm::relax::attr::kPrimitive, true);
+      group_attrs.Set(tvm::relax::attr::kPrimitive.name, true);
       Function function = Function(/*params=*/params_,       //
                                    /*body=*/body,            //
                                    /*ret_ty=*/std::nullopt,  //
                                    /*is_pure=*/true,         //
                                    /*attrs=*/DictAttrs(group_attrs));
       ffi::Array<PrimExpr> free_vars = FreeSymbolicVars(function).Map(
-          [](const tirx::Var& var) { return var.as_or_throw<PrimExpr>(); });
+          [](const tvm::Var& var) { return var.as_or_throw<PrimExpr>(); });
       if (!free_vars.empty()) {
         params_.push_back(Var("tir_vars", ShapeType(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));
@@ -629,8 +641,8 @@ class FunctionCreator : public ExprMutator {
       boundary_types.push_back(GetType(ffi::GetRef<Var>(output_var)));
     }
 
-    std::unordered_set<tirx::Var> boundary_shape_vars;
-    for (const tirx::Var& var : TIRVarsInType(TupleType(boundary_types))) {
+    std::unordered_set<tvm::Var> boundary_shape_vars;
+    for (const tvm::Var& var : TIRVarsInType(TupleType(boundary_types))) {
       boundary_shape_vars.insert(var);
     }
 
@@ -649,7 +661,7 @@ class FunctionCreator : public ExprMutator {
       if (inline_bound_value) {
         const auto* argument_var = argument.as<VarNode>();
         TVM_FFI_ICHECK(argument_var);
-        inlined_bindings_[argument_var] = bound_value;
+        inlined_bindings_.insert_or_assign(argument_var, bound_value);
       }
 
       size_t param_idx = it - arguments_.begin();
@@ -678,7 +690,7 @@ class FunctionCreator : public ExprMutator {
       Var bound_var = ffi::GetRef<Var>(var);
       Expr bound_value = ResolveOuterBinding(bound_var);
       if (!bound_value.same_as(bound_var) && IsInlinableConstants(bound_value)) {
-        inlined_bindings_[var] = bound_value;
+        inlined_bindings_.insert_or_assign(var, bound_value);
         return;
       }
     }
@@ -726,17 +738,17 @@ class FunctionCreator : public ExprMutator {
   bool IsSymbolicPrimExpr(const Expr& expr) {
     if (expr.as<CallNode>()) return false;
     if (auto prim_value = expr.as<PrimExpr>()) {
-      return !tvm::tirx::UndefinedVars(prim_value.value()).empty();
+      return !tvm::UndefinedVars(prim_value.value()).empty();
     }
     return false;
   }
 
   bool IsShapeDependentPrimExpr(const Expr& expr,
-                                const std::unordered_set<tirx::Var>& referenced_shape_vars) {
+                                const std::unordered_set<tvm::Var>& referenced_shape_vars) {
     if (!IsSymbolicPrimExpr(expr)) return false;
-    ffi::Array<tirx::Var> undefined_vars = tvm::tirx::UndefinedVars(expr.as_or_throw<PrimExpr>());
+    ffi::Array<tvm::Var> undefined_vars = tvm::UndefinedVars(expr.as_or_throw<PrimExpr>());
     return std::all_of(undefined_vars.begin(), undefined_vars.end(),
-                       [&](const tirx::Var& var) { return referenced_shape_vars.count(var); });
+                       [&](const tvm::Var& var) { return referenced_shape_vars.count(var); });
   }
 
   bool IsInlinableConstants(const Expr& expr) {
@@ -746,10 +758,10 @@ class FunctionCreator : public ExprMutator {
     } else if (expr.as<VarNode>() || expr.as<CallNode>()) {
       return false;
     } else if (auto prim_value = expr.as<PrimExpr>()) {
-      return tvm::tirx::UndefinedVars(prim_value.value()).empty();
+      return tvm::UndefinedVars(prim_value.value()).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                         [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });
+                         [](const PrimExpr& e) { return tvm::UndefinedVars(e).empty(); });
     }
     return false;
   }
@@ -835,10 +847,11 @@ class OperatorFusor : public ExprMutator {
     }
     for (const auto& gv : entry_functions) {
       const auto& func = mod_->Lookup(gv);
-      // Only visit Relax functions with neither attr::kPrimitive nor
-      // attr::kCodegen.
-      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
-          !func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+      // Only visit Relax functions with neither attr::kPrimitive.name nor
+      // attr::kCodegen.name.
+      if (func->IsInstance<relax::FunctionNode>() &&
+          !func->HasNonzeroAttr(tvm::relax::attr::kPrimitive.name) &&
+          !func->GetAttr(tvm::relax::attr::kCodegen).has_value()) {
         outer_bindings_ = AnalyzeVar2Value(func);
         auto updated_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
@@ -937,20 +950,17 @@ class OperatorFusor : public ExprMutator {
       // same dataflow/output status as its sole boundary variable.  The last binding is only the
       // insertion point and may itself be a dead internal binding.
       TVM_FFI_ICHECK(!output_vars.empty());
-      Var new_var;
-      Call call_to_emit = Call::Unchecked(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
+      Call call_to_emit = Call(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
 
-      if (output_vars.size() == 1 && !output_vars[0]->IsInstance<DataflowVarNode>()) {
-        new_var = builder_->EmitOutput(call_to_emit);
-      } else {
-        new_var = builder_->Emit(call_to_emit);
-      }
+      Var new_var = output_vars.size() == 1 && !output_vars[0]->IsInstance<DataflowVarNode>()
+                        ? builder_->EmitOutput(call_to_emit)
+                        : builder_->Emit(call_to_emit);
 
       // Step c. Remap every boundary output to the corresponding result of the grouped call.
       // FunctionCreator uses output_vars() order when it constructs a multi-output tuple.  A
       // single boundary output is returned directly, including when that output is itself a tuple.
       if (output_vars.size() == 1) {
-        var_remap_[ffi::GetRef<Var>(output_vars[0])] = new_var;
+        var_remap_.insert_or_assign(ffi::GetRef<Var>(output_vars[0]), new_var);
         continue;
       }
 
@@ -961,9 +971,9 @@ class OperatorFusor : public ExprMutator {
         int index = static_cast<int>(std::distance(output_vars.begin(), it));
         TupleGetItem tuple_get(new_var, index);
         if (output_var->IsInstance<DataflowVarNode>()) {
-          var_remap_[output_var] = builder_->Emit(tuple_get);
+          var_remap_.insert_or_assign(output_var, builder_->Emit(tuple_get));
         } else {
-          var_remap_[output_var] = builder_->EmitOutput(tuple_get);
+          var_remap_.insert_or_assign(output_var, builder_->EmitOutput(tuple_get));
         }
         remapped_outputs.insert(output_var.get());
       };
@@ -1256,7 +1266,7 @@ class PatternBasedPartitioner : ExprVisitor {
       // parent_group corresponds to the group of "conv1" above.
       auto parent_group = GetGroupForBoundVar(binding->var);
       TVM_FFI_ICHECK(parent_group);
-      parent_group->attrs.Set(attr::kComposite, pat_name_);
+      parent_group->attrs.Set(tvm::relax::attr::kComposite.name, pat_name_);
       if (attrs_getter_ != nullptr) {
         const auto& custom_attrs = attrs_getter_(context->annotated_expr);
         for (const auto& pair : custom_attrs) {
@@ -1368,15 +1378,15 @@ class CompositeFunctionAnnotator : public ExprMutator {
       }
       const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
-        if (func->GetAttr<ffi::String>(attr::kComposite).has_value() ||
-            func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+        if (func->GetAttr(tvm::relax::attr::kComposite).has_value() ||
+            func->GetAttr(tvm::relax::attr::kCodegen).has_value()) {
           continue;
         }
 
         auto new_body = VisitWithNewScope(func->body, func->params);
         if (!new_body.same_as(func->body)) {
-          auto new_func = Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs,
-                                   func->span);
+          auto new_func =
+              Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->loc);
           builder_->UpdateFunction(gv, new_func);
         }
       }
@@ -1387,20 +1397,20 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
       if (auto it = gvar_map_.find(gvar); it != gvar_map_.end()) {
-        return Call::Unchecked(Type::Missing(), it->second, call_node->args);
+        return Call(Type::Missing(), it->second, call_node->args);
       }
       auto func = builder_->GetContextIRModule()->Lookup(ffi::GetRef<GlobalVar>(gvar));
-      if (auto composite_name = func->GetAttr<ffi::String>(attr::kComposite)) {
+      if (auto composite_name = func->GetAttr(tvm::relax::attr::kComposite)) {
         auto new_func = VisitExpr(func).as_or_throw<Function>();
         auto codegen_name = GetCodegenName(composite_name.value());
         auto gsymbol = gvar->name_hint + "_" + codegen_name;
-        new_func = WithAttrs(new_func,
-                             {{attr::kCodegen, codegen_name}, {tvm::attr::kGlobalSymbol, gsymbol}});
-        new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
+        new_func = WithAttrs(new_func, {{tvm::relax::attr::kCodegen.name, codegen_name},
+                                        {tvm::attr::kGlobalSymbol.name, gsymbol}});
+        new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive.name);
         builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
-        gvar_map_[gvar] = new_gvar;
-        return Call::Unchecked(Type::Missing(), new_gvar, call_node->args);
+        gvar_map_.insert_or_assign(gvar, new_gvar);
+        return Call(Type::Missing(), new_gvar, call_node->args);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -1409,13 +1419,13 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* func_node) final {
     Function f_inner = ExprMutator::VisitExpr_(func_node).as_or_throw<Function>();
 
-    if (!func_node->GetAttr<ffi::String>(attr::kComposite)) {
-      // This lambda function doesn't have `attr::kComposite`, so it
+    if (!func_node->GetAttr(tvm::relax::attr::kComposite)) {
+      // This lambda function doesn't have `attr::kComposite.name`, so it
       // was not produced by FuseOps.
       return f_inner;
     }
 
-    f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive);
+    f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive.name);
 
     ffi::Array<Var> param_vars;
     ffi::Array<Expr> params;
@@ -1431,12 +1441,11 @@ class CompositeFunctionAnnotator : public ExprMutator {
     // well-formed Relax IR.  As a result, we need to build the SeqExpr ourselves.
     Var local_func_var("local_func", GetType(f_inner));
     Var output_var("output", f_inner->ret_ty);
-    SeqExpr new_body(
-        {BindingBlock({
-            VarBinding(local_func_var, f_inner),
-            VarBinding(output_var, Call::Unchecked(Type::Missing(), local_func_var, params)),
-        })},
-        output_var);
+    SeqExpr new_body({BindingBlock({
+                         VarBinding(local_func_var, f_inner),
+                         VarBinding(output_var, Call(Type::Missing(), local_func_var, params)),
+                     })},
+                     output_var);
 
     // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
     return Function(param_vars, new_body, func_node->ret_ty, f_inner->is_pure);
@@ -1465,13 +1474,13 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
     } else {
       for (const auto& gv : mod->GetGlobalVars()) {
         const auto& base_func = mod->Lookup(gv);
-        if (base_func->IsInstance<tirx::PrimFuncNode>()) {
+        if (base_func->IsInstance<tirx::FunctionNode>()) {
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
-        if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
-            function->GetAttr<ffi::String>(attr::kComposite).has_value() ||
-            function->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+        if (function->GetAttr(tvm::relax::attr::kPrimitive).value_or(false) ||
+            function->GetAttr(tvm::relax::attr::kComposite).has_value() ||
+            function->GetAttr(tvm::relax::attr::kCodegen).has_value()) {
           continue;
         }
         entry_functions.push_back(base_func.as_or_throw<Function>());
@@ -1506,9 +1515,8 @@ FusionPattern::FusionPattern(ffi::String name, DFPattern pattern,
                              ffi::Map<ffi::String, DFPattern> annotation_patterns,
                              ffi::Optional<ffi::Function> check,
                              ffi::Optional<ffi::Function> attrs_getter) {
-  ffi::ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>();
+  ffi::ObjectPtr<FusionPatternObj> n = ffi::make_object<FusionPatternObj>(pattern);
   n->name = std::move(name);
-  n->pattern = std::move(pattern);
   n->annotation_patterns = std::move(annotation_patterns);
   n->check = check;
   n->attrs_getter = attrs_getter;
@@ -1530,8 +1538,8 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr,
                                          ffi::Map<Var, Expr> matched_bindings,
                                          ffi::Map<Var, ffi::Array<Var>> var_usages,
                                          ffi::Map<Expr, Var> value_to_bound_var) {
-  ffi::ObjectPtr<PatternCheckContextNode> n = ffi::make_object<PatternCheckContextNode>();
-  n->matched_expr = std::move(matched_expr);
+  ffi::ObjectPtr<PatternCheckContextObj> n =
+      ffi::make_object<PatternCheckContextObj>(std::move(matched_expr));
   n->annotated_expr = std::move(annotated_expr);
   n->matched_bindings = std::move(matched_bindings);
   n->var_usages = std::move(var_usages);
@@ -1543,13 +1551,13 @@ Pass FuseOps(int fuse_opt_level) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        auto max_fuse_depth = pc->GetConfig<int64_t>("relax.FuseOps.max_depth", kMaxFusedOps);
-        return relax::FuseOps(m, opt_level, static_cast<size_t>(max_fuse_depth.value()));
+        auto max_fuse_depth =
+            pc->GetConfig<int64_t>("relax.FuseOps.max_depth").value_or(kMaxFusedOps);
+        return relax::FuseOps(m, opt_level, static_cast<size_t>(max_fuse_depth));
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*name=*/"FuseOps",           //
-                          /*required=*/{});
+                          /*name=*/"FuseOps");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1566,8 +1574,7 @@ Pass FuseOpsByPattern(const tvm::ffi::Array<FusionPattern>& patterns, bool bind_
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*name=*/"FuseOpsByPattern",  //
-                          /*required=*/{});
+                          /*name=*/"FuseOpsByPattern");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

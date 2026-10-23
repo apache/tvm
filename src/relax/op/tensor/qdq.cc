@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 
@@ -34,6 +35,16 @@
 
 namespace tvm {
 namespace relax {
+
+void QuantizeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<QuantizeAttrs>()
+      .def_ro("out_dtype", &QuantizeAttrs::out_dtype, "Output data type.")
+      .def_ro("axis", &QuantizeAttrs::axis,
+              "The output channel axis for channel wise quantization/dequantization. "
+              "Default value is -1, which corresponds to the last axis.",
+              refl::DefaultValue(-1));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
@@ -44,8 +55,8 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_d
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.quantize");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -161,8 +172,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the output tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the output tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeQuantize)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeQuantize)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.dequantize */
@@ -172,8 +183,8 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.dequantize");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -284,8 +295,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the input tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the input tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeDequantize)
-      .set_attr<bool>("FPurity", true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeDequantize)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

@@ -38,6 +38,9 @@ namespace relax {
  */
 class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  public:
+  explicit RXPlaceholderOpNode(Expr value) : value(std::move(value)) {}
+  explicit RXPlaceholderOpNode(ffi::UnsafeInit) : value(ffi::UnsafeInit{}) {}
+
   /*! \brief The relax expression. */
   Expr value;
 
@@ -61,7 +64,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  * shape of the input Expr.
  * \param name The name of the created tensor.
  */
-te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name);
+te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::string name);
 
 }  // namespace relax
 }  // namespace tvm

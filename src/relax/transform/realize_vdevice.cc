@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -52,12 +52,12 @@ class VDeviceLookup {
     opt_vdevices_ = opt_global_info.value().Map(downcast_vdevice);
   }
 
-  VDevice operator()(Attrs hint_on_device_attrs) {
+  VDevice operator()(ffi::Optional<Attrs> hint_on_device_attrs) {
     auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
     TVM_FFI_ICHECK(attrs);
     int32_t device_type = attrs->device_type;
     int32_t device_id = attrs->index;
-    ffi::String memory_scope = attrs->memory_scope;
+    auto memory_scope = attrs->memory_scope;
 
     TVM_FFI_CHECK(opt_vdevices_.has_value(), ValueError)
         << "The target VDevice in the GlobalInfos was not found.";
@@ -67,7 +67,7 @@ class VDeviceLookup {
         << "The device id in R.hint_on_device must not be negative";
 
     for (auto vdevice : vdevices) {
-      int dev_type = vdevice->target->GetTargetDeviceType();
+      int dev_type = vdevice->target.value()->GetTargetDeviceType();
       if (dev_type == device_type && vdevice->vdevice_id == device_id &&
           memory_scope == vdevice->memory_scope) {
         return vdevice;
@@ -361,16 +361,16 @@ class VDeviceTypeUpdater : ExprMutator {
         auto vdevice = opt.value();
         TensorType new_ty = [&]() {
           if (tinfo->shape.has_value()) {
-            return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
+            return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->loc);
           } else {
-            return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
+            return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->loc);
           }
         }();
 
         if (var->IsInstance<DataflowVarNode>()) {
-          var = DataflowVar(var->name, new_ty, var->span);
+          var = DataflowVar(var->name, new_ty, var->loc);
         } else {
-          var = Var(var->name, new_ty, var->span);
+          var = Var(var->name, new_ty, var->loc);
         }
       }
     }
@@ -395,9 +395,8 @@ class VDeviceTypeUpdater : ExprMutator {
     if (input_vdevice.has_value() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
-      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
-      attrs->dst_vdevice = output_vdevice;
-      return Call::Unchecked(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
+      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>(output_vdevice);
+      return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 
@@ -417,8 +416,7 @@ Pass RealizeVDevice() {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"RealizeVDevice",
-                          /*required=*/{});
+                          /*pass_name=*/"RealizeVDevice");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

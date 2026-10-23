@@ -17,7 +17,8 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """Public exports for the Relax builder."""
 
-from tvm.script.ir_builder.ir import constexpr
+from tvm_tirx.ir.type import _init_type_api
+from tvm_tirx.script.ir_builder.ir import constexpr
 
 from . import distributed as dist
 from . import ir as _native
@@ -28,8 +29,10 @@ from .op import *
 from .parser_protocol import *
 from .parser_protocol import (
     __tvm_value_if__,
-    _check_module_well_formed,
     supports_mutable_declarations,
 )
 
 __all__ = [*_native.__all__, *_op.__all__, *_protocol.__all__, "constexpr", "dist"]
+
+
+_init_type_api("relax", __name__)

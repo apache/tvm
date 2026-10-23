@@ -30,31 +30,31 @@ using s_tir::InstructionKind;
 using s_tir::Trace;
 
 /*! \brief A mutator that mutates the thread binding factor decision of SampleCategorical */
-class MutateThreadBindingNode : public MutatorNode {
+class MutateThreadBindingObj : public MutatorObj {
  public:
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MutateThreadBindingNode>();
+    refl::ObjectDef<MutateThreadBindingObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.MutateThreadBinding",
-                                    MutateThreadBindingNode, MutatorNode);
+                                    MutateThreadBindingObj, MutatorObj);
 
  public:
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   void InitializeWithTuneContext(const TuneContext& context) final {
     this->json_mod_ = ffi::json::Stringify(
         ffi::ToJSONGraph(context->mod.value(), ffi::json::Object{{"tvm_version", TVM_VERSION}}),
         /*indent=*/2);
   }
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
-  // Inherit from `MutatorNode`
+  // Inherit from `MutatorObj`
   Mutator Clone() const final {
-    ffi::ObjectPtr<MutateThreadBindingNode> n = ffi::make_object<MutateThreadBindingNode>(*this);
-    return Mutator(n);
+    ffi::ObjectPtr<MutateThreadBindingObj> n = ffi::make_object<MutateThreadBindingObj>(*this);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -84,7 +84,7 @@ class MutateThreadBindingNode : public MutatorNode {
  * \param trace The trace from which to find the instructions
  * \return All the candidate instructions
  */
-std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCandidates(
+std::vector<MutateThreadBindingObj::Candidate> MutateThreadBindingObj::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
   using s_tir::InstructionNode;
 
@@ -92,7 +92,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   static InstructionKind inst_split = InstructionKind::Get("Split");
   static InstructionKind inst_bind = InstructionKind::Get("Bind");
 
-  std::vector<MutateThreadBindingNode::Candidate> candidates;
+  std::vector<MutateThreadBindingObj::Candidate> candidates;
   std::unordered_map<const ExprNode*, const s_tir::InstructionNode*> sample_insts;
   std::unordered_map<const s_tir::LoopRVNode*, const s_tir::InstructionNode*> sampled_split_insts;
   std::vector<const InstructionNode*> bind_insts;
@@ -157,7 +157,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   return candidates;
 }
 
-ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* rand_state) {
+ffi::Optional<Trace> MutateThreadBindingObj::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
     return std::nullopt;
@@ -174,10 +174,10 @@ ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandSta
 }
 
 Mutator Mutator::MutateThreadBinding() {
-  return Mutator(ffi::make_object<MutateThreadBindingNode>());
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateThreadBindingObj>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { MutateThreadBindingNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { MutateThreadBindingObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_GLOBAL_INFO_H_
 #define TVM_RELAX_DISTRIBUTED_GLOBAL_INFO_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -64,7 +65,7 @@ class DeviceMesh : public GlobalInfo {
  public:
   TVM_DLL DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids);
   TVM_DLL DeviceMesh(ffi::Shape shape, Range device_range);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeviceMesh, GlobalInfo, DeviceMeshNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeviceMesh, GlobalInfo, DeviceMeshNode);
 };
 
 }  // namespace distributed

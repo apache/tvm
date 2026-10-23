@@ -27,10 +27,10 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/manipulate.h>
-#include <tvm/relax/attrs/nn.h>
-#include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op/manipulate.h>
+#include <tvm/relax/op/nn.h>
+#include <tvm/relax/op/statistical.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
@@ -55,7 +55,7 @@ using namespace tvm::prim;
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public ffi::Object {
+struct TensorRTCompilerConfigObj : public ffi::Object {
   ffi::Array<int64_t> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
@@ -66,38 +66,41 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorRTCompilerConfigNode>()
-        .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
+    refl::ObjectDef<TensorRTCompilerConfigObj>()
+        .def_ro("tensorrt_version", &TensorRTCompilerConfigObj::tensorrt_version,
                 "TensorRT version as (major, minor, patch).",
                 refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
-        .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
+        .def_ro("use_implicit_batch", &TensorRTCompilerConfigObj::use_implicit_batch,
                 "Use implicit batch (removed in TensorRT 10; networks are always explicit-batch)",
                 refl::DefaultValue(false))
-        .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
+        .def_ro("max_workspace_size", &TensorRTCompilerConfigObj::max_workspace_size,
                 "Max workspace size", refl::DefaultValue(size_t(1) << 30))
-        .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,
+        .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigObj::remove_no_mac_subgraphs,
                 "Remove no-mac subgraphs", refl::DefaultValue(false))
-        .def_ro("use_fp16", &TensorRTCompilerConfigNode::use_fp16, "Use FP16",
+        .def_ro("use_fp16", &TensorRTCompilerConfigObj::use_fp16, "Use FP16",
                 refl::DefaultValue(false))
-        .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
+        .def_ro("use_uint8", &TensorRTCompilerConfigObj::use_uint8, "Use uint8",
                 refl::DefaultValue(false))
-        .def_ro("build_at_compile_time", &TensorRTCompilerConfigNode::build_at_compile_time,
+        .def_ro("build_at_compile_time", &TensorRTCompilerConfigObj::build_at_compile_time,
                 "Build and embed TensorRT engines during code generation",
                 refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ext.attrs.TensorRTCompilerConfig",
-                                    TensorRTCompilerConfigNode, ffi::Object);
+                                    TensorRTCompilerConfigObj, ffi::Object);
 };
 
 class TensorRTCompilerConfig : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRTCompilerConfig, ffi::ObjectRef,
-                                                TensorRTCompilerConfigNode);
+                                                TensorRTCompilerConfigObj);
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigObj::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<TensorRTCompilerConfig>(
+      "relax.ext.tensorrt.options");
+}
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -243,7 +246,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(fn_var);
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
 
-    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
@@ -298,19 +301,15 @@ class TensorRTJSONSerializer : public JSONSerializer {
 
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
-    if (!cfg.has_value()) {
-      cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
-    }
-    TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],
-                                            cfg.value()->tensorrt_version[1],
-                                            cfg.value()->tensorrt_version[2]};
+    auto cfg = ctx->GetConfigOrDefault<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
+    TVM_FFI_ICHECK_EQ(cfg->tensorrt_version.size(), 3);
+    ffi::Array<int64_t> tensorrt_version = {cfg->tensorrt_version[0], cfg->tensorrt_version[1],
+                                            cfg->tensorrt_version[2]};
     node->SetAttr("tensorrt_version", std::move(tensorrt_version));
-    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
-    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));
-    node->SetAttr("use_fp16", static_cast<int64_t>(cfg.value()->use_fp16));
-    node->SetAttr("use_uint8", static_cast<int64_t>(cfg.value()->use_uint8));
+    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg->use_implicit_batch));
+    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg->max_workspace_size));
+    node->SetAttr("use_fp16", static_cast<int64_t>(cfg->use_fp16));
+    node->SetAttr("use_uint8", static_cast<int64_t>(cfg->use_uint8));
   }
 
  private:
@@ -344,10 +343,10 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
   auto cfg = transform::PassContext::Current()->GetConfig<TensorRTCompilerConfig>(
       "relax.ext.tensorrt.options");
   bool build_at_compile_time = cfg.has_value() && cfg.value()->build_at_compile_time;
-  ffi::Map<ffi::String, runtime::Tensor> constant_tensors;
+  ffi::Map<ffi::String, ffi::Tensor> constant_tensors;
   if (build_at_compile_time) {
     for (const auto& entry : constant_names) {
-      constant_tensors.Set(entry.second, entry.first->value.cast<runtime::Tensor>());
+      constant_tensors.Set(entry.second, entry.first->value.cast<ffi::Tensor>());
     }
   }
 
@@ -388,7 +387,7 @@ ffi::Array<ffi::Module> TensorRTCompiler(ffi::Array<Function> functions,
       auto build_engine = module->GetFunction("build_engine");
       TVM_FFI_CHECK(build_engine.has_value(), RuntimeError)
           << "TensorRT compile-time engine building requires the TensorRT runtime";
-      ffi::Array<runtime::Tensor> ordered_constants;
+      ffi::Array<ffi::Tensor> ordered_constants;
       for (const auto& name : ordered_constant_names) {
         ordered_constants.push_back(constant_tensors[name]);
       }

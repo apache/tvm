@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -51,7 +52,7 @@ class AppendLossMutator : private ExprMutator {
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
     auto new_func_transformed =
-        WithAttr(mutator.VisitExpr(new_func).as_or_throw<Function>(), tvm::attr::kGlobalSymbol,
+        WithAttr(mutator.VisitExpr(new_func).as_or_throw<Function>(), tvm::attr::kGlobalSymbol.name,
                  new_func_name.value_or(func_name + "_loss"));
 
     auto new_module = ffi::GetRef<IRModule>(mod.CopyOnWrite());
@@ -167,7 +168,7 @@ class AppendLossMutator : private ExprMutator {
           << " while the corresponding type of parameter of loss function is " << loss_param_ty
           << ", which is different.";
 
-      this->var_remap_[loss_param] = backbone_ret;
+      this->var_remap_.insert_or_assign(loss_param, backbone_ret);
     }
   }
 
@@ -192,8 +193,8 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
-        auto new_var = DataflowVar(var->name, GetType(var), var->span);
-        this->var_remap_[var] = new_var;
+        auto new_var = DataflowVar(var->name, GetType(var), var->loc);
+        this->var_remap_.insert_or_assign(var, new_var);
         backbone_return_arr_.Set(i, new_var);
       }
     }
@@ -204,7 +205,7 @@ class AppendLossMutator : private ExprMutator {
   /*! \brief The number of prediction_outputs of the backbone function. */
   int num_backbone_outputs_;
   /*! \brief The body of the loss function */
-  SeqExpr loss_body_;
+  SeqExpr loss_body_{ffi::UnsafeInit{}};
   /*! \brief The unpacked return values of the backbone. All return values should be Vars. */
   ffi::Array<Var> backbone_return_arr_;
 };
@@ -219,8 +220,7 @@ Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"AppendLoss",
-                          /*required=*/{});
+                          /*pass_name=*/"AppendLoss");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

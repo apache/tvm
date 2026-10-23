@@ -19,8 +19,9 @@
 
 # pylint: disable=missing-docstring
 
-from tvm import te, tirx, topi
-from tvm.target import Target
+from tvm import te, topi
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
@@ -655,9 +656,9 @@ def softmax_mn(m, n) -> tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-
     return (a, b)
 
 
-def create_te_workload(name: str, idx: int) -> tirx.PrimFunc:
+def create_te_workload(name: str, idx: int) -> tirx.Function:
     workload_func, params = CONFIGS[name]
-    return te.create_prim_func(workload_func(*params[idx]))  # type: ignore
+    return te.create_function(workload_func(*params[idx]))  # type: ignore
 
 
 CONFIGS = {

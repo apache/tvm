@@ -27,14 +27,17 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include <algorithm>
 
 namespace tvm {
 namespace s_tir {
@@ -67,12 +70,26 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return errors_;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
+      return DispatchAllocTensor(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    static const auto scope_local = runtime::MemoryScope::Get("local");
+    static const auto scope_shared = runtime::MemoryScope::Get("shared");
+    static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    auto scope = op->buffer.scope();
-    runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
+    tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
+    DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
+    runtime::MemoryScope storage_scope = scope;
     int64_t const_size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
+    for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
         const_size = static_cast<int64_t>(const_size * imm->value);
       } else {
@@ -80,12 +97,12 @@ class GPUCodeVerifier : public StmtExprVisitor {
         break;
       }
     }
-    PrimType dtype_ty = op->buffer->dtype;
+    PrimType dtype_ty(dtype);
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot verify GPU memory usage for scalable vector dtype " << dtype_ty;
-    if (storage_scope.rank == runtime::StorageRank::kLocal) {
+    if (storage_scope == scope_local) {
       local_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
-    } else if (storage_scope.rank == runtime::StorageRank::kShared) {
+    } else if ((storage_scope == scope_shared || storage_scope == scope_shared_dyn)) {
       shared_memory_per_block_ += static_cast<size_t>(const_size) * ElementBytes(dtype_ty);
     }
     if (dtype_ty.IsFixedLengthVector()) {
@@ -100,22 +117,33 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
         kernels_launched_++;
       }
 
-      Var var = op->node.as<IterVarNode>()->var;
-      const auto* extent = op->value.as<IntImmNode>();
+      const auto* extent = op->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      std::string name = var.get()->name;
-      // record the number of threads in a block
-      if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
-          name == "vthread") {
+      std::string name = op->args[0].as_or_throw<StringImm>()->value;
+      size_t previous_virtual_extent = active_virtual_extent_;
+      if (name.rfind("vthread", 0) == 0) {
+        // Virtual launches are lexical loops; equal tags do not identify the
+        // same binding. Sibling loops contribute their maximum, nested loops
+        // their product.
+        size_t length = extent->value.as<size_t>().value();
+        if (length > max_vthread_) {
+          std::stringstream s;
+          s << "Extent of " << name << " (" << length << ") is greater than maximum allowed ("
+            << max_vthread_ << ");";
+          errors_.push_back(s.str());
+        }
+        active_virtual_extent_ *= length;
+        max_virtual_extent_ = std::max(max_virtual_extent_, active_virtual_extent_);
+      } else if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
         size_t length = extent->value.as<size_t>().value();
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
@@ -139,8 +167,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
           } else if (name == "threadIdx.z") {
             err("threadIdx.z", length, max_thread_z_);
             thread_z_extent_ = length;
-          } else if (name == "vthread") {
-            err("vthread", length, max_vthread_);
           }
         } else {
           // the thread should be bound to axes with the same length
@@ -160,6 +186,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       nest_level_++;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       nest_level_--;
+      active_virtual_extent_ = previous_virtual_extent;
 
       if (nest_level_ == 0) {
         // exit a kernel, check the validity
@@ -171,7 +198,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
             errors_.push_back(s.str());
           }
         };
-        err("threads per block", thread_per_block_, max_threads_per_block_);
+        err("threads per block", thread_per_block_ * max_virtual_extent_, max_threads_per_block_);
         err("local memory per block", local_memory_per_block_, max_local_memory_per_block_);
         err("shared memory per block", shared_memory_per_block_, max_shared_memory_per_block_);
 
@@ -189,8 +216,9 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) {
-    if (op->loop_var->name == "vthread.s") {
-      const auto* extent = op->extent.as<IntImmNode>();
+    if (op->var->name == "vthread.s") {
+      PrimExpr extent_expr = Range::GetExtentFromBeginEnd(op->begin, op->end);
+      const auto* extent = extent_expr.as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
       size_t num_vthread = extent->value.as<size_t>().value();
@@ -205,11 +233,11 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
+  void CheckTensorIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
         PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
-        if (!is_one(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
+        if (!IsOne(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
             ElementBytes(ramp_ty) > max_vector_bytes_) {
           std::stringstream s;
           s << "Number of lanes (" << ramp_ty.lanes() << ") times number of bytes ("
@@ -245,12 +273,12 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) {
     PrimType value_ty = op->value.ty();
     if (value_ty.IsFixedLengthVector()) {
       if (ElementBytes(value_ty) > max_vector_bytes_) {
@@ -260,7 +288,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
-      CheckBufferIndicesVectorizable(op->indices);
+      CheckTensorIndicesVectorizable(op->indices);
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -275,6 +303,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
   size_t local_memory_per_block_;
   size_t shared_memory_per_block_;
   size_t thread_per_block_;
+  size_t active_virtual_extent_;
+  size_t max_virtual_extent_;
   size_t kernels_launched_{0};
 
   size_t max_local_memory_per_block_;
@@ -294,10 +324,13 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
     visited_threads_.clear();
     thread_per_block_ = 1;
+    thread_x_extent_ = thread_y_extent_ = thread_z_extent_ = 1;
+    active_virtual_extent_ = 1;
+    max_virtual_extent_ = 1;
   }
 };
 
-std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
+std::vector<ffi::String> VerifyGPUCode_(const Function& func,
                                         ffi::Map<ffi::String, PrimExpr> constraints) {
   auto verifier = ffi::make_object<GPUCodeVerifier>();
 
@@ -336,12 +369,13 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
     }
   }
 
-  return verifier->Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
-                          max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
-                          max_vthread, max_vector_bytes, max_kernels);
+  if (!func->body.has_value()) return {};
+  return verifier->Verify(func->body.value(), max_local_memory_per_block,
+                          max_shared_memory_per_block, max_threads_per_block, max_thread_x,
+                          max_thread_y, max_thread_z, max_vthread, max_vector_bytes, max_kernels);
 }
 
-bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {
+bool VerifyGPUCode(const Function& func, ffi::Map<ffi::String, PrimExpr> constraints) {
   auto errs = VerifyGPUCode_(func, constraints);
   return errs.size() == 0;
 }
@@ -356,7 +390,7 @@ namespace transform {
 Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         auto errs = VerifyGPUCode_(func.value(), constraints);
         if (errs.size() != 0) {
           std::stringstream s;
@@ -371,7 +405,7 @@ Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyGPUCode", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyGPUCode");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

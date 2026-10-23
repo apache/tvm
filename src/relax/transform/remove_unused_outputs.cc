@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -47,7 +48,7 @@ class PartialTupleUsageCollector : ExprVisitor {
     PMap<GlobalVar, size_t> num_outputs;
 
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_exposed = base_func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+      bool is_exposed = base_func->attrs.GetAttr(tvm::attr::kGlobalSymbol).has_value();
 
       if (!is_exposed) {
         if (auto relax_func = base_func.as<FunctionNode>()) {
@@ -324,7 +325,7 @@ Pass RemoveUnusedOutputs() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner");
   return tvm::transform::Sequential(
       {
           inner_pass,

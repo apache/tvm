@@ -26,12 +26,33 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
 
 #include <utility>
 
 namespace tvm {
 namespace relax {
+
+void MultiboxTransformLocAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MultiboxTransformLocAttrs>()
+      .def_ro("clip", &MultiboxTransformLocAttrs::clip,
+              "Clip decoded ymin,xmin,ymax,xmax to [0,1].", refl::DefaultValue(false))
+      .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
+              "After softmax, zero scores strictly below this value.", refl::DefaultValue(0.0))
+      .def_ro("variances", &MultiboxTransformLocAttrs::variances,
+              "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
+              "encodings. Very large w/h scales can overflow exp in decode.",
+              refl::DefaultValue(ffi::Array<double>{1.0, 1.0, 1.0, 1.0}))
+      .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
+              "If false, force output scores[:,0,:] to 0 (background class).",
+              refl::DefaultValue(true))
+      .def_ro("apply_softmax", &MultiboxTransformLocAttrs::apply_softmax,
+              "Whether to apply softmax to class predictions before thresholding.",
+              refl::DefaultValue(true));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { MultiboxTransformLocAttrs::RegisterReflection(); }
 
@@ -49,9 +70,8 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->apply_softmax = apply_softmax;
 
   static const Op op = Op::Get("relax.vision.multibox_transform_loc");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -70,6 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
@@ -198,8 +219,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
                  sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
                  sig::call_attrs<MultiboxTransformLocAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
-      .set_attr<bool>("FPurity", true);
+      .set_native_fn_attr<&InferTypeMultiboxTransformLoc>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax
