@@ -54,7 +54,6 @@ rg = np.random.Generator(bg)
 
 
 def collect_relax_call_ops(func):
-    
     call_ops = set()
 
     def _visit(expr):
@@ -9815,7 +9814,7 @@ def _build_topi_resize2d_nearest_asymmetric_prim_func(input_shape, size, scales=
         rounding_method="",
         scales=scales,
     )
-    prim_func = te.create_prim_func([data, resized])
+    prim_func = te.create_function([data, resized])
     return resized, prim_func
 
 
@@ -9830,8 +9829,8 @@ def _run_prim_func(prim_func, input_np, output_shape, target="llvm"):
     is what's being checked.
     """
     built = tvm.compile(prim_func, target=target)
-    data_nd = tvm.runtime.tensor(input_np.astype("float32"))
-    out_nd = tvm.runtime.tensor(np.zeros(output_shape, dtype="float32"))
+    data_nd = tvm_tirx.runtime.tensor(input_np.astype("float32"))
+    out_nd = tvm_tirx.runtime.tensor(np.zeros(output_shape, dtype="float32"))
     built(data_nd, out_nd)
     return out_nd.numpy()
 
