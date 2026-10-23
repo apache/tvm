@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -38,11 +39,11 @@ class PurityRemover : public ExprMutator {
     bool purity = func->is_pure;
     auto ret = func;
     if (purity) {
-      ret = WithAttr<Function>(func, relax::attr::kForcePure, true);
+      ret = WithAttr<Function>(func, tvm::relax::attr::kForcePure.name, true);
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
-      return Function(ret->params, new_body, ret->ret_ty, ret->is_pure, ret->attrs, ret->span);
+      return Function(ret->params, new_body, ret->ret_ty, ret->is_pure, ret->attrs, ret->loc);
     }
     return ret;
   }
@@ -57,7 +58,7 @@ class PurityRemover : public ExprMutator {
     if (call->op.same_as(call_inplace_packed_op_)) {
       // call_inplace_packed has its own attrs so we don't pass those down
       auto ret = Call(Type::Missing(), call->args[0],
-                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), tvm::Attrs(),
+                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), std::nullopt,
                       call->ty_args);
       return VisitExpr(ret);
     }
@@ -74,10 +75,10 @@ class PurityRemover : public ExprMutator {
   }
 
  private:
-  const Op& call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
-  const Op& call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
+  const Op call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
 Function RemovePurityChecking(const Function& f) { return PurityRemover().RemovePurity(f); }
@@ -88,7 +89,7 @@ Pass RemovePurityChecking() {
   auto pass_func = [=](const Function& f, IRModule mod, PassContext pc) {
     return relax::RemovePurityChecking(f);
   };
-  return CreateFunctionPass(pass_func, 0, "RemovePurityChecking", {});
+  return CreateFunctionPass(pass_func, 0, "RemovePurityChecking");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

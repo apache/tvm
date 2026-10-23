@@ -20,13 +20,15 @@
 from functools import reduce
 from operator import mul
 
-from tvm import DataType, relax, topi
+import tvm_ffi
+
+from tvm import relax, topi
 from tvm.contrib.thrust import can_use_thrust
-from tvm.ir import GlobalVar, Op
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
-from tvm.target import Target
+from tvm_tirx.ir import GlobalVar, Op
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.ir.transform import PassContext, module_pass
+from tvm_tirx.target import Target
 
 from .utils import BackendDispatcher
 
@@ -37,9 +39,10 @@ class SortScanDispatcher(BackendDispatcher):
 
     calls_to_update: dict[GlobalVar, Target]
 
-    def __init__(self, mod):
+    def __init__(self, mod, index_bits: int | None = None):
         super().__init__(mod)
         self.calls_to_update = {}
+        self.index_bits = index_bits
 
     def apply_dlight_gpu_fallback(
         self,
@@ -172,10 +175,15 @@ class SortScanDispatcher(BackendDispatcher):
                 if normalized_axis == len(shape) - 1:
                     outer = reduce(mul, shape_values[:-1], 1)
                     kernel_shape = relax.ShapeExpr([outer, shape[-1]])
+                    index_bits = self.index_bits
+                    if index_bits is None:
+                        index_bits = 32 if tgt.kind.name == "webgpu" else 64
+                    if tgt.kind.name == "webgpu" and index_bits != 32:
+                        raise ValueError("WebGPU scan kernels require index_bits=32")
                     kernel = gpu_2d_continuous_cumsum(
                         in_dtype=in_dtype,
                         out_dtype=out_dtype,
-                        index_bits=32 if tgt.kind.name == "webgpu" else 64,
+                        index_bits=index_bits,
                     )
                     kernel_name = "gpu_2d_continuous_cumsum"
                 else:
@@ -198,7 +206,7 @@ class SortScanDispatcher(BackendDispatcher):
                 cumsum = relax.call_tir(
                     gv,
                     reshape,
-                    out_ty=relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice),
+                    ty_args=[relax.TensorType(kernel_shape, out_dtype, vdevice=call.ty.vdevice)],
                 )
                 return relax.call_pure_packed(
                     "vm.builtin.reshape",
@@ -233,9 +241,9 @@ class SortScanDispatcher(BackendDispatcher):
         Estimate the workspace size for thrust sort/argsort/topk/cumsum
         """
         input_shape = call.args[0].ty.shape
-        input_byte_per_elem = DataType(call.args[0].ty.dtype.dtype).bits // 8
-        int64_byte_per_elem = DataType("int64").bits // 8
-        int32_byte_per_elem = DataType("int32").bits // 8
+        input_byte_per_elem = tvm_ffi.dtype(call.args[0].ty.dtype.dtype).bits // 8
+        int64_byte_per_elem = tvm_ffi.dtype("int64").bits // 8
+        int32_byte_per_elem = tvm_ffi.dtype("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)
         input_size = num_elem * input_byte_per_elem
         # Most GPU algorithms take O(n) space or less, we choose 8N + 8MB as a safe estimation
@@ -263,10 +271,29 @@ class SortScanDispatcher(BackendDispatcher):
 class DispatchSortScan:
     """
     Pass to dispatch scan and sort operators to platform dependent implementation.
+
+    Parameters
+    ----------
+    index_bits : Optional[int]
+        Signed index-width budget for the generated continuous GPU cumsum hierarchy.
+        Must be 32 or 64. By default, use 32 for WebGPU and 64 for other targets.
+        WebGPU does not support an explicit 64-bit budget.
+
+        Pipelines that subsequently force indices to int32 should request 32 to
+        avoid generating hierarchy thresholds outside the signed int32 range.
+        The caller must ensure runtime indices fit the requested width; this
+        option does not insert runtime bounds checks.
+        This option does not narrow the generated TIR, change tensor dtypes, or
+        affect other sort/scan implementations.
     """
 
+    def __init__(self, index_bits: int | None = None):
+        if index_bits not in (None, 32, 64):
+            raise ValueError("index_bits must be either 32 or 64")
+        self.index_bits = index_bits
+
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        sort_scan_dispater = SortScanDispatcher(mod)
+        sort_scan_dispater = SortScanDispatcher(mod, self.index_bits)
         for gv, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 func = sort_scan_dispater.visit_expr(func)

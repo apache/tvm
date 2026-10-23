@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "tvm/relax/attrs/ccl.h"
+#include "tvm/relax/op/ccl.h"
 
 #include <tvm/relax/block_builder.h>
+#include <tvm/relax/op_attr.h>
 
 #include "utils.h"
 
@@ -37,8 +38,12 @@ Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
                      Placement::FromText(std::string(device_mesh->shape.size(), 'R')));
 }
 
-TVM_REGISTER_OP("relax.ccl.allreduce")
-    .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.ccl.allreduce")
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeAllReduce);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.common import autopad
-from tvm.script import ir as I
-from tvm.script import tirx as T
-from tvm.script.parser import relax as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.parser import relax as R
 
 
 def test_detach_params():
@@ -29,16 +30,16 @@ def test_detach_params():
     def func(x: R.Tensor((2, 3), "float32")):
         return x
 
-    param = tvm.runtime.empty((3,), "float32")
-    mod = tvm.IRModule({"func": func.with_attr("params", [param])})
+    param = tvm_tirx.runtime.empty((3,), "float32")
+    mod = tvm_tirx.IRModule({"func": func.with_attr("params", [param])})
     detached_mod, detached_params = detach_params(mod)
 
-    tvm.ir.assert_structural_equal(detached_mod, tvm.IRModule({"func": func}))
+    tvm_tirx.ir.assert_structural_equal(detached_mod, tvm_tirx.IRModule({"func": func}))
     assert len(detached_params) == 1
     assert "func" in detached_params
     assert isinstance(detached_params["func"], list)
     assert len(detached_params["func"]) == 1
-    tvm.testing.assert_allclose(detached_params["func"][0].numpy(), param.numpy())
+    tvm_tirx.testing.assert_allclose(detached_params["func"][0].numpy(), param.numpy())
 
 
 class TestAutopad:
@@ -63,22 +64,22 @@ class TestAutopad:
                 out = bb.emit_output(result)
             bb.emit_func_output(out)
 
-        tvm.ir.assert_structural_equal(bb.get(), expected)
+        tvm_tirx.ir.assert_structural_equal(bb.get(), expected)
 
     def test_constant(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.function(private=True)
             def pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                PadInput: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                PadInput: T.Tensor((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("PadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(x[v_i0, v_i1, v_i2, v_i3])
-                        T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
+                    with Ts.sblock("PadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(x[v_i0, v_i1, v_i2, v_i3])
+                        Ts.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
                         PadInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(
                             T.int64(0) <= v_i2
                             and v_i2 < T.int64(4)
@@ -94,7 +95,9 @@ class TestAutopad:
             ):
                 cls = expected
                 with R.dataflow():
-                    lv = R.call_tir(cls.pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32"))
+                    lv = R.call_tir(
+                        cls.pad, (x,), ty_args=[R.Tensor((1, 1, 5, 5), dtype="float32")]
+                    )
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)
                 return gv
@@ -102,20 +105,20 @@ class TestAutopad:
         self._test_autopad("constant", expected)
 
     def test_edge(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.function(private=True)
             def replicate_pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                ReplicatePadInput: T.Buffer(
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                ReplicatePadInput: T.Tensor(
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("ReplicatePadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(
+                    with Ts.sblock("ReplicatePadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(
                             x[
                                 T.int64(0),
                                 T.int64(0),
@@ -123,7 +126,7 @@ class TestAutopad:
                                 T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                             ]
                         )
-                        T.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
+                        Ts.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
                         ReplicatePadInput[v_i0, v_i1, v_i2, v_i3] = x[
                             T.int64(0),
                             T.int64(0),
@@ -138,7 +141,7 @@ class TestAutopad:
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
-                        cls.replicate_pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32")
+                        cls.replicate_pad, (x,), ty_args=[R.Tensor((1, 1, 5, 5), dtype="float32")]
                     )
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)
@@ -147,21 +150,21 @@ class TestAutopad:
         self._test_autopad("edge", expected)
 
     def test_reflect(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.function(private=True)
             def mirror_pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                MirrorPadInput: T.Buffer(
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                MirrorPadInput: T.Tensor(
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("MirrorPadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(x[v_i0, v_i1, T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
-                        T.writes(MirrorPadInput[v_i0, v_i1, v_i2, v_i3])
+                    with Ts.sblock("MirrorPadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(x[v_i0, v_i1, T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
+                        Ts.writes(MirrorPadInput[v_i0, v_i1, v_i2, v_i3])
                         MirrorPadInput[v_i0, v_i1, v_i2, v_i3] = x[
                             v_i0,
                             v_i1,
@@ -184,7 +187,7 @@ class TestAutopad:
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
-                        cls.mirror_pad, (x,), out_ty=R.Tensor((1, 1, 5, 5), dtype="float32")
+                        cls.mirror_pad, (x,), ty_args=[R.Tensor((1, 1, 5, 5), dtype="float32")]
                     )
                     gv: R.Tensor((1, 1, 5, 5), dtype="float32") = lv
                     R.output(gv)
@@ -194,4 +197,4 @@ class TestAutopad:
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -27,7 +27,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/distributed/type.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/sym/analyzer.h>
 
@@ -56,7 +57,8 @@ using namespace tvm::prim;
  *
  * \param ctx The error reporting context.
  */
-void CheckNumArguments(const Call& call, const BlockBuilder& ctx);
+void CheckNumArguments(const Call& call);
+inline void CheckNumArguments(const Call& call, const BlockBuilder&) { CheckNumArguments(call); }
 
 /*!
  * \brief Get the tensor type of the operator input.
@@ -65,7 +67,10 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx);
  * \param ctx The error reporting context.
  * \return The tensor type of the argument
  */
-TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx);
+TensorType GetInputTensorType(const Call& call, size_t i_arg);
+inline TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder&) {
+  return GetInputTensorType(call, i_arg);
+}
 
 /*!
  * \brief Get the tensor type of the operator input.
@@ -75,7 +80,10 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
  * \note This function require every input to be Tensor. The number of call arguments is required
  * to match the number of inputs of the op being called.
  */
-ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& ctx);
+ffi::Array<TensorType> GetInputTensorType(const Call& call);
+inline ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder&) {
+  return GetInputTensorType(call);
+}
 
 /*!
  * \brief Get the tensor type of the unary operator input.
@@ -85,8 +93,19 @@ ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& 
  * \throw Throw exception if the number of input is not one, or the type of the input is not
  * a tensor type.
  */
-inline TensorType GetUnaryInputTensorType(const Call& call, const BlockBuilder& ctx) {
-  return GetInputTensorType(call, ctx)[0];
+inline TensorType GetUnaryInputTensorType(const Call& call) { return GetInputTensorType(call)[0]; }
+
+// Tensor-dependent context-free rules cannot infer unresolved nested expressions or
+// distributed placements. The Relax builder normalizes those inputs first.
+inline bool RequiresTensorInputNormalization(const Call& call) {
+  CheckNumArguments(call);
+  for (const Expr& arg : call->args) {
+    if (arg->ty.as<MissingTypeNode>() || arg->ty.as<distributed::DTensorTypeNode>()) return true;
+  }
+  return false;
+}
+inline TensorType GetUnaryInputTensorType(const Call& call, const BlockBuilder&) {
+  return GetUnaryInputTensorType(call);
 }
 
 /*!
@@ -97,14 +116,17 @@ inline TensorType GetUnaryInputTensorType(const Call& call, const BlockBuilder& 
  * \return The tensor types of tuple input.
  * \throw Throw exception if input expression is not a tuple.
  */
-ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder& ctx,
-                                              const Expr& tup);
+ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const Expr& tup);
+inline ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder&,
+                                                     const Expr& tup) {
+  return GetTensorTypeFromTuple(call, tup);
+}
 
 namespace detail {
 /*! \brief Implementation helper for GetArgType */
 template <typename ArgType>
-ArgType GetArgTypeByIndex(const Call& call, const Op& op, const BlockBuilder& ctx, size_t index) {
-  if (call->args[index]->ty.IsMissing()) {
+ArgType GetArgTypeByIndex(const Call& call, const Op& op, size_t index) {
+  if (call->args[index]->ty.as<MissingType>().has_value()) {
     TVM_FFI_VISIT_THROW(InternalError, call)
         << op << " op should have arguments with defined Type.  "
         << "However, args[" << index << "] has undefined type.";
@@ -124,9 +146,9 @@ ArgType GetArgTypeByIndex(const Call& call, const Op& op, const BlockBuilder& ct
 
 /*! \brief Implementation helper for GetArgType */
 template <typename... ArgTypes, size_t... Indices>
-std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op, const BlockBuilder& ctx,
+std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op,
                                          std::index_sequence<Indices...>) {
-  return std::tuple<ArgTypes...>{GetArgTypeByIndex<ArgTypes>(call, op, ctx, Indices)...};
+  return std::tuple<ArgTypes...>{GetArgTypeByIndex<ArgTypes>(call, op, Indices)...};
 }
 }  // namespace detail
 
@@ -140,51 +162,30 @@ std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op, const B
  * \throw Throw exception if input expression is not a tuple.
  */
 template <typename... ArgTypes>
-std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
+std::tuple<ArgTypes...> GetArgType(const Call& call) {
   Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
+  size_t n_input = op->args_info.size();
 
-  // Unfortunately, because the `.add_argument()` calls in
-  // TVM_REGISTER_OP occur during initialization of globals and are
+  // Unfortunately, because signature registrations in OpDef
+  // occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
-      << "Internal error: " << op << " op defines " << n_input
-      << " arguments in its TVM_REGISTER_OP() call, "
+  TVM_FFI_ICHECK(op->var_args_info.has_value() ? sizeof...(ArgTypes) >= n_input
+                                               : sizeof...(ArgTypes) == n_input)
+      << "Internal error: " << op << " op defines " << n_input << " arguments in its OpDef() call, "
       << "but GetArgType was given " << sizeof...(ArgTypes) << " template arguments.";
 
-  return detail::GetArgTypeHelper<ArgTypes...>(call, op, ctx,
+  CheckNumArguments(call);
+  TVM_FFI_ICHECK_GE(call->args.size(), sizeof...(ArgTypes));
+  return detail::GetArgTypeHelper<ArgTypes...>(call, op,
                                                std::make_index_sequence<sizeof...(ArgTypes)>());
 }
 
+template <typename... ArgTypes>
+std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder&) {
+  return GetArgType<ArgTypes...>(call);
+}
+
 /************ Op registration macro ************/
-
-/*!
- * \brief Quick helper macro to register the operator to registry
- * \param OpRegName The name of operator to register. The name passed in will
- * be prepended with a prefix "relax." as the identifier string in the operator registry.
- */
-#define RELAX_REGISTER_UNARY_OP(OpRegName)                                                         \
-  TVM_REGISTER_OP("relax." OpRegName)                                                              \
-      .set_num_inputs(1)                                                                           \
-      .add_argument("x", "Tensor", "The input tensor.")                                            \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)                     \
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
-      .set_attr<bool>("FPurity", true)
-
-/*!
- * \brief Quick helper macro to expose a make-function to construct the operator.
- * \param OpName The name of the operator as well as the make-function name, which will
- * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
- * \param OpRegName The identifier of the operator in the registry.
- */
-#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
-  Expr OpName(Expr x) {                                                   \
-    static const Op& op = Op::Get("relax." OpRegName);                    \
-    return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});        \
-  }                                                                       \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                           \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
-  }
 
 /*!
  * \brief Infer the type for unary elementwise ops.
@@ -197,8 +198,9 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
  * \return The inferred type.
  */
 template <bool require_float_dtype, typename FType>
-inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+inline Type InferTypeUnary(const Call& call, FType f_compute_out_dtype) {
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
+  TensorType input_ty = GetUnaryInputTensorType(call);
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
       !input_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -206,20 +208,54 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_ty->dtype.value();
   }
-  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   ffi::Optional<PrimType> computed_dtype = f_compute_out_dtype(input_ty);
-  output_ty->dtype = computed_dtype;
-  if (call->ty_args.size() > 0) {
-    auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
-    TVM_FFI_ICHECK(defined_ty);
-    auto shape = output_ty->GetShape();
-    TVM_FFI_ICHECK(shape.has_value());
-    TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
-    return TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
-  } else {
-    return TensorType(output_ty);
+  bool same_dtype = computed_dtype.has_value() == input_ty->dtype.has_value() &&
+                    (!computed_dtype.has_value() ||
+                     computed_dtype.value()->dtype == input_ty->dtype.value()->dtype);
+  TensorType inferred = input_ty;
+  if (!call->ty_args.empty() || !same_dtype) {
+    auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+    output_ty->dtype = computed_dtype;
+    if (call->ty_args.size() > 0) {
+      auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
+      TVM_FFI_ICHECK(defined_ty);
+      auto shape = output_ty->GetShape();
+      TVM_FFI_ICHECK(shape.has_value());
+      TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
+      inferred =
+          TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
+    } else {
+      inferred = TensorType(output_ty);
+    }
   }
+  if (const auto* old = call->ty.as<TensorTypeNode>()) {
+    auto same_optional_ref = [](const auto& lhs, const auto& rhs) {
+      return lhs.has_value() == rhs.has_value() &&
+             (!lhs.has_value() || lhs.value().same_as(rhs.value()));
+    };
+    bool same_output_dtype =
+        old->dtype.has_value() == inferred->dtype.has_value() &&
+        (!old->dtype.has_value() || old->dtype.value()->dtype == inferred->dtype.value()->dtype);
+    if (old->ndim == inferred->ndim && same_output_dtype &&
+        same_optional_ref(old->shape, inferred->shape) &&
+        same_optional_ref(old->vdevice, inferred->vdevice)) {
+      return call->ty;
+    }
+  }
+  return inferred;
 }
+
+template <bool require_float_dtype, typename FType>
+inline Type InferTypeUnary(const Call& call, const BlockBuilder&, FType f_compute_out_dtype) {
+  return InferTypeUnary<require_float_dtype>(call, f_compute_out_dtype);
+}
+
+/*!
+ * \brief Derive the output type of a call_tir from the callee signature and the
+ * argument types, or nullopt when it cannot be derived.
+ */
+ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
+    Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices);
 
 /*!
  * \brief Infer the type by returning the type of the input argument.
@@ -231,16 +267,28 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
 template <int arg_index>
 Type ReturnTypeFromArg(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
-  int n_input = op->arguments.size();
-  if (static_cast<int>(call->args.size()) != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call) << op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
+  int n_input = call->args.size();
   if (arg_index >= n_input) {
     TVM_FFI_VISIT_THROW(IndexError, call)
         << op << " op has only " << n_input << "arguments, but try to get the arg with index "
         << arg_index;
   }
   return GetType(call->args[arg_index]);
+}
+
+template <int arg_index>
+Type ReturnTypeFromArgContextFree(const CallNode* call_node) {
+  Call call = ffi::GetRef<Call>(call_node);
+  Op op = call->op.as_or_throw<Op>();
+  CheckNumArguments(call);
+  int n_input = call->args.size();
+  if (arg_index >= n_input) {
+    TVM_FFI_VISIT_THROW(IndexError, call)
+        << op << " op has only " << n_input << "arguments, but try to get the arg with index "
+        << arg_index;
+  }
+  return call->args[arg_index]->ty;
 }
 
 /*!
@@ -255,6 +303,13 @@ template <bool require_float_dtype>
 Type InferTypeUnaryArith(const Call& call, const BlockBuilder& ctx) {
   return InferTypeUnary<require_float_dtype>(
       call, ctx, [](const TensorType& input_ty) { return input_ty->dtype; });
+}
+
+template <bool require_float_dtype>
+Type InferTypeUnaryArithContextFree(const CallNode* call_node) {
+  Call call = ffi::GetRef<Call>(call_node);
+  return InferTypeUnary<require_float_dtype>(
+      call, [](const TensorType& input_ty) { return input_ty->dtype; });
 }
 
 /*!
@@ -301,8 +356,10 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorType don’t match
  */
-inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
-                                                          const Type& lhs_ty, const Type& rhs_ty) {
+inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, const Type& lhs_ty,
+                                                          const Type& rhs_ty) {
+  // Formatting the full Call in an inference error would invoke the printer
+  // and reenter the same inference hook before the exception is thrown.
   auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
     if (const auto* lhs_tensor = lhs_ty.as<TensorTypeNode>()) {
@@ -310,9 +367,8 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
     }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " has argument " << call->args[0] << " on the LHS, with type "
-        << lhs_ty << ".   This is of type " << lhs_ty->GetTypeKey()
-        << ", which does not have a datatype.";
+        << "However, " << call->op << " has LHS type " << lhs_ty << ".   This is of type "
+        << lhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto lhs_dtype = opt_lhs_dtype.value();
 
@@ -323,9 +379,8 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
     }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " has argument " << call->args[1] << " on the RHS, with type "
-        << rhs_ty << ".   This is of type " << rhs_ty->GetTypeKey()
-        << ", which does not have a datatype.";
+        << "However, " << call->op << " has RHS type " << rhs_ty << ".   This is of type "
+        << rhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto rhs_dtype = opt_rhs_dtype.value();
 
@@ -333,10 +388,15 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
       !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (Type of "
+        << "However, " << call->op << " uses datatype " << lhs_dtype << " on the LHS (Type of "
         << lhs_ty << "), and datatype " << rhs_dtype << " on the RHS (Type of " << rhs_ty << ").";
   }
   return lhs_dtype;
+}
+
+inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&,
+                                                          const Type& lhs_ty, const Type& rhs_ty) {
+  return InferBinaryArithOpOutDtype(call, lhs_ty, rhs_ty);
 }
 
 /*!
@@ -348,9 +408,8 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
  * \return The inferred output vdevice.
  * \throw Throw exception if the vdevice of two input TensorType don’t match
  */
-inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
-                                                           const BlockBuilder& ctx,
-                                                           const Type& lhs_ty, const Type& rhs_ty) {
+inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Type& lhs_ty,
+                                                           const Type& rhs_ty) {
   auto get_vdevice = [&](const Type& ty) -> ffi::Optional<VDevice> {
     if (const auto* tensor = ty.as<TensorTypeNode>()) {
       return tensor->vdevice;
@@ -371,10 +430,10 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   auto lhs_vdevice = get_vdevice(lhs_ty);
   auto rhs_vdevice = get_vdevice(rhs_ty);
 
-  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.defined()) {
+  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.has_value()) {
     return rhs_vdevice;
   }
-  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.defined()) {
+  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.has_value()) {
     return lhs_vdevice;
   }
 
@@ -385,6 +444,11 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
                                           << lhs_vdevice << " and a RHS on VDevice " << rhs_vdevice;
   }
   return lhs_vdevice;
+}
+
+inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const BlockBuilder&,
+                                                           const Type& lhs_ty, const Type& rhs_ty) {
+  return InferBinaryArithOpOutVDevice(call, lhs_ty, rhs_ty);
 }
 
 /*! \brief Result of binary broadcast shape inference without diagnostic context. */
@@ -441,8 +505,11 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call,
  * \return The input axes in non-negative indexing.
  * \throw Throw exception if there exists out-of-range axis index or repetitive indices.
  */
-std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const ffi::Array<int64_t>& axes);
+std::vector<int> NormalizeAxes(const Call& call, int ndim, const ffi::Array<int64_t>& axes);
+inline std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder&, int ndim,
+                                      const ffi::Array<int64_t>& axes) {
+  return NormalizeAxes(call, ndim, axes);
+}
 
 /*!
  * \brief Convert the given axis to non-negative index. Meanwhile check if the axis is in range
@@ -454,8 +521,11 @@ std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int nd
  * \return The input axis in non-negative indexing.
  * \throw Throw exception the given axis is out-of-range.
  */
-inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, int axis) {
-  return NormalizeAxes(call, ctx, ndim, {axis})[0];
+inline int NormalizeAxis(const Call& call, int ndim, int axis) {
+  return NormalizeAxes(call, ndim, {axis})[0];
+}
+inline int NormalizeAxis(const Call& call, const BlockBuilder&, int ndim, int axis) {
+  return NormalizeAxis(call, ndim, axis);
 }
 
 /*!
@@ -479,7 +549,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation);
  */
 inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imms) {
   return int_imms.Map(
-      [](const IntImm& i) { return cast(PrimType::Int(64), i).as_or_throw<IntImm>(); });
+      [](const IntImm& i) { return cast(i, PrimType::Int(64)).as_or_throw<IntImm>(); });
 }
 
 /************ Utilities for NN operators ************/
@@ -568,18 +638,25 @@ inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
  * tirx::SBijectiveLayout accordingly.
  */
 inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
-    const Call& call, const BlockBuilder& ctx, const ffi::String& tensor_layout,
-    const ffi::String& tgt_layout, const ffi::String& tensor_name) {
+    const Call& call, const ffi::String& tensor_layout, const ffi::String& tgt_layout,
+    const ffi::String& tensor_name) {
   tvm::PrimType i64_ty = tvm::PrimType::Int(64);
   tirx::SLayout _tensor_layout(tensor_layout, i64_ty);
-  tirx::SBijectiveLayout tensor2tgt(_tensor_layout, tirx::SLayout(tgt_layout, i64_ty));
-  if (!tensor2tgt.defined()) {
+  auto tensor2tgt =
+      tirx::SBijectiveLayout::Create(_tensor_layout, tirx::SLayout(tgt_layout, i64_ty));
+  if (!tensor2tgt.has_value()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << call->op << " requires the given " << tensor_name << " layout to be convertible from "
         << tgt_layout << " layout. However, the given layout " << tensor_layout
         << " is not convertible.";
   }
-  return {_tensor_layout, tensor2tgt};
+  return {_tensor_layout, tensor2tgt.value()};
+}
+
+inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
+    const Call& call, const BlockBuilder&, const ffi::String& tensor_layout,
+    const ffi::String& tgt_layout, const ffi::String& tensor_name) {
+  return CheckTensorLayout(call, tensor_layout, tgt_layout, tensor_name);
 }
 
 /*!
@@ -592,7 +669,6 @@ inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
  * \return The shape of the input tensor in ShapeExpr, or `std::nullopt` if the shape is unknown.
  */
 inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
-                                                              const BlockBuilder& ctx,
                                                               const TensorType& ty,
                                                               const tirx::SLayout& layout) {
   if (!ty->IsUnknownNdim() && ty->ndim != static_cast<int>(layout.ndim())) {
@@ -606,12 +682,18 @@ inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call,
   return std::nullopt;
 }
 
-Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, GenericConst dtype,
+inline ffi::Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const BlockBuilder&,
+                                                              const TensorType& ty,
+                                                              const tirx::SLayout& layout) {
+  return CheckNdimPerLayoutAndGetShape(call, ty, layout);
+}
+
+Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
-Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, GenericConst dtype,
+Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
                        PrimExpr runtime_device_index);
 
-Expr MakeAllocTensor(Expr shape, GenericConst dtype, PrimExpr runtime_device_index,
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
                      StringImm storage_scope = StringImm("global"));
 
 /**
@@ -630,7 +712,8 @@ ffi::Array<Expr> GetCallArgs(const Call& call);
  * \param shape array
  * \return true or false depending on the compatibility
  */
-bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
+bool CanProveLayoutTransform(const ffi::Optional<SLayout>& input_layout,
+                             const ffi::Optional<SLayout>& desired_layout,
                              ffi::Array<PrimExpr> shape);
 
 }  // namespace relax

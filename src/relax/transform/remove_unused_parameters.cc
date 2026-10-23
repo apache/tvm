@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -56,7 +57,7 @@ struct CalleeAnalysis {
 };
 
 std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
-  bool is_exposed = func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+  bool is_exposed = func->attrs.GetAttr(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return std::nullopt;
 
   auto free_relax_vars = [&]() -> PSet<Var> {
@@ -86,14 +87,14 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   // symbolic variables.  We still want to remove the relax variable
   // to reduce computational steps in the parent, but we need to
   // provide the symbolic variables the other steps.
-  auto defined_tir_params = [&]() -> PSet<tirx::Var> {
+  auto defined_tir_params = [&]() -> PSet<tvm::Var> {
     auto param_ty = TupleType(params.Map([](const auto& var) { return GetType(var); }));
     auto arr = DefinableTIRVarsInType(param_ty);
     return {arr.begin(), arr.end()};
   }();
 
   // Use an array to define the order of the symbolic variables
-  ffi::Array<tirx::Var> free_tir_vars;
+  ffi::Array<tvm::Var> free_tir_vars;
   for (const auto& tir_var : FreeSymbolicVars(func->body)) {
     if (!defined_tir_params.count(tir_var)) {
       free_tir_vars.push_back(tir_var);
@@ -252,7 +253,7 @@ Pass RemoveUnusedParameters() {
     }
     return mod;
   };
-  return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
+  return CreateModulePass(pass_func, 0, "RemoveUnusedParameters");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

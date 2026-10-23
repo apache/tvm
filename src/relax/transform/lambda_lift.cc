@@ -25,9 +25,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 
 #include <iostream>
@@ -61,7 +63,7 @@ class LambdaNameCollector : ExprVisitor {
 
  private:
   void VisitBinding_(const VarBindingNode* binding, const FunctionNode* func) override {
-    if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+    if (auto opt = func->GetAttr(tvm::attr::kGlobalSymbol)) {
       ffi::String public_name = opt.value();
 
       // If a kGlobalSymbol exists, we must use the name exactly as it
@@ -73,7 +75,7 @@ class LambdaNameCollector : ExprVisitor {
       // the error.
       TVM_FFI_ICHECK(!previous_global_vars_.count(public_name))
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
-          << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
+          << tvm::attr::kGlobalSymbol.name << "\" attribute of \"" << public_name << "\".  "
           << "However, the module already contains a GlobalVar with this name.  "
           << "If present, the kGlobalSymbol attribute must match the name of the GlobalVar, "
           << "and GlobalVar names must be unique across an IRModule.  "
@@ -83,7 +85,7 @@ class LambdaNameCollector : ExprVisitor {
       auto it = new_public_names_.find(public_name);
       TVM_FFI_ICHECK(it == new_public_names_.end())
           << "Function " << name_stack_.front() << " contains a lambda with kGlobalSymbol (\""
-          << tvm::attr::kGlobalSymbol << "\" attribute of \"" << public_name << "\".  "
+          << tvm::attr::kGlobalSymbol.name << "\" attribute of \"" << public_name << "\".  "
           << "However, the function " << it->second.front()
           << " also contains a lambda with the same value for kGlobalSymbol.  "
           << "If present, the kGlobalSymbol attribute must match the name of the GlobalVar, "
@@ -285,7 +287,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name, GetType(free_var), free_var->span);
+      Var var = Var(free_var->name, GetType(free_var), free_var->loc);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -323,15 +325,14 @@ class LambdaLifter : public ExprMutator {
     Type ret_ty = GetType(body);
     body = Bind(body, rebinding_map);
 
-    Function lifted_func;
-    if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
-        ret_ty.same_as(func_node->ret_ty)) {
-      lifted_func = ffi::GetRef<Function>(func_node);
-    } else {
-      lifted_func =
-          Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
-    }
-
+    Function lifted_func = [&]() -> Function {
+      if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
+          ret_ty.same_as(func_node->ret_ty)) {
+        return ffi::GetRef<Function>(func_node);
+      } else {
+        return Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
+      }
+    }();
     TVM_FFI_ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {
@@ -373,7 +374,7 @@ class LambdaLifter : public ExprMutator {
         Call orig_call = bound_value.value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
-            static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
+            static const auto& purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
             return purity_map.get(op.value(), false);
           } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
             return func_ty->purity;
@@ -489,16 +490,16 @@ class LambdaLifter : public ExprMutator {
   std::unordered_map<const FunctionNode*, ffi::String> lifted_names_;
 
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
-  const Op& make_closure_op_ = Op::Get("relax.make_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op make_closure_op_ = Op::Get("relax.make_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
 };
 
 namespace transform {
 
 Pass LambdaLift() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return relax::LambdaLifter(mod).Lift(); };
-  return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

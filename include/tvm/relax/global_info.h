@@ -24,8 +24,9 @@
 #ifndef TVM_RELAX_GLOBAL_INFO_H_
 #define TVM_RELAX_GLOBAL_INFO_H_
 
-#include <tvm/ffi/reflection/registry.h>
+#include <tvm/base.h>
 #include <tvm/ir/global_info.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -34,7 +35,7 @@ namespace relax {
 /*!
  * \brief Abstract label for an area of memory.
  */
-using MemoryScope = ffi::String;
+using runtime::MemoryScope;
 
 /*!
  * \brief A global info subclass for virtual devices.
@@ -42,7 +43,7 @@ using MemoryScope = ffi::String;
 class VDeviceNode : public GlobalInfoNode {
  public:
   /*! \brief The \p Target describing how to compile for the virtual device. */
-  Target target;
+  ffi::Optional<Target> target;
   /*! \brief The device identifier for the virtual device. This enables us to
    * differentiate between distinct devices with same Target, such as multiple GPUs.
    */
@@ -66,8 +67,8 @@ class VDeviceNode : public GlobalInfoNode {
  */
 class VDevice : public GlobalInfo {
  public:
-  TVM_DLL explicit VDevice(Target tgt, int dev_id, MemoryScope mem_scope);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VDevice, GlobalInfo, VDeviceNode);
+  TVM_DLL explicit VDevice(ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 
 /*!
@@ -89,7 +90,11 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
  */
 class DummyGlobalInfo : public GlobalInfo {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
+  explicit DummyGlobalInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<DummyGlobalInfoNode> n)
+      : GlobalInfo(tag) {
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);
 };
 
 }  // namespace relax

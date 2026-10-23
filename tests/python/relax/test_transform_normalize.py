@@ -17,18 +17,19 @@
 # ruff: noqa: F841
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm import relax, tirx
-from tvm.ir.base import assert_structural_equal
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import tirx as T
 
 
 def test_normalize_function():
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([m, n], "float16"))
 
     # Note: the parser automatically normalize the IR written in TVMScript,
@@ -40,12 +41,12 @@ def test_normalize_function():
     )
 
     # Note: from_expr api names private function (function without global_symbol) as "main"
-    before_mod = tvm.IRModule.from_expr(mul_add)
+    before_mod = tvm_tirx.IRModule.from_expr(mul_add)
 
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
+    def expected(x: R.Tensor((m, n), "float16")) -> R.Tensor(dtype="float16", ndim=2):
         gv = R.add(x, x)
         gv1 = R.add(x, x)
         return R.multiply(gv, gv1)
@@ -56,7 +57,7 @@ def test_normalize_function():
 def test_normalize_if():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # Note: the parser automatically normalize the IR written in TVMScript,
@@ -69,7 +70,7 @@ def test_normalize_if():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 cond,
                                 relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
                                 relax.op.add(relax.op.multiply(x, x), relax.op.multiply(x, x)),
@@ -83,7 +84,7 @@ def test_normalize_if():
         ret_ty=R.Tensor("float32", ndim=1),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
@@ -105,7 +106,7 @@ def test_normalize_if():
 
 def test_normalize_no_op():
     # the normalize pass should be no-op for IR in ANF
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ANFMod1:
         @R.function
         def f(x: R.Tensor(dtype="float32")):
@@ -118,15 +119,23 @@ def test_normalize_no_op():
     after_mod = relax.transform.Normalize()(before_mod)
     assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
-    @tvm.script.ir_module
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
     class ANFMod2:
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
+        def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test.op.identity"),
+                    (x,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
+                )
                 gv0 = R.call_dps_packed(
-                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                    _ExternFunc("test.op.identity"),
+                    (lv0,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
                 )
                 R.output(gv0)
             return gv0
@@ -148,7 +157,7 @@ def test_normalize_seq_body():
         ret_ty=R.Tensor([], "int32"),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
@@ -172,7 +181,7 @@ def test_normalize_func_body():
         ret_ty=R.Tensor([], "int32"),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
@@ -196,7 +205,7 @@ def test_normalize_if_branches():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     plus = relax.op.add(x, y)
     mult = relax.op.multiply(x, y)
-    if_node = relax.If(cond, plus, mult)
+    if_node = relax.IfExpr(cond, plus, mult)
     seq = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(z, if_node)])], z)
     f = relax.Function(
         [cond, x, y],
@@ -204,7 +213,7 @@ def test_normalize_if_branches():
         ret_ty=R.Tensor([], "int32"),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
@@ -228,7 +237,7 @@ def test_normalize_if_branches():
 def test_normalize_if_condition():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # The condition is wrapped in a tuple and then indexed
@@ -240,7 +249,7 @@ def test_normalize_if_condition():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 relax.TupleGetItem(relax.Tuple([cond]), 0),
                                 relax.op.add(x, x),
                                 relax.op.multiply(x, x),
@@ -254,7 +263,7 @@ def test_normalize_if_condition():
         ret_ty=R.Tensor("float32", ndim=1),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
@@ -287,7 +296,7 @@ def test_normalize_tuple_get_item():
         ret_ty=R.Tensor([], "int32"),
     )
 
-    before_mod = tvm.IRModule.from_expr(f)
+    before_mod = tvm_tirx.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
     # TODO: Revisit once we canonicalize SeqExprs (part of normalization?)
@@ -312,7 +321,7 @@ def test_normalize_tuple_get_item():
         ),
         ret_ty=R.Tensor([], "int32"),
     )
-    expected_mod = tvm.IRModule.from_expr(expected_f)
+    expected_mod = tvm_tirx.IRModule.from_expr(expected_f)
     # apply normalization to fill in type and shape annotations (tedious otherwise)
     final_mod = relax.transform.Normalize()(expected_mod)
 
@@ -339,7 +348,7 @@ def test_normalize_combine_nearby_blocks():
         ret_ty=R.Tensor([], "int32"),
     )
 
-    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    after_mod = relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(f))
 
     @R.function(private=True)
     def expected(x: R.Tensor((), "int32")):
@@ -381,7 +390,7 @@ def test_normalize_nested_seq():
         seq,
         ret_ty=R.Tensor([], "int32"),
     )
-    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    after_mod = relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(f))
 
     @R.function(private=True)
     def expected():
@@ -432,7 +441,7 @@ def test_normalize_nested_seq_dataflow():
         seq,
         ret_ty=R.Tensor([], "int32"),
     )
-    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    after_mod = relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(f))
 
     @R.function(private=True)
     def expected():
@@ -505,7 +514,7 @@ def test_normalize_deeply_nested_seq():
         seq,
         ret_ty=R.Tensor([], "int32"),
     )
-    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    after_mod = relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(f))
 
     @R.function(private=True)
     def expected():
@@ -548,7 +557,7 @@ def test_nesting_non_dataflow_in_dataflow_error():
         seq,
         ret_ty=R.Tensor([], "int32"),
     )
-    relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    relax.transform.Normalize()(tvm_tirx.IRModule.from_expr(f))
     # should fail due to a normal binding block being inside a dataflowblock
 
 
@@ -564,7 +573,7 @@ def test_remove_usage_of_void_type_variables():
     `void_var` may require a binding.
 
     This is avoided by normalizing all usage of a void-type
-    variable with an in-line `R.tuple()`.
+    variable with an in-line empty tuple.
     """
     x = relax.Var("x", R.Tuple([]))
     bindings = [
@@ -573,13 +582,13 @@ def test_remove_usage_of_void_type_variables():
     seq = relax.SeqExpr([relax.BindingBlock(bindings)], x)
     before = relax.Function([], seq, ret_ty=R.Tuple([]), is_pure=False)
 
-    after = relax.transform.Normalize()(tvm.IRModule({"main": before}))["main"]
+    after = relax.transform.Normalize()(tvm_tirx.IRModule({"main": before}))["main"]
 
     @R.function(private=True, pure=False)
     def expected():
         x = R.assert_op(R.const(True, "bool"))
-        return R.tuple()
+        return ()
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

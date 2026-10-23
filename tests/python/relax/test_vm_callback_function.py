@@ -20,17 +20,17 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.script import relax as R
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm.testing import device_enabled
 
-exec_mode = tvm.testing.parameter("bytecode", "compiled")
-
-pytestmark = pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+pytestmark = pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
 
 
-def test_pass_tensor_to_function(exec_mode):
+def test_pass_tensor_to_function():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -39,12 +39,11 @@ def test_pass_tensor_to_function(exec_mode):
     ):
         B = R.multiply(A, R.const(2))
         _ = callback(B)
-        return R.tuple()
+        return ()
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
@@ -55,7 +54,7 @@ def test_pass_tensor_to_function(exec_mode):
         from_callback = arr
 
     np_A = np.arange(16, dtype="int32")
-    tvm_A = tvm.runtime.tensor(np_A)
+    tvm_A = tvm_tirx.runtime.tensor(np_A)
 
     vm["relax_func"](tvm_A, custom_callback)
 
@@ -63,9 +62,9 @@ def test_pass_tensor_to_function(exec_mode):
     np.testing.assert_array_equal(np_A * 2, from_callback.numpy())
 
 
-def test_generate_tensor_in_function(exec_mode):
+def test_generate_tensor_in_function():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -76,25 +75,24 @@ def test_generate_tensor_in_function(exec_mode):
         return B
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
     np_A = np.arange(16, dtype="int32")
 
     def custom_callback():
-        return tvm.runtime.tensor(np_A)
+        return tvm_tirx.runtime.tensor(np_A)
 
     output = vm["relax_func"](custom_callback)
 
     np.testing.assert_array_equal(np_A * 2, output.numpy())
 
 
-def test_catch_exception_with_full_stack_trace(exec_mode):
+def test_catch_exception_with_full_stack_trace():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
 
     @R.function
     def relax_func(
@@ -104,9 +102,8 @@ def test_catch_exception_with_full_stack_trace(exec_mode):
         return A
 
     ex = tvm.relax.build(
-        tvm.IRModule.from_expr(relax_func),
+        tvm_tirx.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
@@ -131,4 +128,4 @@ def test_catch_exception_with_full_stack_trace(exec_mode):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

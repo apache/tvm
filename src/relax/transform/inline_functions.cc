@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -179,7 +180,7 @@ Pass InlinePrivateFunctions() {
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<relax::Function>()) {
         auto func = opt.value();
-        bool is_private = !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+        bool is_private = !func->GetAttr(tvm::attr::kGlobalSymbol).has_value();
         if (is_private) {
           replacements.Set(gvar, func);
         }
@@ -228,7 +229,7 @@ Pass InlinePrivateFunctions() {
     write_ptr->Update(updates);
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

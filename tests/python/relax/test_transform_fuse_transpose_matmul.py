@@ -18,16 +18,17 @@
 
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_transform_fuse_transpose_matmul():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(
@@ -40,22 +41,22 @@ def test_transform_fuse_transpose_matmul():
                 R.output(o)
             return o
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def NT_matmul(
-            x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            w: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            NT_matmul: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.sblock("NT_matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(x[v_i0, v_k], w[v_i1, v_k])
-                    T.writes(NT_matmul[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("NT_matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(x[v_i0, v_k], w[v_i1, v_k])
+                    Ts.writes(NT_matmul[v_i0, v_i1])
+                    with Ts.init():
                         NT_matmul[v_i0, v_i1] = T.float32(0)
                     NT_matmul[v_i0, v_i1] = NT_matmul[v_i0, v_i1] + x[v_i0, v_k] * w[v_i1, v_k]
 
@@ -65,23 +66,25 @@ def test_transform_fuse_transpose_matmul():
         ) -> R.Tensor((128, 128), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.NT_matmul, (x, w), out_ty=R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_tir(
+                    cls.NT_matmul, (x, w), ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm_tirx.ir.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_transform_fuse_transpose_matmul_const():
     w = relax.const(np.random.uniform(-1e-3, 1e-3, (128, 256)), "float32")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(
@@ -93,22 +96,22 @@ def test_transform_fuse_transpose_matmul_const():
                 R.output(o)
             return o
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def NT_matmul(
-            x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            w: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            NT_matmul: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.sblock("NT_matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(x[v_i0, v_k], w[v_i1, v_k])
-                    T.writes(NT_matmul[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("NT_matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(x[v_i0, v_k], w[v_i1, v_k])
+                    Ts.writes(NT_matmul[v_i0, v_i1])
+                    with Ts.init():
                         NT_matmul[v_i0, v_i1] = T.float32(0)
                     NT_matmul[v_i0, v_i1] = NT_matmul[v_i0, v_i1] + x[v_i0, v_k] * w[v_i1, v_k]
 
@@ -116,18 +119,20 @@ def test_transform_fuse_transpose_matmul_const():
         def main(x: R.Tensor((128, 256), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.NT_matmul, (x, w), out_ty=R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_tir(
+                    cls.NT_matmul, (x, w), ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm_tirx.ir.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -9,14 +9,14 @@ runs:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
-      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('ci/scripts/package/build-environment.yaml') }}
+      key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('ci/wheel/build-environment.yaml') }}
   - uses: conda-incubator/setup-miniconda@v4.0.1
     continue-on-error: true
     id: conda1
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: ci/scripts/package/build-environment.yaml
+      environment-file: ci/wheel/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       python-version: "3.10"
@@ -27,7 +27,7 @@ runs:
     with:
       activate-environment: tvm-build
       channel-priority: strict
-      environment-file: ci/scripts/package/build-environment.yaml
+      environment-file: ci/wheel/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
       use-only-tar-bz2: true
@@ -44,4 +44,4 @@ runs:
   - name: Install tvm-ffi pip package
     shell: bash -l {0}
     run: |
-      pip install -v ./3rdparty/tvm-ffi
+      pip install -v ./3rdparty/tvm-tirx/3rdparty/tvm-ffi

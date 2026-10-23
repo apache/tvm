@@ -23,11 +23,12 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <algorithm>
 
@@ -66,10 +67,10 @@ class CallTIRMutator : public ExprMutator {
     Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
         call->op.same_as(call_dps_packed_op)) {
       bool is_inplace = call->op.same_as(call_tir_inplace_op);
@@ -137,7 +138,11 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call(Type::Missing(), call->args[0], args))
+                              : Expr(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                          {call->args[0], Tuple(args)}));
+        builder_->Emit(invocation, "_");
       } else {
         if (!is_inplace) {
           args = outs;
@@ -145,7 +150,11 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call(Type::Missing(), call->args[0], args))
+                              : Expr(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                          {call->args[0], Tuple(args)}));
+        builder_->Emit(invocation, "_");
       }
 
       if (tuple_output_type.has_value()) {
@@ -166,7 +175,7 @@ class CallTIRMutator : public ExprMutator {
         << "call_tir expects all TensorType has shape, but got " << tensor_ty;
 
     int dev_index = 0;
-    ffi::String scope = "global";
+    runtime::MemoryScope scope;
     if (tensor_ty->vdevice.has_value()) {
       dev_index = GetDeviceIndex(mod_, tensor_ty->vdevice.value());
       scope = tensor_ty->vdevice.value()->memory_scope;
@@ -176,9 +185,9 @@ class CallTIRMutator : public ExprMutator {
 
     return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                GenericConst(tensor_ty->dtype.value()->dtype, AnyType()),
-                                IntImm::Int64(dev_index), StringImm(scope)},
-                               Attrs(), {tensor_ty}),
+                                DataTypeImm(tensor_ty->dtype.value()->dtype),
+                                IntImm::Int64(dev_index), StringImm(scope.name())},
+                               std::nullopt, {tensor_ty}),
                           "alloc");
   }
 
@@ -227,8 +236,7 @@ Pass CallTIRRewrite() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"CallTIRRewrite",
-                          /*required=*/{});
+                          /*pass_name=*/"CallTIRRewrite");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

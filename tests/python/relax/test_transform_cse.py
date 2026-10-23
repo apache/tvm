@@ -20,19 +20,21 @@
 import numpy as np
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import EliminateCommonSubexpr
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected, call_only=False):
-    tvm.ir.assert_structural_equal(EliminateCommonSubexpr(call_only)(input), expected)
+    tvm_tirx.ir.assert_structural_equal(EliminateCommonSubexpr(call_only)(input), expected)
 
 
 def test_simple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -43,7 +45,7 @@ def test_simple():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -58,7 +60,7 @@ def test_simple():
 
 
 def test_constants():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo() -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((2, 2), dtype="int32")):
@@ -67,22 +69,22 @@ def test_constants():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 # we expect to bind the repeated large constants
                 lv1 = R.add(
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo() -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((2, 2), dtype="int32")):
             with R.dataflow():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 lv1 = R.add(
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)
@@ -98,7 +100,7 @@ def test_repeated_inner_tuples():
     are kept as-is, even if they contain repeated sub-tuples.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -115,7 +117,7 @@ def test_repeated_inner_tuples():
 
 
 def test_inner_function():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -146,7 +148,7 @@ def test_inner_function():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
@@ -179,7 +181,7 @@ def test_inner_function():
 
 
 def test_call_only():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((160,), dtype="float32")):
@@ -191,7 +193,7 @@ def test_call_only():
                 R.output(out)
             return out
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor((160,), dtype="float32")) -> R.Tensor((160,), dtype="float32"):
@@ -208,7 +210,7 @@ def test_call_only():
 
 def test_cse_outside_dataflow():
     # same example as previously but it will work without a dataflow wrapper
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -217,7 +219,7 @@ def test_cse_outside_dataflow():
             gv = R.multiply(lv0, lv1)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -231,7 +233,7 @@ def test_cse_outside_dataflow():
 
 def test_no_cse_across_dataflow():
     # same example as previously but it will work without a dataflow wrapper
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -241,7 +243,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv1)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 lv2 = R.add(x, y)
@@ -256,7 +258,7 @@ def test_no_cse_across_dataflow():
             output = R.add(R.add(gv1, gv2), gv5)
             return output
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -267,7 +269,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv0)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 # However, the later dataflow block may not be
@@ -291,7 +293,7 @@ def test_no_cse_across_dataflow():
 
 
 def test_no_replacement_across_dataflow_boundary():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -313,7 +315,7 @@ def test_no_replacement_across_dataflow_boundary():
             D = R.add(x, y)
             return (B, C, D)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -330,38 +332,38 @@ def test_no_replacement_across_dataflow_boundary():
 
 
 def test_do_not_eliminate_impure():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             # it's a repeated subexpression but it would be wrong to deduplicate it
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = R.add(x, y)
             gv = R.multiply(lv0, lv1)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = lv0
             gv = R.multiply(lv0, lv0)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
     verify(Before, Expected)
 
 
 def test_do_not_eliminate_shape_expr():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -376,7 +378,7 @@ def test_do_not_eliminate_shape_expr():
 
 
 def test_do_not_eliminate_extern_func():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32")):
@@ -390,35 +392,35 @@ def test_do_not_eliminate_extern_func():
 
 
 def test_call_tir_tuple_arg():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([16, 16], "int32"), B: R.Tensor([16, 16], "int32")):
             cls = Before
-            Prod = R.call_tir(cls.product, [A, B], out_ty=R.Tensor([16, 16], "int32"))
-            Sum = R.call_tir(cls.sum, [A, B], out_ty=R.Tensor([16, 16], "int32"))
+            Prod = R.call_tir(cls.product, [A, B], ty_args=[R.Tensor([16, 16], "int32")])
+            Sum = R.call_tir(cls.sum, [A, B], ty_args=[R.Tensor([16, 16], "int32")])
             return (Prod, Sum)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def product(
-            A: T.Buffer([16, 16], "int32"),
-            B: T.Buffer([16, 16], "int32"),
-            C: T.Buffer([16, 16], "int32"),
+            A: T.Tensor([16, 16], "int32"),
+            B: T.Tensor([16, 16], "int32"),
+            C: T.Tensor([16, 16], "int32"),
         ):
-            for iters in T.grid(*A.shape):
-                with T.sblock("compute"):
-                    i, j = T.axis.remap("SS", iters)
+            for (*iters,) in T.grid(*A.shape):
+                with Ts.sblock("compute"):
+                    i, j = Ts.axis.remap("SS", iters)
                     C[i, j] = A[i, j] * B[i, j]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def sum(
-            A: T.Buffer([16, 16], "int32"),
-            B: T.Buffer([16, 16], "int32"),
-            C: T.Buffer([16, 16], "int32"),
+            A: T.Tensor([16, 16], "int32"),
+            B: T.Tensor([16, 16], "int32"),
+            C: T.Tensor([16, 16], "int32"),
         ):
-            for iters in T.grid(*A.shape):
-                with T.sblock("compute"):
-                    i, j = T.axis.remap("SS", iters)
+            for (*iters,) in T.grid(*A.shape):
+                with Ts.sblock("compute"):
+                    i, j = Ts.axis.remap("SS", iters)
                     C[i, j] = A[i, j] + B[i, j]
 
     Expected = Before
@@ -427,17 +429,17 @@ def test_call_tir_tuple_arg():
     # normalization of those expressions may produce additional
     # variables bindings.  This test case should be agnostic to those
     # additional bindings, so DCE is applied after CSE.
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             EliminateCommonSubexpr(),
             tvm.relax.transform.DeadCodeElimination(),
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_do_not_eliminate_dtype():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function(pure=False)
         def foo() -> R.Tensor((32, 64), "int32"):
@@ -459,7 +461,7 @@ def test_do_not_eliminate_dtype():
 
 
 def test_match_cast():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -474,7 +476,7 @@ def test_match_cast():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -492,39 +494,41 @@ def test_match_cast():
 
 
 def test_match_cast_with_symbolic_vars():
-    @I.ir_module(s_tir=True)
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
+
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
             with R.dataflow():
                 A1 = R.add(x, y)
 
-                n = T.int64()
-                m = T.int64()
                 B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
 
                 A2 = R.add(x, y)
-                p = T.int64()
-                q = T.int64()
                 B2 = R.match_cast(A2, R.Tensor([p, q], "float32"))
 
                 gv = R.multiply(B1, B2)
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    p = T.dynamic("p", "int64")
+    q = T.dynamic("q", "int64")
+
+    @I.ir_module
     class Expected:
         @R.function
         def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
             with R.dataflow():
                 A1 = R.add(x, y)
-                n = T.int64()
-                m = T.int64()
                 B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
 
                 A2 = A1
-                p = T.int64()
-                q = T.int64()
                 B2 = R.match_cast(A1, R.Tensor([p, q], "float32"))
 
                 gv = R.multiply(B1, B2)
@@ -537,13 +541,13 @@ def test_match_cast_with_symbolic_vars():
 def test_replace_binding_within_branch_with_duplicate_before_branch():
     """Bindings before a branch may be used within the branch"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(
             x: R.Tensor((2, 3), dtype="float32"),
             y: R.Tensor((2, 3), dtype="float32"),
-            condition: R.Prim("bool"),
+            condition: T.bool,
         ):
             A = R.add(x, y)
             if condition:
@@ -556,13 +560,13 @@ def test_replace_binding_within_branch_with_duplicate_before_branch():
                 D = R.multiply(A, C)
             return D
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def foo(
             x: R.Tensor((2, 3), dtype="float32"),
             y: R.Tensor((2, 3), dtype="float32"),
-            condition: R.Prim("bool"),
+            condition: T.bool,
         ):
             A = R.add(x, y)
             if condition:
@@ -581,13 +585,13 @@ def test_replace_binding_within_branch_with_duplicate_before_branch():
 def test_keep_duplicate_across_if_and_then():
     """Bindings in `if` are not valid within `else`"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(
             x: R.Tensor((2, 3), dtype="float32"),
             y: R.Tensor((2, 3), dtype="float32"),
-            condition: R.Prim("bool"),
+            condition: T.bool,
         ):
             if condition:
                 A = R.add(x, y)
@@ -605,13 +609,13 @@ def test_keep_duplicate_across_if_and_then():
 def test_keep_duplicate_after_branch():
     """Only the final binding is valid after a if/else branch"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(
             x: R.Tensor((2, 3), dtype="float32"),
             y: R.Tensor((2, 3), dtype="float32"),
-            condition: R.Prim("bool"),
+            condition: T.bool,
         ):
             if condition:
                 A = R.add(x, y)
@@ -630,7 +634,7 @@ def test_keep_duplicate_after_branch():
 
 
 def test_keep_alloc_tensor():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32")):
@@ -645,7 +649,7 @@ def test_keep_alloc_tensor():
 
 
 def test_keep_alloc_storage():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32")):
@@ -662,4 +666,4 @@ def test_keep_alloc_storage():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

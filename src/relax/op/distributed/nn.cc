@@ -20,6 +20,7 @@
 #include "nn.h"
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr.h>
 
 namespace tvm {
 namespace relax {
@@ -46,19 +47,20 @@ Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
   return InferShardingSpec(call, ctx, input_tensor_ty, distributed::BuildAxisGraphReduce);
 }
 
-TVM_REGISTER_OP("relax.nn.softmax").set_attr<FInferType>("dist.FInferType", InferDistTypeSoftmax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.nn.softmax")
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeSoftmax);
 
-/* relax.nn.relu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.relu, /*require_float_dtype=*/false);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.relu, /*require_float_dtype=*/false);
 
-/* relax.nn.gelu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu, /*require_float_dtype=*/true);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu, /*require_float_dtype=*/true);
 
-/* relax.nn.gelu_tanh */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu_tanh, /*require_float_dtype=*/true);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu_tanh, /*require_float_dtype=*/true);
 
-/* relax.nn.silu */
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.silu, /*require_float_dtype=*/true);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.silu, /*require_float_dtype=*/true);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

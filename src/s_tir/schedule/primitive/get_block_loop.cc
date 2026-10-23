@@ -54,15 +54,15 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
+  const auto* function = TVM_TYPE_AS(func, FunctionNode);
   auto finder = ffi::make_object<Finder>(self, name);
-  finder->Visit(prim_func->body);
+  finder->Visit(function->body);
   return std::move(finder->results_);
 }
 
 ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
   std::vector<StmtSRef> result;
-  for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
+  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
        parent = parent->parent) {
     result.push_back(ffi::GetRef<StmtSRef>(parent));
   }
@@ -274,12 +274,14 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(GetSBlockTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetOutputBlocksTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<GetSBlockTraits>();
+  RegisterInstructionKind<GetLoopsTraits>();
+  RegisterInstructionKind<GetChildBlocksTraits>();
+  RegisterInstructionKind<GetProducersTraits>();
+  RegisterInstructionKind<GetConsumersTraits>();
+  RegisterInstructionKind<GetOutputBlocksTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

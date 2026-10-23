@@ -34,16 +34,20 @@ class SRefTreeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
 
-  static void Verify(const ScheduleStateNode* self) {
+  static void Verify(const ScheduleStateObj* self) {
     ffi::make_object<SRefTreeVerifier>(self)->Verify();
   }
 
   /*! \brief Constructor */
-  explicit SRefTreeVerifier(const ScheduleStateNode* self) : self_(self) {}
+  explicit SRefTreeVerifier(const ScheduleStateObj* self) : self_(self) {}
 
  private:
   void Verify() {
-    VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->Visit(func->body); });
+    for (const auto& [_, base_func] : self_->mod->functions) {
+      if (const auto* func = base_func.as<FunctionNode>()) {
+        this->Visit(func->body);
+      }
+    }
     TVM_FFI_ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
     for (const auto& kv : self_->block_info) {
       const StmtSRef& sref = kv.first;
@@ -128,7 +132,7 @@ class SRefTreeVerifier : public StmtExprVisitor {
     int n = static_cast<int>(seq_stmt->seq.size());
     for (int i = 0; i < n; ++i) {
       const Stmt& child = seq_stmt->seq[i];
-      StmtSRef sref{nullptr};
+      StmtSRef sref{ffi::UnsafeInit{}};
       if (const auto* realize = child.as<SBlockRealizeNode>()) {
         const auto* block = realize->block.get();
         TVM_FFI_ICHECK(self_->stmt2ref.count(block));
@@ -145,9 +149,9 @@ class SRefTreeVerifier : public StmtExprVisitor {
   }
 
   /*! \brief The schedule it belongs to */
-  const ScheduleStateNode* self_;
+  const ScheduleStateObj* self_;
   /*! \brief Parent information during the visit */
-  std::vector<const StmtSRefNode*> ancestors_ = {nullptr};
+  std::vector<const StmtSRefObj*> ancestors_ = {nullptr};
   /*! \brief If the visitor is currently in the init block */
   int init_block_depth_ = 0;
   /*! \brief Number of srefs that are visited */

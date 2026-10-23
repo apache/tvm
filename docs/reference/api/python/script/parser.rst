@@ -15,23 +15,44 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.script.parser
------------------
+tvm_tirx.script.parser
+----------------------
 
-tvm.script.parser
-*****************
-.. automodule:: tvm.script.parser
+tvm_tirx.script.parser
+**********************
+.. automodule:: tvm_tirx.script.parser
    :members:
    :imported-members:
 
-tvm.script.parser.ir
-********************
-.. automodule:: tvm.script.parser.ir
+tvm_tirx.script.parser.jit_support
+**********************************
+These helpers carry ``const_args``, the selected fixed argument map, into generated builder
+execution. Parameter validation and caching remain with the JIT entry point.
 
-tvm.script.parser.relax
-***********************
-.. automodule:: tvm.script.parser.relax
+.. automodule:: tvm_tirx.script.parser.jit_support
+   :members: use_specialization, read_specialization_bindings
 
-tvm.script.parser.tirx
-**********************
-.. automodule:: tvm.script.parser.tirx
+tvm_tirx.script.parser.protocol_registry
+****************************************
+Language variants register source syntax policies independently of their
+construction hooks. Namespace objects and lazy initialization callbacks are
+registered through :func:`tvm_tirx.script.parser.register_namespace` and
+:func:`tvm_tirx.script.parser.register_namespace_initializer`.
+
+.. automodule:: tvm_tirx.script.parser.protocol_registry
+   :members: register_scalar_annotation, register_mutable_decl
+
+The language variant aliases below share the public construction namespaces documented
+in :doc:`script`. Parser entry points above use the canonical frontend.
+
+tvm_tirx.script.parser.ir
+*************************
+.. automodule:: tvm_tirx.script.parser.ir
+
+tvm_tirx.script.parser.relax
+****************************
+.. automodule:: tvm_tirx.script.parser.relax
+
+tvm_tirx.script.parser.tirx
+***************************
+.. automodule:: tvm_tirx.script.parser.tirx

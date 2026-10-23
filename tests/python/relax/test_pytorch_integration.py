@@ -29,14 +29,17 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-import tvm
+import tvm_tirx
 from tvm.relax import BasePyModule
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+
+n_matmul = T.dynamic("n", "int32")
 
 
-@I.ir_module(s_tir=True)
+@R.py_module
 class PyTorchIntegrationModule(BasePyModule):
     """Test module for PyTorch integration with TVM."""
 
@@ -59,22 +62,18 @@ class PyTorchIntegrationModule(BasePyModule):
 
         return lv3
 
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def matmul(
-        var_A: T.handle,
-        var_B: T.handle,
-        var_C: T.handle,
+        A: T.Tensor((n_matmul, 16), "float32"),
+        B: T.Tensor((16, 20), "float32"),
+        C: T.Tensor((n_matmul, 20), "float32"),
     ):
         """TIR function for matrix multiplication."""
-        n = T.int32()
-        A = T.match_buffer(var_A, (n, 16), "float32")
-        B = T.match_buffer(var_B, (16, 20), "float32")
-        C = T.match_buffer(var_C, (n, 20), "float32")
 
-        for i, j, k in T.grid(n, 20, 16):
-            with T.sblock("block"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+        for i, j, k in T.grid(n_matmul, 20, 16):
+            with Ts.sblock("block"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -85,7 +84,7 @@ class PyTorchIntegrationModule(BasePyModule):
 
 class TestPyTorchIntegration:
     def test_end_to_end_pipeline(self):
-        instance = PyTorchIntegrationModule(tvm.cpu(0))
+        instance = PyTorchIntegrationModule(tvm_tirx.cpu(0))
 
         def my_softmax(tensor, dim):
             return F.softmax(tensor, dim=dim)
@@ -108,7 +107,7 @@ class TestPyTorchIntegration:
             torch.testing.assert_close(result, expected, rtol=1e-5, atol=1e-3)
 
     def test_missing_packed_function(self):
-        instance = BasePyModule(tvm.IRModule({}), tvm.cpu(0))
+        instance = BasePyModule(tvm_tirx.IRModule({}), tvm_tirx.cpu(0))
 
         with pytest.raises(
             ValueError,

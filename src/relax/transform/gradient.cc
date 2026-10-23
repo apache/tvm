@@ -27,11 +27,13 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op/op.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/transform.h>
 
 #include <unordered_set>
@@ -77,7 +79,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
       return ExprMutator::VisitExpr_(call_node);
     }
     return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
-                call_node->span);
+                call_node->loc);
   }
 };
 
@@ -166,11 +168,12 @@ class CheckpointCollector : private ExprMutator {
       // Add remapping from binding->var to new_var
       if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
         // For output binding, emit a dummy binding
-        this->var_remap_[binding->var] = builder_->EmitOutput(orig_var, orig_var->name);
+        this->var_remap_.insert_or_assign(binding->var,
+                                          builder_->EmitOutput(orig_var, orig_var->name));
       } else {
-        this->var_remap_[binding->var] = orig_var;
+        this->var_remap_.insert_or_assign(binding->var, orig_var);
       }
-      var_mapping[binding->var] = orig_var;
+      var_mapping.insert_or_assign(binding->var, orig_var);
 
       if (value->op.same_as(s_cp)) {
         // mark the original var to be checkpointed
@@ -268,8 +271,10 @@ class CheckpointGenerator : private ExprMutator {
     Type ret_ty = Type::Missing();
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
-        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
-        if (!infer_type_map.count(op.value())) {
+        static auto infer_type_map = Op::GetAttrMap(tvm::op_attr::kInferType);
+        static auto infer_type_with_builder_map =
+            Op::GetAttrMap(tvm::relax::op_attr::kInferTypeWithBuilder);
+        if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
       }
@@ -361,8 +366,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       return;
     }
 
-    static const OpAttrMap<FPrimalGradient>& gradient_op_map =
-        Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
+    static const auto& gradient_op_map = Op::GetAttrMap(tvm::relax::op_attr::kPrimalGradient);
     static const constexpr char* te_grad_func_prefix = "tvm.relax.te_grad._register.";
 
     Var adjoint_var = adjoint_var_map_[binding->var];
@@ -501,7 +505,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       // var might be wrapped in start_checkpoint or end_checkpoint, so we should find the original
       // var first
       if (cp_collector_.var_mapping.count(var)) {
-        var = cp_collector_.var_mapping[var];
+        var = cp_collector_.var_mapping.at(var);
       }
       // If the var don't have adjoint var, it do not contribute to the target. So its adjoint is
       // zeros
@@ -518,11 +522,9 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   // Emit the adjoint expr as the name `original_var_name` + "_adjoint"
   Var EmitAdjoint(const Var& source_var, const Expr& adjoint, bool is_output) {
-    Var adjoint_var;
-    if (is_output) {
-      adjoint_var = builder_->EmitOutput(adjoint, source_var->name + "_adjoint_out");
-    } else {
-      adjoint_var = builder_->Emit(adjoint, source_var->name + "_adjoint");
+    Var adjoint_var = is_output ? builder_->EmitOutput(adjoint, source_var->name + "_adjoint_out")
+                                : builder_->Emit(adjoint, source_var->name + "_adjoint");
+    if (!is_output) {
       adjoint_var_map_.Set(source_var, adjoint_var);
     }
     return adjoint_var;
@@ -591,12 +593,12 @@ class BackwardBindingGenerator : private ExprVisitor {
     TVM_FFI_ICHECK(index >= 0 && index < static_cast<int>(ty->fields.size()));
     ffi::Array<Expr> res;
     for (size_t i = 0; i < ty->fields.size(); ++i) {
-      Expr field;
-      if (const auto* expr_tuple = tuple.as<TupleNode>()) {
-        field = expr_tuple->fields[i];
-      } else {
-        field = TupleGetItem(tuple, i);
-      }
+      Expr field = [&]() -> Expr {
+        if (const auto* expr_tuple = tuple.as<TupleNode>()) {
+          return expr_tuple->fields[i];
+        }
+        return TupleGetItem(tuple, i);
+      }();
       if (static_cast<int>(i) == index) {
         field = TupleAwareAdd(field, increment);
       }
@@ -672,7 +674,7 @@ class GradientMutator : private ExprMutator {
     // Step 4.4 mark the transformed function as public
     // because the original function may be public, and have gsymbol attribute as func_name
     auto new_func_name = func_name + "_adjoint";
-    auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
+    auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol.name, new_func_name);
 
     // Step 4.5 Add the transformed function to IRModule
     builder_->AddFunction(new_func_with_gsymbol, new_func_name);
@@ -787,11 +789,11 @@ class GradientMutator : private ExprMutator {
   CheckpointCollector cp_collector_;
   // the differentiation target
   int target_index_;
-  Var target_var_;
+  Var target_var_{ffi::UnsafeInit{}};
   // the return value of the original function and the differentiated function
   ffi::Array<Var> orig_params_;
-  Expr orig_return_expr_;
-  Expr return_expr_;
+  Expr orig_return_expr_{ffi::UnsafeInit{}};
+  Expr return_expr_{ffi::UnsafeInit{}};
 };
 
 namespace transform {
@@ -803,8 +805,7 @@ Pass Gradient(ffi::String func_name, ffi::Optional<ffi::Array<Var>> require_grad
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"Gradient",
-                          /*required=*/{});
+                          /*pass_name=*/"Gradient");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

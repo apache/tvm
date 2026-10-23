@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
@@ -33,7 +34,7 @@ template <typename T, typename U>
 using PMap = std::unordered_map<T, U, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 ffi::Optional<Function> ExpandParams(Function func) {
-  bool is_exposed = func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+  bool is_exposed = func->attrs.GetAttr(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return std::nullopt;
 
   bool has_tuple_param =
@@ -133,8 +134,8 @@ Pass ExpandTupleArguments() {
             auto new_func = opt.value();
             GlobalVar new_gvar(gvar->name_hint);
             new_gvar->ty = new_func->ty;
-            gvar_replacements[gvar] = new_gvar;
-            new_callees[new_gvar] = new_func;
+            gvar_replacements.insert_or_assign(gvar, new_gvar);
+            new_callees.insert_or_assign(new_gvar, new_func);
           }
         }
       }
@@ -167,7 +168,7 @@ Pass ExpandTupleArguments() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner");
 
   return tvm::transform::Sequential(
       {

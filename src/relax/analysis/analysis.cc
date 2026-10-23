@@ -26,9 +26,9 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tirx/expr_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -117,7 +117,7 @@ class VarVisitor : protected ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call_node) final {
-    VisitSpan(call_node->span);
+    VisitLoc(call_node->loc);
     VisitExpr(call_node->op);
 
     for (Type ty_arg : call_node->ty_args) {

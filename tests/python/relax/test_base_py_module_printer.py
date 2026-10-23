@@ -20,14 +20,16 @@
 import pytest
 
 import tvm
-from tvm.ir import StringImm
+import tvm_tirx
+from tvm.relax import script as R
 from tvm.relax.base_py_module import BasePyModule
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import StringImm
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
-@I.ir_module
+@R.py_module
 class SimplePyFuncModule(BasePyModule):
     """Test simple Python functions with basic operations."""
 
@@ -47,21 +49,17 @@ class SimplePyFuncModule(BasePyModule):
         result = self.call_tir(self.multiply_tir, [x_tvm, y_tvm], out_ty=R.Tensor((5,), "float32"))
         return self._convert_tvm_to_pytorch(result)
 
-    @T.prim_func(s_tir=True)
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
-
+    @Ts.function
+    def add_tir(
+        x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
+    ):
         for i in range(5):
             out[i] = x[i] + y[i]
 
-    @T.prim_func(s_tir=True)
-    def multiply_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
-
+    @Ts.function
+    def multiply_tir(
+        x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
+    ):
         for i in range(5):
             out[i] = x[i] * y[i]
 
@@ -72,7 +70,7 @@ class SimplePyFuncModule(BasePyModule):
         return R.add(x, y)
 
 
-@I.ir_module
+@R.py_module
 class ComplexPyFuncModule(BasePyModule):
     """Test complex Python logic with ML pipeline and error handling."""
 
@@ -126,45 +124,40 @@ class ComplexPyFuncModule(BasePyModule):
         )
         return self._convert_tvm_to_pytorch(result)
 
-    @T.prim_func(s_tir=True)
-    def extract_features(data: T.handle, features: T.handle):
+    @Ts.function
+    def extract_features(Data: T.Tensor((10,), "float32"), Features: T.Tensor((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10,), "float32")
-        Features = T.match_buffer(features, (10,), "float32")
 
         for i in range(10):
             Features[i] = T.sqrt(Data[i])
 
-    @T.prim_func(s_tir=True)
-    def ml_inference(features: T.handle, params: T.handle, output: T.handle):
+    @Ts.function
+    def ml_inference(
+        Features: T.Tensor((10,), "float32"),
+        Params: T.Tensor((10,), "float32"),
+        Output: T.Tensor((5,), "float32"),
+    ):
         T.func_attr({"tirx.noalias": True})
-        Features = T.match_buffer(features, (10,), "float32")
-        Params = T.match_buffer(params, (10,), "float32")
-        Output = T.match_buffer(output, (5,), "float32")
 
         for i in range(5):
             Output[i] = Features[i] * Params[i] + Features[i + 5] * Params[i + 5]
 
-    @T.prim_func(s_tir=True)
-    def post_process(predictions: T.handle, final: T.handle):
+    @Ts.function
+    def post_process(Predictions: T.Tensor((5,), "float32"), Final: T.Tensor((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Predictions = T.match_buffer(predictions, (5,), "float32")
-        Final = T.match_buffer(final, (5,), "float32")
 
         for i in range(5):
             Final[i] = T.max(Predictions[i], 0.0)
 
-    @T.prim_func(s_tir=True)
-    def normalize_data(data: T.handle, normalized: T.handle):
+    @Ts.function
+    def normalize_data(Data: T.Tensor((10,), "float32"), Normalized: T.Tensor((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10,), "float32")
-        Normalized = T.match_buffer(normalized, (10,), "float32")
 
         for i in range(10):
             Normalized[i] = Data[i] / 255.0
 
 
-@I.ir_module
+@R.py_module
 class EdgeCasePyFuncModule(BasePyModule):
     """Test edge cases and boundary conditions."""
 
@@ -210,15 +203,14 @@ class EdgeCasePyFuncModule(BasePyModule):
                 result.append(0)
         return result
 
-    @T.prim_func(s_tir=True)
-    def dummy_tir(data: T.handle, output: T.handle):
+    @Ts.function
+    def dummy_tir(Data: T.Tensor((1,), "float32"), Output: T.Tensor((1,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (1,), "float32")
-        Output = T.match_buffer(output, (1,), "float32")
+
         Output[0] = Data[0]
 
 
-@I.ir_module
+@R.py_module
 class PerformancePyFuncModule(BasePyModule):
     """Test performance optimization patterns."""
 
@@ -270,18 +262,17 @@ class PerformancePyFuncModule(BasePyModule):
             # Create new tensor if gradients are needed
             return large_tensor + 1.0
 
-    @T.prim_func(s_tir=True)
-    def vectorized_add(a: T.handle, b: T.handle, c: T.handle):
+    @Ts.function
+    def vectorized_add(
+        A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "float32")
+    ):
         T.func_attr({"tirx.noalias": True})
-        A = T.match_buffer(a, (10,), "float32")
-        B = T.match_buffer(b, (10,), "float32")
-        C = T.match_buffer(c, (10,), "float32")
 
         for i in range(10):
             C[i] = A[i] + B[i]
 
 
-@I.ir_module
+@R.py_module
 class IntegrationPyFuncModule(BasePyModule):
     """Test integration with external libraries and complex workflows."""
 
@@ -342,18 +333,16 @@ class IntegrationPyFuncModule(BasePyModule):
 
         return final_result
 
-    @T.prim_func(s_tir=True)
-    def final_transform(data: T.handle, output: T.handle):
+    @Ts.function
+    def final_transform(Data: T.Tensor((10, 10), "float32"), Output: T.Tensor((10, 10), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (10, 10), "float32")
-        Output = T.match_buffer(output, (10, 10), "float32")
 
         for i in range(10):
             for j in range(10):
                 Output[i, j] = T.tanh(Data[i, j])
 
 
-@I.ir_module
+@R.py_module
 class ErrorHandlingPyFuncModule(BasePyModule):
     """Test comprehensive error handling and validation."""
 
@@ -407,11 +396,9 @@ class ErrorHandlingPyFuncModule(BasePyModule):
                 # Return safe default
                 return self._get_safe_default()
 
-    @T.prim_func(s_tir=True)
-    def safe_transform(data: T.handle, output: T.handle):
+    @Ts.function
+    def safe_transform(Data: T.Tensor((5,), "float32"), Output: T.Tensor((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
-        Data = T.match_buffer(data, (5,), "float32")
-        Output = T.match_buffer(output, (5,), "float32")
 
         for i in range(5):
             # Safe operation that handles edge cases
@@ -426,7 +413,7 @@ def test_simple_pyfunc_module_creation():
     """Test that SimplePyFuncModule can be created."""
     # Get the IRModule instance from the TVMScript decorated class
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     # Create BasePyModule instance
     module = BasePyModule(ir_mod, device)
@@ -434,9 +421,9 @@ def test_simple_pyfunc_module_creation():
 
     # Note: Python functions are stored in pyfuncs, not as direct attributes
     # We need to check if they exist in the IRModule's pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "add" in ir_mod.pyfuncs
-        assert "multiply" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "add" in ir_mod.__pyfuncs__
+        assert "multiply" in ir_mod.__pyfuncs__
 
     # Check that TIR functions exist
     assert hasattr(module, "add_tir")
@@ -450,15 +437,15 @@ def test_simple_pyfunc_module_creation():
 def test_complex_pyfunc_module_creation():
     """Test that ComplexPyFuncModule can be created."""
     ir_mod = ComplexPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "ml_pipeline" in ir_mod.pyfuncs
-        assert "data_preprocessing" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "ml_pipeline" in ir_mod.__pyfuncs__
+        assert "data_preprocessing" in ir_mod.__pyfuncs__
 
     # Check TIR functions
     assert hasattr(module, "extract_features")
@@ -470,17 +457,17 @@ def test_complex_pyfunc_module_creation():
 def test_edge_case_pyfunc_module_creation():
     """Test that EdgeCasePyFuncModule can be created."""
     ir_mod = EdgeCasePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "empty_func" in ir_mod.pyfuncs
-        assert "single_return" in ir_mod.pyfuncs
-        assert "nested_conditionals" in ir_mod.pyfuncs
-        assert "loop_with_break" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "empty_func" in ir_mod.__pyfuncs__
+        assert "single_return" in ir_mod.__pyfuncs__
+        assert "nested_conditionals" in ir_mod.__pyfuncs__
+        assert "loop_with_break" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "dummy_tir")
@@ -489,16 +476,16 @@ def test_edge_case_pyfunc_module_creation():
 def test_performance_pyfunc_module_creation():
     """Test that PerformancePyFuncModule can be created."""
     ir_mod = PerformancePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "vectorized_operation" in ir_mod.pyfuncs
-        assert "batch_processing" in ir_mod.pyfuncs
-        assert "memory_efficient_transform" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "vectorized_operation" in ir_mod.__pyfuncs__
+        assert "batch_processing" in ir_mod.__pyfuncs__
+        assert "memory_efficient_transform" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "vectorized_add")
@@ -507,15 +494,15 @@ def test_performance_pyfunc_module_creation():
 def test_integration_pyfunc_module_creation():
     """Test that IntegrationPyFuncModule can be created."""
     ir_mod = IntegrationPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "sklearn_integration" in ir_mod.pyfuncs
-        assert "multi_stage_pipeline" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "sklearn_integration" in ir_mod.__pyfuncs__
+        assert "multi_stage_pipeline" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "final_transform")
@@ -524,15 +511,15 @@ def test_integration_pyfunc_module_creation():
 def test_error_handling_pyfunc_module_creation():
     """Test that ErrorHandlingPyFuncModule can be created."""
     ir_mod = ErrorHandlingPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
 
     module = BasePyModule(ir_mod, device)
     assert isinstance(module, BasePyModule)
 
     # Check Python functions in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "robust_data_processing" in ir_mod.pyfuncs
-        assert "graceful_degradation" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "robust_data_processing" in ir_mod.__pyfuncs__
+        assert "graceful_degradation" in ir_mod.__pyfuncs__
 
     # Check TIR function
     assert hasattr(module, "safe_transform")
@@ -549,7 +536,7 @@ def test_all_modules_inherit_from_base():
         ErrorHandlingPyFuncModule,
     ]
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     for ir_mod in modules:
         module = BasePyModule(ir_mod, device)
         assert isinstance(module, BasePyModule)
@@ -560,17 +547,17 @@ def test_all_modules_inherit_from_base():
 def test_pyfunc_decorators():
     """Test that all @I.pyfunc decorated functions are present."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that the functions exist in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "add" in ir_mod.pyfuncs
-        assert "multiply" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "add" in ir_mod.__pyfuncs__
+        assert "multiply" in ir_mod.__pyfuncs__
 
         # Get the actual function objects
-        add_func = ir_mod.pyfuncs["add"]
-        multiply_func = ir_mod.pyfuncs["multiply"]
+        add_func = ir_mod.__pyfuncs__["add"]
+        multiply_func = ir_mod.__pyfuncs__["multiply"]
 
         # Check that they are callable
         assert callable(add_func)
@@ -589,7 +576,7 @@ def test_pyfunc_decorators():
 def test_tir_functions():
     """Test that TIR functions are properly defined."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check TIR function attributes
@@ -604,7 +591,7 @@ def test_tir_functions():
 def test_relax_functions():
     """Test that Relax functions are properly defined."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Note: This particular TVMScript is for testing purpose only, and cannot compile
@@ -634,7 +621,7 @@ def test_module_docstrings():
         assert callable(module_class)
         # We can't directly instantiate TVMScript decorated classes
         # but we can create BasePyModule instances with them
-        device = tvm.cpu()
+        device = tvm_tirx.cpu()
         instance = BasePyModule(module_class, device)
         assert isinstance(instance, BasePyModule)
 
@@ -642,17 +629,17 @@ def test_module_docstrings():
 def test_python_function_complexity():
     """Test that complex Python functions have the expected structure."""
     ir_mod = ComplexPyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that complex functions exist in pyfuncs
-    if hasattr(ir_mod, "pyfuncs"):
-        assert "ml_pipeline" in ir_mod.pyfuncs
-        assert "data_preprocessing" in ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        assert "ml_pipeline" in ir_mod.__pyfuncs__
+        assert "data_preprocessing" in ir_mod.__pyfuncs__
 
         # Get the actual function objects
-        ml_func = ir_mod.pyfuncs["ml_pipeline"]
-        preprocess_func = ir_mod.pyfuncs["data_preprocessing"]
+        ml_func = ir_mod.__pyfuncs__["ml_pipeline"]
+        preprocess_func = ir_mod.__pyfuncs__["data_preprocessing"]
 
         # These should be callable
         assert callable(ml_func)
@@ -671,7 +658,7 @@ def test_python_function_complexity():
 def test_script_and_show_methods():
     """Test that script() and show() methods work correctly."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Test script() method
@@ -692,12 +679,12 @@ def test_script_and_show_methods():
 def test_python_functions_in_irmodule():
     """Test that Python functions are properly stored in IRModule pyfuncs."""
     ir_mod = SimplePyFuncModule
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = BasePyModule(ir_mod, device)
 
     # Check that pyfuncs attribute exists and contains our functions
-    if hasattr(ir_mod, "pyfuncs"):
-        pyfuncs = ir_mod.pyfuncs
+    if hasattr(ir_mod, "__pyfuncs__"):
+        pyfuncs = ir_mod.__pyfuncs__
         assert isinstance(pyfuncs, dict)
         assert "add" in pyfuncs
         assert "multiply" in pyfuncs
@@ -725,7 +712,7 @@ def test_call_py_func_with_base_py_module():
     x = Var("x", TensorType((5,), "float32"))
     y = Var("y", TensorType((5,), "float32"))
 
-    call_expr = call_py_func(StringImm("test_func"), (x, y), out_ty=R.Tensor((5,), "float32"))
+    call_expr = call_py_func(StringImm("test_func"), (x, y), ty_args=[R.Tensor((5,), "float32")])
 
     assert call_expr.op.name == "relax.call_py_func"
     assert call_expr.args[0].value == "test_func"
@@ -736,21 +723,21 @@ def test_call_py_func_with_base_py_module():
         call_py_func(
             123,
             (Var("x", TensorType((5,), "float32")),),
-            out_ty=R.Tensor((5,), "float32"),
-        )
+            ty_args=[R.Tensor((5,), "float32")],
+        ).validate()
         assert False, "Should raise type error"
     except Exception as e:
-        assert "Mismatched type" in str(e) or "Expected" in str(e)
+        assert "string literal" in str(e)
 
     # Test 3: Validation and error handling
-    @I.ir_module
+    @R.py_module
     class ValidationTestModule(BasePyModule):
         @R.function
         def test_invalid_call(x: R.Tensor((5,), "float32")) -> R.Tensor((5,), "float32"):
-            result = R.call_py_func("non_existent_func", (x,), out_ty=R.Tensor((5,), "float32"))
+            result = R.call_py_func("non_existent_func", (x,), ty_args=[R.Tensor((5,), "float32")])
             return result
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = ValidationTestModule(device)
 
     x = torch.randn(5, dtype=torch.float32)
@@ -759,7 +746,7 @@ def test_call_py_func_with_base_py_module():
         module.call_py_func("non_existent_func", [x])
 
     # Test 4: Using call_py_func within Relax functions
-    @I.ir_module
+    @R.py_module
     class RelaxCallPyFuncModule(BasePyModule):
         @I.pyfunc
         def torch_relu(self, x):
@@ -773,13 +760,13 @@ def test_call_py_func_with_base_py_module():
 
         @R.function
         def mixed_computation(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
-            relu_result = R.call_py_func("torch_relu", (x,), out_ty=R.Tensor((10,), "float32"))
+            relu_result = R.call_py_func("torch_relu", (x,), ty_args=[R.Tensor((10,), "float32")])
             final_result = R.call_py_func(
-                "torch_softmax", (relu_result,), out_ty=R.Tensor((10,), "float32")
+                "torch_softmax", (relu_result,), ty_args=[R.Tensor((10,), "float32")]
             )
             return final_result
 
-    device = tvm.cpu()
+    device = tvm_tirx.cpu()
     module = RelaxCallPyFuncModule(device)
 
     x = torch.randn(10, dtype=torch.float32)
@@ -790,7 +777,7 @@ def test_call_py_func_with_base_py_module():
     final_result = module.call_py_func("torch_softmax", [relu_result])
 
     # Convert to numpy for comparison
-    if isinstance(final_result, tvm.runtime.Tensor):
+    if isinstance(final_result, tvm_tirx.runtime.Tensor):
         final_result_np = final_result.numpy()
     else:
         final_result_np = final_result
@@ -801,8 +788,8 @@ def test_call_py_func_with_base_py_module():
         expected_np = expected
 
     # Use numpy for comparison since we have numpy arrays
-    tvm.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
+    tvm_tirx.testing.assert_allclose(final_result_np, expected_np, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

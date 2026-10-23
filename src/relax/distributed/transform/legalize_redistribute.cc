@@ -23,11 +23,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/ccl.h>
-#include <tvm/relax/attrs/distributed.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/ccl.h>
+#include <tvm/relax/op/distributed.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include "../../../s_tir/schedule/transform.h"
@@ -114,7 +114,7 @@ Pass LegalizeRedistribute() {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return RedistributeLegalizer::LegalizeRedistribute(m);
   };
-  return CreateModulePass(pass_func, 1, "LegalizeRedistribute", {});
+  return CreateModulePass(pass_func, 1, "LegalizeRedistribute");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

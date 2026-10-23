@@ -25,24 +25,27 @@ import pytest
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
-import tvm.testing
+import tvm
 import tvm.topi.testing
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.builder import LocalBuilder
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 from .infrastructure import get_android_gpu_target, get_rpc_runner
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+@Ts.function
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("update"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -75,4 +78,4 @@ def test_tune_tir_on_android():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

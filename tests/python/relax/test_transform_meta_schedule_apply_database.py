@@ -17,40 +17,43 @@
 # ruff: noqa: F401
 
 import tvm
-import tvm.testing
-from tvm import relax, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import ir as I
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
-target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
+target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class RecordModule:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
+        @Ts.function
+        def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
-                with T.sblock("block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class BlockRenamedModule:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
+        @Ts.function
+        def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
-                with T.sblock("renamed_block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("renamed_block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
+        @Ts.function
+        def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr(
                 {
                     "tirx.is_scheduled": True,
@@ -59,11 +62,11 @@ def test_apply_to_func_with_different_block_name():
                 }
             )
             for i in T.serial(2):
-                with T.sblock("renamed_block"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("renamed_block"):
+                    vi = Ts.axis.spatial(2, i)
                     B[vi] = A[vi]
 
-    def create_trace(mod: tvm.IRModule):
+    def create_trace(mod: tvm_tirx.IRModule):
         sch = tvm.s_tir.Schedule(mod)
         _ = sch.get_sblock("block")
         return sch.trace
@@ -78,8 +81,8 @@ def test_apply_to_func_with_different_block_name():
 
     with db, target:
         mod = relax.transform.MetaScheduleApplyDatabase()(BlockRenamedModule)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

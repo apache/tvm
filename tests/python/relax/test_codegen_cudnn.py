@@ -19,19 +19,20 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.testing import env
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.testing import env as tvm_env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax import script as R
 from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_stacked_attention_module
-from tvm.script import relax as R
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
+from tvm_tirx.script.ir_builder import IRBuilder
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +42,7 @@ def reset_seed():
 
 pytestmark = [
     pytest.mark.gpu,
-    pytest.mark.skipif(not env.has_cudnn(), reason="need cudnn"),
+    pytest.mark.skipif(not tvm_env.has_cudnn(), reason="need cudnn"),
 ]
 
 
@@ -66,14 +67,14 @@ def get_relax_conv2d_module(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if with_bias:
                 if data_layout == "NHWC":
-                    bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
                 elif data_layout == "NCHW":
-                    bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
                 else:
                     raise ValueError(f"Unsupported data_layout: {data_layout}")
 
@@ -101,7 +102,7 @@ def get_relax_conv2d_module(
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
@@ -111,7 +112,7 @@ def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    with tvm.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
             "relax.transform.apply_legalize_ops": legalize,
@@ -120,10 +121,10 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device_from_target(target, 0)
+        dev = tvm_tirx.device_from_target(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
-        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+        inputs = [tvm_tirx.runtime.tensor(inp, dev) for inp in inputs_np]
 
         # For cuda graph, run the compiled function twice to make sure that we can launch the
         # cached graph on the second run.
@@ -132,8 +133,8 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
 
         return f(*inputs).numpy()
 
-    if tvm.target.Target(target).kind.name == "cuda":
-        return tvm.testing.run_with_gpu_lock(run_and_check)
+    if tvm_tirx.target.Target(target).kind.name == "cuda":
+        return tvm_tirx.testing.run_with_gpu_lock(run_and_check)
     return run_and_check()
 
 
@@ -209,11 +210,11 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
     if dtype == "float16":
         # FIXME(lei): currently raise into 3e-1 to prevent flaky test
         # see https://github.com/apache/tvm/pull/18319
-        tvm.testing.assert_allclose(out, ref, rtol=3e-1, atol=3e-1)
+        tvm_tirx.testing.assert_allclose(out, ref, rtol=3e-1, atol=3e-1)
     else:
         # Increased tolerance to 2.5e-2 to prevent flaky test due to numerical
         # differences between cuDNN and LLVM implementations
-        tvm.testing.assert_allclose(out, ref, rtol=2.5e-2, atol=2.5e-2)
+        tvm_tirx.testing.assert_allclose(out, ref, rtol=2.5e-2, atol=2.5e-2)
 
 
 @pytest.mark.skip(reason="flaky test")
@@ -257,9 +258,9 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
     out = get_result_with_relax_cudnn_offload(mod, args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
     if dtype == "float16":
-        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+        tvm_tirx.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
     else:
-        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+        tvm_tirx.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @memoize("topi.tests.test_codegen_cudnn.test_stacked_attention_offload")
@@ -350,8 +351,8 @@ def test_stacked_attention_split_offload(stacked_attention_size):
         out = get_result_with_relax_cudnn_offload(mod, [qkv])
     else:
         out = get_result_with_relax_cudnn_offload(mod, [qkv, bias])
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=2e-2)
+    tvm_tirx.testing.assert_allclose(out, ref, rtol=1e-2, atol=2e-2)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

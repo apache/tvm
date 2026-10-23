@@ -57,6 +57,11 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
+void TypeVisitor::VisitType_(const tvm::FuncTypeNode* op) {
+  // Native callbacks may appear inside Relax tuples. Their signature symbols
+  // and tensor contracts belong to the native function, not the Relax scope.
+}
+
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
   if (op->params.has_value()) {
     for (Type param : op->params.value()) {
@@ -84,7 +89,7 @@ Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
   if (values.same_as(op->values)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return ShapeType(values.value(), op->span);
+    return ShapeType(values.value(), op->loc);
   }
 }
 
@@ -94,12 +99,12 @@ Type TypeMutator::VisitType_(const TensorTypeNode* op) {
   }
 
   ffi::Optional<Expr> shape = this->VisitTypeExprField(op->shape.value());
-  VDevice vdev = op->vdevice.value_or(VDevice());
+  ffi::Optional<VDevice> vdev = op->vdevice;
 
   if (shape.same_as(op->shape)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return TensorType(shape.value(), op->dtype, vdev, op->span);
+    return TensorType(shape.value(), op->dtype, vdev, op->loc);
   }
 }
 
@@ -114,8 +119,13 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   if (fields.same_as(op->fields)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return TupleType(fields, op->span);
+    return TupleType(fields, op->loc);
   }
+}
+
+Type TypeMutator::VisitType_(const tvm::FuncTypeNode* op) {
+  // Relax type rewrites preserve the native callback's signature.
+  return ffi::GetRef<Type>(op);
 }
 
 Type TypeMutator::VisitType_(const FuncTypeNode* op) {
@@ -132,9 +142,9 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   } else {
     TVM_FFI_ICHECK(ret.defined()) << "FuncType must contain ret";
     if (params.has_value()) {
-      return FuncType(params.value(), ret, op->purity, op->span);
+      return FuncType(params.value(), ret, op->purity, op->loc);
     } else {
-      return FuncType::OpaqueFunc(ret, op->purity, op->span);
+      return FuncType::OpaqueFunc(ret, op->purity, op->loc);
     }
   }
 }

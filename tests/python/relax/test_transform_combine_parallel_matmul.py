@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E731, F401, F841
+# ruff: noqa: E731, F401
 import pytest
 
-import tvm.testing
-from tvm import relax, tirx
+import tvm
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
-from tvm.script import relax as R
-from tvm.script import tirx as T
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.ir_builder import IRBuilder
 
 
 def get_parallel_matmul(
@@ -39,17 +41,17 @@ def get_parallel_matmul(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(lhs_shape, dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(lhs_shape, dtype))
 
             rhs = []
             bias = []
 
             for i in range(num_branches):
-                rhs.append(R.arg("y", R.Tensor(rhs_shape, dtype)))
+                rhs.append(R.arg_("y", R.Tensor(rhs_shape, dtype)))
 
                 if with_bias and with_bias[i]:
-                    bias.append(R.arg("bias", R.Tensor((rhs_shape[1],), dtype)))
+                    bias.append(R.arg_("bias", R.Tensor((rhs_shape[1],), dtype)))
                 else:
                     bias.append(None)
 
@@ -70,14 +72,14 @@ def get_parallel_matmul(
             R.func_ret_value(frame.output_vars[0])
 
     func = builder.get()
-    return tvm.IRModule({"main": func})
+    return tvm_tirx.IRModule({"main": func})
 
 
 def test_simple():
     mod_orig = get_parallel_matmul(1)
     mod = CombineParallelMatmul()(mod_orig)
 
-    tvm.ir.assert_structural_equal(mod, mod_orig)
+    tvm_tirx.ir.assert_structural_equal(mod, mod_orig)
 
     mod = get_parallel_matmul(3)
     mod = CombineParallelMatmul()(mod)
@@ -100,7 +102,7 @@ def test_simple():
             R.output(lv3)
         return lv3
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     # Test a batched LHS case, slicing is done on the axis 2
     mod = get_parallel_matmul(3, lhs_shape=(2, 1024, 640))
@@ -124,7 +126,7 @@ def test_simple():
             R.output(lv3)
         return lv3
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
 
 def test_bias():
@@ -154,7 +156,7 @@ def test_bias():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, False, True])
     mod = CombineParallelMatmul()(mod)
@@ -181,7 +183,7 @@ def test_bias():
             R.output(lv5)
         return lv5
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
 
 def test_activation():
@@ -207,7 +209,7 @@ def test_activation():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, activation=["gelu", "relu", "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -233,7 +235,7 @@ def test_activation():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, activation=["relu", None, None])
     mod = CombineParallelMatmul()(mod)
@@ -258,7 +260,7 @@ def test_activation():
             R.output(lv4)
         return lv4
 
-    tvm.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
 
 
 def test_bias_activation():
@@ -289,7 +291,7 @@ def test_bias_activation():
             R.output(lv9)
         return lv9
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, True, True], activation=["relu", None, "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -319,7 +321,7 @@ def test_bias_activation():
             R.output(lv8)
         return lv8
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, False, True], activation=["relu", None, "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -348,7 +350,7 @@ def test_bias_activation():
             R.output(lv7)
         return lv7
 
-    tvm.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
 
 
 def test_rhs_batched():
@@ -369,7 +371,7 @@ def test_rhs_batched():
             R.output(out)
         return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
     @R.function(private=True)
     def expected(
@@ -391,9 +393,9 @@ def test_rhs_batched():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class four_matmul_incompatible_batches:
         @R.function
         def main(
@@ -415,7 +417,7 @@ def test_rhs_batched():
     mod = CombineParallelMatmul()(four_matmul_incompatible_batches)
     # For now, when rhs matrices have the same rank but different batch sizes, we don't
     # combine any of them.
-    tvm.ir.assert_structural_equal(mod, four_matmul_incompatible_batches)
+    tvm_tirx.ir.assert_structural_equal(mod, four_matmul_incompatible_batches)
 
 
 def test_multiple_combine():
@@ -443,7 +445,7 @@ def test_multiple_combine():
             R.output(out)
         return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
     @R.function(private=True)
     def expected(
@@ -475,7 +477,7 @@ def test_multiple_combine():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_check():
@@ -500,7 +502,7 @@ def test_check():
         return out
 
     check = lambda *inp: len(inp[1]) > 2  # Ignore branches with two matmuls
-    after = CombineParallelMatmul(check)(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul(check)(tvm_tirx.IRModule.from_expr(before))["main"]
 
     @R.function(private=True)
     def expected(
@@ -525,7 +527,7 @@ def test_check():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_combine_matmul_of_static_and_dynamic_shapes():
@@ -538,13 +540,14 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
 
     """
 
+    M = T.dynamic("M", "int64")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
         w0: R.Tensor((640, 640), "float32"),
-        w1: R.Tensor((640, "M"), "float32"),
+        w1: R.Tensor((640, M), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -552,15 +555,16 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
             R.output(out)
         return out
 
+    M = T.dynamic("M", "int64")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
         w0: R.Tensor((640, 640), dtype="float32"),
-        w1: R.Tensor((640, "M"), dtype="float32"),
+        w1: R.Tensor((640, M), dtype="float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, 640), dtype="float32"), R.Tensor((2, 1024, "M"), dtype="float32")
+        R.Tensor((2, 1024, 640), dtype="float32"), R.Tensor((2, 1024, M), dtype="float32")
     ):
-        M = T.int64()
         with R.dataflow():
             lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w0, w1), axis=1)
             lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
@@ -579,9 +583,9 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
             R.output(out)
         return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_combine_matmul_of_dynamic_and_static_shapes():
@@ -594,13 +598,14 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
     concatenated weights.
     """
 
+    M = T.dynamic("M", "int64")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
-        w0: R.Tensor((640, "M"), "float32"),
+        w0: R.Tensor((640, M), "float32"),
         w1: R.Tensor((640, 640), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -608,15 +613,16 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
             R.output(out)
         return out
 
+    M = T.dynamic("M", "int64")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
-        w0: R.Tensor((640, "M"), dtype="float32"),
+        w0: R.Tensor((640, M), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, "M"), dtype="float32"), R.Tensor((2, 1024, 640), dtype="float32")
+        R.Tensor((2, 1024, M), dtype="float32"), R.Tensor((2, 1024, 640), dtype="float32")
     ):
-        M = T.int64()
         with R.dataflow():
             lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w1, w0), axis=1)
             lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
@@ -635,9 +641,9 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
             R.output(out)
         return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_limit_one_dynamic_shape_in_combined_matmul():
@@ -650,14 +656,16 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     matmul.
     """
 
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
-        w0: R.Tensor((640, "M"), "float32"),
+        w0: R.Tensor((640, M), "float32"),
         w1: R.Tensor((640, 640), "float32"),
-        w2: R.Tensor((640, "N"), "float32"),
+        w2: R.Tensor((640, N), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -666,18 +674,20 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
             R.output(out)
         return out
 
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
-        w0: R.Tensor((640, "M"), dtype="float32"),
+        w0: R.Tensor((640, M), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
-        w2: R.Tensor((640, "N"), "float32"),
+        w2: R.Tensor((640, N), "float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, "M"), dtype="float32"),
+        R.Tensor((2, 1024, M), dtype="float32"),
         R.Tensor((2, 1024, 640), dtype="float32"),
-        R.Tensor((2, 1024, "N"), dtype="float32"),
+        R.Tensor((2, 1024, N), dtype="float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             concat_weights = R.concat((w1, w0), axis=1)
             concat_output = R.matmul(x, concat_weights, out_dtype="float32")
@@ -691,9 +701,9 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
             R.output(out)
         return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 @pytest.mark.parametrize("float32_branch", [0, 1])
@@ -728,10 +738,10 @@ def test_skip_matmuls_with_different_output_dtypes(float32_branch):
                 R.output(out)
             return out
 
-    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+    after = CombineParallelMatmul()(tvm_tirx.IRModule.from_expr(before))["main"]
 
-    tvm.ir.assert_structural_equal(after, before)
+    tvm_tirx.ir.assert_structural_equal(after, before)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

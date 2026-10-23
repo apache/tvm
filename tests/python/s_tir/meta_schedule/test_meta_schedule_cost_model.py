@@ -27,8 +27,9 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm.ir.utils import derived_object
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.s_tir.meta_schedule.cost_model.xgb_model import PackSum, _get_custom_call_back
 from tvm.s_tir.meta_schedule.feature_extractor import RandomFeatureExtractor
@@ -36,7 +37,8 @@ from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule.schedule import Schedule
-from tvm.script import tirx as T
+from tvm.s_tir.utils import derived_object
+from tvm_tirx.script import tirx as T
 
 requires_xgboost = pytest.mark.skipif(
     find_spec("xgboost") is None, reason="xgboost is not installed"
@@ -44,32 +46,34 @@ requires_xgboost = pytest.mark.skipif(
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class FullModule:
-    @T.prim_func(s_tir=True)
-    def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+    @Ts.function
+    def main(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.sblock("T_full"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads()
-                T.writes(T_full[v_ax0, v_ax1])
+            with Ts.sblock("T_full"):
+                v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                Ts.reads()
+                Ts.writes(T_full[v_ax0, v_ax1])
                 T_full[v_ax0, v_ax1] = T.float32(1)
 
 
@@ -330,4 +334,4 @@ def test_meta_schedule_xgb_model_callback_as_function():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

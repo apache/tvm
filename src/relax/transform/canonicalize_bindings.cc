@@ -30,10 +30,13 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
+
+#include "../op/op_common.h"
 
 namespace tvm {
 namespace relax {
@@ -52,6 +55,68 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return CanonicalizeShapeValue(expr);
   }
 
+  Expr VisitExpr_(const CallNode* op) final {
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+    bool is_call_tir = op->op.same_as(call_tir_op) || op->op.same_as(call_tir_inplace_op) ||
+                       op->op.same_as(call_tir_with_grad_op);
+    if (!is_call_tir || op->args.size() != 2 || op->ty_args.size() != 1) {
+      return ExprMutator::VisitExpr_(op);
+    }
+    // The out_ty of a call_tir is checked against the argument types. Canonicalizing the
+    // two independently can leave them mentioning different variables for the same value,
+    // so the parts of the canonical out_ty that no longer follow from the arguments are
+    // replaced by what the arguments imply.
+    Expr new_op = this->VisitExpr(op->op);
+    ffi::Array<Expr> new_args =
+        op->args.Map([this](const Expr& arg) { return this->VisitExpr(arg); });
+    Type out_ty = this->VisitExprDepTypeField(op->ty_args[0]);
+    ffi::Optional<ffi::Array<int64_t>> inplace_indices;
+    if (const auto* attrs = op->attrs.as<CallTIRInplaceAttrs>()) {
+      inplace_indices = attrs->inplace_indices;
+    }
+    auto implied = InferCallTIROutputTypeFromArguments(GetType(new_args[0]), GetType(new_args[1]),
+                                                       inplace_indices);
+    if (implied.has_value()) {
+      out_ty = ReconcileOutType(implied.value(), out_ty);
+    }
+    bool unchanged =
+        new_op.same_as(op->op) && new_args.same_as(op->args) && out_ty.same_as(op->ty_args[0]);
+    if (unchanged) {
+      return ffi::GetRef<Expr>(op);
+    }
+    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->loc);
+  }
+
+  /*!
+   * \brief Keep each output of out_ty that follows from the implied type. For a tensor that
+   * does not, take the implied shape and keep the dtype and vdevice, since the tirx::Function
+   * signature carries no vdevice and erases the shape of an output with a dimension the
+   * arguments do not determine.
+   */
+  static Type ReconcileOutType(const Type& implied, const Type& out_ty) {
+    if (IsBaseOf(implied, out_ty)) {
+      return out_ty;
+    }
+    const auto* implied_tuple = implied.as<TupleTypeNode>();
+    const auto* out_tuple = out_ty.as<TupleTypeNode>();
+    if (implied_tuple && out_tuple && implied_tuple->fields.size() == out_tuple->fields.size()) {
+      ffi::Array<Type> fields;
+      for (size_t i = 0; i < out_tuple->fields.size(); ++i) {
+        fields.push_back(ReconcileOutType(implied_tuple->fields[i], out_tuple->fields[i]));
+      }
+      return TupleType(fields, out_tuple->loc);
+    }
+    const auto* implied_tensor = implied.as<TensorTypeNode>();
+    const auto* out_tensor = out_ty.as<TensorTypeNode>();
+    if (implied_tensor && out_tensor && implied_tensor->shape.has_value()) {
+      return TensorType(implied_tensor->shape.value(), out_tensor->dtype, out_tensor->vdevice,
+                        out_tensor->loc);
+    }
+    return implied;
+  }
+
   Expr VisitExpr_(const ShapeExprNode* op) final {
     if (!canonicalize_shape_values_) return ffi::GetRef<Expr>(op);
     ffi::Array<PrimExpr> values =
@@ -59,7 +124,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (values.same_as(op->values)) {
       return ffi::GetRef<Expr>(op);
     }
-    return ShapeExpr(values, op->span);
+    return ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* func) override {
@@ -90,7 +155,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
             << ", while the later definition of Relax variable " << binding->var
             << " instead implies that TIR variable " << tir_var.value() << " is " << prim_expr;
       } else {
-        known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
+        known_values_.insert_or_assign(tir_var.value(),
+                                       KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)});
       }
     }
     // A MatchCast that defines a runtime-used symbolic variable cannot be folded away.
@@ -101,7 +167,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     canonicalize_shape_values_ = cached;
   }
 
-  Expr VisitExpr_(const IfNode* op) override {
+  Expr VisitExpr_(const IfExprNode* op) override {
     Expr guard = this->VisitExpr(op->cond);
 
     auto cached = known_values_;
@@ -148,13 +214,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
                         output_var);
     }
 
-    return If(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->loc);
   }
 
  private:
   class RuntimePrimVarCollector : public ExprVisitor {
    public:
-    static std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
+    static std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
         const Expr& expr) {
       RuntimePrimVarCollector collector;
       collector.VisitExpr(expr);
@@ -173,7 +239,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     }
 
    private:
-    std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
+    std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
@@ -194,8 +260,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     MatchCast source;
   };
 
-  std::unordered_map<tirx::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
-  std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
+  std::unordered_map<tvm::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
+  std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
   bool canonicalize_shape_values_ = true;
 };
 
@@ -552,7 +618,7 @@ class BindingCanonicalizer : public ExprMutator {
         // if the current var is an output and has not been disqualified,
         // then include it in the candidate map
         if (!disqualified_set.count(df_var) && output_vars.count(df_var)) {
-          candidates[df_var] = value;
+          candidates.insert_or_assign(df_var, value);
         }
       } else {
         // The LHS is an output binding.
@@ -641,14 +707,14 @@ Pass CanonicalizeTIRVariables() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeTIRVariables(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables");
 }
 
 Pass CanonicalizeRelaxBindings() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeBindings(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings");
 }
 
 Pass CanonicalizeBindings() {
