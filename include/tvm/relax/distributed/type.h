@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_TYPE_H_
 #define TVM_RELAX_DISTRIBUTED_TYPE_H_
 
+#include <tvm/base.h>
 #include <tvm/relax/distributed/global_info.h>
 #include <tvm/relax/type.h>
 
@@ -68,7 +69,11 @@ class PlacementSpec : public ffi::ObjectRef {
 
   TVM_DLL static PlacementSpec Replica();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
+  explicit PlacementSpec(ffi::UnsafeInit tag, ffi::ObjectPtr<PlacementSpecNode> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
 };
 
 class ShardingNode : public PlacementSpecNode {
@@ -110,7 +115,7 @@ class Placement : public ffi::ObjectRef {
   TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
   static Placement FromText(ffi::String text_repr);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ffi::ObjectRef, PlacementNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Placement, ffi::ObjectRef, PlacementNode);
 };
 
 /*!
@@ -119,7 +124,9 @@ class Placement : public ffi::ObjectRef {
 class DTensorTypeNode : public TypeNode {
  public:
   explicit DTensorTypeNode(ffi::UnsafeInit)
-      : tensor_ty(ffi::UnsafeInit{}), device_mesh(), placement() {}
+      : tensor_ty(ffi::UnsafeInit{}),
+        device_mesh(ffi::UnsafeInit{}),
+        placement(ffi::UnsafeInit{}) {}
 
   DTensorTypeNode(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement)
       : tensor_ty(std::move(tensor_ty)),
@@ -160,10 +167,10 @@ class DTensorType : public Type {
    * \param tensor_ty The tensor type carried by the DTensor type.
    * \param device_mesh The device mesh of the tensor.
    * \param placement The placement of the tensor among the device mesh.
-   * \param span The span of the AST.
+   * \param loc The loc of the AST.
    */
   TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                      Span span = Span());
+                      Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DTensorType, Type, DTensorTypeNode);
 };

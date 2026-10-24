@@ -17,12 +17,13 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key,
@@ -30,6 +31,8 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
+    TVM_FFI_CHECK(ann_key != tvm::s_tir::attr::kThreadBinding.name, ValueError)
+        << "Use loop scheduling primitives to change thread binding";
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
@@ -63,6 +66,8 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   // Extract annotation
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
+    TVM_FFI_CHECK(ann_key != tvm::s_tir::attr::kThreadBinding.name, ValueError)
+        << "Use loop scheduling primitives to change thread binding";
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
@@ -160,8 +165,10 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(AnnotateTraits);
-TVM_REGISTER_INST_KIND_TRAITS(UnannotateTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<AnnotateTraits>();
+  RegisterInstructionKind<UnannotateTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

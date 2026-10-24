@@ -22,6 +22,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 
@@ -31,7 +32,7 @@
 
 #include "../../../transform/utils.h"
 #include "../codegen_json/codegen_json.h"
-#include "tvm/relax/attrs/manipulate.h"
+#include "tvm/relax/op/manipulate.h"
 
 namespace tvm {
 namespace relax {
@@ -144,7 +145,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
 class NNAPIJSONSerializer : public JSONSerializer {
  public:
-  explicit NNAPIJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  explicit NNAPIJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                                ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
   using JSONSerializer::VisitExpr_;
@@ -155,7 +156,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto composite_opt = fn->GetAttr(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
@@ -204,7 +205,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 
 ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                      ffi::Map<Constant, ffi::String> constant_names) {
+                                      ffi::Map<GenericConst, ffi::String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
   ffi::Array<ffi::Module> compiled_functions;

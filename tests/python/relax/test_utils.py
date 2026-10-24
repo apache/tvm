@@ -20,10 +20,11 @@ import re
 
 import pytest
 
-import tvm
+import tvm_tirx
 from tvm import relax
-from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import relax as R
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import tirx as T
+from tvm_tirx.script.parser import relax as R
 
 
 def test_copy_with_new_vars():
@@ -41,8 +42,10 @@ def test_copy_with_new_vars():
 
 
 def test_copy_with_new_vars_copied_symbolic_vars():
+    m = T.dynamic("m", "int64")
+
     @R.function
-    def before(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
+    def before(x: R.Tensor((m,), "float32"), y: R.Tensor((m,), "float32")):
         gv = R.add(x, y)
         return gv
 
@@ -56,14 +59,14 @@ def test_copy_with_new_vars_copied_symbolic_vars():
 
 
 def test_copy_with_new_vars_on_ir_module():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Actual:
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
             gv = R.add(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
@@ -85,7 +88,7 @@ def test_copy_with_new_vars_on_ir_module():
 
 
 def test_copy_with_new_vars_on_ir_module_nested_function():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Actual:
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
@@ -97,7 +100,7 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
             gv = R.add(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
@@ -167,7 +170,7 @@ def test_structural_equal_of_call_nodes():
         C = R.add(A, B)
         return C
 
-    tvm.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
+    tvm_tirx.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
 
 
 def test_structural_equal_with_recursive_lambda_function():
@@ -184,9 +187,9 @@ def test_structural_equal_with_recursive_lambda_function():
 
     def define_function():
         @R.function
-        def func(n: R.Prim("int64")):
+        def func(n: T.int64):
             @R.function
-            def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+            def recursive_lambda(i_arg: T.int64) -> T.int64:
                 condition = R.equal(i_arg, R.prim_value(0))
                 if condition:
                     output = R.prim_value(0)
@@ -203,7 +206,7 @@ def test_structural_equal_with_recursive_lambda_function():
     func_1 = define_function()
     func_2 = define_function()
 
-    tvm.ir.assert_structural_equal(func_1, func_2)
+    tvm_tirx.ir.assert_structural_equal(func_1, func_2)
 
 
 def test_structural_equal_with_distinct_recursive_lambda_function():
@@ -214,9 +217,9 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
     """
 
     @R.function(private=True)
-    def func_a(n: R.Prim("int64")):
+    def func_a(n: T.int64):
         @R.function
-        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+        def recursive_lambda(i_arg: T.int64) -> T.int64:
             condition = R.equal(i_arg, R.prim_value(0))
             if condition:
                 output = R.prim_value(0)
@@ -231,9 +234,9 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
         return recursive_lambda(n)
 
     @R.function(private=True)
-    def func_b(n: R.Prim("int64")):
+    def func_b(n: T.int64):
         @R.function
-        def recursive_lambda(i_arg: R.Prim("int64")) -> R.Prim("int64"):
+        def recursive_lambda(i_arg: T.int64) -> T.int64:
             condition = R.equal(i_arg, R.prim_value(0))
             if condition:
                 output = R.prim_value(1)
@@ -265,7 +268,7 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
     ]
 
     with pytest.raises(ValueError, match=re.escape(".".join(mismatch_path))):
-        tvm.ir.assert_structural_equal(func_a, func_b)
+        tvm_tirx.ir.assert_structural_equal(func_a, func_b)
 
 
 if __name__ == "__main__":

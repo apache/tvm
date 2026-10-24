@@ -17,11 +17,9 @@
 # under the License.
 
 set -euxo pipefail
-
-export PYTHONPATH="$(pwd)/python"
 export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
-# setup tvm-ffi into python folder
-uv pip install -v --target=python ./3rdparty/tvm-ffi/
-
-python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER:-not gpu}" tests/python
+if [ "$#" -eq 0 ]; then
+    set -- tests/python 3rdparty/tvm-tirx/tests/python
+fi
+python3 -m pytest -vvs -n auto -o faulthandler_timeout=120 -m "${TVM_TEST_MARKER:-not gpu}" "$@"

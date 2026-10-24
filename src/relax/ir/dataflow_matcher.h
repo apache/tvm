@@ -24,11 +24,11 @@
 #ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 #define TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
-#include <tvm/tirx/op.h>
+#include <tvm/sym/analyzer.h>
 
 #include <unordered_map>
 #include <utility>
@@ -41,7 +41,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
  public:
   using var2val_t = ffi::Map<Var, Expr>;
 
-  explicit DFPatternMatcher() {}
+  explicit DFPatternMatcher() : DFPatternMatcher(var2val_t{}) {}
   explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   ffi::Map<DFPattern, Expr> GetMemo() { return memo_; }
@@ -78,24 +78,11 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
                          const tvm::ffi::Array<Expr> fields, std::vector<int8_t>& match_cache,
                          std::vector<bool>& matched);
 
-  /* \brief Simplify a boolean condition using the analyzer
-   *
-   * Matching type can often produce conditions that do not
-   * simplify cleanly.  For example, while the rewrite simplifier can
-   * recognize that `m==0 && m==1` can be simplifies to `false`, it
-   * cannot recognize that `m==0 && n==0 && m==1` can be simplified to
-   * false.
-   *
-   * This function applies additional simplification steps to handle
-   * these cases, before delgating to `analyzer_.Simplify`.
-   */
-  PrimExpr SimplifyCondition(PrimExpr condition);
-
   std::unordered_map<DFPattern, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
   PrimExpr symbolic_expr_condition_{IntImm::Bool(true)};
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   bool memoize_ = true;
 };
 

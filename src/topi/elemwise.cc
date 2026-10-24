@@ -23,10 +23,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/topi/elemwise.h>
 
 namespace tvm {
 namespace topi {
+using namespace tvm::prim;
 
 using namespace tvm;
 using namespace tvm::runtime;

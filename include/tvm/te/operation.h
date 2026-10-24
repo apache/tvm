@@ -24,13 +24,16 @@
 #ifndef TVM_TE_OPERATION_H_
 #define TVM_TE_OPERATION_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/te/reduction.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/buffer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/expr.h>
+#include <tvm/tirx/stmt.h>
 
 #include <string>
 #include <unordered_map>
@@ -49,9 +52,9 @@ namespace te {
 class CommReducerNode : public ffi::Object {
  public:
   /*! \brief The left argument of reducer */
-  ffi::Array<tirx::PrimVar> lhs;
+  ffi::Array<PrimVar> lhs;
   /*! \brief The right argument of reducer */
-  ffi::Array<tirx::PrimVar> rhs;
+  ffi::Array<PrimVar> rhs;
   /*! \brief The result of reducer */
   ffi::Array<PrimExpr> result;
   /*!
@@ -63,10 +66,10 @@ class CommReducerNode : public ffi::Object {
   /*! \brief Function call operator to combine a and b */
   ffi::Array<PrimExpr> operator()(ffi::Array<PrimExpr> a, ffi::Array<PrimExpr> b) const;
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -75,7 +78,7 @@ class CommReducerNode : public ffi::Object {
         .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
-        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("loc", &CommReducerNode::loc, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -88,15 +91,19 @@ class CommReducerNode : public ffi::Object {
  */
 class CommReducer : public ffi::ObjectRef {
  public:
-  TVM_DLL CommReducer(ffi::Array<tirx::PrimVar> lhs, ffi::Array<tirx::PrimVar> rhs,
-                      ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
-                      Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
+  TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
+                      ffi::Array<PrimExpr> identity_element, Location loc = UnknownLoc());
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
 /*! \brief Reduction operator */
 class ReduceNode : public OpaqueExprNode {
  public:
+  explicit ReduceNode(CommReducer combiner, PrimExpr condition)
+      : combiner(std::move(combiner)), condition(std::move(condition)) {}
+  explicit ReduceNode(ffi::UnsafeInit)
+      : combiner(ffi::UnsafeInit{}), condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
@@ -104,7 +111,7 @@ class ReduceNode : public OpaqueExprNode {
   /*! \brief The init operand */
   ffi::Array<PrimExpr> init;
   /*! \brief The reduction axis */
-  ffi::Array<tirx::IterVar> axis;
+  ffi::Array<s_tir::IterVar> axis;
   /*!
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
@@ -132,10 +139,12 @@ class ReduceNode : public OpaqueExprNode {
  */
 class Reduce : public PrimExpr {
  public:
-  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
-                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
-                 Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<s_tir::IterVar> rdom,
+                 ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
+                 Location loc = UnknownLoc());
+  explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
@@ -226,7 +235,12 @@ class PlaceholderOp : public Operation {
  public:
   TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
+  explicit PlaceholderOp(ffi::UnsafeInit tag, ffi::ObjectPtr<PlaceholderOpNode> node)
+      : Operation(tag) {
+    data_ = std::move(node);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
 
 /*!
@@ -281,7 +295,7 @@ class ComputeOp : public Operation {
   TVM_DLL ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ComputeOp, Operation, ComputeOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComputeOp, Operation, ComputeOpNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
 };
 
@@ -291,7 +305,7 @@ class ComputeOp : public Operation {
 class ScanOpNode : public OperationNode {
  public:
   /*! \brief IterVar to scan over */
-  IterVar scan_axis;
+  IterVar scan_axis{ffi::UnsafeInit{}};
   /*! \brief the initialization tensors */
   ffi::Array<Tensor> init;
   /*! \brief the update function represented by tensor */
@@ -345,7 +359,7 @@ class ScanOp : public Operation {
                  ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                  ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> input);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScanOp, Operation, ScanOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScanOp, Operation, ScanOpNode);
 };
 
 /*!
@@ -353,17 +367,18 @@ class ScanOp : public Operation {
  */
 class ExternOpNode : public OperationNode {
  public:
+  explicit ExternOpNode(SeqStmt body) : body(std::move(body)) {}
+  explicit ExternOpNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
-  ffi::Array<BufferVar> input_placeholders;
+  ffi::Array<TensorVar> input_placeholders;
   /*! \brief Symbolic placeholder representation of outputs */
-  ffi::Array<BufferVar> output_placeholders;
+  ffi::Array<TensorVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
-  Stmt body;
+  SeqStmt body;
 
-  /*! \brief constructor */
-  ExternOpNode() {}
   // override functions
   int num_outputs() const final;
   PrimType output_dtype(size_t i) const final;
@@ -388,10 +403,10 @@ class ExternOpNode : public OperationNode {
 class ExternOp : public Operation {
  public:
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
-                   ffi::Array<BufferVar> output_placeholders, Stmt body);
+                   ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
+                   ffi::Array<TensorVar> output_placeholders, SeqStmt body);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExternOp, Operation, ExternOpNode);
 };
 
 /*!

@@ -20,6 +20,7 @@
 #include "manipulate.h"
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr.h>
 
 #include <algorithm>
 #include <numeric>
@@ -77,8 +78,12 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphPermuteDims);
 }
 
-TVM_REGISTER_OP("relax.permute_dims")
-    .set_attr<FInferType>("dist.FInferType", InferDistTypePermuteDims);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.permute_dims")
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypePermuteDims);
+  // clang-format on
+}
 
 Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -128,7 +133,12 @@ Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphReshape);
 }
 
-TVM_REGISTER_OP("relax.reshape").set_attr<FInferType>("dist.FInferType", InferDistTypeReshape);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.reshape")
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeReshape);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

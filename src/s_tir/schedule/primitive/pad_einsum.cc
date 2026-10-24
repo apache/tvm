@@ -19,24 +19,24 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
- * \brief Check if buffer indices are all Vars and expr
- * \param buffer_access The TensorLoad or BufferStore
+ * \brief Check if tensor indices are all Vars and expr
+ * \param tensor_access The TensorLoad or TensorStore
  * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
-ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
-    const ffi::Array<PrimExpr>& buffer_access) {
+ffi::Optional<ffi::Array<Var>> CheckTrivialTensorIndices(
+    const ffi::Array<PrimExpr>& tensor_access) {
   ffi::Array<Var> indices;
-  for (const PrimExpr& index : buffer_access) {
+  for (const PrimExpr& index : tensor_access) {
     if (index->IsInstance<IntImmNode>()) {
       continue;
     }
@@ -49,17 +49,17 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
   return indices;
 }
 
-ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region) {
+ffi::Optional<ffi::Array<Var>> CheckTrivialTensorAccess(const TensorRegion& tensor_region) {
   ffi::Array<Var> indices;
-  indices.reserve(buffer_region->region.size());
-  for (const Range& range : buffer_region->region) {
-    if (!tirx::is_one(range->extent)) {
+  indices.reserve(tensor_region->region.size());
+  for (const Range& range : tensor_region->region) {
+    if (!tvm::prim::IsOne(range->extent)) {
       return std::nullopt;
     }
-    if (range->min->IsInstance<IntImmNode>()) {
+    if (range->begin->IsInstance<IntImmNode>()) {
       continue;
     }
-    if (auto var = range->min.as<PrimVar>()) {
+    if (auto var = range->begin.as<PrimVar>()) {
       indices.push_back(var.value());
     } else {
       return std::nullopt;
@@ -69,7 +69,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
 }
 
 /*! \brief The schedule error class when the padding size is invalid. */
-class InvalidPaddingError : public ScheduleError {
+class InvalidPaddingError : public ScheduleErrorContextObj {
  public:
   InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<int64_t> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
@@ -87,11 +87,11 @@ class InvalidPaddingError : public ScheduleError {
 
   static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<int64_t> padding) {
     if (padding.size() != block->iter_vars.size()) {
-      throw InvalidPaddingError(self->mod, block, padding);
+      throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
     }
     for (int64_t pad : padding) {
       if (pad <= 0) {
-        throw InvalidPaddingError(self->mod, block, padding);
+        throw MakeScheduleError<InvalidPaddingError>(self->mod, block, padding);
       }
     }
   }
@@ -103,7 +103,7 @@ class InvalidPaddingError : public ScheduleError {
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
-class NonEinsumError : public ScheduleError {
+class NonEinsumError : public ScheduleErrorContextObj {
  public:
   explicit NonEinsumError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
@@ -124,57 +124,50 @@ class NonEinsumError : public ScheduleError {
 
 /*! \brief Data structure that represents a Einsum computation. */
 struct Einsum {
-  // The output buffer
-  ffi::Array<BufferVar> output_buffers;
-  // The indices of the output buffer
-  ffi::Map<BufferVar, ffi::Array<Var>> output_indices;
-  // The input buffers
-  ffi::Array<BufferVar> input_buffers;
-  // The indices of the input buffers
-  ffi::Map<BufferVar, ffi::Array<Var>> input_indices;
+  // The output tensor
+  ffi::Array<TensorVar> output_tensors;
+  // The indices of the output tensor
+  ffi::Map<TensorVar, ffi::Array<Var>> output_indices;
+  // The input tensors
+  ffi::Array<TensorVar> input_tensors;
+  // The indices of the input tensors
+  ffi::Map<TensorVar, ffi::Array<Var>> input_indices;
 };
 
-struct BufferPadding {
-  BufferVar buffer;
-  BufferVar padded_buffer;
+struct TensorPadding {
+  TensorVar tensor;
+  TensorVar padded_tensor;
 
-  static BufferPadding FromBufferRegion(const BufferRegion& buffer_region,
+  static TensorPadding FromTensorRegion(const TensorRegion& tensor_region,
                                         const ffi::Map<Var, PrimExpr>& iter_extents) {
-    BufferPadding result;
-    result.buffer = buffer_region->buffer;
+    TensorVar tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<PrimExpr> shape;
-    shape.reserve(buffer_region->region.size());
-    int ndim = buffer_region->region.size();
+    shape.reserve(tensor_region->region.size());
+    int ndim = tensor_region->region.size();
     for (int i = 0; i < ndim; ++i) {
-      PrimExpr pos = buffer_region->region[i]->min;
+      PrimExpr pos = tensor_region->region[i]->begin;
       TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos.as<PrimVar>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos.ty(), 1));
       } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
-        shape.push_back(buffer_region->buffer->shape[i]);
+        shape.push_back(tensor_region->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i]);
       }
     }
-    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer.name() + "_pad",
-                                       result.buffer.scope());
-    return result;
+    return {tensor,
+            TensorVar(tensor->name + "_pad", TensorType(shape, tensor.dtype(), tensor.scope()))};
   }
 
-  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::AnalyzerObj* analyzer) {
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, sym::AnalyzerObj* analyzer) {
     ffi::Array<Var> loop_vars;
     ffi::Array<Range> loop_doms;
     ffi::Array<IterVar> iter_vars;
     ffi::Array<Range> instance_dom;
     ffi::Array<PrimExpr> indices;
-    int ndim = buffer->shape.size();
+    int ndim = tensor.shape().size();
     for (int i = 0; i < ndim; ++i) {
-      PrimExpr dim{nullptr};
-      if (is_read) {
-        dim = padded_buffer->shape[i];
-      } else {
-        dim = buffer->shape[i];
-      }
+      PrimExpr dim = is_read ? padded_tensor.shape()[i] : tensor.shape()[i];
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
@@ -183,26 +176,27 @@ struct BufferPadding {
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
     }
-    Stmt body{nullptr};
-    if (is_read) {
-      PrimExpr predicate = IntImm::Bool(true);
-      for (int i = 0; i < ndim; ++i) {
-        if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
-          predicate = predicate && (indices[i] < buffer->shape[i]);
+    Stmt body = [&]() -> Stmt {
+      if (is_read) {
+        PrimExpr predicate = IntImm::Bool(true);
+        for (int i = 0; i < ndim; ++i) {
+          if (!analyzer->CanProveEqual(tensor.shape()[i], padded_tensor.shape()[i])) {
+            predicate = predicate && (indices[i] < tensor.shape()[i]);
+          }
         }
+        PrimExpr rhs = TensorLoad(tensor, indices);
+        return TensorStore(padded_tensor, indices,
+                           if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)));
+      } else {
+        return TensorStore(tensor, indices, TensorLoad(padded_tensor, indices));
       }
-      PrimExpr rhs = BufferLoad(buffer, indices);
-      body =
-          BufferStore(padded_buffer, if_then_else(predicate, rhs, MakeConst(rhs.ty(), 0)), indices);
-    } else {
-      body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
-    }
-    BufferRegion read_region(buffer, instance_dom);
-    BufferRegion write_region(padded_buffer, instance_dom);
+    }();
+    TensorRegion read_region = TensorRegion(tensor, instance_dom, TensorRegionType());
+    TensorRegion write_region = TensorRegion(padded_tensor, instance_dom, TensorRegionType());
     if (!is_read) {
       std::swap(read_region, write_region);
     }
-    SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer.name(),
+    SBlock new_block(iter_vars, {read_region}, {write_region}, padded_tensor->name,
                      std::move(body));
     blocks->push_back(new_block);
     ffi::Array<PrimExpr> prim_loop_vars;
@@ -210,8 +204,10 @@ struct BufferPadding {
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
-                 ForKind::kSerial, std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->begin,
+                 loop_doms[i]->begin + loop_doms[i]->extent,
+                 IntImm(loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
+                 std::move(body));
     }
     return body;
   }
@@ -219,52 +215,52 @@ struct BufferPadding {
 
 Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   Einsum result;
-  std::unordered_set<const VarNode*> buffer_used;
+  std::unordered_set<const VarNode*> tensor_used;
   int n_reads = block->reads.size();
   for (int i = 0; i < n_reads; ++i) {
-    const BufferVar& buffer = block->reads[i]->buffer;
-    if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+    const TensorVar& tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (tensor_used.count(tensor.get()) != 0) {
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
-    buffer_used.insert(buffer.get());
-    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
-      result.input_buffers.push_back(buffer);
-      result.input_indices.Set(buffer, opt_indices.value());
+    tensor_used.insert(tensor.get());
+    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialTensorAccess(block->reads[i])) {
+      result.input_tensors.push_back(tensor);
+      result.input_indices.Set(tensor, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
-    const BufferVar& buffer = block->writes[i]->buffer;
-    if (buffer_used.count(buffer.get()) != 0) {
-      throw NonEinsumError(self->mod, block);
+    const TensorVar& tensor = block->writes[i]->source.as_or_throw<tvm::tirx::TensorVar>();
+    if (tensor_used.count(tensor.get()) != 0) {
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
-    buffer_used.insert(buffer.get());
-    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
-      result.output_buffers.push_back(buffer);
-      result.output_indices.Set(buffer, opt_indices.value());
+    tensor_used.insert(tensor.get());
+    if (ffi::Optional<ffi::Array<Var>> opt_indices = CheckTrivialTensorAccess(block->writes[i])) {
+      result.output_tensors.push_back(tensor);
+      result.output_indices.Set(tensor, opt_indices.value());
     } else {
-      throw NonEinsumError(self->mod, block);
+      throw MakeScheduleError<NonEinsumError>(self->mod, block);
     }
   }
   return result;
 }
 
-class BufferNotAllocatedInScopeError : public ScheduleError {
+class TensorNotAllocatedInScopeError : public ScheduleErrorContextObj {
  public:
-  explicit BufferNotAllocatedInScopeError(IRModule mod, BufferVar buffer)
-      : mod_(std::move(mod)), buffer_(std::move(buffer)) {}
+  explicit TensorNotAllocatedInScopeError(IRModule mod, TensorVar tensor)
+      : mod_(std::move(mod)), tensor_(std::move(tensor)) {}
 
   ffi::String FastErrorString() const final {
-    return "ScheduleError: The buffer is not allocated as an intermediate buffer in current "
-           "PrimFunc.";
+    return "ScheduleError: The tensor is not allocated as an intermediate tensor in current "
+           "Function.";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The buffer " << buffer_.name()
-       << " is not allocated as an intermediate buffer in current PrimFunc.";
+    os << "The tensor " << tensor_->name
+       << " is not allocated as an intermediate tensor in current Function.";
     return os.str();
   }
 
@@ -273,11 +269,11 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar tensor_;
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
-class InvalidProducerError : public ScheduleError {
+class InvalidProducerError : public ScheduleErrorContextObj {
  public:
   explicit InvalidProducerError(IRModule mod, SBlock producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}
@@ -288,8 +284,8 @@ class InvalidProducerError : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The producer block {0} cannot be padded. It should write to a single buffer and the "
-          "body should be a BufferStore.";
+    os << "The producer block {0} cannot be padded. It should write to a single tensor and the "
+          "body should be a TensorStore.";
     return os.str();
   }
 
@@ -298,76 +294,89 @@ class InvalidProducerError : public ScheduleError {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
   SBlock producer_;
 };
 
-class PadEinsumBufferReplacer : public StmtExprMutator {
+class PadEinsumTensorReplacer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* old_block_ptr, InplaceMode inplace_mode) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = StmtMutator::VisitStmt_(old_block_ptr).as_or_throw<SBlock>();
+    SBlock block = StmtExprMutator::Mutate_(old_block_ptr, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(old_block_ptr))
+                       .as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
       if (ffi::Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
         ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
-        new_iter_var->dom = Range::FromMinExtent(iter_var->dom->min, new_dom.value());
+        new_iter_var->dom = Range::FromMinExtent(iter_var->dom.value()->begin, new_dom.value());
         iter_vars.push_back(IterVar(new_iter_var));
       } else {
         iter_vars.push_back(iter_var);
       }
     }
-    ffi::Array<BufferRegion> reads;
+    ffi::Array<TensorRegion> reads;
     reads.reserve(block->reads.size());
-    for (const BufferRegion& read : block->reads) {
-      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(read->buffer)) {
-        reads.push_back(BufferRegion(buffer.value(), read->region));
+    for (const TensorRegion& read : block->reads) {
+      if (ffi::Optional<TensorVar> tensor =
+              VarRemapGet(read->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
+        reads.push_back(TensorRegion(tensor.value(), read->region, TensorRegionType()));
       } else {
         reads.push_back(read);
       }
     }
-    ffi::Array<BufferRegion> writes;
+    ffi::Array<TensorRegion> writes;
     writes.reserve(block->writes.size());
-    for (const BufferRegion& write : block->writes) {
-      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(write->buffer)) {
-        writes.push_back(BufferRegion(buffer.value(), write->region));
+    for (const TensorRegion& write : block->writes) {
+      if (ffi::Optional<TensorVar> tensor =
+              VarRemapGet(write->source.as_or_throw<tvm::tirx::TensorVar>()).as<TensorVar>()) {
+        writes.push_back(TensorRegion(tensor.value(), write->region, TensorRegionType()));
       } else {
         writes.push_back(write);
       }
     }
     SBlock new_block =
         SBlock(iter_vars, reads, writes, block->name_hint, block->body, block->init,
-               /*alloc_buffers=*/{}, /*match_buffers=*/{}, /*annotations=*/block->annotations);
+               /*alloc_tensors=*/{}, /*match_tensors=*/{}, /*annotations=*/block->annotations);
     block_sref_reuse_.Set(old_block, new_block);
     return new_block;
   }
 
-  Stmt VisitStmt_(const ForNode* old_for_ptr) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* old_for_ptr, InplaceMode inplace_mode) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = StmtMutator::VisitStmt_(old_for_ptr).as_or_throw<For>();
-    if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
+    For new_for = StmtExprMutator::Mutate_(old_for_ptr, inplace_mode)
+                      .ValueOrUnchanged(ffi::GetRef<Stmt>(old_for_ptr))
+                      .as_or_throw<For>();
+    if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
-      new_for_ptr->extent = new_extent.value();
+      new_for_ptr->end = new_for_ptr->begin + new_extent.value();
       new_for = For(new_for_ptr);
     }
     return new_for;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
-    BufferStore store = StmtMutator::VisitStmt_(old_store_ptr).as_or_throw<BufferStore>();
-    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(store->buffer)) {
-      return BufferStore(buffer.value(), store->value, store->indices);
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
+    TensorStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr))
+                            .as_or_throw<TensorStore>();
+    if (ffi::Optional<TensorVar> tensor =
+            VarRemapGet(store->dest.as_or_throw<TensorVar>()).as<TensorVar>()) {
+      return TensorStore(tensor.value(), store->indices, store->value);
     } else {
       return store;
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* old_load_ptr) final {
-    TensorLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<TensorLoad>();
-    if (ffi::Optional<BufferVar> buffer =
-            buffer_map_.Get(load->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      return BufferLoad(buffer.value(), load->indices);
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* old_load_ptr,
+                                InplaceMode inplace_mode) final {
+    TensorLoad load = StmtExprMutator::Mutate_(old_load_ptr, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(old_load_ptr))
+                          .as_or_throw<TensorLoad>();
+    if (ffi::Optional<TensorVar> tensor = VarRemapGet(load->source).as<TensorVar>()) {
+      return TensorLoad(tensor.value(), load->indices);
     } else {
       return load;
     }
@@ -375,12 +384,11 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   ffi::Map<Var, PrimExpr> iter2padded_extents;
   ffi::Map<Var, PrimExpr> loop_var2padded_extent;
-  ffi::Map<BufferVar, BufferVar> buffer_map_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
 };
 
 void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<int64_t>& padding) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
@@ -390,24 +398,24 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 2. Extract the Einsum pattern
   ExtractEinsum(self, ffi::GetRef<SBlock>(block));
   // Step 3. Figure out the padding needed
-  PadEinsumBufferReplacer replacer;
+  auto replacer = ffi::make_object<PadEinsumTensorReplacer>();
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    PrimExpr dom = iter->dom->extent;
+    PrimExpr dom = iter->dom.value()->extent;
     PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {
-      replacer.iter2padded_extents.Set(iter->var, new_dom);
+      replacer->iter2padded_extents.Set(iter->var, new_dom);
       if (auto loop_var = realize->iter_values[i].as<PrimVar>()) {
-        replacer.iter2padded_extents.Set(loop_var.value(), new_dom);
-        replacer.loop_var2padded_extent.Set(loop_var.value(), new_dom);
+        replacer->iter2padded_extents.Set(loop_var.value(), new_dom);
+        replacer->loop_var2padded_extent.Set(loop_var.value(), new_dom);
       }
     }
   }
   auto f_needs_padding = [&replacer](const ffi::Array<Range>& region) {
     for (const Range& range : region) {
-      if (auto var = range->min.as<PrimVar>()) {
-        if (replacer.iter2padded_extents.count(var.value())) {
+      if (auto var = range->begin.as<PrimVar>()) {
+        if (replacer->iter2padded_extents.count(var.value())) {
           return true;
         }
       }
@@ -415,12 +423,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     return false;
   };
   // Step 3. Convert the subtree under the scope root
-  ffi::Array<Stmt> scope_body;
-  if (const auto* seq_stmt = scope_block->body.as<SeqStmtNode>()) {
-    scope_body = seq_stmt->seq;
-  } else {
-    scope_body.push_back(scope_block->body);
-  }
+  ffi::Array<Stmt> scope_body = scope_block->body->seq;
   // Step 4. Find out the block of our interest
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
@@ -437,27 +440,27 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     }
   }
   TVM_FFI_ICHECK_NE(pos, -1);
-  // Step 5. For each buffer, if it needs padding, create a new buffer and a new block
+  // Step 5. For each tensor, if it needs padding, create a new tensor and a new block
   ffi::Array<Stmt> read_blocks;
   ffi::Array<Stmt> write_blocks;
   ffi::Array<SBlock> new_copy_blocks;
-  ffi::Array<BufferVar> alloc_buffers;
-  for (const BufferRegion& buffer_region : block->reads) {
-    if (f_needs_padding(buffer_region->region)) {
-      BufferPadding bp =
-          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
-      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+  ffi::Array<TensorVar> alloc_tensors;
+  for (const TensorRegion& tensor_region : block->reads) {
+    if (f_needs_padding(tensor_region->region)) {
+      TensorPadding bp =
+          TensorPadding::FromTensorRegion(tensor_region, replacer->iter2padded_extents);
+      replacer->VarRemapSet(bp.tensor, bp.padded_tensor);
       read_blocks.push_back(bp.MakeCopyBlock(true, &new_copy_blocks, analyzer.get()));
-      alloc_buffers.push_back(bp.padded_buffer);
+      alloc_tensors.push_back(bp.padded_tensor);
     }
   }
-  for (const BufferRegion& buffer_region : block->writes) {
-    if (f_needs_padding(buffer_region->region)) {
-      BufferPadding bp =
-          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
-      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+  for (const TensorRegion& tensor_region : block->writes) {
+    if (f_needs_padding(tensor_region->region)) {
+      TensorPadding bp =
+          TensorPadding::FromTensorRegion(tensor_region, replacer->iter2padded_extents);
+      replacer->VarRemapSet(bp.tensor, bp.padded_tensor);
       write_blocks.push_back(bp.MakeCopyBlock(false, &new_copy_blocks, analyzer.get()));
-      alloc_buffers.push_back(bp.padded_buffer);
+      alloc_tensors.push_back(bp.padded_tensor);
     }
   }
   // Step 6. Create new scope body
@@ -468,20 +471,19 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       continue;
     }
     new_scope_body.insert(new_scope_body.end(), read_blocks.begin(), read_blocks.end());
-    new_scope_body.push_back(replacer(scope_body[i]));
+    new_scope_body.push_back(replacer->Mutate(scope_body[i]).ValueOrUnchanged(scope_body[i]));
     new_scope_body.insert(new_scope_body.end(), write_blocks.begin(), write_blocks.end());
   }
   // Step 7. Create new scope
-  SBlock new_scope_block{nullptr};
-  {
+  SBlock new_scope_block = [&]() {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
-    n->body = SeqStmt::Flatten(new_scope_body);
-    n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
-    new_scope_block = SBlock(n);
-  }
-  replacer.block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
+    n->body = SeqStmt(new_scope_body, scope_block->body->loc);
+    n->alloc_tensors.insert(n->alloc_tensors.end(), alloc_tensors.begin(), alloc_tensors.end());
+    return SBlock(n);
+  }();
+  replacer->block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
   // Step 8. Do replacement and update flags
-  self->Replace(scope_sref, new_scope_block, replacer.block_sref_reuse_);
+  self->Replace(scope_sref, new_scope_block, replacer->block_sref_reuse_);
   for (const SBlock& block : new_copy_blocks) {
     StmtSRef block_sref = self->stmt2ref.at(block.get());
     SBlockInfo& block_info = self->block_info[block_sref];
@@ -518,7 +520,7 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(PadEinsumTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<PadEinsumTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

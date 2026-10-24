@@ -24,62 +24,38 @@
 #include <tvm/s_tir/schedule/schedule.h>
 
 #include <algorithm>
+#include <array>
 #include <sstream>
 #include <string>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-/*!
- * \brief Register an InstructionKind using a trait class
- * \param InstructionKindTraits A traits class of an InstructionKind
+/*! \brief Register a named instruction kind using its typed traits.
+ * \tparam Traits Traits with kName, kIsPure, and the instruction callbacks.
  *
  * Example:
- *
  * \code
- *
- * struct SomeInstructionKindTraits {
- *   static constexpr const char* kName = "name-of-the-instruction";
- *   static constexpr bool kIsPure = false;
- *
- *   // Convertible to `InstructionKindNode::FInstructionApply`
- *   static ffi::Array<ffi::ObjectRef> ApplyToSchedule(
- *      const s_tir::Schedule& sch,
- *      const ffi::Array<ffi::ObjectRef>& inputs,
- *      const ffi::Array<ffi::ObjectRef>& attrs,
- *      const ffi::Optional<ffi::ObjectRef>& decision);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAsPython`
- *   static ffi::String AsPython(
- *      const ffi::Array<ffi::String>& inputs,
- *      const ffi::Array<ffi::ObjectRef>& attrs,
- *      const ffi::Optional<ffi::ObjectRef>& decision,
- *      const ffi::Array<ffi::String>& outputs);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static ffi::ObjectRef AttrsAsJSON(
- *      const ffi::Array<ffi::ObjectRef>& attrs);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
- *   static ffi::Array<ffi::ObjectRef> AttrsFromJSON(
- *      const ffi::ObjectRef& attrs_record);
- * };
- *
- * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);
- *
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   RegisterInstructionKind<ComputeInlineTraits>();
+ *   RegisterInstructionKind<ReverseComputeInlineTraits>();
+ * }
  * \endcode
  */
-#define TVM_REGISTER_INST_KIND_TRAITS(InstructionKindTraits)         \
-  TVM_REGISTER_INST_KIND(InstructionKindTraits::kName)               \
-      .set_is_pure(InstructionKindTraits::kIsPure)                   \
-      .set_apply_to_schedule(InstructionKindTraits::ApplyToSchedule) \
-      .set_attrs_as_json(InstructionKindTraits::AttrsAsJSON)         \
-      .set_attrs_from_json(InstructionKindTraits::AttrsFromJSON)     \
-      .set_as_python(InstructionKindTraits::AsPython)
+template <typename Traits>
+void RegisterInstructionKind() {
+  InstructionKindDef(Traits::kName)
+      .set_is_pure(Traits::kIsPure)
+      .set_apply_to_schedule(Traits::ApplyToSchedule)
+      .set_attrs_as_json(Traits::AttrsAsJSON)
+      .set_attrs_from_json(Traits::AttrsFromJSON)
+      .set_as_python(Traits::AsPython);
+}
 
 /*!
  * \brief A helper to conveniently register an InstructionKind. When inherited in curiously
@@ -106,7 +82,7 @@ using namespace tvm::tirx;
  *   static constexpr size_t kNumDecisions = 1;
  *
  *   // Calling convention:
- *   // - All the arguments must be ffi::ObjectRef
+ *   // - Arguments use their FFI-compatible schema types
  *   // - The 1st argument is Schedule
  *   // - The next `kNumInputs` arguments are input random variables
  *   // - The next `kNumAttrs` arguments are attributes
@@ -114,14 +90,14 @@ using namespace tvm::tirx;
  *   static ffi::Array<Var> UnpackedApplyToSchedule(
  *      Schedule sch,
  *      LoopRV loop_rv,
- *      IntImm n,
- *      IntImm max_innermost_factor,
+ *      int n,
+ *      int max_innermost_factor,
  *      ffi::Optional<ffi::Array<int64_t>> decision) {
- *     return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
+ *     return sch->SamplePerfectTile(loop_rv, n, max_innermost_factor, decision);
  *   }
  *
  *   // Calling convention:
- *   // - All the arguments must be ffi::ObjectRef
+ *   // - Arguments use their FFI-compatible schema types
  *   // - The 1st argument is an array containing names of output random variables
  *   // - The next `kNumInputs` arguments are names of input random variables
  *   // - The next `kNumAttrs` arguments are attributes
@@ -129,13 +105,13 @@ using namespace tvm::tirx;
  *   static ffi::String UnpackedAsPython(
  *      ffi::Array<ffi::String> outputs,
  *      ffi::String loop_rv,
- *      IntImm n,
- *      IntImm max_innermost_factor,
+ *      int n,
+ *      int max_innermost_factor,
  *      ffi::Optional<ffi::Array<int64_t>> decision) {
  *     PythonAPICall py("sample_perfect_tile");
  *     py.Input("loop", loop_rv);
- *     py.Input("n", n->value);
- *     py.Input("max_innermost_factor", max_innermost_factor->value);
+ *     py.Input("n", n);
+ *     py.Input("max_innermost_factor", max_innermost_factor);
  *     py.Decision(decision);
  *     py.OutputList(outputs);
  *     return py.Str();
@@ -145,7 +121,7 @@ using namespace tvm::tirx;
  *   friend struct UnpackedInstTraits;
  * };
  *
- * TVM_REGISTER_INST_KIND(SamplePerfectTileTraits);
+ * RegisterInstructionKind<SamplePerfectTileTraits>();
  * \endcode
  */
 template <class TTraits>
@@ -153,7 +129,7 @@ struct UnpackedInstTraits {
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedApplyToSchedule`
-   * \sa InstructionKindNode::f_apply_to_schedule
+   * \sa InstructionKindObj::f_apply_to_schedule
    */
   static ffi::Array<Any> ApplyToSchedule(const Schedule& sch, const ffi::Array<Any>& inputs,
                                          const ffi::Array<Any>& attrs, const Any& decision);
@@ -161,7 +137,7 @@ struct UnpackedInstTraits {
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedAsPython`
-   * \sa InstructionKindNode::f_as_python
+   * \sa InstructionKindObj::f_as_python
    */
   static ffi::String AsPython(const ffi::Array<Any>& inputs, const ffi::Array<Any>& attrs,
                               const Any& decision, const ffi::Array<ffi::String>& outputs);
@@ -185,7 +161,7 @@ struct UnpackedInstTraits {
 /*!
  * \brief A helper class that constructs schedule API call in python syntax,
  * which helps convert an Inst to a python statement.
- * \sa InstructionKindNode::f_as_python
+ * \sa InstructionKindObj::f_as_python
  */
 class PythonAPICall {
  public:
@@ -261,6 +237,7 @@ struct _MethodType {};
 template <typename TReturn, typename... Args>
 struct _MethodType<TReturn(Args...)> {
   using return_type = TReturn;
+  using argument_types = std::tuple<Args...>;
   using argument_type = _ArgsPacker<Args...>;
 };
 
@@ -298,6 +275,42 @@ static constexpr int IsTVMArray = _IsTVMArray<std::remove_cv_t<T>>::value;
 template <class T>
 static constexpr int IsSingleObject = _IsSingleObject<std::remove_cv_t<T>>::value;
 
+// Legacy traces may carry IntImm wrappers in schema-declared integer slots.
+// Normalize by the trait signature, never by recursively walking arbitrary IR.
+template <typename T>
+Any NormalizeIntegerMetadataArgument(AnyView value) {
+  using U = std::remove_cv_t<std::remove_reference_t<T>>;
+  if constexpr (std::is_integral_v<U>) {
+    if (auto integer = value.as<IntImm>()) {
+      if constexpr (std::is_same_v<U, bool>) {
+        return integer.value()->value != 0;
+      } else {
+        return integer.value()->value;
+      }
+    }
+  } else if constexpr (std::is_same_v<U, ffi::Array<int64_t>>) {
+    if (!value.try_cast<U>()) {
+      ffi::Array<int64_t> result;
+      for (AnyView item : value.cast<ffi::Array<Any>>()) {
+        result.push_back(NormalizeIntegerMetadataArgument<int64_t>(item).cast<int64_t>());
+      }
+      return result;
+    }
+  } else if constexpr (std::is_same_v<U, ffi::Optional<int64_t>>) {
+    if (value != nullptr) return NormalizeIntegerMetadataArgument<int64_t>(value);
+  } else if constexpr (std::is_same_v<U, ffi::Optional<ffi::Array<int64_t>>>) {
+    if (value != nullptr) return NormalizeIntegerMetadataArgument<ffi::Array<int64_t>>(value);
+  }
+  return Any(value);
+}
+
+template <typename Method, size_t... I>
+std::array<Any, sizeof...(I)> NormalizeIntegerMetadataArguments(const AnyView* args,
+                                                                std::index_sequence<I...>) {
+  using Arguments = typename _MethodType<Method>::argument_types;
+  return {NormalizeIntegerMetadataArgument<std::tuple_element_t<I, Arguments>>(args[I])...};
+}
+
 };  // namespace details
 
 template <class TTraits>
@@ -320,6 +333,9 @@ ffi::Array<Any> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch
   TTraits::template _SetInputs<1>(packed_args, inputs);
   TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
+  auto normalized = details::NormalizeIntegerMetadataArguments<method_type>(
+      packed_args, std::make_index_sequence<kNumArgs>{});
+  for (size_t i = 0; i < kNumArgs; ++i) packed_args[i] = normalized[i];
   ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     TVM_FFI_ICHECK_EQ(args.size(), kNumArgs);
@@ -352,6 +368,9 @@ ffi::String UnpackedInstTraits<TTraits>::AsPython(const ffi::Array<Any>& inputs,
   TTraits::template _SetInputs<1>(packed_args, inputs);
   TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
+  auto normalized = details::NormalizeIntegerMetadataArguments<method_type>(
+      packed_args, std::make_index_sequence<kNumArgs>{});
+  for (size_t i = 0; i < kNumArgs; ++i) packed_args[i] = normalized[i];
   ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     TVM_FFI_ICHECK_EQ(args.size(), kNumArgs);

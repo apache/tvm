@@ -18,7 +18,9 @@
 
 from tvm import te
 from tvm.te import _te_tensor_overload as _overload
-from tvm.tirx import expr as _expr
+from tvm_tirx.ir import _prim_expr_overload as _expr
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import DataTypeCode
 
 from . import broadcast as _broadcast
 from . import math as _math
@@ -26,7 +28,7 @@ from . import math as _math
 
 def _is_integer(value):
     if isinstance(value, te.Tensor | te.TensorSlice):
-        return value.dtype.matches_code(_expr.DataTypeCode.INT)
+        return value.dtype.matches_code(DataTypeCode.INT)
     return _expr._dtype_is_int(value)
 
 
@@ -55,10 +57,10 @@ _overload.__truediv__ = _overload.__div__
 _overload.__rtruediv__ = _overload.__rdiv__
 
 
-def _astype(value, dtype, span=None):
+def _astype(value, dtype, loc: Location = UNKNOWN_LOC):
     if not isinstance(value, te.Tensor):
         return NotImplemented
-    return _math.cast(value, dtype, span)
+    return _math.cast(value, dtype, loc)
 
 
 _overload.astype = _astype

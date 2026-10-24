@@ -24,6 +24,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/expr.h>
 
 #include <string>
 
@@ -41,7 +42,8 @@ using backend::contrib::NodeEntries;
 
 class cuDNNJSONSerializer : public JSONSerializer {
  public:
-  cuDNNJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
+  cuDNNJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
+                      ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -52,7 +54,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto composite_opt = fn->GetAttr(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
@@ -78,10 +80,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
-    inputs[0] = inputs_tmp[arg_idx["input"]->value];
-    inputs[1] = inputs_tmp[arg_idx["weight"]->value];
+    inputs[0] = inputs_tmp[static_cast<int64_t>(arg_idx["input"]->value)];
+    inputs[1] = inputs_tmp[static_cast<int64_t>(arg_idx["weight"]->value)];
     if (inputs_tmp.size() == 3) {
-      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["bias"]->value)];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
@@ -112,10 +114,10 @@ class cuDNNJSONSerializer : public JSONSerializer {
         root_call->args[1]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
     auto v_shape =
         root_call->args[2]->ty.as_or_throw<TensorType>()->shape.value().as_or_throw<ShapeExpr>();
-    int num_heads = q_shape->values[2].as<IntImmNode>()->value;
-    int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value;
-    int head_size = q_shape->values[3].as<IntImmNode>()->value;
-    int head_size_v = v_shape->values[3].as<IntImmNode>()->value;
+    int num_heads = q_shape->values[2].as<IntImmNode>()->value.as<int>().value();
+    int num_kv_heads = k_shape->values[2].as<IntImmNode>()->value.as<int>().value();
+    int head_size = q_shape->values[3].as<IntImmNode>()->value.as<int>().value();
+    int head_size_v = v_shape->values[3].as<IntImmNode>()->value.as<int>().value();
     SetCallNodeAttribute(node, root_call);
 
     node->SetAttr("num_heads", static_cast<int64_t>(num_heads));
@@ -133,7 +135,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> cuDNNCompiler(ffi::Array<Function> functions,
                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                      ffi::Map<Constant, ffi::String> constant_names) {
+                                      ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

@@ -18,21 +18,23 @@
 """Test Meta Schedule Runner"""
 
 import itertools
+import platform
 import sys
 import time
 from typing import Any
 
 import numpy as np
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
 pytest.importorskip("tornado")  # tvm.rpc.tracker (LocalRPC) requires tornado
 
 import tvm
-import tvm.testing
-from tvm.ir.utils import derived_object
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.rpc import RPCSession
-from tvm.runtime import Device, Module
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
@@ -58,9 +60,11 @@ from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.s_tir.meta_schedule.utils import (
     get_global_func_with_default_on_worker,
 )
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx import FloatImm
+from tvm.s_tir.utils import derived_object
+from tvm_tirx.ir import FloatImm
+from tvm_tirx.runtime import Device
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 MATMUL_N = 16
 MATMUL_M = 32
@@ -68,86 +72,94 @@ MATMUL_M = 32
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulModule:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        C = T.match_buffer(c, (16, 16), "float32")
+
         for i, j, k in T.grid(16, 16, 16):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulReluModule:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        D: T.Tensor((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        D = T.match_buffer(d, (16, 16), "float32")
-        C = T.sblock_alloc_buffer((16, 16), "float32")
+
+        C = Ts.sblock_alloc_tensor((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(16, 16):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class BatchMatmulModule:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor([16, 32, 32], "float32"),
+        B: T.Tensor([16, 32, 32], "float32"),
+        C: T.Tensor([16, 32, 32], "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, [16, 32, 32])
-        B = T.match_buffer(b, [16, 32, 32])
-        C = T.match_buffer(c, [16, 32, 32])
+
         for n, i, j, k in T.grid(16, 32, 32, 32):
-            with T.sblock("update"):
-                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
-                with T.init():
+            with Ts.sblock("update"):
+                vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
+                with Ts.init():
                     C[vn, vi, vj] = 0.0
                 C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class AddModule:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor([32], "float32"), B: T.Tensor([32], "float32"), C: T.Tensor([32], "float32")
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, [32], "float32")
-        B = T.match_buffer(b, [32], "float32")
-        C = T.match_buffer(c, [32], "float32")
+
         for i in range(32):
-            with T.sblock("add"):
-                vi = T.axis.S(32, i)
+            with Ts.sblock("add"):
+                vi = Ts.axis.S(32, i)
                 C[vi] = A[vi] + B[vi]
 
 
 # A huge matmul that must cause timeout in the timeout test below.
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class MatmulHugeModule:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor((4096, 4096), "float32"),
+        B: T.Tensor((4096, 4096), "float32"),
+        C: T.Tensor((4096, 4096), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (4096, 4096), "float32")
-        B = T.match_buffer(b, (4096, 4096), "float32")
-        C = T.match_buffer(c, (4096, 4096), "float32")
+
         for i, j, k in T.grid(4096, 4096, 4096):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -400,7 +412,7 @@ def test_meta_schedule_py_runner():
 
 
 @pytest.mark.skip("Tuning test - launches runner")
-@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
+@pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 def test_meta_schedule_rpc_runner_time_out():
     """Test meta schedule RPC Runner time out by using a super large workload"""
 
@@ -615,7 +627,7 @@ def test_meta_schedule_runner_matmul_test():
         c_before = np.matmul(a_before, b_before)
         assert (a_before == a_after).all()
         assert (b_before == b_after).all()
-        tvm.testing.assert_allclose(c_before, c_after, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(c_before, c_after, rtol=1e-5)
 
     def test_alloc_argument(
         session: RPCSession,
@@ -632,21 +644,22 @@ def test_meta_schedule_runner_matmul_test():
 
     def test_run_evaluator(
         session: RPCSession,  # pylint: disable=unused-argument
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
             f_preproc=(
-                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+                "runtime.CacheFlushCPUArguments" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
         repeated_costs: list[list[float]] = []
@@ -745,21 +758,22 @@ def test_meta_schedule_runner_add_test():
 
     def test_run_evaluator(
         session: RPCSession,  # pylint: disable=unused-argument
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
             f_preproc=(
-                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+                "runtime.CacheFlushCPUArguments" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
         repeated_costs: list[list[float]] = []
@@ -851,21 +865,22 @@ def test_meta_schedule_local_runner_add_test():
         return repeated_args
 
     def test_run_evaluator(
-        rt_mod: Module,
+        rt_mod: tvm_ffi.Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
         repeated_args: list[Any],
     ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
-        evaluator = rt_mod.time_evaluator(
+        evaluator = tvm.runtime.time_evaluator(
+            rt_mod,
             func_name=rt_mod.entry_name,
-            dev=device,
+            device=device,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
             f_preproc=(
-                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+                "runtime.CacheFlushCPUArguments" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
         repeated_costs: list[list[float]] = []
@@ -922,4 +937,4 @@ def test_meta_schedule_local_runner_add_test():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

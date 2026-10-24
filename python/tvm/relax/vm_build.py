@@ -17,11 +17,13 @@
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
 
-import tvm
+import tvm_ffi
+
+import tvm_tirx
 from tvm import relax
-from tvm.ir.module import IRModule
-from tvm.runtime import Executable
-from tvm.tirx.function import PrimFunc
+from tvm_tirx.codegen import Executable
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.tirx.function import Function
 
 from . import _ffi_api
 
@@ -29,7 +31,7 @@ from . import _ffi_api
 class VMExecutable(Executable):
     """The virtual machine executable object emitted by the VM compiler or the ExecBuilder."""
 
-    def __init__(self, mod: tvm.runtime.Module):
+    def __init__(self, mod: tvm_ffi.Module):
         super().__init__(mod)
         self._stats = self.mod["stats"]
         self._as_text = self.mod["as_text"]
@@ -50,9 +52,8 @@ class VMExecutable(Executable):
 
 def _vmcodegen(
     builder: "relax.ExecBuilder",
-    mod: tvm.IRModule,
-    exec_mode: str = "bytecode",
-) -> tvm.IRModule:
+    mod: tvm_tirx.IRModule,
+) -> tvm_tirx.IRModule:
     """Running VM codegen.
 
     Parameters
@@ -63,25 +64,18 @@ def _vmcodegen(
     mod: IRModule
         The input IRModule to be built.
 
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
-
     Return
     ------
     leftover: IRModule
         Left over IRModule that may contain extra functions.
     """
 
-    if exec_mode == "bytecode":
-        return _ffi_api.VMCodeGen(builder, mod)  # type:ignore
-    if exec_mode == "compiled":
-        return _ffi_api.VMTIRCodeGen(builder, mod)  # type: ignore
-    raise ValueError(f"Unknown exec_mode {exec_mode}")
+    return _ffi_api.VMCodeGen(builder, mod)  # type: ignore
 
 
 def _auto_attach_system_lib_prefix(
-    tir_mod: tvm.IRModule,
-    target: tvm.target.Target | None = None,
+    tir_mod: tvm_tirx.IRModule,
+    target: tvm_tirx.target.Target | None = None,
     system_lib: bool | None = None,
 ):
     """Automatically detect system lib req and attach prefix attr"""
@@ -98,16 +92,16 @@ def _auto_attach_system_lib_prefix(
     return tir_mod
 
 
-def _is_device_module(mod: tvm.runtime.Module) -> bool:
+def _is_device_module(mod: tvm_ffi.Module) -> bool:
     return mod.kind in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
 
 
 def _vmlink(
     builder: "relax.ExecBuilder",
-    target: str | tvm.target.Target | None,
-    tir_mod: tvm.IRModule | None = None,
-    tir_pipeline: str | tvm.transform.Pass | None = "default",
-    ext_libs: list[tvm.runtime.Module] | None = None,
+    target: str | tvm_tirx.target.Target | None,
+    tir_mod: tvm_tirx.IRModule | None = None,
+    tir_pipeline: str | tvm_tirx.ir.transform.Pass | None = "default",
+    ext_libs: list[tvm_ffi.Module] | None = None,
     params: dict[str, list] | None = None,
     *,
     system_lib: bool | None = None,
@@ -124,7 +118,7 @@ def _vmlink(
     builder: relax.ExecBuilder
         Builder used to collect executables.
 
-    target : Optional[Union[str, tvm.target.Target]]
+    target : Optional[Union[str, tvm_tirx.target.Target]]
         A build target which can have optional host side compilation target.
         If the target is not specified, the target in the vdevice list will be used.
         For multi-target compilation, the vdevice should be annotated.
@@ -132,7 +126,7 @@ def _vmlink(
     tir_mod: IRModule
         The input TIR IRModule to be linked together.
 
-    ext_libs:  List[tvm.runtime.Module]
+    ext_libs:  List[tvm_ffi.Module]
         List of compiled external modules.
 
     params: Optional[Dict[str, list]]
@@ -144,7 +138,7 @@ def _vmlink(
         An executable that can be loaded by virtual machine.
     """
     if isinstance(target, str):
-        target = tvm.target.Target(target)
+        target = tvm_tirx.target.Target(target)
     if params is None:
         params = {}
     if ext_libs is None:
@@ -154,7 +148,7 @@ def _vmlink(
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
-        lib = tvm.tirx.build(tir_mod, target=target, pipeline=tir_pipeline)
+        lib = tvm_tirx.tirx.compile(tir_mod, target=target, pipeline=tir_pipeline).mod
     for ext_mod in ext_libs:
         if _is_device_module(ext_mod):
             tir_ext_libs.append(ext_mod)
@@ -170,12 +164,11 @@ def _vmlink(
 
 
 def build(
-    mod: tvm.IRModule,
-    target: str | tvm.target.Target | None = None,
+    mod: tvm_tirx.IRModule,
+    target: str | tvm_tirx.target.Target | None = None,
     params: dict[str, list] | None = None,
-    relax_pipeline: None | str | tvm.transform.Pass = "default",
-    tir_pipeline: None | str | tvm.transform.Pass = "default",
-    exec_mode: str = "bytecode",
+    relax_pipeline: None | str | tvm_tirx.ir.transform.Pass = "default",
+    tir_pipeline: None | str | tvm_tirx.ir.transform.Pass = "default",
     *,
     system_lib: bool | None = None,
 ) -> Executable:
@@ -187,7 +180,7 @@ def build(
     mod: IRModule
         The input IRModule to be built.
 
-    target : Optional[Union[str, tvm.target.Target]]
+    target : Optional[Union[str, tvm_tirx.target.Target]]
         A build target which can have optional host side compilation target.
 
         When TVM compiles device specific program such as CUDA,
@@ -205,9 +198,6 @@ def build(
 
     tir_pipelinie : str = "default"
         The TIR compilation pipeline to use.
-
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
 
     system_lib: Optional[bool]
         Whether to build system lib that is being packed statically and
@@ -231,18 +221,21 @@ def build(
                 return z
 
         mod = InputModule
-        target = tvm.target.Target("llvm", host="llvm")
+        target = tvm_tirx.target.Target("llvm", host="llvm")
         ex = tvm.compile(mod, target)
     """
 
-    def _extract_attrs(mod: tvm.IRModule):
+    def _extract_attrs(mod: tvm_tirx.IRModule):
         attrs = dict(mod.attrs) if mod.attrs else {}
         ext_libs = attrs.get("external_mods", [])
         constants = attrs.get("const_name_to_constant", {})
         return ext_libs, constants
 
+    from tvm_tirx.backend.config import prepare_target
+
+    target = prepare_target(target, mod)
     if isinstance(target, str):
-        target = tvm.target.Target(target)
+        target = tvm_tirx.target.Target(target)
     if not params:
         params = {}
 
@@ -272,7 +265,7 @@ def build(
     ext_libs, constants = _extract_attrs(mod)
     params.update(dict(constants))
     builder = relax.ExecBuilder()
-    mod = _vmcodegen(builder, mod, exec_mode)
+    mod = _vmcodegen(builder, mod)
     return _vmlink(
         builder=builder,
         target=target,
@@ -284,8 +277,8 @@ def build(
     )
 
 
-def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule | None:
-    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
+def _filter_tir(mod: tvm_tirx.IRModule) -> tvm_tirx.IRModule | None:
+    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, Function)}
 
     if tir_mod:
         return IRModule(tir_mod, attrs=mod.attrs)

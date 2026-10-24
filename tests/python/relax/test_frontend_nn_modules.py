@@ -14,20 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F401
 
 import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import core, modules, spec
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_relu():
@@ -282,18 +283,19 @@ def test_conv3d():
 
 
 def test_conv2d_dynamic():
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    c = T.dynamic("c", "int64")
+    in_channels = T.dynamic("in_channels", "int64")
+
     @R.function
     def forward(
-        x: R.Tensor(("n", "c", "h", "w"), dtype="float32"),
+        x: R.Tensor((n, c, h, w), dtype="float32"),
         _io: R.Any,
-        weight: R.Tensor((32, "in_channels", 3, 3), dtype="float32"),
+        weight: R.Tensor((32, in_channels, 3, 3), dtype="float32"),
         bias: R.Tensor((32,), dtype="float32"),
-    ) -> R.Tuple(R.Tensor(("n", 32, "h - 2", "w - 2"), dtype="float32"), R.Tuple(R.Any)):
-        n = T.int64()
-        h = T.int64()
-        w = T.int64()
-        c = T.int64()
-        in_channels = T.int64()
+    ) -> R.Tuple(R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.nn.conv2d(x, weight)
@@ -306,7 +308,7 @@ def test_conv2d_dynamic():
             R.output(gv1)
         return gv1
 
-    mod = modules.Conv2D(tvm.tirx.Var("in_channels", "int64"), 32, 3, bias=True)
+    mod = modules.Conv2D(tvm_tirx.tirx.Var("in_channels", "int64"), 32, 3, bias=True)
     tvm_mod, _ = mod.export_tvm(
         spec={
             "forward": {
@@ -745,4 +747,4 @@ def test_module_dict():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

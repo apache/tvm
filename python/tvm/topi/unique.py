@@ -17,9 +17,10 @@
 # pylint: disable=invalid-name
 """Unique operator"""
 
-from tvm import te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm import te
+from tvm_tirx import tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
@@ -37,18 +38,28 @@ def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating adjacent difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm_tirx.tirx.Sub to
         compute the adjacent difference.
     """
     with IRBuilder() as ib:
-        data_ptr = T.buffer_proxy(data)
-        output_ptr = T.buffer_proxy(output)
+        data_ptr = data
+        output_ptr = output
         with T.parallel(0, data.shape[0]) as i:
-            with T.If(i == 0):
-                with T.Then():
-                    output_ptr[0] = 0
-                with T.Else():
-                    output_ptr[i] = tirx.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
+            with T.if_(i == 0):
+                with T.then_():
+                    T.tensor_store(output_ptr, T.tensor_indices(output_ptr, 0), 0)
+                with T.else_():
+                    T.tensor_store(
+                        output_ptr,
+                        T.tensor_indices(output_ptr, i),
+                        tirx.Cast(
+                            output.dtype,
+                            binop(
+                                data_ptr[T.tensor_indices(data_ptr, i)],
+                                data_ptr[T.tensor_indices(data_ptr, i - 1)],
+                            ),
+                        ),
+                    )
         return ib.get()
 
 
@@ -65,7 +76,7 @@ def _calc_adjacent_diff(data, out_dtype="int32", binop=tirx.Sub):
 
     binop: function, optional
         A binary associative op to use for calculating difference. The function takes two
-        TIR expressions and produce a new TIR expression. By default it uses tvm.tirx.Sub to
+        TIR expressions and produce a new TIR expression. By default it uses tvm_tirx.tirx.Sub to
         compute the adjacent difference.
 
     Returns

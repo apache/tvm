@@ -19,31 +19,33 @@
 #ifndef TVM_S_TIR_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/int_set.h>
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/utils.h>
+#include <tvm/support/gpu_thread_tag.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/int_set.h>
+#include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/pattern_match.h"
-#include "../../ir/attr_registry.h"
-#include "../../runtime/thread_storage_scope.h"
+#include "../memory_scope.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -96,13 +98,22 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \param thread_scope The thread scope to be relaxed
  * \return A boolean indicating the result
  */
-inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
-                                       const runtime::ThreadScope& thread_scope) {
-  if (storage_scope.rank == runtime::StorageRank::kWarp) {
+inline bool CanRelaxStorageUnderThread(const runtime::MemoryScope& storage_scope,
+                                       const support::GPUThreadTag& thread_scope) {
+  static const auto scope_warp = runtime::MemoryScope::Get("warp");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+  if (storage_scope == scope_warp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
   }
-  return static_cast<int>(storage_scope.rank) <= static_cast<int>(thread_scope.rank);
+  // Global spaces are visible across blocks; shared spaces only across threads.
+  if (IsGlobalMemoryScope(storage_scope)) {
+    return thread_scope.rank >= 0;
+  }
+  return (storage_scope == scope_shared || storage_scope == scope_shared_dyn) &&
+         thread_scope.rank == 1;
 }
 
 /******** SeqStmt ********/
@@ -114,8 +125,7 @@ inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scop
  * \param to_remove The Stmt to be removed
  * \return The removal result
  */
-inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
-  TVM_FFI_ICHECK_GT(seq->size(), 1);
+inline SeqStmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
   ffi::Array<Stmt> new_stmts;
   new_stmts.reserve(seq->size());
   for (const Stmt& stmt : seq->seq) {
@@ -129,33 +139,22 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     }
     new_stmts.push_back(stmt);
   }
-  return SeqStmt::Flatten(new_stmts);
+  return SeqStmt(new_stmts, seq->loc);
 }
 
 /*!
- * \brief Convert a Stmt to an Array.
- * \param stmt The Stmt to be converted to
- * \return If the Stmt is SeqStmt, then returns the sequence;
- * Otherwise, returns a single-element Array with the Stmt inside.
+ * \brief Get the statements of a scope body.
+ * \param stmt The scope body.
+ * \return The statements in the body.
  */
-inline ffi::Array<Stmt> AsArray(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq;
-  }
-  return {stmt};
-}
+inline ffi::Array<Stmt> AsArray(const SeqStmt& stmt) { return stmt->seq; }
 
 /*!
- * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \brief Check whether a scope body contains exactly one statement.
  * \param stmt The statement to be checked
  * \return A boolean indicating the result
  */
-inline bool IsSingleStmt(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq.size() == 1;
-  }
-  return true;
-}
+inline bool IsSingleStmt(const SeqStmt& stmt) { return stmt->size() == 1; }
 
 /******** IterVar ********/
 
@@ -167,8 +166,16 @@ inline bool IsSingleStmt(const Stmt& stmt) {
  * \return The newly created IterVar
  */
 inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType iter_var_type) {
-  return IterVar(Range::FromMinExtent(loop->min, loop->extent),
-                 PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
+  return IterVar(Range(loop->begin, loop->end), PrimVar(std::move(name), loop->var.ty()),
+                 iter_var_type);
+}
+
+/*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */
+inline support::GPUThreadTag ParseThreadBindingTag(const ffi::String& tag) {
+  if (tag.starts_with("vthread")) {
+    return {1, -1};
+  }
+  return support::GPUThreadTag::Parse(tag);
 }
 
 /*!
@@ -176,11 +183,11 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
  * \param loop The loop to be inspected
  * \return The thread scope bound to the loop
  */
-inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
-  if (loop->kind == ForKind::kThreadBinding) {
-    return runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+inline support::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
+  if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
+    return ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   }
-  return runtime::ThreadScope{-1, -1};
+  return support::GPUThreadTag{-1, -1};
 }
 
 /*!
@@ -188,7 +195,7 @@ inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is blockIdx
  */
-inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsBlockIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 0;  // The rank of blockIdx is 0
 }
 
@@ -197,27 +204,8 @@ inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is threadIdx
  */
-inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
+inline bool IsThreadIdx(const support::GPUThreadTag& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
-}
-
-/**************** Loop extents ****************/
-
-/*!
- * \brief Get the extents of a loop
- * \param loop The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const ForNode* loop) { return as_const_int(loop->extent); }
-
-/*!
- * \brief Get the extents of a loop
- * \param loop_sref The loop to be queried
- * \return The extent of the loop, nullptr if the extent is not constant
- */
-inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  return as_const_int(loop->extent);
 }
 
 /*!
@@ -233,18 +221,29 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     *constant = std::nullopt;
     return static_cast<Var>(var.value());
   }
-  arith::PVar<Var> var;
-  arith::PVar<IntImm> shift;
   // match: "var + shift"
-  if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
-    *constant = shift.Eval();
-    return var.Eval();
+  if (const auto* add = expr.as<prim::AddNode>()) {
+    if (auto var = add->a.as<Var>()) {
+      if (auto shift = add->b.as<IntImm>()) {
+        *constant = shift;
+        return var;
+      }
+    }
+    if (auto shift = add->a.as<IntImm>()) {
+      if (auto var = add->b.as<Var>()) {
+        *constant = shift;
+        return var;
+      }
+    }
   }
   // match: "var - shift"
-  if ((var - shift).Match(expr)) {
-    IntImm result = shift.Eval();
-    *constant = IntImm(result.ty(), -result->value);
-    return var.Eval();
+  if (const auto* sub = expr.as<prim::SubNode>()) {
+    if (auto var = sub->a.as<Var>()) {
+      if (auto shift = sub->b.as<IntImm>()) {
+        *constant = IntImm(shift.value().ty(), -shift.value()->value);
+        return var;
+      }
+    }
   }
   return std::nullopt;
 }
@@ -337,7 +336,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 1. Add spatial loops.
   *num_spatial_loops = 0;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kDataPar) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kDataPar) {
       new_order.push_back(loops[i]);
       (*num_spatial_loops)++;
     }
@@ -345,7 +344,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 2. Add reduction loops.
   ffi::Array<s_tir::LoopRV> reduction_loops;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kCommReduce) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kCommReduce) {
       new_order.push_back(loops[i]);
       reduction_loops.push_back(loops[i]);
     }
@@ -371,15 +370,15 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
 /******** Helper functions for enum conversion ********/
 
 /*!
- * \brief Convert BufferIndexType to String
- * \param buffer_index_type The BufferIndexType value to convert
- * \return The string representation of BufferIndexType
+ * \brief Convert TensorIndexType to String
+ * \param tensor_index_type The TensorIndexType value to convert
+ * \return The string representation of TensorIndexType
  */
-inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
-  if (buffer_index_type == BufferIndexType::kRead) {
+inline ffi::String TensorIndexType2Str(TensorIndexType tensor_index_type) {
+  if (tensor_index_type == TensorIndexType::kRead) {
     return "read";
   } else {
-    TVM_FFI_ICHECK(buffer_index_type == BufferIndexType::kWrite);
+    TVM_FFI_ICHECK(tensor_index_type == TensorIndexType::kWrite);
     return "write";
   }
 }
@@ -388,18 +387,25 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 
 /*! \brief Returns the names of the blocks in the provided module. */
 inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
-  struct BlockNameCollector : public tirx::StmtVisitor {
-    void VisitStmt_(const tirx::SBlockNode* block) override {
+  struct BlockNameCollector : public s_tir::StmtExprVisitor {
+    using s_tir::StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return s_tir::StmtExprVisitor::Visit(value);
+    }
+
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
       block_names.insert(block->name_hint);
-      StmtVisitor::VisitStmt(block->body);
+      return StmtExprVisitor::Visit(block->body);
     }
     std::unordered_set<std::string> block_names;
   };
 
-  if (auto prim_func = tirx::FindEntryFunc(mod, nullptr)) {
-    BlockNameCollector collector;
-    collector(prim_func->body);
-    return collector.block_names;
+  if (auto function = tirx::FindEntryFunc(mod, nullptr)) {
+    auto collector = ffi::make_object<BlockNameCollector>();
+    collector->Visit(function->body);
+    return collector->block_names;
   }
   return {};
 }

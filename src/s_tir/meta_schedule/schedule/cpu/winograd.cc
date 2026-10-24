@@ -23,7 +23,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using namespace tvm::tirx;
@@ -38,16 +37,16 @@ static ffi::Array<s_tir::LoopRV> ScheduleDataPack(s_tir::Schedule sch, s_tir::SB
   using namespace tvm::tirx;
   TVM_FFI_ICHECK_EQ(tiled.size(), 2);
   TVM_FFI_ICHECK_EQ(unrolled.size(), 4);
-  ffi::Array<ExprRV> factors{ffi::UnsafeInit()};
+  ffi::Array<ffi::Optional<ExprRV>> factors{ffi::UnsafeInit()};
   ffi::Array<LoopRV> loops = sch->GetLoops(block);
   TVM_FFI_ICHECK_EQ(loops.size(), 6);
 
   factors = sch->SamplePerfectTile(loops[tiled[0]], /*n=*/2, /*max_innermost_factor=*/64);
-  ffi::Array<LoopRV> t0 = sch->Split(loops[tiled[0]], {factors.begin(), factors.end()});
+  ffi::Array<LoopRV> t0 = sch->Split(loops[tiled[0]], factors);
   TVM_FFI_ICHECK_EQ(t0.size(), 2);
 
   factors = sch->SamplePerfectTile(loops[tiled[1]], /*n=*/2, /*max_innermost_factor=*/64);
-  ffi::Array<LoopRV> t1 = sch->Split(loops[tiled[1]], {factors.begin(), factors.end()});
+  ffi::Array<LoopRV> t1 = sch->Split(loops[tiled[1]], factors);
   TVM_FFI_ICHECK_EQ(t1.size(), 2);
 
   sch->Unroll(loops[unrolled[0]]);

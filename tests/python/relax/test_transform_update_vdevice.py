@@ -16,17 +16,20 @@
 # under the License.
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 import tvm
-import tvm.testing
-from tvm.ir import VDevice
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import VDevice
 from tvm.relax.transform import UpdateVDevice
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, new_vdevice, vdevice_index, expected):
-    tvm.ir.assert_structural_equal(UpdateVDevice(new_vdevice, vdevice_index)(input), expected)
+    tvm_tirx.ir.assert_structural_equal(UpdateVDevice(new_vdevice, vdevice_index)(input), expected)
 
 
 def test_update():
@@ -45,10 +48,10 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -67,10 +70,10 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
-                    I.vdevice("metal", 0, "global"),
-                    I.vdevice("metal", 1, "global"),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
+                    R.vdevice("metal", 0, "global"),
+                    R.vdevice("metal", 1, "global"),
                 ]
             }
         )
@@ -89,8 +92,8 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("cuda", 0),
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0),
                 ]
             }
         )
@@ -109,8 +112,8 @@ def test_update():
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice("llvm"),
-                    I.vdevice("llvm", 1),
+                    R.vdevice("llvm"),
+                    R.vdevice("llvm", 1),
                 ]
             }
         )
@@ -128,4 +131,4 @@ def test_update():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

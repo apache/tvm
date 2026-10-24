@@ -171,7 +171,7 @@ struct AsVectorImpl<TSrcObjectRef, int> {
 
     std::vector<int> results;
     for (const auto& value : as_int_vec) {
-      results.push_back(value->value);
+      results.push_back(value->value.as<int>().value());
     }
     return results;
   }
@@ -186,7 +186,7 @@ struct AsVectorImpl<TSrcObjectRef, int64_t> {
 
     std::vector<int64_t> results;
     for (const auto& value : as_int_vec) {
-      results.push_back(value->value);
+      results.push_back(static_cast<int64_t>(value->value));
     }
     return results;
   }

@@ -19,23 +19,24 @@ Apply ScheduleRules onto an IRModule to generate default schedules without tunin
 or a space for MetaSchedule tuning
 """
 
-from tvm import s_tir, tirx
-from tvm.ir import IRModule
-from tvm.ir.transform import PassContext, module_pass
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule
+from tvm_tirx.ir.transform import PassContext, module_pass
+from tvm_tirx.target import Target
 
 from .schedule_rule import ScheduleRule
 
 
-def _is_scheduled(func: tirx.PrimFunc) -> bool:
-    if not isinstance(func, tirx.PrimFunc):
+def _is_scheduled(func: tirx.Function) -> bool:
+    if not isinstance(func, tirx.Function):
         return False
     if "tirx.is_scheduled" not in func.attrs:
         return False
     return func.attrs["tirx.is_scheduled"] == 1
 
 
-def _get_target(func: tirx.PrimFunc) -> Target:
+def _get_target(func: tirx.Function) -> Target:
     target = func.attrs.get("target")
     if target is None:
         return Target.current(allow_none=False)
@@ -45,7 +46,7 @@ def _get_target(func: tirx.PrimFunc) -> Target:
 
 @module_pass(opt_level=0, name="ApplyDefaultSchedule")
 class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
-    """A IRModule pass that applies a list of ScheduleRules to all PrimFuncs in the module."""
+    """A IRModule pass that applies a list of ScheduleRules to all Functions in the module."""
 
     def __init__(self, *rules: ScheduleRule):
         """Construct a new ApplyDefaultSchedule pass.
@@ -53,7 +54,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
         Parameters
         ----------
         *rules : ScheduleRule
-            The ScheduleRules to apply to all PrimFuncs in the module.
+            The ScheduleRules to apply to all Functions in the module.
         """
         self.rules = list(rules)
 
@@ -64,7 +65,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
     ) -> IRModule:
         updated_functions = {}
         for g_var, func in mod.functions_items():
-            if isinstance(func, tirx.PrimFunc) and not _is_scheduled(func):
+            if isinstance(func, tirx.Function) and not _is_scheduled(func):
                 target = _get_target(func)
 
                 sch = _apply_rules(func, target, self.rules, tunable=False)
@@ -79,7 +80,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
 
 
 def _apply_rules(
-    func: tirx.PrimFunc,
+    func: tirx.Function,
     target: Target,
     rules: list[ScheduleRule],
     tunable: bool,

@@ -21,47 +21,43 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.ir.utils import derived_object
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyMutator
 from tvm.s_tir.schedule import Schedule, Trace
-from tvm.script import tirx as T
+from tvm.s_tir.utils import derived_object
+from tvm_tirx.script import tirx as T
 
 MATMUL_M = 32
 
 # pylint: disable=missing-class-docstring,invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument, unbalanced-tuple-unpacking
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    @Ts.function
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class OtherBlock:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    @Ts.function
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("other"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("other"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -172,7 +168,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
             genetic_max_fail_count=10,
             eps_greedy=0.9,
         ),
-        target=tvm.target.Target("llvm"),
+        target=tvm_tirx.target.Target("llvm"),
         num_threads=1,  # because we are using a mutator from the python side
     )
     strategy = context.search_strategy
@@ -237,7 +233,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
                 DummyMutator(): 1.0,
             },
         ),
-        target=tvm.target.Target("llvm"),
+        target=tvm_tirx.target.Target("llvm"),
         num_threads=1,
     )
     strategy = context.search_strategy
@@ -310,7 +306,7 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
             genetic_max_fail_count=10,
             eps_greedy=0.9,
         ),
-        target=tvm.target.Target("llvm"),
+        target=tvm_tirx.target.Target("llvm"),
         num_threads=1,  # because we are using a mutator from the python side
     )
     strategy = context.search_strategy
@@ -339,8 +335,8 @@ def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pyl
             trace=wrong_trace,
             workload=workload,
             run_secs=[0.1],
-            target=tvm.target.Target("llvm"),
-            args_info=ms.arg_info.ArgInfo.from_prim_func(func=Matmul["main"]),
+            target=tvm_tirx.target.Target("llvm"),
+            args_info=ms.arg_info.ArgInfo.from_function(func=Matmul["main"]),
         )
     )
 
@@ -363,7 +359,7 @@ def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pyl
             genetic_max_fail_count=4,
             eps_greedy=0.9,
         ),
-        target=tvm.target.Target("llvm"),
+        target=tvm_tirx.target.Target("llvm"),
         num_threads=1,
     )
     strategy = context.search_strategy
@@ -385,7 +381,7 @@ def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pyl
 def test_search_strategy_abstract_class_instantiation():
     """Test that directly instantiating abstract SearchStrategy raises TypeError instead of segfault."""
     from tvm.s_tir.meta_schedule import SearchStrategy, TuneContext
-    from tvm.target import Target
+    from tvm_tirx.target import Target
 
     # Test that direct instantiation raises TypeError
     # This prevents segfault when SearchStrategy() is called directly

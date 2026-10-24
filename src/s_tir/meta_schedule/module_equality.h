@@ -27,7 +27,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Method to compute hash and determine equality of modules  */

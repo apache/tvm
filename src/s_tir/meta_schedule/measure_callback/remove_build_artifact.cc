@@ -22,10 +22,9 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
-class RemoveBuildArtifactNode : public MeasureCallbackNode {
+class RemoveBuildArtifactObj : public MeasureCallbackObj {
  public:
   void Apply(const TaskScheduler& task_scheduler, int task_id,
              const ffi::Array<MeasureCandidate>& measure_candidates,
@@ -43,21 +42,21 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RemoveBuildArtifactNode>();
+    refl::ObjectDef<RemoveBuildArtifactObj>();
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RemoveBuildArtifact",
-                                    RemoveBuildArtifactNode, MeasureCallbackNode);
+                                    RemoveBuildArtifactObj, MeasureCallbackObj);
 };
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {
-  ffi::ObjectPtr<RemoveBuildArtifactNode> n = ffi::make_object<RemoveBuildArtifactNode>();
-  return MeasureCallback(n);
+  ffi::ObjectPtr<RemoveBuildArtifactObj> n = ffi::make_object<RemoveBuildArtifactObj>();
+  return MeasureCallback(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  RemoveBuildArtifactNode::RegisterReflection();
+  RemoveBuildArtifactObj::RegisterReflection();
   refl::GlobalDef().def("s_tir.meta_schedule.MeasureCallbackRemoveBuildArtifact",
                         MeasureCallback::RemoveBuildArtifact);
 }

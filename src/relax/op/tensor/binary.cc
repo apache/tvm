@@ -31,25 +31,21 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
-  if (call->args.size() != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call)
-        << call->op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
 
   auto lhs_ty = GetType(call->args[0]);
   auto rhs_ty = GetType(call->args[1]);
 
   TVM_FFI_CHECK(lhs_ty.as<PrimTypeNode>() || lhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has LHS " << call->args[0] << ", which has Type " << lhs_ty;
+      << "but " << call->op << " has LHS type " << lhs_ty;
   TVM_FFI_CHECK(rhs_ty.as<PrimTypeNode>() || rhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
+      << "but " << call->op << " has RHS type " << rhs_ty;
 
   // Dtype
   ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
@@ -131,7 +127,10 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
 }
 
 Type InferTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
-  return InferTypeBroadcast(call, ctx, InferBinaryArithOpOutDtype);
+  return InferTypeBroadcast(
+      call, ctx, [](const Call& call, const BlockBuilder& ctx, const Type& lhs, const Type& rhs) {
+        return InferBinaryArithOpOutDtype(call, ctx, lhs, rhs);
+      });
 }
 
 Type InferTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
@@ -153,21 +152,26 @@ InferLayoutOutput InferLayoutBinaryEwise(
   TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";
 
-  ffi::Optional<ShapeExpr> shape1 = ffi::GetRef<ShapeExpr>(x1_ty->shape.as<ShapeExprNode>());
-  ffi::Optional<ShapeExpr> shape2 = ffi::GetRef<ShapeExpr>(x2_ty->shape.as<ShapeExprNode>());
+  ffi::Optional<ShapeExpr> shape1 = x1_ty->shape.as<ShapeExpr>();
+  ffi::Optional<ShapeExpr> shape2 = x2_ty->shape.as<ShapeExpr>();
   // Lets handle sub indexing as long as primal dims are matching
-  if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
-      (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
-    if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.has_value()) {
+  if (((layout1->layout.has_value() ? layout1->layout.value().ndim() : 0) !=
+       (layout1->layout.has_value() ? layout1->layout.value().ndim_primal() : 0)) ||
+      ((layout2->layout.has_value() ? layout2->layout.value().ndim() : 0) !=
+       (layout2->layout.has_value() ? layout2->layout.value().ndim_primal() : 0))) {
+    if ((layout1->layout.has_value() ? layout1->layout.value().ndim_primal() : 0) ==
+        (layout2->layout.has_value() ? layout2->layout.value().ndim_primal() : 0)) {
+      if (((layout1->layout.has_value() ? layout1->layout.value().ndim() : 0) >=
+           (layout2->layout.has_value() ? layout2->layout.value().ndim() : 0)) &&
+          shape2.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
                                     shape2.value()->values)) {
-          return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
+          return InferLayoutOutput({layout1, layout1}, {layout1}, call->attrs);
         }
       } else if (shape1.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
                                     shape1.value()->values)) {
-          return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+          return InferLayoutOutput({layout2, layout2}, {layout2}, call->attrs);
         }
       }
     }
@@ -176,18 +180,18 @@ InferLayoutOutput InferLayoutBinaryEwise(
   if (x1_ty->ndim <= x2_ty->ndim) {
     if (x1_ty->ndim == 0) {
       LayoutDecision out_layout = layout2;
-      return InferLayoutOutput({LayoutDecision(""), layout2}, {out_layout}, Attrs(call->attrs));
+      return InferLayoutOutput({LayoutDecision(std::nullopt), layout2}, {out_layout}, call->attrs);
     }
     LayoutDecision out_layout = FollowDecision(layout1, x2_ty->ndim);
-    return InferLayoutOutput({layout1, out_layout}, {out_layout}, Attrs(call->attrs));
+    return InferLayoutOutput({layout1, out_layout}, {out_layout}, call->attrs);
   } else {
     if (x2_ty->ndim == 0) {
       LayoutDecision out_layout = layout1;
-      return InferLayoutOutput({layout1, LayoutDecision("")}, {out_layout}, Attrs(call->attrs));
+      return InferLayoutOutput({layout1, LayoutDecision(std::nullopt)}, {out_layout}, call->attrs);
     }
     LayoutDecision out_layout = FollowDecision(layout2, x1_ty->ndim);
 
-    return InferLayoutOutput({out_layout, layout2}, {out_layout}, Attrs(call->attrs));
+    return InferLayoutOutput({out_layout, layout2}, {out_layout}, call->attrs);
   }
 }
 

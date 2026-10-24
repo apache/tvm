@@ -23,23 +23,23 @@ import torch.nn.functional as F
 from torch import fx
 from torch.nn import Module
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.torch import from_fx
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def verify_model(torch_model, input_info, binding, expected):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         mod = from_fx(graph_model, input_info)
-    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
+    binding = {k: tvm_tirx.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm_tirx.ir.assert_structural_equal(mod, expected)
 
 
 def test_conv1d():
@@ -60,7 +60,7 @@ def test_conv1d():
         def forward(self, input):
             return torch.nn.functional.conv1d(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -95,7 +95,7 @@ def test_conv1d():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -152,7 +152,7 @@ def test_conv1d_transpose():
         def forward(self, input):
             return torch.nn.functional.conv_transpose1d(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -188,7 +188,7 @@ def test_conv1d_transpose():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -246,7 +246,7 @@ def test_conv2d():
         def forward(self, input):
             return torch.nn.functional.conv2d(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -281,7 +281,7 @@ def test_conv2d():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -338,7 +338,7 @@ def test_conv2d_transpose():
         def forward(self, input):
             return torch.nn.functional.conv_transpose2d(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -374,7 +374,7 @@ def test_conv2d_transpose():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -432,7 +432,7 @@ def test_conv3d():
         def forward(self, input):
             return torch.nn.functional.conv3d(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -467,7 +467,7 @@ def test_conv3d():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -520,7 +520,7 @@ def test_pad():
             else:
                 return torch.nn.functional.pad(x, self.pad, mode=self.mode)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_constant:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -537,7 +537,7 @@ def test_pad():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_reflect:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -554,7 +554,7 @@ def test_pad():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_replicate:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -571,7 +571,7 @@ def test_pad():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_circular:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -612,7 +612,7 @@ def test_pixel_shuffle():
         def forward(self, x):
             return torch.nn.functional.pixel_shuffle(x, self.upscale_factor)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")) -> R.Tensor(
@@ -650,7 +650,7 @@ def test_linear():
         def forward(self, input):
             return torch.nn.functional.linear(input, self.weight, self.bias)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -677,7 +677,7 @@ def test_linear():
         def forward(self, input):
             return self.linear(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -710,13 +710,10 @@ def test_linear():
 
     # matmul
     class MatMul1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.matmul(x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(
@@ -742,13 +739,10 @@ def test_linear():
 
 def test_bmm():
     class BMM(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.bmm(x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -774,20 +768,14 @@ def test_bmm():
 
 def test_baddbmm():
     class BAddBMM1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y)
 
     class BAddBMM2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y, alpha=2, beta=0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(
@@ -802,7 +790,7 @@ def test_baddbmm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(
@@ -836,20 +824,14 @@ def test_baddbmm():
 
 def test_einsum():
     class Einsum1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return torch.einsum("ii", x)
 
     class Einsum2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.einsum("i,j->ij", x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((4, 4), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -859,7 +841,7 @@ def test_einsum():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(
@@ -882,7 +864,7 @@ def test_outer():
         def forward(self, x, y):
             return torch.outer(x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -911,7 +893,7 @@ def test_softplus():
         def forward(self, input):
             return torch.nn.functional.softplus(input, 1.0, 20.0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(inp_0: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
@@ -942,7 +924,7 @@ def test_leakyrelu():
         def forward(self, input):
             return torch.nn.functional.leaky_relu(input, 0.02)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(input_1: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
@@ -977,7 +959,7 @@ def test_prelu():
         def forward(self, x):
             return torch.nn.functional.prelu(x, self.alpha)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1008,13 +990,10 @@ def test_maxpool1d():
             return self.pool(input)
 
     class MaxPool1d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool1d(input, kernel_size=2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
@@ -1042,7 +1021,7 @@ def test_maxpool1d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
@@ -1070,7 +1049,7 @@ def test_maxpool1d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
@@ -1108,13 +1087,10 @@ def test_maxpool2d():
             return self.pool(input)
 
     class MaxPool2d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool2d(input, kernel_size=[1, 1])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1143,7 +1119,7 @@ def test_maxpool2d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1172,7 +1148,7 @@ def test_maxpool2d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1211,13 +1187,10 @@ def test_maxpool3d():
             return self.pool(input)
 
     class MaxPool3d_functional(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, input):
             return torch.nn.functional.max_pool3d(input, kernel_size=[1, 1, 1])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1245,7 +1218,7 @@ def test_maxpool3d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1273,7 +1246,7 @@ def test_maxpool3d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1310,7 +1283,7 @@ def test_avgpool1d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
@@ -1346,7 +1319,7 @@ def test_avgpool1d():
                 input, kernel_size=4, stride=2, padding=2, ceil_mode=True
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
@@ -1370,7 +1343,7 @@ def test_avgpool1d():
         def forward(self, input):
             return torch.nn.functional.avg_pool1d(input, kernel_size=2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
@@ -1407,7 +1380,7 @@ def test_avgpool2d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1443,7 +1416,7 @@ def test_avgpool2d():
                 input, kernel_size=[4, 4], stride=2, padding=2, ceil_mode=True
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
@@ -1467,7 +1440,7 @@ def test_avgpool2d():
         def forward(self, input):
             return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
@@ -1504,7 +1477,7 @@ def test_avgpool3d():
         def forward(self, input):
             return self.pool(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")) -> R.Tensor(
@@ -1542,7 +1515,7 @@ def test_avgpool3d():
                 input, kernel_size=[3, 3, 3], stride=2, padding=1, ceil_mode=True
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
@@ -1566,7 +1539,7 @@ def test_avgpool3d():
         def forward(self, input):
             return torch.nn.functional.avg_pool3d(input, kernel_size=[2, 1, 2], stride=[2, 1, 2])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
@@ -1607,7 +1580,7 @@ def test_adaptive_avgpool1d():
         def forward(self, input):
             return torch.nn.functional.adaptive_avg_pool1d(input, 8)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 16), dtype="float32")) -> R.Tensor(
@@ -1640,7 +1613,7 @@ def test_adaptive_avgpool2d():
         def forward(self, input):
             return torch.nn.functional.adaptive_avg_pool2d(input, [10, 10])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1674,7 +1647,7 @@ def test_adaptive_avgpool3d():
         def forward(self, input):
             return torch.nn.functional.adaptive_avg_pool3d(input, (8, 8, 8))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 16, 16, 16), dtype="float32")) -> R.Tensor(
@@ -1703,7 +1676,7 @@ def test_flatten():
         def forward(self, input):
             return self.f(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1758,7 +1731,7 @@ def test_flatten_scalar_input():
         def forward(self, input):
             return torch.flatten(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
@@ -1783,7 +1756,7 @@ def test_batchnorm2d():
         def forward(self, input):
             return self.bn(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -1836,7 +1809,7 @@ def test_embedding():
         def forward(self, input):
             return self.embedding(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -1868,7 +1841,7 @@ def test_stochastic_depth():
         def forward(self, x):
             return self.stochastic_depth(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -1896,7 +1869,7 @@ def test_layernorm():
         def forward(self, input):
             return self.ln(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -1943,7 +1916,7 @@ def test_functional_layernorm():
                 input, self.weight.shape, self.weight, self.bias, 1e-5
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -1983,7 +1956,7 @@ def test_functional_layernorm():
         def forward(self, input):
             return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -2017,35 +1990,12 @@ def test_functional_layernorm():
         def forward(self, input):
             return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
 
-    @tvm.script.ir_module
-    class expected3:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor([10, 10], dtype="float32"),
-            w2: R.Tensor([10, 10], dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
-                    input_1,
-                    w1,
-                    w2,
-                    axes=[-2, -1],
-                    epsilon=1e-05,
-                    center=True,
-                    scale=True,
-                )
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
     model = LayerNorm3([10, 10])
     binding = {
         "w1": model.weight.detach().numpy(),
         "w2": model.bias.detach().numpy(),
     }
-    verify_model(model, input_info, binding, expected3)
+    verify_model(model, input_info, binding, expected1)
 
 
 def test_cross_entropy():
@@ -2059,7 +2009,7 @@ def test_cross_entropy():
         def forward(self, logits, targets):
             return self.loss(logits, targets)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -2083,7 +2033,7 @@ def test_cross_entropy():
         def forward(self, logits, targets):
             return self.loss(logits, targets)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -2112,7 +2062,7 @@ def test_cross_entropy():
         def forward(self, logits, targets):
             return self.loss(logits, targets)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(
@@ -2141,7 +2091,7 @@ def test_functional_cross_entropy():
         def forward(self, logits, targets):
             return torch.nn.functional.cross_entropy(logits, targets)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -2171,7 +2121,7 @@ def test_groupnorm():
         def forward(self, input):
             return self.gn(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -2214,7 +2164,7 @@ def test_instancenorm2d():
         def forward(self, input):
             return self.gn(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -2270,7 +2220,7 @@ def test_binary1(op, relax_op):
         def forward(self, lhs, rhs):
             return self.op(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary1:
         @R.function
         def main(
@@ -2291,7 +2241,7 @@ def test_binary1(op, relax_op):
         def forward(self, lhs):
             return self.op(lhs, 1.0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary2:
         @R.function
         def main(
@@ -2330,7 +2280,7 @@ def test_binary2(op, relax_op):
         def forward(self, lhs, rhs):
             return self.op(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary1:
         @R.function
         def main(
@@ -2351,7 +2301,7 @@ def test_binary2(op, relax_op):
         def forward(self, lhs):
             return self.op(lhs, 1.0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary2:
         @R.function
         def main(
@@ -2391,7 +2341,7 @@ def test_binary3(op, relax_op):
         def forward(self, lhs, rhs):
             return self.op(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary1:
         @R.function
         def main(
@@ -2412,7 +2362,7 @@ def test_binary3(op, relax_op):
         def forward(self, lhs):
             return self.op(lhs, 1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_binary2:
         @R.function
         def main(
@@ -2441,7 +2391,7 @@ def test_rsub():
         def forward(self, x):
             return torch.rsub(x, 5.0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_rsub1:
         @R.function
         def main(
@@ -2453,7 +2403,7 @@ def test_rsub():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_rsub2:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
@@ -2477,7 +2427,7 @@ def test_isin():
         def forward(self, x, test_elements):
             return torch.isin(x, test_elements)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -2504,7 +2454,7 @@ def test_div_mode():
         def forward(self, x, y):
             return torch.div(x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_div:
         @R.function
         def main(
@@ -2521,7 +2471,7 @@ def test_div_mode():
         def forward(self, x, y):
             return torch.div(x, y, rounding_mode="trunc")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_div_trunc:
         @R.function
         def main(
@@ -2539,7 +2489,7 @@ def test_div_mode():
         def forward(self, x, y):
             return torch.div(x, y, rounding_mode="floor")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_div_floor:
         @R.function
         def main(
@@ -2556,112 +2506,6 @@ def test_div_mode():
     verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
 
 
-def test_round_decimals():
-    """torch.round(x, decimals) through from_fx must match PyTorch's round-half-to-even
-    results, including negative decimals (round(25, -1) == 20). The previous
-    scale-by-10**decimals implementation multiplied by 0.1 for negative decimals, which
-    is numerically wrong: 25 * 0.1 == 2.5000000000000004 in float64 rounds up to 30.
-    """
-    input_info = [([10], "float32")]
-    x = torch.tensor(
-        [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25], dtype=torch.float32
-    )
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (0, 1, -1, -2):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_low_precision():
-    """Scaling for low-precision inputs must happen in float32 and be cast back.
-
-    10**|decimals| can overflow float16: 10**4 == 10000 with 25 * 10000 == 250000
-    exceeds float16's max of 65504, so scaling in float16 yields inf, and 10**5
-    already overflows float16 (the scale itself becomes inf), turning decimals=5
-    and -5 into NaN. Upcasting the input to float32 keeps the scaling exact; the
-    rounded result is cast back to the input dtype.
-    """
-    input_info = [([8], "float16")]
-    x = torch.tensor([0.5, 1.5, 2.5, 2.25, 25.0, 125.0, 165.0, -0.5], dtype=torch.float16)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    # Positive decimals exercise the multiply-by-10**d overflow (4, 5);
-    # negative decimals exercise the 10**|d| scale overflowing float16 (-5).
-    for decimals in (2, 4, 5, -2, -4, -5):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-        tvm.testing.assert_allclose(
-            got, torch.round(x, decimals=decimals).numpy(), rtol=1e-6, atol=1e-6
-        )
-
-
-def test_round_decimals_large():
-    """A large |decimals| must import and run without OverflowError.
-
-    The scale 10**|decimals| used to be built as an unbounded host Python int
-    before being handed to relax.const, whose int-to-float conversion raises
-    OverflowError ("int too large to convert to float") once |decimals| >= 309
-    (10**309 already exceeds the float64 range). PyTorch accepts such decimals --
-    torch.round(x, decimals=309) -- and traces a valid round.decimals call, so
-    importing the graph must not crash on them. The scale is now built directly
-    in the float dtype and saturates to inf once it leaves the finite range,
-    matching PyTorch, whose all-NaN result here comes from the same inf scale.
-    """
-    input_info = [([5], "float32")]
-    x = torch.tensor([0.5, 1.5, 25.0, -0.5, 0.0], dtype=torch.float32)
-
-    class RoundDecimalsModel(Module):
-        def __init__(self, decimals):
-            super().__init__()
-            self.decimals = decimals
-
-        def forward(self, input):
-            return torch.round(input, decimals=self.decimals)
-
-    for decimals in (309, -309):
-        gm = fx.symbolic_trace(RoundDecimalsModel(decimals).eval())
-        mod = from_fx(gm, input_info)  # used to raise OverflowError here
-        ex = relax.build(mod, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-        tvm_out = vm["main"](tvm.runtime.tensor(x.numpy()))
-        got = tvm_out.numpy() if hasattr(tvm_out, "numpy") else tvm_out[0].numpy()
-
-        # The scale overflows to inf, and IEEE arithmetic turns every element into
-        # NaN in both TVM and PyTorch. Compare the NaN masks and the remaining
-        # (empty here) finite elements separately, since allclose fails on NaN.
-        expected = torch.round(x, decimals=decimals)
-        actual = torch.as_tensor(got)
-        assert torch.equal(torch.isnan(actual), torch.isnan(expected))
-        finite = ~torch.isnan(expected)
-        assert torch.allclose(actual[finite], expected[finite], rtol=1e-6, atol=1e-6)
-
-
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -2669,7 +2513,7 @@ def test_size():
         def forward(self, input):
             return input.size()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Shape([1, 3, 10, 10]):
@@ -2689,7 +2533,7 @@ def test_squeeze():
         def forward(self, input):
             return input.squeeze(1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")) -> R.Tensor(
@@ -2705,7 +2549,7 @@ def test_squeeze():
         def forward(self, input):
             return input.squeeze()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")) -> R.Tensor(
@@ -2721,6 +2565,42 @@ def test_squeeze():
     verify_model(Squeeze2(), input_info, {}, Expected2)
 
 
+def test_squeeze_out_of_range_dim():
+    input_info = [([1, 2, 1], "float32")]
+
+    class Squeeze(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, input):
+            return input.squeeze(self.dim)
+
+    # fx.symbolic_trace never runs the model, so torch's IndexError does not fire here.
+    for dim in ((5,), 3, -4, (-4,), (0, 5)):
+        with pytest.raises(ValueError, match="squeeze dim .* is out of range"):
+            from_fx(fx.symbolic_trace(Squeeze(dim)), input_info)
+
+    # In-range dims, including the tuple form, still convert.
+    class SqueezeTuple(Module):
+        def forward(self, input):
+            return input.squeeze((0, 2))
+
+    @tvm_tirx.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 1), dtype="float32"),
+        ) -> R.Tensor((2,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = R.squeeze(inp_0, axis=[0, 2])
+                gv: R.Tensor((2,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(SqueezeTuple(), input_info, {}, Expected)
+
+
 def test_unsqueeze():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -2728,7 +2608,7 @@ def test_unsqueeze():
         def forward(self, input):
             return input.unsqueeze(1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2745,7 +2625,7 @@ def test_unsqueeze():
         def forward(self, input):
             return input.unsqueeze(-1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2769,7 +2649,7 @@ def test_getattr():
         def forward(self, input):
             return input.shape
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Shape([1, 3, 10, 10]):
@@ -2787,7 +2667,7 @@ def test_getitem():
         def forward(self, x):
             return x[0, 1::2, :, :3]
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2867,7 +2747,7 @@ def test_basic_unary_ops(pytorch_op, relax_op):
         def forward(self, input):
             return pytorch_op(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_unary:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2889,7 +2769,7 @@ def test_sqrt_integer_input_fx():
         def forward(self, input):
             return torch.sqrt(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(input_1: R.Tensor((1, 4), dtype="int64")) -> R.Tensor((1, 4), dtype="float32"):
@@ -2918,7 +2798,7 @@ def test_bool_unary_ops(pytorch_op, relax_op):
         def forward(self, input):
             return pytorch_op(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_unary:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2950,7 +2830,7 @@ def test_extended_unary_ops():
             return torch.nn.functional.celu(input)
 
     # alpha * min(0, exp(x / alpha) - 1) + max(0, x)
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_celu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -2985,7 +2865,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.clamp(input, min=0.1, max=0.5)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_clamp:
         @R.function
         def main(
@@ -3004,7 +2884,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.clamp(input, min=0.5, max=None)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_clamp_min_only:
         @R.function
         def main(
@@ -3023,7 +2903,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.clamp(input, min=input, max=input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_clamp_tensors:
         @R.function
         def main(
@@ -3061,7 +2941,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.dropout(input, 0.5, train=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_dropout:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3089,7 +2969,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.elu(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_elu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3129,7 +3009,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.gelu(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_gelu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3158,7 +3038,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardsigmoid(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_hardsigmoid:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3190,7 +3070,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardswish(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_hardswish:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3223,7 +3103,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardtanh(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3245,7 +3125,7 @@ def test_extended_unary_ops():
         def forward(self, x):
             return torch.log2(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_log2:
         @R.function
         def main(
@@ -3267,7 +3147,7 @@ def test_extended_unary_ops():
         def forward(self, x):
             return torch.log10(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_log10:
         @R.function
         def main(
@@ -3289,7 +3169,7 @@ def test_extended_unary_ops():
         def forward(self, x):
             return torch.log1p(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_log1p:
         @R.function
         def main(
@@ -3310,7 +3190,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.logical_not(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_logical_not:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3338,7 +3218,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.log_softmax(input, dim=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_log_softmax:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3359,7 +3239,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.reciprocal(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_reciprocal:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3388,7 +3268,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.relu(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_relu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3417,7 +3297,7 @@ def test_extended_unary_ops():
         def forward(self, x):
             return torch.nn.functional.relu6(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3445,7 +3325,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.selu(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_selu:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3473,7 +3353,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.sigmoid(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_sigmoid:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3502,7 +3382,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.silu(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_silu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3531,7 +3411,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.softmax(input, dim=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_softmax:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3560,7 +3440,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.tanh(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_tanh:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3586,7 +3466,7 @@ def test_extended_unary_ops():
             input.tril_(1)
             return input
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_tril:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3611,7 +3491,7 @@ def test_extended_unary_ops():
             input.triu_(1)
             return input
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_triu:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3631,7 +3511,7 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.trunc(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_trunc:
         @R.function
         def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3653,7 +3533,7 @@ def test_logical_and():
         def forward(self, lhs, rhs):
             return torch.logical_and(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -3678,7 +3558,7 @@ def test_logical_or():
         def forward(self, lhs, rhs):
             return torch.logical_or(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -3703,7 +3583,7 @@ def test_logical_xor():
         def forward(self, lhs, rhs):
             return torch.logical_xor(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -3728,7 +3608,7 @@ def test_pow_integer():
         def forward(self, input):
             return input.pow(4)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(inp_0: R.Tensor((4,), dtype="int64")) -> R.Tensor((4,), dtype="int64"):
@@ -3750,7 +3630,7 @@ def test_interpolate():
         def forward(self, input):
             return torch.nn.functional.interpolate(input, (5, 5))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3786,7 +3666,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3822,7 +3702,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected3:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3858,7 +3738,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected4:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3896,7 +3776,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected6:
         @R.function
         def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3930,30 +3810,7 @@ def test_interpolate():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
-    class expected7:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 40, 40), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 40, 40),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate7(), input_info_5d, {}, expected7)
+    verify_model(Interpolate7(), input_info_5d, {}, expected6)
 
     class Interpolate8(Module):
         def forward(self, input):
@@ -3964,7 +3821,7 @@ def test_interpolate():
                 align_corners=True,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected8:
         @R.function
         def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
@@ -3997,7 +3854,7 @@ def test_interpolate_nhwc_layout():
         def forward(self, input):
             return torch.nn.functional.interpolate(input, (5, 5))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_nhwc:
         @R.function
         def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
@@ -4025,7 +3882,7 @@ def test_interpolate_nhwc_layout():
     graph_model = fx.symbolic_trace(InterpolateNHWC())
     with torch.no_grad():
         mod = from_fx(graph_model, input_info, default_image_layout="NHWC")
-    tvm.ir.assert_structural_equal(mod, expected_nhwc)
+    tvm_tirx.ir.assert_structural_equal(mod, expected_nhwc)
 
     # Test with bilinear interpolation and NHWC layout
     class InterpolateNHWC2(Module):
@@ -4034,7 +3891,7 @@ def test_interpolate_nhwc_layout():
                 input, size=None, scale_factor=2.0, mode="bilinear", align_corners=False
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_nhwc2:
         @R.function
         def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
@@ -4061,7 +3918,7 @@ def test_interpolate_nhwc_layout():
     graph_model2 = fx.symbolic_trace(InterpolateNHWC2())
     with torch.no_grad():
         mod2 = from_fx(graph_model2, input_info, default_image_layout="NHWC")
-    tvm.ir.assert_structural_equal(mod2, expected_nhwc2)
+    tvm_tirx.ir.assert_structural_equal(mod2, expected_nhwc2)
 
     input_info_5d = [([1, 4, 10, 10, 3], "float32")]
 
@@ -4075,7 +3932,7 @@ def test_interpolate_nhwc_layout():
                 align_corners=False,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_nhwc3:
         @R.function
         def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
@@ -4101,7 +3958,7 @@ def test_interpolate_nhwc_layout():
     graph_model3 = fx.symbolic_trace(InterpolateNHWC3())
     with torch.no_grad():
         mod3 = from_fx(graph_model3, input_info_5d, default_image_layout="NDHWC")
-    tvm.ir.assert_structural_equal(mod3, expected_nhwc3)
+    tvm_tirx.ir.assert_structural_equal(mod3, expected_nhwc3)
 
     class InterpolateNHWC4(Module):
         def forward(self, input):
@@ -4113,7 +3970,7 @@ def test_interpolate_nhwc_layout():
                 align_corners=True,
             )
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_nhwc4:
         @R.function
         def main(input_5: R.Tensor((1, 4, 10, 10, 3), dtype="float32")) -> R.Tensor(
@@ -4139,7 +3996,7 @@ def test_interpolate_nhwc_layout():
     graph_model4 = fx.symbolic_trace(InterpolateNHWC4())
     with torch.no_grad():
         mod4 = from_fx(graph_model4, input_info_5d, default_image_layout="NDHWC")
-    tvm.ir.assert_structural_equal(mod4, expected_nhwc4)
+    tvm_tirx.ir.assert_structural_equal(mod4, expected_nhwc4)
 
 
 def test_addmm():
@@ -4150,20 +4007,14 @@ def test_addmm():
     ]
 
     class Addmm1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3)
 
     class Addmm2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x1, x2, x3):
             return torch.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -4179,7 +4030,7 @@ def test_addmm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -4212,7 +4063,7 @@ def test_split():
         def forward(self, input):
             return torch.split(input, [1, 2], dim=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
@@ -4235,7 +4086,7 @@ def test_split():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
@@ -4269,7 +4120,7 @@ def test_unbind():
         def forward(self, data):
             return torch.unbind(data, dim=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
@@ -4303,7 +4154,7 @@ def test_unbind():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
@@ -4348,7 +4199,7 @@ def test_cumsum():
         def forward(self, input):
             return torch.cumsum(input, dim=1, dtype=torch.int32)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(input_1: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4371,7 +4222,7 @@ def test_chunk():
         def forward(self, input):
             return torch.chunk(input, 3, dim=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
@@ -4403,7 +4254,7 @@ def test_inplace_fill():
             input.fill_(1.5)
             return input
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
@@ -4424,7 +4275,7 @@ def test_masked_fill_inplace():
             input.masked_fill_(mask, 1.5)
             return input
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -4462,9 +4313,9 @@ def test_get_attr_scalar_tensor_constant(torch_dtype, expected_dtype):
     bindings = mod["main"].body.blocks[0].bindings
     assert len(bindings) == 1
     value = bindings[0].value
-    assert isinstance(value, relax.Constant)
-    assert value.data.shape == ()
-    assert value.data.dtype == expected_dtype
+    assert isinstance(value, tvm_tirx.ir.GenericConst)
+    assert value.value.shape == ()
+    assert value.value.dtype == expected_dtype
 
 
 def test_new_ones():
@@ -4474,7 +4325,7 @@ def test_new_ones():
         def forward(self, x):
             return x.new_ones(1, 2, 3)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3), dtype="float32")) -> R.Tensor((1, 2, 3), dtype="float32"):
@@ -4497,7 +4348,7 @@ def test_new_zeros():
         def forward(self, x):
             return x.new_zeros(1, 128, 128)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(x: R.Tensor((1, 128, 128), dtype="float32")) -> R.Tensor(
@@ -4522,7 +4373,7 @@ def test_expand():
         def forward(self, x):
             return x.expand(4, -1, -1, 4)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4546,7 +4397,7 @@ def test_reduce():
         def forward(self, x):
             return torch.sum(x, (2, 1))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4570,7 +4421,7 @@ def test_datatype():
         def forward(self, x):
             return x.float()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4590,7 +4441,7 @@ def test_datatype():
         def forward(self, x):
             return x.half()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4610,19 +4461,7 @@ def test_datatype():
         def forward(self, x):
             return x.type(torch.float32)
 
-    # type
-    class TypeFromAttr(Module):
-        def forward(self, x):
-            return x.type(x.getattr("dtype"))
-
-    # astype
-    class AsType(Module):
-        def forward(self, x):
-            return x.astype(torch.float32)
-
     verify_model(Type(), input_info, {}, expected1)
-    verify_model(TypeFromAttr(), input_info, {}, expected1)
-    verify_model(AsType(), input_info, {}, expected1)
 
 
 def test_meshgrid():
@@ -4649,7 +4488,7 @@ def test_meshgrid():
         def forward(self, input1, input2):
             return torch.meshgrid((input1, input2), indexing="xy")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -4665,7 +4504,7 @@ def test_meshgrid():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -4696,7 +4535,7 @@ def test_permute():
         def forward(self, x):
             return torch.permute(x, (0, 3, 2, 1))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4720,7 +4559,7 @@ def test_reshape():
         def forward(self, x):
             return x.reshape(2, 12)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor((2, 12), dtype="float32"):
@@ -4749,7 +4588,7 @@ def test_tile():
         def forward(self, x):
             return torch.tile(x, (4, 2))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tensor((1, 6), dtype="float32"):
@@ -4760,7 +4599,7 @@ def test_tile():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tensor((4, 6), dtype="float32"):
@@ -4783,7 +4622,7 @@ def test_transpose():
         def forward(self, x):
             return x.transpose(1, 3)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
@@ -4808,7 +4647,7 @@ def test_repeat():
         def forward(self, x: torch.Tensor):
             return x.repeat(4, 2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((3,), dtype="float32")) -> R.Tensor((6,), dtype="float32"):
@@ -4819,7 +4658,7 @@ def test_repeat():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tensor((4, 6), dtype="float32"):
@@ -4961,7 +4800,7 @@ def test_view():
         def forward(self, x):
             return x.view(2, 12)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor((2, 12), dtype="float32"):
@@ -4984,7 +4823,7 @@ def test_keep_params():
         def forward(self, input):
             return self.conv(input)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -5016,7 +4855,7 @@ def test_keep_params():
     graph_model = fx.symbolic_trace(model)
     mod = from_fx(graph_model, [([1, 3, 10, 10], "float32")], keep_params_as_input=True)
     mod, params = detach_params(mod)
-    tvm.ir.assert_structural_equal(mod, expected1)
+    tvm_tirx.ir.assert_structural_equal(mod, expected1)
     func = mod["main"]
     params = params["main"]
 
@@ -5025,19 +4864,16 @@ def test_keep_params():
         assert tuple(x.value for x in param_var.ty.shape.values) == param_tensor.shape
         assert param_var.ty.dtype == param_tensor.dtype
 
-    tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
-    tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())
+    tvm_tirx.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
+    tvm_tirx.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())
 
 
 def test_unwrap_unit_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return (x,)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
@@ -5050,18 +4886,15 @@ def test_unwrap_unit_return_tuple():
 
     graph_model = fx.symbolic_trace(Identity())
     mod = from_fx(graph_model, [([256, 256], "float32")], unwrap_unit_return_tuple=True)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_no_bind_return_tuple():
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return (x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5078,25 +4911,19 @@ def test_no_bind_return_tuple():
     mod = from_fx(
         graph_model, [([256, 256], "float32"), ([256, 256], "float32")], no_bind_return_tuple=True
     )
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_argmax():
     class Argmax1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1)
 
     class Argmax2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmax(input, dim=-1, keepdim=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256,), dtype="int64"):
@@ -5106,7 +4933,7 @@ def test_argmax():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((256, 1), dtype="int64"):
@@ -5122,20 +4949,14 @@ def test_argmax():
 
 def test_argmin():
     class Argmin1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input)
 
     class Argmin2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, input):
             return torch.argmin(input, keepdim=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((), dtype="int64"):
@@ -5145,7 +4966,7 @@ def test_argmin():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor((1, 1), dtype="int64"):
@@ -5515,7 +5336,7 @@ def test_stack():
         def forward(self, data, data1, data2):
             return torch.stack((data, data1, data2), dim=0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -5541,7 +5362,7 @@ def test_scatter():
         def forward(self, data, index, src):
             return data.scatter(dim=0, index=index, src=src)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected:
         @R.function
         def main(
@@ -5565,7 +5386,7 @@ def test_slice_scatter():
         def forward(self, input, src):
             return torch.slice_scatter(input, src, dim=1, start=1, end=7, step=2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -5602,7 +5423,7 @@ def test_slice_scatter():
         def forward(self, input, src):
             return torch.slice_scatter(input, src, dim=1, start=0, end=-2, step=1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_slice_scatter:
         @R.function
         def main(
@@ -5629,15 +5450,11 @@ def test_slice_scatter():
 
 
 def test_masked_scatter():
-    class MaskedScatter1(Module):
+    class MaskedScatter(Module):
         def forward(self, data, mask, src):
             return data.masked_scatter(mask, src)
 
-    class MaskedScatter2(Module):
-        def forward(self, data, mask, src):
-            return data.masked_scatter(mask, src)
-
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected1:
         @R.function
         def main(
@@ -5656,7 +5473,7 @@ def test_masked_scatter():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -5679,10 +5496,10 @@ def test_masked_scatter():
             return gv
 
     verify_model(
-        MaskedScatter1(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
+        MaskedScatter(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
     )
     verify_model(
-        MaskedScatter2(),
+        MaskedScatter(),
         [([2, 5], "float32"), ([2, 5], "bool"), ([3, 5], "float32")],
         {},
         expected2,
@@ -5694,7 +5511,7 @@ def test_is_floating_point():
         def forward(self, x):
             return torch.is_floating_point(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((), dtype="bool"):
@@ -5711,7 +5528,7 @@ def test_gather():
         def forward(self, data, indices):
             return torch.gather(data, 0, indices)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected0:
         @R.function
         def main(
@@ -5757,7 +5574,7 @@ def test_flip():
         def forward(self, data):
             return torch.flip(data, [0])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected0:
         @R.function
         def main(
@@ -5772,33 +5589,12 @@ def test_flip():
     verify_model(Flip0(), [([2, 2], "float32")], {}, Expected0)
 
 
-def test_flip_multi_axis():
-    class FlipMulti(Module):
-        def forward(self, data):
-            return torch.flip(data, [0, 1])
-
-    @tvm.script.ir_module
-    class ExpectedMulti:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 3), dtype="float32"),
-        ) -> R.Tensor((2, 3), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.flip(inp_0, axis=0)
-                lv1: R.Tensor((2, 3), dtype="float32") = R.flip(lv, axis=1)
-                gv: R.Tensor((2, 3), dtype="float32") = lv1
-                R.output(gv)
-            return gv
-
-    verify_model(FlipMulti(), [([2, 3], "float32")], {}, ExpectedMulti)
-
-
 def test_take():
     class Take(Module):
         def forward(self, data, indices):
             return torch.take(data, indices)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5820,7 +5616,7 @@ def test_one_hot():
         def forward(self, indices):
             return torch.nn.functional.one_hot(indices, num_classes=10)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5838,12 +5634,32 @@ def test_one_hot():
     verify_model(OneHot(), [([5], "int32")], {}, Expected)
 
 
+def test_one_hot_invalid_num_classes():
+    input_info = [([5], "int32")]
+
+    class OneHot(Module):
+        def __init__(self, num_classes):
+            super().__init__()
+            self.num_classes = num_classes
+
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=self.num_classes)
+
+    # torch only rejects a non-positive num_classes when the model is executed, and
+    # fx.symbolic_trace does not execute it, so the invalid value reaches the frontend and
+    # has to be rejected there instead of failing an internal `depth > 0` check in
+    # relax.op.one_hot that never mentions num_classes.
+    for num_classes in (0, -1, -2):
+        with pytest.raises(ValueError, match="num_classes must be a positive integer"):
+            from_fx(fx.symbolic_trace(OneHot(num_classes)), input_info)
+
+
 def test_empty_like():
     class EmptyLike(Module):
         def forward(self, data):
             return torch.empty_like(data)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5863,7 +5679,7 @@ def test_ones_like():
         def forward(self, data):
             return torch.ones_like(data)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
@@ -5883,7 +5699,7 @@ def test_zero_inplace():
         def forward(self, data):
             return data.zero_()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
@@ -5903,7 +5719,7 @@ def test_zeros_like():
         def forward(self, data):
             return torch.zeros_like(data)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
@@ -5923,7 +5739,7 @@ def test_type_as():
         def forward(self, data, other):
             return data.type_as(other)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5944,7 +5760,7 @@ def test_item():
         def forward(self, data):
             return data.item()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -5972,7 +5788,7 @@ def test_numel():
         def forward(self, data):
             return torch.numel(data)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -5991,7 +5807,7 @@ def test_select():
         def forward(self, data):
             return torch.select(data, 0, 1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6007,12 +5823,12 @@ def test_select():
 
 
 def test_inplace_copy():
-    class Inplace_Copy(Module):
+    class Copy(Module):
         def forward(self, x, y):
             x.copy_(y)
             return x
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6027,12 +5843,7 @@ def test_inplace_copy():
                 R.output(gv)
             return gv
 
-    class CopyBroadcast(Module):
-        def forward(self, x, src):
-            x.copy_(src)
-            return x
-
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class expected_copy:
         @R.function
         def main(
@@ -6046,12 +5857,12 @@ def test_inplace_copy():
             return gv
 
     verify_model(
-        Inplace_Copy(),
+        Copy(),
         [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
         {},
         Expected,
     )
-    verify_model(CopyBroadcast(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
+    verify_model(Copy(), [((2, 3), "float32"), ((), "int64")], {}, expected_copy)
 
 
 def test_clone():
@@ -6059,7 +5870,7 @@ def test_clone():
         def forward(self, x):
             return x.clone()
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6078,7 +5889,7 @@ def test_lerp():
         def forward(self, start, end, weight):
             return torch.lerp(start, end, weight)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6104,7 +5915,7 @@ def test_std():
         def forward(self, x):
             return torch.std(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6124,7 +5935,7 @@ def test_var():
         def forward(self, x):
             return torch.var(x)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6148,7 +5959,7 @@ def test_prod(torch_dtype, relax_dtype):
         def forward(self, x):
             return torch.prod(x, dtype=torch_dtype)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6168,7 +5979,7 @@ def test_cumprod():
         def forward(self, x):
             return torch.cumprod(x, 0)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6188,7 +5999,7 @@ def test_where():
         def forward(self, condition, x, y):
             return torch.where(condition, x, y)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6212,7 +6023,7 @@ def test_bucketize():
         def forward(self, input_tensor, boundaries):
             return torch.bucketize(input_tensor, boundaries)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6234,7 +6045,7 @@ def test_argsort():
         def forward(self, x):
             return torch.argsort(x, dim=1, descending=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6256,7 +6067,7 @@ def test_sort():
         def forward(self, x):
             return torch.sort(x, dim=1, descending=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(inp_0: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(
@@ -6285,7 +6096,7 @@ def test_topk():
         def forward(self, x):
             return torch.topk(x, k=2, dim=1, largest=True, sorted=True)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6307,7 +6118,7 @@ def test_broadcast_to():
         def forward(self, x):
             return torch.broadcast_to(x, (5, 3))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6327,7 +6138,7 @@ def test_narrow():
         def forward(self, x):
             return torch.narrow(x, 1, 0, 2)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6358,7 +6169,7 @@ def test_norm():
         def forward(self, x):
             return torch.norm(x, p=self.p, dim=self.dim, keepdim=self.keepdim)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(
@@ -6370,7 +6181,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(
@@ -6382,7 +6193,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected3:
         @R.function
         def main(
@@ -6397,7 +6208,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected4:
         @R.function
         def main(
@@ -6412,7 +6223,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected5:
         @R.function
         def main(
@@ -6427,7 +6238,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected6:
         @R.function
         def main(
@@ -6442,7 +6253,7 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected7:
         @R.function
         def main(
@@ -6497,7 +6308,7 @@ def test_dtypes(torch_dtype, relax_dtype):
         def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
             return torch.ops.aten.add(lhs, rhs)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -6517,17 +6328,17 @@ def test_round():
     input_info = [([3, 4], "float32")]
 
     class Round(Module):
-        def __init__(self, decimals=0):
+        def __init__(self, decimals=None):
             super().__init__()
             self.decimals = decimals
 
         def forward(self, x):
-            if self.decimals == 0:
+            if self.decimals is None:
                 return torch.round(x)
             else:
                 return torch.round(x, decimals=self.decimals)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def main(
@@ -6539,7 +6350,7 @@ def test_round():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(
@@ -6554,39 +6365,30 @@ def test_round():
             return gv
 
     rounds = [
-        (0, Expected1),
+        (None, Expected1),
         (2, Expected2),
     ]
 
     for decimals, expected in rounds:
         verify_model(Round(decimals), input_info, {}, expected)
 
-    # Test numerical accuracy with decimals
-    test_data = torch.tensor(
-        [
-            [1.2345, 2.3456, 3.4567, 4.5678],
-            [5.6789, 6.7890, 7.8901, 8.9012],
-            [9.1234, 10.2345, 11.3456, 12.4567],
-        ]
-    )
-
-    for decimals in [0, 2]:
-        torch_model = Round(decimals)
-        graph_model = fx.symbolic_trace(torch_model)
-        with torch.no_grad():
-            mod = from_fx(graph_model, input_info)
-
-        target = tvm.target.Target("llvm")
-        ex = relax.build(mod, target)
-        vm = relax.VirtualMachine(ex, tvm.cpu())
-
-        torch_result = torch_model(test_data).numpy()
-        tvm_input = tvm.runtime.tensor(test_data.numpy())
-        tvm_result = vm["main"](tvm_input).numpy()
-
-        # Use relaxed tolerance due to floating-point precision in decimal operations
-        tvm.testing.assert_allclose(tvm_result, torch_result, rtol=1e-3, atol=1e-3)
+    # Float16 needs float32 scaling to avoid intermediate overflow.
+    cases = [
+        (torch.float32, (0, 1, -1, -2)),
+        (torch.float16, (2, 4, 5, -2, -4, -5)),
+    ]
+    for dtype, decimals_values in cases:
+        x = torch.tensor(
+            [0.5, 1.5, 2.5, 4.5, -0.5, -2.5, 25.0, 125.0, 165.0, 2.25, 0.0], dtype=dtype
+        )
+        for decimals in decimals_values:
+            model = Round(decimals).eval()
+            mod = from_fx(fx.symbolic_trace(model), [(x.shape, dtype)])
+            ex = relax.build(mod, target="llvm")
+            vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+            actual = vm["main"](tvm_tirx.runtime.tensor(x.numpy())).numpy()
+            tvm_tirx.testing.assert_allclose(actual, model(x).numpy(), rtol=1e-6, atol=1e-6)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

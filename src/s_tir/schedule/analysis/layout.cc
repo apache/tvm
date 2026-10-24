@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/type.h>
 
 #include "../utils.h"
 
@@ -25,29 +26,6 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
-
-/*!
- * \brief Calculate the strides of the buffer
- * \param buffer The buffer
- * \return The strides
- */
-ffi::Array<PrimExpr> GetStrides(const BufferVar& buffer) {
-  if (!buffer->strides.empty()) {
-    TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
-    return buffer->strides;
-  }
-  int ndim = buffer->shape.size();
-  if (ndim == 0) {
-    return {};
-  }
-  ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
-  for (int i = ndim - 1; i >= 0; --i) {
-    strides.Set(i, stride);
-    stride = stride * buffer->shape[i];
-  }
-  return strides;
-}
 
 /*!
  * \brief Auxiliary class that collects the IterSplitExpr in the indexing pattern
@@ -80,11 +58,11 @@ class SplitExprCollector {
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
                                         const ffi::Map<PrimVar, Range>& input_iters,  //
                                         const PrimExpr& predicate,                    //
-                                        arith::IterMapLevel check_level,              //
-                                        arith::AnalyzerObj* analyzer) {
-    arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-    arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
-                                                    predicate, check_level, analyzer_ref);
+                                        sym::IterMapLevel check_level,                //
+                                        sym::AnalyzerObj* analyzer) {
+    sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
+    sym::IterMapResult res = sym::DetectIterMap({analyzer->Simplify(index)}, input_iters, predicate,
+                                                check_level, analyzer_ref);
     const auto& iter_sum_exprs = res->indices;
     if (iter_sum_exprs.empty()) {
       return {};
@@ -102,24 +80,26 @@ class SplitExprCollector {
   }
 
  private:
-  void Visit(const arith::IterSplitExpr& expr) {
+  void Visit(const sym::IterSplitExpr& expr) {
     if (auto var = expr->source->source.as<PrimVar>()) {
-      const int64_t* lower_factor = as_const_int(expr->lower_factor);
-      const int64_t* extent = as_const_int(expr->extent);
-      if (lower_factor == nullptr || extent == nullptr) {
+      const auto* lower_factor_imm = expr->lower_factor.as<IntImmNode>();
+      auto lower_factor = lower_factor_imm ? lower_factor_imm->value.as<int64_t>() : std::nullopt;
+      const auto* extent_imm = expr->extent.as<IntImmNode>();
+      auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+      if (!lower_factor.has_value() || !extent.has_value()) {
         failed_ = true;
         return;
       }
       exprs_.push_back(SplitExpr{var.value(), *lower_factor, *extent});
-    } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
+    } else if (auto iter_sum_expr = expr->source->source.as<sym::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
       TVM_FFI_ICHECK(false) << "Unexpected type: " << expr->source->source->GetTypeKey();
     }
   }
 
-  void Visit(const arith::IterSumExpr& expr) {
-    for (const arith::IterSplitExpr& arg : expr->args) {
+  void Visit(const sym::IterSumExpr& expr) {
+    for (const sym::IterSplitExpr& arg : expr->args) {
       Visit(arg);
     }
   }
@@ -130,11 +110,11 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::AnalyzerObj* analyzer) {
-  int ndim = buffer->shape.size();
+                                        sym::AnalyzerObj* analyzer) {
+  int ndim = tensor.shape().size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
   ffi::Map<PrimVar, Range> input_iters;
@@ -142,13 +122,14 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {
     const For& loop = loops[i];
-    input_iters.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    var2id.emplace(loop->loop_var.get(), i);
+    input_iters.Set(loop->var, Range(loop->begin, loop->end));
+    var2id.emplace(loop->var.get(), i);
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
-  auto f_flatten_index = [ndim, strides = GetStrides(buffer), dtype = buffer->DefaultIndexType()](
-                             const ffi::Array<PrimExpr>& indices) -> PrimExpr {
-    PrimExpr flatten_index = IntImm(PrimType(dtype), 0);
+  auto f_flatten_index =
+      [ndim, strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>(),
+       dtype = tensor.ty()->DefaultIndexType()](const ffi::Array<PrimExpr>& indices) -> PrimExpr {
+    PrimExpr flatten_index = IntImm(dtype, 0);
     for (int i = 0; i < ndim; ++i) {
       flatten_index = flatten_index + strides[i] * indices[i];
     }
@@ -157,7 +138,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
   // Step 3. Detect the IterSplitExpr of the indexing pattern
   std::vector<SplitExprCollector::SplitExpr> split_exprs = SplitExprCollector::Collect(
       /*index=*/f_flatten_index(indices), input_iters, predicate,
-      /*check_level=*/arith::IterMapLevel::Surjective, analyzer);
+      /*check_level=*/sym::IterMapLevel::Surjective, analyzer);
   if (split_exprs.empty()) {
     return std::nullopt;
   }
@@ -182,7 +163,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
   auto f_alter_layout = [f_flatten_index = std::move(f_flatten_index),  //
                          &split_exprs,                                  //
                          &order,                                        //
-                             & shape = buffer->shape,                   //
+                             & shape = tensor.shape(),                  //
                          analyzer                                       //
   ](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), shape.size());
@@ -212,7 +193,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
     return results;
   };
   // Step 6: Create the inverse index mapping.
-  auto f_inverse = [&inverse_order, &split_exprs, &shape = buffer->shape,
+  auto f_inverse = [&inverse_order, &split_exprs, &shape = tensor.shape(),
                     analyzer](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), split_exprs.size());
     // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
@@ -250,10 +231,10 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.schedule.SuggestIndexMap",
-                        [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
+                        [](TensorVar tensor, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
                            PrimExpr predicate) {
-                          arith::Analyzer analyzer;
-                          return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
+                          sym::Analyzer analyzer;
+                          return SuggestIndexMap(tensor, indices, loops, predicate, analyzer.get());
                         });
 }
 

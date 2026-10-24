@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 
@@ -59,6 +60,21 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
+void AttentionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AttentionAttrs>()
+      .def_ro(
+          "scale", &AttentionAttrs::scale,
+          "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).",
+          refl::DefaultValue(ffi::Optional<FloatImm>{}))
+      .def_ro("causal_mask", &AttentionAttrs::causal_mask,
+              "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.",
+              refl::DefaultValue(ffi::Optional<ffi::String>{}))
+      .def_ro("window_size", &AttentionAttrs::window_size,
+              "The size of the window for sliding-window attention.",
+              refl::DefaultValue(ffi::Optional<IntImm>{}));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -90,7 +106,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
   PrimExpr head_dim = q_shape->values[3];
   PrimExpr num_keys = k_shape->values[1];
   PrimExpr head_dim_value = v_shape->values[3];
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   auto diag_equal = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2, ffi::String dim) {
     if (analyzer->CanProve(v1 != v2)) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -126,7 +142,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
     }
     auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, ffi::String m1, ffi::String m2,
                                        ffi::String dim) {
-      if (analyzer->CanProve(v1 != v2) && !tirx::is_one(v2)) {
+      if (analyzer->CanProve(v1 != v2) && !tvm::prim::IsOne(v2)) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
             << " should be the same or broadcastable. However, the " << dim << " of " << m1
@@ -149,45 +165,42 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.attention")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(3)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.attention")
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
-TVM_REGISTER_OP("relax.nn.attention_bias")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(4)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("bias", "Tensor", "The input bias tensor.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.attention_bias")
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."),
+                 sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
-TVM_REGISTER_OP("relax.nn.attention_var_len")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(7)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("seqstart_q", "Tensor", "The cumsum of query sequence lengths, prepended with 0.")
-    .add_argument("seqstart_k", "Tensor", "The cumsum of key sequence lengths, prepended with 0.")
-    .add_argument("max_seqlen_q", "Tensor", "The maximum query sequence length in the batch.")
-    .add_argument("max_seqlen_k", "Tensor", "The maximum key sequence length in the batch.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.attention_var_len")
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."),
+                 sig::arg("seqstart_q", "The cumsum of query sequence lengths, prepended with 0."),
+                 sig::arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0."),
+                 sig::arg("max_seqlen_q", "The maximum query sequence length in the batch."),
+                 sig::arg("max_seqlen_k", "The maximum key sequence length in the batch."),
+                 sig::call_attrs<AttentionAttrs>())
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
-TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }
+  AttentionAttrs::RegisterReflection();
+}
 
 }  // namespace relax
 }  // namespace tvm

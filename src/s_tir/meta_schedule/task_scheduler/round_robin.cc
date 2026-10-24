@@ -22,21 +22,20 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief The round-robin style task scheduler. */
-class RoundRobinNode final : public TaskSchedulerNode {
+class RoundRobinObj final : public TaskSchedulerObj {
  public:
   /*! \brief The current task id processed. */
   int task_id = -1;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
+    refl::ObjectDef<RoundRobinObj>().def_ro("task_id", &RoundRobinObj::task_id);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RoundRobin", RoundRobinNode,
-                                    TaskSchedulerNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RoundRobin", RoundRobinObj,
+                                    TaskSchedulerObj);
 
  protected:
   int NextTaskId() final {
@@ -46,7 +45,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
     }
     for (int i = 0; i < n_tasks; ++i) {
       task_id = (task_id + 1) % n_tasks;
-      TaskRecordNode* task = this->tasks_[task_id].get();
+      TaskRecordObj* task = this->tasks_[task_id].get();
       if (!task->is_terminated) {
         if (task->runner_futures.has_value()) {
           JoinRunningTask(task_id);
@@ -59,13 +58,13 @@ class RoundRobinNode final : public TaskSchedulerNode {
 };
 
 TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
-  ffi::ObjectPtr<RoundRobinNode> n = ffi::make_object<RoundRobinNode>();
+  ffi::ObjectPtr<RoundRobinObj> n = ffi::make_object<RoundRobinObj>();
   n->logger = logger;
   n->task_id = -1;
   return TaskScheduler(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RoundRobinNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RoundRobinObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

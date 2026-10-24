@@ -56,7 +56,9 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -67,6 +69,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -92,7 +95,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     }
 
     PostOrderVisit(func, [this](const Expr& expr) {
-      if (expr->IsInstance<ConstantNode>() || expr->IsInstance<ShapeExprNode>() ||
+      if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<ShapeExprNode>() ||
           (!expr->IsInstance<CallNode>() && !expr->IsInstance<VarNode>() && expr.as<PrimExpr>())) {
         memo_[expr] = arena_->make<Group>();
       }
@@ -238,7 +241,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     }
 
     auto composite_name_opt =
-        mod_->Lookup(ffi::GetRef<GlobalVar>(gvar))->GetAttr<ffi::String>(attr::kComposite);
+        mod_->Lookup(ffi::GetRef<GlobalVar>(gvar))->GetAttr(tvm::relax::attr::kComposite);
     if (!composite_name_opt) {
       return std::nullopt;
     }
@@ -247,7 +250,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   ffi::Optional<ffi::String> GetCodegenName(Group* group) {
-    if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
+    if (auto opt_str = group->attrs.Get(tvm::relax::attr::kCodegen.name)) {
       return opt_str.value().as_or_throw<ffi::String>();
     }
     return std::nullopt;
@@ -329,7 +332,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   Group* CreateNewGroup(const CallNode* call) {
     Group* group = arena_->make<Group>();
     if (ffi::Optional<ffi::String> codegen_name = GetCodegenName(call->op)) {
-      group->attrs.Set(attr::kCodegen, codegen_name.value());
+      group->attrs.Set(tvm::relax::attr::kCodegen.name, codegen_name.value());
     }
     return group;
   }
@@ -454,7 +457,7 @@ class CompositeInliner : public ExprMutator {
     inlined_functions_ = ffi::Map<Function, Function>();
     auto new_body = VisitExpr(ToNonDataflow(func->body));
     auto new_func =
-        Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->span);
+        Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->loc);
     return new_func;
   }
 
@@ -462,10 +465,10 @@ class CompositeInliner : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto gvar = call->op.as_or_throw<GlobalVar>();
       auto func = mod_->Lookup(gvar).as_or_throw<Function>();
-      if (func->GetAttr<ffi::String>(attr::kComposite)) {
+      if (func->GetAttr(tvm::relax::attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
           auto new_func = CopyWithNewVars(func);
-          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
+          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive.name);
           inlined_functions_.Set(func, new_func);
         }
         return Call(Type::Missing(), inlined_functions_[func], call->args);
@@ -504,27 +507,29 @@ class CompositeFunctionAnnotator : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
       auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
-      if (auto codegen_name = func->GetAttr<ffi::String>(attr::kCodegen)) {
-        GlobalVar new_var;
-        if (var_map_.count(cur_var) > 0) {
-          // if we visited before, we don't need to create the new function,
-          // use the one we stored.
-          new_var = var_map_[cur_var];
-        } else {
-          // if it is first time, create the new function with a new name.
-          // remove old function from the irmoulde under construction.
-          auto old_var = builder_->GetContextIRModule()->GetGlobalVar(cur_var->name_hint);
-          builder_->GetContextIRModule()->Remove(old_var);
+      if (auto codegen_name = func->GetAttr(tvm::relax::attr::kCodegen)) {
+        GlobalVar new_var = [&]() -> GlobalVar {
+          if (var_map_.count(cur_var) > 0) {
+            // if we visited before, we don't need to create the new function,
+            // use the one we stored.
+            return var_map_.at(cur_var);
+          } else {
+            // if it is first time, create the new function with a new name.
+            // remove old function from the irmoulde under construction.
+            auto old_var = builder_->GetContextIRModule()->GetGlobalVar(cur_var->name_hint);
+            builder_->GetContextIRModule()->Remove(old_var);
 
-          // rename the function.
-          ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run(func.as_or_throw<Function>());
-          new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
-          new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
-          // add a function with a new name.
-          new_var = builder_->AddFunction(new_func, new_func_name);
-          var_map_[cur_var] = new_var;
-        }
+            // rename the function.
+            ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
+            Function new_func = inliner.Run(func.as_or_throw<Function>());
+            new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol.name, new_func_name);
+            new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive.name);
+            // add a function with a new name.
+            auto new_var = builder_->AddFunction(new_func, new_func_name);
+            var_map_.insert_or_assign(cur_var, new_var);
+            return new_var;
+          }
+        }();
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
@@ -559,10 +564,9 @@ namespace transform {
 Pass MergeCompositeFunctions() {
   auto pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
-  return CreateModulePass(/*pass_function=*/pass_func,              //
-                          /*opt_level=*/0,                          //
-                          /*pass_name=*/"MergeCompositeFunctions",  //
-                          /*required=*/{});
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*pass_name=*/"MergeCompositeFunctions");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

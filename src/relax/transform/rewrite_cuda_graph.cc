@@ -52,12 +52,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -65,18 +66,19 @@
 
 #include "../../support/arena.h"
 #include "../../support/ordered_set.h"
-#include "../../support/utils.h"
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("relax.backend.use_cuda_graph");
+}
 
 /*! \brief The rewriting plan of lifting a region for either allocation or capturing for cuda graph
  * execution
  */
 struct LiftedFunctionRewritePlan {
   // The lifted function for allocation or capturing
-  Function func;
+  Function func{ffi::UnsafeInit{}};
   // Whether the lifted function is for allocation or capturing
   bool is_alloc;
   // The binding var before which the lifted function should be invoked
@@ -113,7 +115,7 @@ class FuncBuilder : public ExprMutator {
    * \brief Mark a TIR variable as the ShapeExpr input of the new function.
    * \param var The variable to mark as input
    */
-  void MarkShapeExprInput(const tirx::PrimVar& var) { shape_expr_inputs_.push_back(var); }
+  void MarkShapeExprInput(const PrimVar& var) { shape_expr_inputs_.push_back(var); }
   /*!
    * \brief Mark a variable as the output of the new function. The variable must be the LHS of an
    * existing binding in the new function.
@@ -130,9 +132,9 @@ class FuncBuilder : public ExprMutator {
     ffi::Optional<Var> shape_expr = std::nullopt;
     if (shape_expr_inputs_.size()) {
       ffi::Array<PrimExpr> tir_vars;
-      for (const tirx::PrimVar& var : shape_expr_inputs_) {
-        tirx::PrimVar new_var = var.CopyWithSuffix("");
-        var_remap_[var] = new_var;
+      for (const PrimVar& var : shape_expr_inputs_) {
+        PrimVar new_var = var.CopyWithSuffix("");
+        var_remap_.insert_or_assign(var, new_var);
         tir_vars.push_back(new_var);
       }
       shape_expr = Var("shape_expr", ShapeType(tir_vars));
@@ -140,7 +142,7 @@ class FuncBuilder : public ExprMutator {
     // Set up the parameters
     for (const auto* input : inputs_) {
       auto new_var = Var(input->name, VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
-      var_remap_[ffi::GetRef<Var>(input)] = new_var;
+      var_remap_.insert_or_assign(ffi::GetRef<Var>(input), new_var);
       params.push_back(new_var);
     }
     if (shape_expr) {
@@ -160,7 +162,7 @@ class FuncBuilder : public ExprMutator {
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
     ffi::Map<ffi::String, Any> attrs;
-    attrs.Set(relax::attr::kForcePure, true);
+    attrs.Set(tvm::relax::attr::kForcePure.name, true);
     auto func = Function(params, body, output->ty.as_or_throw<Type>(),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
@@ -168,7 +170,7 @@ class FuncBuilder : public ExprMutator {
 
   support::OrderedSet<const VarNode*> inputs_;
   support::OrderedSet<const VarNode*> outputs_;
-  support::OrderedSet<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> shape_expr_inputs_;
+  support::OrderedSet<PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> shape_expr_inputs_;
   std::vector<const VarBindingNode*> bindings_;
 };
 
@@ -194,7 +196,7 @@ class OutputStorageCollector : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    static const auto& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const auto mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
     if (output_vars_.count(binding->var.get()) && call->op.same_as(mem_alloc_tensor_op)) {
       output_storages_.insert(call->args[0].as<VarNode>());
     }
@@ -245,14 +247,14 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         // these names are extracted from the type for the capturing.
         const auto& func = pair.second.as_or_throw<Function>();
         int64_t num_inputs =
-            func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
+            func->attrs.GetAttr(tvm::relax::attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
-          ffi::Array<tirx::Var> symbolic_vars =
+          ffi::Array<tvm::Var> symbolic_vars =
               DefinableTIRVarsInType(func->params[i]->ty.as_or_throw<Type>());
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
-              auto prim_var = symbolic_var.as_or_throw<tirx::PrimVar>();
+              auto prim_var = symbolic_var.as_or_throw<PrimVar>();
               if (capture_symbolic_var_name_hints.count(symbolic_var->name)) {
                 capture_symbolic_vars_.insert(prim_var);
               }
@@ -260,7 +262,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
           } else {
             static_vars_.insert(func->params[i].get());
             for (const auto& symbolic_var : symbolic_vars) {
-              capture_symbolic_vars_.insert(symbolic_var.as_or_throw<tirx::PrimVar>());
+              capture_symbolic_vars_.insert(symbolic_var.as_or_throw<PrimVar>());
             }
           }
         }
@@ -278,7 +280,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       plan->lifted_bindings = std::move(region->bindings_);
       if (region->shape_expr_inputs_.size()) {
         ffi::Array<PrimExpr> tir_vars;
-        for (const tirx::PrimVar& var : region->shape_expr_inputs_) {
+        for (const PrimVar& var : region->shape_expr_inputs_) {
           tir_vars.push_back(var);
         }
         plan->propogated_tir_vars = ShapeExpr(tir_vars);
@@ -306,16 +308,15 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
    * from the function attributes.
    */
   std::unordered_set<ffi::String> ExtractSymbolicVarHints(const Function& func) {
-    auto symbolic_var_names =
-        func->attrs
-            .GetAttr<ffi::Array<ffi::String>>("relax.rewrite_cuda_graph.capture_symbolic_vars")
-            .value_or(ffi::Array<ffi::String>());
+    auto symbolic_var_names = func->attrs.GetAttr(tvm::relax::attr::kCaptureSymbolicVars)
+                                  .value_or(ffi::Array<ffi::String>());
     return {symbolic_var_names.begin(), symbolic_var_names.end()};
   }
 
   /*!
    *\brief Start a new static region. This method should be called when encountering a
-   * CUDA kernel launch (calls to PrimFunc or ExternFunc) that only depends on static parameters.
+   * CUDA kernel launch (calls to tirx::Function or ExternFunc) that only depends on static
+   *parameters.
    */
   void StartRegion() { current_block_scope_.capture_builder = arena_->make<FuncBuilder>(); }
 
@@ -350,9 +351,9 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    static const auto& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const auto& builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
+    static const auto mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    static const auto builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const auto call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
 
     if (call->op.same_as(mem_alloc_storage_op)) {
       if (IsStaticAllocStorage(binding)) {
@@ -364,24 +365,24 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     }
 
     const auto* call_gv = call->op.as<GlobalVarNode>();
-    bool call_prim_func =
-        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::PrimFuncNode>()
+    bool call_function =
+        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::FunctionNode>()
                 : false;
 
     // Check whether the call can be lifted to the capture function. It requires all the arguments
     // to be static and the call to be a kernel launch or a pure operation (e.g. memory view).
     std::vector<const VarNode*> args;
-    std::vector<tirx::PrimVar> tir_vars;
+    std::vector<PrimVar> tir_vars;
     bool is_all_static = [&]() {
       if (!IsStatic(call->args, &args, &tir_vars)) {
         return false;
       }
-      if (call_gv != nullptr && !call_prim_func) {
+      if (call_gv != nullptr && !call_function) {
         // calls to other Relax functions are not allowed
         return false;
       }
       if (const auto* extern_func = call->op.as<ExternFuncNode>();
-          extern_func != nullptr && support::StartsWith(extern_func->global_symbol, "vm.builtin")) {
+          extern_func != nullptr && extern_func->global_symbol.starts_with("vm.builtin")) {
         return false;
       }
       return true;
@@ -389,18 +390,17 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
     if (is_all_static) {
       bool is_kernel_launch = [&]() {
-        static const auto& null_value_op = Op::Get("relax.null_value");
+        static const auto null_value_op = Op::Get("relax.null_value");
 
-        if (call_prim_func) {
+        if (call_function) {
           return true;
         }
         if (call->op.as<ExternFuncNode>()) {
           return true;
         }
         if (const auto* op = call->op.as<OpNode>()) {
-          return !support::StartsWith(op->name, "relax.memory") &&
-                 !support::StartsWith(op->name, "relax.builtin") && op->name != "relax.reshape" &&
-                 !ffi::GetRef<Op>(op).same_as(null_value_op) &&
+          return !op->name.starts_with("relax.memory") && !op->name.starts_with("relax.builtin") &&
+                 op->name != "relax.reshape" && !ffi::GetRef<Op>(op).same_as(null_value_op) &&
                  !ffi::GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
         }
         return false;
@@ -418,7 +418,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   void MarkAsFuncInput(const std::vector<const VarNode*>& vars,
-                       const std::vector<tirx::PrimVar>& tir_vars = {}) {
+                       const std::vector<PrimVar>& tir_vars = {}) {
     if (current_block_scope_.capture_builder == nullptr) {
       return;
     }
@@ -428,7 +428,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         current_block_scope_.capture_builder->MarkInput(var);
       }
     }
-    for (const tirx::PrimVar& tir_var : tir_vars) {
+    for (const PrimVar& tir_var : tir_vars) {
       current_block_scope_.capture_builder->MarkShapeExprInput(tir_var);
     }
   }
@@ -452,13 +452,24 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     MarkAsFuncOutput({var});
   }
 
-  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* constant) final {
+  void VisitBinding_(const VarBindingNode* binding, const GenericConstNode* constant) final {
     AddStaticBinding(binding, false);
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) final {
+    // A match_cast stays in the original function even when its value was lifted into the
+    // current capture region, so the region has to return that value.
+    if (const auto* var = binding->value.as<VarNode>()) {
+      if (auto it = binding_to_region_.find(var); it != binding_to_region_.end()) {
+        it->second->MarkOutput(var);
+      }
+    }
+    ExprVisitor::VisitBinding_(binding);
   }
 
   void VisitBinding_(const VarBindingNode* binding, const TupleNode* tuple) final {
     std::vector<const VarNode*> args;
-    std::vector<tirx::PrimVar> tir_vars;
+    std::vector<PrimVar> tir_vars;
     if (IsStatic(tuple->fields, &args, &tir_vars)) {
       AddStaticBinding(binding, false);
       MarkAsFuncInput(args, tir_vars);
@@ -482,11 +493,11 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   bool IsStatic(const PrimExpr& expr,
                 [[maybe_unused]] std::vector<const VarNode*>* vars_collector = nullptr,
-                std::vector<tirx::PrimVar>* tir_vars_collector = nullptr) {
+                std::vector<PrimVar>* tir_vars_collector = nullptr) {
     bool is_static = true;
     std::unordered_set<const ffi::Object*> visited;
-    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
-      auto prim_var = var.as<tirx::PrimVar>();
+    auto walk_fn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
+      auto prim_var = var.as<PrimVar>();
       if (!prim_var || !visited.insert(prim_var.value().get()).second) {
         return ffi::WalkResult::Advance();
       }
@@ -504,8 +515,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   bool IsStatic(const Expr& expr, std::vector<const VarNode*>* vars_collector = nullptr,
-                std::vector<tirx::PrimVar>* tir_vars_collector = nullptr) {
-    if (expr->IsInstance<ConstantNode>() || expr->IsInstance<DataTypeImmNode>() ||
+                std::vector<PrimVar>* tir_vars_collector = nullptr) {
+    if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<DataTypeImmNode>() ||
         expr->IsInstance<StringImmNode>() || expr->IsInstance<GlobalVarNode>()) {
       return true;
     }
@@ -530,7 +541,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   bool IsStaticRuntimeVar(const VarNode* var, std::vector<const VarNode*>* vars_collector,
-                          std::vector<tirx::PrimVar>* tir_vars_collector) {
+                          std::vector<PrimVar>* tir_vars_collector) {
     if (vars_collector != nullptr) {
       vars_collector->push_back(var);
     }
@@ -540,7 +551,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   template <typename T>
   bool IsStatic(const ffi::Array<T>& exprs, std::vector<const VarNode*>* vars_collector = nullptr,
-                std::vector<tirx::PrimVar>* tir_vars_collector = nullptr) {
+                std::vector<PrimVar>* tir_vars_collector = nullptr) {
     bool result = true;
     for (const auto& expr : exprs) {
       // If vars_collector is provided, we will collect all the vars in the exprs and we should
@@ -554,7 +565,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   bool IsStatic(const Type& ty, std::vector<const VarNode*>* vars_collector = nullptr,
-                std::vector<tirx::PrimVar>* tir_vars_collector = nullptr) {
+                std::vector<PrimVar>* tir_vars_collector = nullptr) {
     if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
       if (auto shape = tensor_ty->GetShape()) {
         return IsStatic(shape.value(), vars_collector, tir_vars_collector);
@@ -630,7 +641,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   std::unordered_set<const VarNode*> static_vars_;
   // Symbolic variables that are allowed to be captured. This can come from symbolic shapes of
   // weights or hints in the function annotations.
-  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> capture_symbolic_vars_;
+  std::unordered_set<PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> capture_symbolic_vars_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
   std::unordered_map<const VarNode*, FuncBuilder*> binding_to_region_;
@@ -672,7 +683,7 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
   };
   // Using an (ordered) map to make sure the result is deterministic
   std::map<ffi::String, std::vector<std::vector<StorageRecord>>> storage_records;
-  static const auto& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+  static const auto mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
 
   // Collect the storage records for each storage scope. Storage records are stored separately
   // for each original function.
@@ -685,9 +696,9 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
       TVM_FFI_ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
       auto storage_shape = alloc_storage->args[0].as_or_throw<ShapeExpr>();
       TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
-      int64_t size = storage_shape->values[0].as_or_throw<IntImm>()->value;
-      int64_t virtual_device_id =
-          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value;
+      int64_t size = static_cast<int64_t>(storage_shape->values[0].as_or_throw<IntImm>()->value);
+      int64_t virtual_device_id = static_cast<int64_t>(
+          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value);
       TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
       ffi::String storage_scope = alloc_storage->args[2].as_or_throw<StringImm>()->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());
@@ -784,61 +795,61 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   void LaunchSubgraph(const VarBindingNode* op, const LiftedFunctionRewritePlan* plan) {
-    static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
+    static const auto call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
     static const auto& builtin_run_or_capture = ExternFunc("vm.builtin.cuda_graph.run_or_capture");
     static const auto& builtin_get_cached_alloc =
         ExternFunc("vm.builtin.cuda_graph.get_cached_alloc");
 
-    Expr launch_subgraph;
-    if (plan->is_alloc) {
-      // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
-      TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
-      TVM_FFI_ICHECK(plan->inputs.empty());
-      auto gv_alloc = gv_global_alloc_.value();
-      auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
-      launch_subgraph =
-          Call(Type::Missing(), call_builtin_with_ctx_op,
-               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
-               {ret_ty});
-    } else {
-      auto gv_func = builder_->AddFunction(
-          plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
-      Type call_ty = plan->func->ret_ty;
-      // Arguments of the lifted function
-      ffi::Array<Expr> args;
-      for (const auto& arg : plan->inputs) {
-        args.push_back(VisitExpr_(arg));
-      }
-      if (plan->propogated_tir_vars.has_value()) {
-        ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
-        args.push_back(propogated_tir_vars);
-        // The ret_ty of the lifted function can contain symbolic variables. We need to
-        // bind the symbolic parameters to the actual values.
-        const auto& shape_expr = plan->func->params.back();
-        auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
-        ffi::Map<Var, Expr> var_remap;
-        TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
-        for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
-          var_remap.Set(symbolic_params[i].as_or_throw<tirx::PrimVar>(),
-                        propogated_tir_vars->values[i]);
+    Expr launch_subgraph = [&]() -> Expr {
+      if (plan->is_alloc) {
+        // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
+        TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
+        TVM_FFI_ICHECK(plan->inputs.empty());
+        auto gv_alloc = gv_global_alloc_.value();
+        auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})},
+                    std::nullopt, {ret_ty});
+      } else {
+        auto gv_func = builder_->AddFunction(
+            plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
+        Type call_ty = plan->func->ret_ty;
+        // Arguments of the lifted function
+        ffi::Array<Expr> args;
+        for (const auto& arg : plan->inputs) {
+          args.push_back(VisitExpr_(arg));
         }
-        call_ty = Bind(call_ty, var_remap);
+        if (plan->propogated_tir_vars.has_value()) {
+          ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
+          args.push_back(propogated_tir_vars);
+          // The ret_ty of the lifted function can contain symbolic variables. We need to
+          // bind the symbolic parameters to the actual values.
+          const auto& shape_expr = plan->func->params.back();
+          auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
+          ffi::Map<Var, Expr> var_remap;
+          TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
+          for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
+            var_remap.Set(symbolic_params[i].as_or_throw<PrimVar>(),
+                          propogated_tir_vars->values[i]);
+          }
+          call_ty = Bind(call_ty, var_remap);
+        }
+        // Arguments of builtin_run_or_capture
+        ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
+                                          PrimExpr(IntImm::Int64(index_capture_++))};
+        if (plan->propogated_tir_vars.has_value()) {
+          // The shape expr is explicitly passed twice, one as the last argument of the lifted
+          // function, one as the last argument of builtin_run_or_capture as the cache key.
+          // Explicitly passing it twice simplifies the handling during the capture phase.
+          tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
+        }
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_run_or_capture, Tuple(tuple_arg_fields)}, std::nullopt, {call_ty});
       }
-      // Arguments of builtin_run_or_capture
-      ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
-                                        PrimExpr(IntImm::Int64(index_capture_++))};
-      if (plan->propogated_tir_vars.has_value()) {
-        // The shape expr is explicitly passed twice, one as the last argument of the lifted
-        // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly
-        // passing it twice simplifies the handling during the capture phase.
-        tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
-      }
-      launch_subgraph = Call(Type::Missing(), call_builtin_with_ctx_op,
-                             {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
-    }
+    }();
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (const auto& [var, tuple_index] : plan->outputs) {
-      var_redef_[var] = TupleGetItem(ret_value, tuple_index);
+      var_redef_.insert_or_assign(var, TupleGetItem(ret_value, tuple_index));
     }
     std::transform(plan->lifted_bindings.begin(), plan->lifted_bindings.end(),
                    std::inserter(lifted_binding_vars_, lifted_binding_vars_.end()),
@@ -876,7 +887,7 @@ class CUDAGraphRewriter : public ExprMutator {
 
   Var EmitRedef(const VarNode* var, const Expr& redef) {
     auto new_var = builder_->Emit(redef, var->name);
-    var_remap_[ffi::GetRef<Var>(var)] = new_var;
+    var_remap_.insert_or_assign(ffi::GetRef<Var>(var), new_var);
     return new_var;
   }
 
@@ -908,7 +919,7 @@ Pass RewriteCUDAGraph() {
 
         return mod;
       };
-  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
+  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

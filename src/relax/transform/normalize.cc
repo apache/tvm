@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -37,7 +38,7 @@ namespace relax {
 // TODO(@altanh): LCA binding lifting
 class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizeMutator() { builder_ = BlockBuilder::Create(std::nullopt); }
+  NormalizeMutator() : builder_(BlockBuilder::Create(std::nullopt)) {}
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -53,7 +54,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
+  Expr VisitExpr_(const IfExprNode* op) final {
     Expr guard = this->VisitExpr(op->cond);
     Expr true_b = this->VisitWithNewScope(op->true_branch);
     Expr false_b = this->VisitWithNewScope(op->false_branch);
@@ -61,7 +62,7 @@ class NormalizeMutator : public ExprMutatorBase {
         op->false_branch.same_as(false_b)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return If(guard, true_b, false_b, op->span);
+      return IfExpr(guard, true_b, false_b, op->loc);
     }
   }
 
@@ -108,7 +109,7 @@ class NormalizeMutator : public ExprMutatorBase {
   }
 
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
-    BindingBlock ret;
+    BindingBlock ret(ffi::UnsafeInit{});
     if (const auto* node = block.as<DataflowBlockNode>()) {
       ret = VisitBindingBlock_(node);
     } else if (const auto* node = block.as<BindingBlockNode>()) {
@@ -147,7 +148,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   void VisitBinding_(const VarBindingNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, GetType(new_value));
     }
 
@@ -220,7 +221,7 @@ class GlobalVarNormalizer : private ExprMutator {
   /*! \brief Check if any function needs to be renamed. */
   bool NeedRename() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
+      auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
       if (global_symbol && global_symbol.value() != gvar->name_hint) {
         return true;
       }
@@ -231,7 +232,7 @@ class GlobalVarNormalizer : private ExprMutator {
   /*! \brief Add public functions to the builder, and update the name supplier. */
   void AddPublicFunctions() {
     for (const auto& [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
+      auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
       if (!global_symbol) {
         continue;
       }
@@ -251,7 +252,7 @@ class GlobalVarNormalizer : private ExprMutator {
    */
   void AddPrivateFunctions() {
     for (auto [gvar, func] : module_->functions) {
-      auto global_symbol = func->GetAttr<ffi::String>("global_symbol");
+      auto global_symbol = func->GetAttr(tvm::attr::kGlobalSymbol);
       if (global_symbol) {
         continue;
       }
@@ -278,7 +279,7 @@ Pass Normalize() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return Normalize(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "Normalize", {});
+  return CreateFunctionPass(pass_func, 1, "Normalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -292,8 +293,7 @@ Pass NormalizeGlobalVar() {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"NormalizeGlobalVar",
-                          /*required=*/{});
+                          /*pass_name=*/"NormalizeGlobalVar");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

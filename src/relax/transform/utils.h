@@ -25,11 +25,13 @@
 #define TVM_RELAX_TRANSFORM_UTILS_H_
 
 #include <builtin_fp16.h>
+#include <tvm/base.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <string>
@@ -80,13 +82,13 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
       return it->second;
     }
     auto res = BaseFunctor::VisitExpr(n);
-    memo_[n] = res;
+    memo_.insert_or_assign(n, res);
     return res;
   }
 
   virtual OutputType VisitExpr_(const VarNode* vn) {
     TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
-    return memo_[ffi::GetRef<Expr>(vn)];
+    return memo_.at(ffi::GetRef<Expr>(vn));
   }
 
   virtual OutputType VisitExpr_(const DataflowVarNode* vn) {
@@ -96,7 +98,7 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
     TVM_FFI_ICHECK_EQ(memo_.count(binding->var), 0);
     auto v = VisitExpr(binding->value);
-    memo_[binding->var] = v;
+    memo_.insert_or_assign(binding->var, v);
     return v;
   }
 
@@ -129,7 +131,7 @@ TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, ffi::Array<ffi::String
  * \return An external symbol.
  */
 inline std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  const auto name_node = func->GetAttr(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(name_node.has_value()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
@@ -243,15 +245,16 @@ class SymbolicVarRenewMutator : public ExprMutator {
   using relax::ExprMutator::VisitExpr_;
 
   static Var CopyVar(const VarNode* op, Type ty) {
-    ffi::Optional<Type> ty_annotation = ty.IsMissing() ? std::nullopt : ffi::Optional<Type>(ty);
+    ffi::Optional<Type> ty_annotation =
+        ty.as<MissingType>().has_value() ? std::nullopt : ffi::Optional<Type>(ty);
     if (op->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(op->name, std::move(ty_annotation), op->span);
+      return DataflowVar(op->name, std::move(ty_annotation), op->loc);
     }
-    return Var(op->name, std::move(ty_annotation), op->span);
+    return Var(op->name, std::move(ty_annotation), op->loc);
   }
 
   Type RenewType(const VarNode* op) {
-    return op->ty.IsMissing() ? op->ty : this->VisitExprDepTypeField(op->ty);
+    return op->ty.as<MissingType>().has_value() ? op->ty : this->VisitExprDepTypeField(op->ty);
   }
 
   Var RenewVarDefinition(const VarNode* op) {
@@ -269,7 +272,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, std::move(new_ty));
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -283,7 +286,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -297,7 +300,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -312,7 +315,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param] = new_param;
+        var_remap_.insert_or_assign(param, new_param);
         all_params_unchanged = false;
       }
     }
@@ -349,53 +352,53 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 };
 
 /*!
- * \brief Create a Constant with a scalar
+ * \brief Create a GenericConst with a scalar
  *
  * \param dtype The data type.
  * \param value The value of the scalar.
- * \return A Constant.
+ * \return A GenericConst.
  */
 template <typename T>
-inline Constant MakeConstantScalar(T value, DLDataType dtype) {
-  runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
+inline GenericConst MakeConstantScalar(T value, DLDataType dtype) {
+  ffi::Tensor arr = runtime::Empty({}, dtype, {kDLCPU, 0});
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
-    *static_cast<float*>(arr->data) = static_cast<float>(value);
+    *static_cast<float*>(arr.data_ptr()) = static_cast<float>(value);
   } else if (dtype == DLDataType{kDLFloat, 64, 1}) {
-    *static_cast<double*>(arr->data) = static_cast<double>(value);
+    *static_cast<double*>(arr.data_ptr()) = static_cast<double>(value);
   } else if (dtype == DLDataType{kDLInt, 32, 1}) {
-    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+    *static_cast<int32_t*>(arr.data_ptr()) = static_cast<int32_t>(value);
   } else if (dtype == DLDataType{kDLInt, 64, 1}) {
-    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+    *static_cast<int64_t*>(arr.data_ptr()) = static_cast<int64_t>(value);
   } else if (dtype == DLDataType{kDLBool, 8, 1}) {
-    *static_cast<bool*>(arr->data) = static_cast<bool>(value);
+    *static_cast<bool*>(arr.data_ptr()) = static_cast<bool>(value);
   } else if (dtype == DLDataType{kDLUInt, 8, 1}) {
-    *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
+    *static_cast<uint8_t*>(arr.data_ptr()) = static_cast<uint8_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 16, 1}) {
-    *static_cast<uint16_t*>(arr->data) = static_cast<uint16_t>(value);
+    *static_cast<uint16_t*>(arr.data_ptr()) = static_cast<uint16_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 32, 1}) {
-    *static_cast<uint32_t*>(arr->data) = static_cast<uint32_t>(value);
+    *static_cast<uint32_t*>(arr.data_ptr()) = static_cast<uint32_t>(value);
   } else if (dtype == DLDataType{kDLUInt, 64, 1}) {
-    *static_cast<uint64_t*>(arr->data) = static_cast<uint64_t>(value);
+    *static_cast<uint64_t*>(arr.data_ptr()) = static_cast<uint64_t>(value);
   } else if (dtype == DLDataType{kDLInt, 8, 1}) {
-    *static_cast<int8_t*>(arr->data) = static_cast<int8_t>(value);
+    *static_cast<int8_t*>(arr.data_ptr()) = static_cast<int8_t>(value);
   } else if (dtype == DLDataType{kDLInt, 16, 1}) {
-    *static_cast<int16_t*>(arr->data) = static_cast<int16_t>(value);
+    *static_cast<int16_t*>(arr.data_ptr()) = static_cast<int16_t>(value);
   } else if (dtype == DLDataType{kDLInt, 32, 1}) {
-    *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
+    *static_cast<int32_t*>(arr.data_ptr()) = static_cast<int32_t>(value);
   } else if (dtype == DLDataType{kDLInt, 64, 1}) {
-    *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
+    *static_cast<int64_t*>(arr.data_ptr()) = static_cast<int64_t>(value);
   } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     // convert to float16 storage is uint16_t
-    *static_cast<uint16_t*>(arr->data) =
+    *static_cast<uint16_t*>(arr.data_ptr()) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
   } else if (dtype == DLDataType{kDLBfloat, 16, 1}) {
     // convert to bfloat16 storage is uint16_t
-    *static_cast<uint16_t*>(arr->data) =
+    *static_cast<uint16_t*>(arr.data_ptr()) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported dtype " << dtype;
   }
-  return Constant(arr);
+  return MakeTensorConst(arr);
 }
 
 inline ffi::Array<int64_t> GetOrderedPositiveAxes(const ffi::Array<int64_t>& axes, int ndim) {
@@ -425,7 +428,7 @@ inline ffi::String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
-inline int GetDeviceIndexByScope(const IRModule& mod, const ffi::String& scope) {
+inline int GetDeviceIndexByScope(const IRModule& mod, runtime::MemoryScope scope) {
   if (mod->global_infos.find("vdevice") == mod->global_infos.end()) {
     return 0;
   }

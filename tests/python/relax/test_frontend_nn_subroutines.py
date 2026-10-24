@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.frontend import nn
-from tvm.script import ir as I
-from tvm.script import relax as R
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 
 
 def test_linear():
@@ -42,14 +42,18 @@ def test_linear():
             state = nn.op.matmul(input, self.weights)
             return self.activation(state)
 
+    batch_size_forward = I.dynamic("batch_size", "int64")
+    batch_size_layer = I.dynamic("batch_size", "int64")
+    batch_size_activation = I.dynamic("batch_size", "int64")
+
     @I.ir_module
     class Expected:
         @R.function
         def forward(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_forward, 64), dtype="float32"),
             _io: R.Any,
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tuple(R.Tensor(("batch_size", 32), dtype="float32"), R.Tuple(R.Any)):
+        ) -> R.Tuple(R.Tensor((batch_size_forward, 32), dtype="float32"), R.Tuple(R.Any)):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 state = Expected.layer(state, weights)
@@ -69,9 +73,9 @@ def test_linear():
 
         @R.function(private=True)
         def layer(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_layer, 64), dtype="float32"),
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+        ) -> R.Tensor((batch_size_layer, 32), dtype="float32"):
             with R.dataflow():
                 state = R.matmul(state, weights)
                 state = Expected.activation(state)
@@ -81,8 +85,8 @@ def test_linear():
 
         @R.function(private=True)
         def activation(
-            state: R.Tensor(("batch_size", 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+            state: R.Tensor((batch_size_activation, 32), dtype="float32"),
+        ) -> R.Tensor((batch_size_activation, 32), dtype="float32"):
             with R.dataflow():
                 state = R.nn.silu(state)
                 dataflow_output = state
@@ -90,7 +94,7 @@ def test_linear():
             return dataflow_output
 
     mod = Layer(64, 32)
-    batch_size = tvm.tirx.Var("batch_size", "int64")
+    batch_size = tvm_tirx.tirx.Var("batch_size", "int64")
     tvm_mod, _ = mod.export_tvm(
         spec={"forward": {"input": nn.spec.Tensor((batch_size, 64), "float32")}}, debug=True
     )
@@ -121,7 +125,7 @@ def test_different_shapes_produce_distinct_subroutines():
             return nn.op.add(a, b)
 
     mod = Model()
-    batch_size = tvm.tirx.Var("batch_size", "int64")
+    batch_size = tvm_tirx.tirx.Var("batch_size", "int64")
     tvm_mod, _ = mod.export_tvm(
         spec={
             "forward": {
@@ -152,4 +156,4 @@ def test_different_shapes_produce_distinct_subroutines():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

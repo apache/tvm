@@ -19,12 +19,14 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 add_cuda_source = """
 extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_elements) {
@@ -39,48 +41,56 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_call_source_kernel():
-    @I.ir_module(s_tir=True)
+    BLOCK_SIZE = 64
+
+    m_add = T.dynamic("m", "int64")
+    m_main = T.dynamic("m", "int64")
+
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
+        @Ts.function
+        def add(
+            x: T.Tensor((m_add,), "float32"),
+            y: T.Tensor((m_add,), "float32"),
+            output: T.Tensor((m_add,), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "add"})
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,), "float32")
-            y = T.match_buffer(y_handle, (m,), "float32")
-            output = T.match_buffer(output_handle, (m,), "float32")
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
-                BLOCK_SIZE = T.meta_var(64)
+
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m_add], y[0:m_add])
+                Ts.writes(output[0:m_add])
                 T.call_kernel(
                     add_cuda_source,
-                    ((T.ceildiv(m, BLOCK_SIZE),), (BLOCK_SIZE,)),
+                    ((T.ceildiv(m_add, BLOCK_SIZE),), (BLOCK_SIZE,)),
                     x.data,
                     y.data,
                     output.data,
-                    m,
+                    m_add,
                     kernel_name="add_kernel",
                 )
 
         @R.function
-        def main(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
-            m = T.int64()
+        def main(x: R.Tensor((m_main,), "float32"), y: R.Tensor((m_main,), "float32")):
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorType((m,), "float32"))
+                output = R.call_tir(
+                    Module.add, [x, y], ty_args=[relax.TensorType((m_main,), "float32")]
+                )
                 R.output(output)
             return output
 
-    @I.ir_module(s_tir=True)
+    m = T.dynamic("m", "int64")
+
+    @I.ir_module
     class Parsed:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,))
-            y = T.match_buffer(y_handle, (m,))
-            output = T.match_buffer(output_handle, (m,))
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+        @Ts.function
+        def add(
+            x: T.Tensor((m,), "float32"),
+            y: T.Tensor((m,), "float32"),
+            output: T.Tensor((m,), "float32"),
+        ):
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
                     x.data,
@@ -91,18 +101,18 @@ def test_tir_call_source_kernel():
                     64,
                 )
 
-    tvm.ir.assert_structural_equal(Module["add"], Parsed["add"])
+    tvm_tirx.ir.assert_structural_equal(Module["add"], Parsed["add"])
     assert len(Module.get_attr("external_mods")) == 1
 
-    with tvm.target.Target("cuda"):
+    with tvm_tirx.target.Target("cuda"):
         lib = tvm.compile(Module)
 
     def run_and_check():
-        device = tvm.cuda(0)
-        x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
-        y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        device = tvm_tirx.cuda(0)
+        x_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        y_nd = tvm_tirx.runtime.tensor(np.random.rand(256).astype(np.float32), device)
         output_np = x_nd.numpy() + y_nd.numpy()
         output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
-        tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
+        tvm_tirx.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run_and_check)
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)

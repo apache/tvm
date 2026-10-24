@@ -18,14 +18,15 @@
 
 from __future__ import annotations
 
-import tvm.script
-import tvm.testing
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import assert_structural_equal
+from tvm.relax import script as R
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
 
@@ -33,19 +34,19 @@ from tvm.script import tirx as T
 def test_const_shape_arg():
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
             R.func_attr({"relax.force_pure": True})
             return x
 
-        @T.prim_func(s_tir=True)
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             """Extra function, checks if the pass preserves it."""
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
@@ -67,8 +68,8 @@ def test_const_shape_arg():
             )
             return x
 
-        @T.prim_func(s_tir=True)
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
     before = Before
@@ -81,14 +82,14 @@ def test_static_fn_check():
     """Check static shape and function."""
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
             R.func_attr({"relax.force_pure": True})
             return y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
@@ -119,10 +120,13 @@ def test_static_fn_check():
 def test_simple_symbolic_shape():
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", 2, "m"], "float32")):
+        def main(x: R.Tensor([n, 2, m], "float32")):
             R.func_attr({"relax.force_pure": True})
             return x
 
@@ -131,10 +135,13 @@ def test_simple_symbolic_shape():
         "m": 1,
     }
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["n", 2, "m"], "float32")):
+        def main(x: R.Tensor([n, 2, m], "float32")):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -175,15 +182,17 @@ def test_symbolic_compute():
     MS = MatchShapeCode
     MK = MakeShapeCode
 
-    @tvm.script.ir_module
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
+        def main(x: R.Tensor([n, m], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
             ndim=3
         ):
             R.func_attr({"relax.force_pure": True})
-            m = T.int64()
-            k = T.int64()
             z = R.match_cast(y, R.Tensor([k, m, k + 1], dtype=None))
             return R.shape([k + 1, m, 2])
 
@@ -191,21 +200,23 @@ def test_symbolic_compute():
     # 0: n, 1: m, 2:k, 3: k+1
     sindex = {"n": 0, "m": 1, "k": 2, "k+1": 3}
 
-    @tvm.script.ir_module
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
-        def shape_func(H: T.Buffer(T.int64(4), "int64")):
+        @Ts.function(private=True)
+        def shape_func(H: T.Tensor(T.int64(4), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
 
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
+        def main(x: R.Tensor([n, m], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
             ndim=3
         ):
             R.func_attr({"relax.force_pure": True})
-            m = T.int64()
-            k = T.int64()
             cls = Expected
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -248,7 +259,7 @@ def test_symbolic_compute():
                 "",
                 ty_args=[R.Tuple()],
             )
-            _ = cls.shape_func(shape_heap)
+            _ = R.call_tir_packed(cls.shape_func, (shape_heap,))
             # extra assertion on y's shape after shape computation
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -289,13 +300,15 @@ def test_symbolic_compute():
 def test_tuple_handling():
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
-            x: R.Tuple(
-                R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
-            ),
+            x: R.Tuple(R.Tensor([n, m], "float32"), R.Tuple(R.Shape, R.Tensor([n, k], "int32"))),
         ):
             R.func_attr({"relax.force_pure": True})
             return x
@@ -303,13 +316,15 @@ def test_tuple_handling():
     # slot assignment:
     sindex = {"n": 0, "m": 1, "k": 2}
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
+
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tuple(
-                R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
-            ),
+            x: R.Tuple(R.Tensor([n, m], "float32"), R.Tuple(R.Shape, R.Tensor([n, k], "int32"))),
         ):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
@@ -378,12 +393,13 @@ def test_return_match_check():
     """Test when return body is not same as ret_ty, runtime match check needed."""
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Any) -> R.Tuple(
-            R.Tensor(["n", "m"], "float32")
-        ):
+        def main(x: R.Tensor([n, m], "float32"), y: R.Any) -> R.Tuple(R.Tensor([n, m], "float32")):
             R.func_attr({"relax.force_pure": True})
             return y
 
@@ -393,12 +409,13 @@ def test_return_match_check():
         "m": 1,
     }
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Any) -> R.Tuple(
-            R.Tensor(["n", "m"], "float32")
-        ):
+        def main(x: R.Tensor([n, m], "float32"), y: R.Any) -> R.Tuple(R.Tensor([n, m], "float32")):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -463,10 +480,12 @@ def test_return_match_check_with_new_expr():
     """
     MS = MatchShapeCode
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
+        def main(x: R.Tensor([n, n], "float32")) -> R.Tensor([n * n], "float32"):
             R.func_attr({"relax.force_pure": True})
             out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             return out
@@ -477,10 +496,12 @@ def test_return_match_check_with_new_expr():
         "n * n": 1,
     }
 
-    @tvm.script.ir_module
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
+        def main(x: R.Tensor([n, n], "float32")) -> R.Tensor([n * n], "float32"):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -503,7 +524,7 @@ def test_return_match_check_with_new_expr():
                 ty_args=[R.Tuple()],
             )
 
-            _ = Expected.shape_func(shape_heap)
+            _ = R.call_tir_packed(Expected.shape_func, (shape_heap,))
 
             out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             _ = R.call_packed(
@@ -526,8 +547,8 @@ def test_return_match_check_with_new_expr():
             )
             return out
 
-        @T.prim_func(private=True, s_tir=True)
-        def shape_func(H: T.Buffer(T.int64(2), "int64")):
+        @Ts.function(private=True)
+        def shape_func(H: T.Tensor(T.int64(2), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]
@@ -542,20 +563,21 @@ def test_symbolic_shape_multiple_function():
     MS = MatchShapeCode
     MK = MakeShapeCode
 
+    m_fn1 = T.dynamic("m", "int64")
+    n_fn1 = T.dynamic("n", "int64")
+    n_fn2 = T.dynamic("n", "int64")
+    m_fn2 = T.dynamic("m", "int64")
+
     @I.ir_module
     class Before:
         @R.function
-        def fn1(A: R.Tensor(("m", "n"), dtype="float32")):
+        def fn1(A: R.Tensor((m_fn1, n_fn1), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
-            m = T.int64()
-            n = T.int64()
             return A
 
         @R.function
-        def fn2(A: R.Tensor(("n", "m"), dtype="float32")):
+        def fn2(A: R.Tensor((n_fn2, m_fn2), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
-            n = T.int64()
-            m = T.int64()
             return A
 
     # slot assignment:
@@ -568,13 +590,18 @@ def test_symbolic_shape_multiple_function():
         "m": 1,
     }
 
+    m_fn1 = T.dynamic("m", "int64")
+    n_fn1 = T.dynamic("n", "int64")
+    n_fn2 = T.dynamic("n", "int64")
+    m_fn2 = T.dynamic("m", "int64")
+
     @I.ir_module
     class Expected:
         @R.function
-        def fn1(A: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
+        def fn1(A: R.Tensor((m_fn1, n_fn1), dtype="float32")) -> R.Tensor(
+            (m_fn1, n_fn1), dtype="float32"
+        ):
             R.func_attr({"relax.force_pure": True})
-            m = T.int64()
-            n = T.int64()
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(2),),
@@ -603,10 +630,10 @@ def test_symbolic_shape_multiple_function():
             return A
 
         @R.function
-        def fn2(A: R.Tensor(("n", "m"), dtype="float32")) -> R.Tensor(("n", "m"), dtype="float32"):
+        def fn2(A: R.Tensor((n_fn2, m_fn2), dtype="float32")) -> R.Tensor(
+            (n_fn2, m_fn2), dtype="float32"
+        ):
             R.func_attr({"relax.force_pure": True})
-            n = T.int64()
-            m = T.int64()
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(2),),
@@ -797,33 +824,35 @@ def test_lower_bundled_symbolic_shape():
 
     bundled = relax.transform.BundleModelParams()(Before)
     lowered = relax.transform.VMShapeLower()(bundled)
-    assert isinstance(lowered, tvm.IRModule)
+    assert isinstance(lowered, tvm_tirx.IRModule)
 
 
 def test_check_weights_with_dynamic_shape():
     MS = MatchShapeCode
+
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
         @R.function
         def main(
             x: R.Tensor((16, 16), "float32"),
-            params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor(("n",), "float32")),
+            params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((n,), "float32")),
         ):
             R.func_attr({"relax.force_pure": True, "num_input": 1})
-            n = T.int64()
             param_0 = params[0]
             param_1 = params[1]
             return (x, param_0, param_1)
+
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
             x: R.Tensor((16, 16), "float32"),
-            params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor(("n",), "float32")),
+            params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((n,), "float32")),
         ):
-            n = T.int64()
             R.func_attr({"num_input": 1, "relax.force_pure": True})
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -889,4 +918,4 @@ def test_check_weights_with_dynamic_shape():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

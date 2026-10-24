@@ -18,7 +18,6 @@
  */
 #include "nms.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -26,14 +25,65 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/attrs/vision.h>
+#include <tvm/relax/op/vision.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <utility>
 #include <vector>
 
 namespace tvm {
 namespace relax {
+
+void AllClassNonMaximumSuppressionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AllClassNonMaximumSuppressionAttrs>().def_ro(
+      "output_format", &AllClassNonMaximumSuppressionAttrs::output_format,
+      "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
+      "consumed by each frontend.",
+      refl::DefaultValue(ffi::String("onnx")));
+}
+
+void GetValidCountsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GetValidCountsAttrs>()
+      .def_ro("score_threshold", &GetValidCountsAttrs::score_threshold,
+              "Lower limit of score for valid bounding boxes.", refl::DefaultValue(0))
+      .def_ro("id_index", &GetValidCountsAttrs::id_index,
+              "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
+      .def_ro("score_index", &GetValidCountsAttrs::score_index,
+              "Index of the scores/confidence of boxes.", refl::DefaultValue(1));
+}
+
+void NonMaximumSuppressionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<NonMaximumSuppressionAttrs>()
+      .def_ro("max_output_size", &NonMaximumSuppressionAttrs::max_output_size,
+              "Max number of output valid boxes, -1 for no limit.", refl::DefaultValue(-1))
+      .def_ro("iou_threshold", &NonMaximumSuppressionAttrs::iou_threshold,
+              "Non-maximum suppression IoU threshold.", refl::DefaultValue(0.5))
+      .def_ro("force_suppress", &NonMaximumSuppressionAttrs::force_suppress,
+              "Whether to suppress all detections regardless of class_id.",
+              refl::DefaultValue(false))
+      .def_ro("top_k", &NonMaximumSuppressionAttrs::top_k,
+              "Keep maximum top k detections before nms, -1 for no limit.", refl::DefaultValue(-1))
+      .def_ro("coord_start", &NonMaximumSuppressionAttrs::coord_start,
+              "Start index of the consecutive 4 coordinates.", refl::DefaultValue(2))
+      .def_ro("score_index", &NonMaximumSuppressionAttrs::score_index,
+              "Index of the scores/confidence of boxes.", refl::DefaultValue(1))
+      .def_ro("id_index", &NonMaximumSuppressionAttrs::id_index,
+              "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
+      .def_ro("return_indices", &NonMaximumSuppressionAttrs::return_indices,
+              "Whether to return box indices in input data.", refl::DefaultValue(true))
+      .def_ro("invalid_to_bottom", &NonMaximumSuppressionAttrs::invalid_to_bottom,
+              "Whether to move all valid bounding boxes to the top.", refl::DefaultValue(false))
+      .def_ro("soft_nms_sigma", &NonMaximumSuppressionAttrs::soft_nms_sigma,
+              "Sigma for soft-NMS; 0.0 means standard hard NMS.", refl::DefaultValue(0.0))
+      .def_ro("score_threshold", &NonMaximumSuppressionAttrs::score_threshold,
+              "Score threshold for soft-NMS validity check; 0.0 when unused.",
+              refl::DefaultValue(0.0));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   AllClassNonMaximumSuppressionAttrs::RegisterReflection();
@@ -49,7 +99,7 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
   auto attrs = tvm::ffi::make_object<AllClassNonMaximumSuppressionAttrs>();
   attrs->output_format = output_format;
 
-  static const Op& op = Op::Get("relax.vision.all_class_non_max_suppression");
+  static const Op op = Op::Get("relax.vision.all_class_non_max_suppression");
   return Call(Type::Missing(), op,
               {std::move(boxes), std::move(scores), std::move(max_output_boxes_per_class),
                std::move(iou_threshold), std::move(score_threshold)},
@@ -62,8 +112,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         all_class_non_max_suppression);
 }
 
-Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
-  tvm::ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+Type InferTypeAllClassNMS(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  tvm::ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto boxes_ty = input_ty[0];
   const auto scores_ty = input_ty[1];
   TVM_FFI_ICHECK(!boxes_ty->IsUnknownNdim()) << "Only support known ndim";
@@ -102,19 +153,19 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
   return TupleType(fields);
 }
 
-TVM_REGISTER_OP("relax.vision.all_class_non_max_suppression")
-    .set_attrs_type<AllClassNonMaximumSuppressionAttrs>()
-    .set_num_inputs(5)
-    .add_argument("boxes", "Tensor", "The input boxes in the format [batch, num_boxes, 4].")
-    .add_argument("scores", "Tensor",
-                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
-    .add_argument("max_output_boxes_per_class", "Tensor",
-                  "The maximum number of output boxes per class.")
-    .add_argument("iou_threshold", "Tensor", "The IoU threshold for box the overlap test.")
-    .add_argument("score_threshold", "Tensor",
-                  "The score threshold to filter out low score boxes early.")
-    .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.all_class_non_max_suppression")
+      .signature(
+          sig::arg("boxes", "The input boxes in the format [batch, num_boxes, 4]."),
+          sig::arg("scores",
+                   "Scores for each box and class in the format [batch, num_classes, num_boxes]."),
+          sig::arg("max_output_boxes_per_class", "The maximum number of output boxes per class."),
+          sig::arg("iou_threshold", "The IoU threshold for box the overlap test."),
+          sig::arg("score_threshold", "The score threshold to filter out low score boxes early."),
+          sig::call_attrs<AllClassNonMaximumSuppressionAttrs>())
+      .set_native_fn_attr<&InferTypeAllClassNMS>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
 
 /* relax.vision.get_valid_counts */
 
@@ -124,7 +175,7 @@ Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score
   attrs->id_index = id_index;
   attrs->score_index = score_index;
 
-  static const Op& op = Op::Get("relax.vision.get_valid_counts");
+  static const Op op = Op::Get("relax.vision.get_valid_counts");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
@@ -133,7 +184,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.get_valid_counts", get_valid_counts);
 }
 
-Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeGetValidCounts(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "get_valid_counts expects 1 argument, got " << call->args.size();
@@ -183,13 +236,13 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
   return TupleType(fields);
 }
 
-TVM_REGISTER_OP("relax.vision.get_valid_counts")
-    .set_attrs_type<GetValidCountsAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-    .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.get_valid_counts")
+      .signature(sig::arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length]."),
+                 sig::call_attrs<GetValidCountsAttrs>())
+      .set_native_fn_attr<&InferTypeGetValidCounts>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
 
 /* relax.vision.non_max_suppression */
 
@@ -210,7 +263,7 @@ Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_outp
   attrs->soft_nms_sigma = soft_nms_sigma;
   attrs->score_threshold = score_threshold;
 
-  static const Op& op = Op::Get("relax.vision.non_max_suppression");
+  static const Op op = Op::Get("relax.vision.non_max_suppression");
   return Call(Type::Missing(), op, {std::move(data), std::move(valid_count), std::move(indices)},
               Attrs(attrs), {});
 }
@@ -266,7 +319,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   const auto* valid_count_shape = valid_count_ty->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
   if (data_shape != nullptr) {
-    arith::Analyzer analyzer = ctx->GetAnalyzer();
+    sym::Analyzer analyzer = ctx->GetAnalyzer();
     PrimExpr batch = data_shape->values[0];
     PrimExpr num_anchors = data_shape->values[1];
     if (valid_count_shape != nullptr &&
@@ -293,7 +346,7 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   if (data_shape != nullptr) {
     const auto* elem_length_imm = data_shape->values[2].as<IntImmNode>();
     if (elem_length_imm != nullptr) {
-      int64_t elem_length = elem_length_imm->value;
+      const ffi::BigInt& elem_length = elem_length_imm->value;
       if (attrs->score_index < 0 || attrs->score_index >= elem_length) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "non_max_suppression expects score_index to be in range [0, " << elem_length
@@ -354,15 +407,15 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   return TensorType(data_ty->dtype, /*ndim=*/3, vdev);
 }
 
-TVM_REGISTER_OP("relax.vision.non_max_suppression")
-    .set_attrs_type<NonMaximumSuppressionAttrs>()
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-    .add_argument("valid_count", "Tensor", "1-D tensor for valid number of boxes.")
-    .add_argument("indices", "Tensor", "2-D tensor with shape [batch_size, num_anchors].")
-    .set_attr<FInferType>("FInferType", InferTypeNMS)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.non_max_suppression")
+      .signature(sig::arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length]."),
+                 sig::arg("valid_count", "1-D tensor for valid number of boxes."),
+                 sig::arg("indices", "2-D tensor with shape [batch_size, num_anchors]."),
+                 sig::call_attrs<NonMaximumSuppressionAttrs>())
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeNMS)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
 
 }  // namespace relax
 }  // namespace tvm

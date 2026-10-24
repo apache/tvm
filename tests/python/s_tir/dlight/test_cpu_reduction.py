@@ -19,12 +19,13 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm import te, tirx, topi
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te, topi
 from tvm.s_tir import dlight as dl
 from tvm.s_tir.dlight.cpu import Reduction
-from tvm.target import Target
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -50,8 +51,8 @@ def _rvv_target():
 def _build_softmax(batch, features, fast=False):
     A = te.placeholder((batch, features), dtype="float32", name="A")
     B = topi.nn.fast_softmax(A, axis=1) if fast else topi.nn.softmax(A, axis=1)
-    func = te.create_prim_func([A, B])
-    return tvm.IRModule({"main": func})
+    func = te.create_function([A, B])
+    return tvm_tirx.IRModule({"main": func})
 
 
 def _apply_and_check(mod, target):
@@ -139,26 +140,26 @@ def test_fast_softmax_schedule_structure():
 def _codegen_llvm_ir(mod, target):
     """Lower and codegen to LLVM IR (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm_tirx.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
-    built = tvm.target.codegen.build_module(host_mod, target)
+    built = tvm_tirx.codegen.build_module(host_mod, target)
     return built.inspect_source("ll")
 
 
 def _codegen_asm(mod, target):
     """Lower and codegen to assembly (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
-    from tvm.tirx.build import split_host_device_mods
+    from tvm_tirx.tirx._compile import _split_host_device_modules
 
-    host_mod, _ = split_host_device_mods(lowered)
+    host_mod, _ = _split_host_device_modules(lowered)
     host_mod = finalize_host()(host_mod)
-    built = tvm.target.codegen.build_module(host_mod, target)
+    built = tvm_tirx.codegen.build_module(host_mod, target)
     return built.inspect_source("s")
 
 
@@ -191,11 +192,11 @@ def test_rvv_code_size_reduction(fast):
     )
 
 
-# The arith analyzer no longer proves vscale-bearing inequalities via
+# The sym analyzer no longer proves vscale-bearing inequalities via
 # substitution (CanProveVscaleExpressionFromKnownValues was deleted). This
 # weakens simplification of scalable-vector index expressions, which can
 # prevent the RVV vectorization schedule from producing scalable vector ops.
-@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
+@pytest.mark.xfail(reason="sym no longer proves vscale-bearing inequalities via substitution")
 def test_rvv_fast_softmax_vectorizes_exp():
     """fast_softmax + schedule should produce RVV vector instructions
     for the polynomial exp approximation (no scalar exp calls)."""

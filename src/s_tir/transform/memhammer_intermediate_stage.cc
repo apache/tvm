@@ -19,23 +19,24 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/runtime/memory_scope.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "memhammer_rewrite_rule.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_body, int ith = -1,
-                   Stmt* ith_loop = nullptr) {
+                   ffi::Optional<For>* ith_loop = nullptr) {
   Stmt ret = inner_body;
   for (int i = static_cast<int>(loops.size() - 1); i >= 0; i--) {
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loops[i]);
     new_loop->body = ret;
     ret = For(new_loop);
     if (ith == i) {
-      *ith_loop = ret;
+      *ith_loop = ret.as_or_throw<For>();
     }
   }
   return ret;
@@ -47,20 +48,20 @@ Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_bo
  * \return a pair. The first is the transformed stmt.
  *         The second is the lowest thread binding loop.
  */
-std::pair<Stmt, For> LiftThreadBindingLoops(Stmt stmt) {
+std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
   std::vector<const ForNode*> normal_loops;
   std::vector<const ForNode*> thread_binding_loops;
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
-    if (loop->kind == ForKind::kThreadBinding) {
+    if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
       thread_binding_loops.push_back(loop);
     } else {
       normal_loops.push_back(loop);
     }
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   body = CopyLoopChain(normal_loops, body);
-  For compute_location;
+  ffi::Optional<For> compute_location;
   body = CopyLoopChain(thread_binding_loops, body,
                        static_cast<int>(thread_binding_loops.size()) - 1, &compute_location);
 
@@ -68,15 +69,16 @@ std::pair<Stmt, For> LiftThreadBindingLoops(Stmt stmt) {
 }
 
 /*!
- * \brief Analyze the access pattern for buffer rank promotion.
- * Rank promotion is a transformation that reshapes the buffer
+ * \brief Analyze the access pattern for tensor rank promotion.
+ * Rank promotion is a transformation that reshapes the tensor
  * but doesn't change its underlying data layout.
  * After the reshape, we expect that all dimensions of the access indices
  * will be in the form of floormod(floordiv(x, a), b).
- * Rank promotion removes strided access, thus enabling further buffer compacting
+ * Rank promotion removes strided access, thus enabling further tensor compacting
  */
-class IndexPatternFinder : public ExprVisitor {
+class IndexPatternFinder : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   IndexPatternFinder(const ffi::Map<Var, Range>& var_range, ffi::Array<PrimExpr>* resulting_index)
       : var_range_(var_range), resulting_index_(resulting_index) {}
   struct Operator {
@@ -86,26 +88,26 @@ class IndexPatternFinder : public ExprVisitor {
   };
 
   /*!
-   * \brief Calculate the new buffer shape after rank promotion.
+   * \brief Calculate the new tensor shape after rank promotion.
    * For each dimension of original shape, it will be compacted.
-   * \param indices The access indices of the buffer
+   * \param indices The access indices of the tensor
    * \param var_range The iter range of the vars in the indices
    * \param rewrite_indices The access indices after rank promotion
-   * \return The new buffer shape after rank promotion.
+   * \return The new tensor shape after rank promotion.
    */
   static ffi::Array<PrimExpr> getRankPromotedShape(ffi::Array<PrimExpr> indices,
                                                    const ffi::Map<Var, Range>& var_range,
                                                    ffi::Array<PrimExpr>* rewrite_indices) {
-    ffi::Map<Var, arith::IntSet> var_dom = arith::AsIntSet(var_range);
+    ffi::Map<Var, sym::IntSet> var_dom = sym::AsIntSet(var_range);
     ffi::Array<PrimExpr> new_shape;
     for (const PrimExpr& expr : indices) {
       ffi::Array<PrimExpr> indices_dim;
-      IndexPatternFinder extractor(var_range, &indices_dim);
-      extractor(expr);
-      if (!extractor.success_) {
+      auto extractor = ffi::make_object<IndexPatternFinder>(var_range, &indices_dim);
+      extractor->Visit(expr);
+      if (!extractor->success_) {
         return {};
       }
-      ffi::Array<PrimExpr> access_shape = extractor.access_shape_;
+      ffi::Array<PrimExpr> access_shape = extractor->access_shape_;
       PrimExpr product_shape = 1;
       for (PrimExpr e : access_shape) {
         product_shape *= e;
@@ -121,13 +123,13 @@ class IndexPatternFinder : public ExprVisitor {
   }
 
  private:
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     if (!success_) {
-      return;
+      return std::nullopt;
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
       PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
-      int64_t max = range.value()->extent.as<IntImmNode>()->value;
+      int64_t max = static_cast<int64_t>(range.value()->extent.as<IntImmNode>()->value);
       int64_t extent = max;
       for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {
         Operator o = operator_stack[i];
@@ -139,7 +141,7 @@ class IndexPatternFinder : public ExprVisitor {
           case Operator::OpKind::FloorDiv:
             if (max % o.operand != 0 && o.operand % max != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             max = max / o.operand;
             if (extent > max) {
@@ -147,7 +149,7 @@ class IndexPatternFinder : public ExprVisitor {
             }
             if (max % extent != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             index = floordiv(index, IntImm::Int32(o.operand));
             break;
@@ -155,7 +157,7 @@ class IndexPatternFinder : public ExprVisitor {
             int64_t step = max / extent;
             if (step % o.operand != 0 && o.operand % step != 0) {
               success_ = false;
-              return;
+              return std::nullopt;
             }
             if (step % o.operand == 0) {
               extent = 1;
@@ -173,27 +175,31 @@ class IndexPatternFinder : public ExprVisitor {
         resulting_index_->push_back(floordiv(index, max / extent));
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const FloorDivNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+  ffi::Optional<VisitInterrupt> Visit_(const FloorDivNode* op) final {
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorDiv, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
-  void VisitExpr_(const FloorModNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+  ffi::Optional<VisitInterrupt> Visit_(const FloorModNode* op) final {
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::FloorMod, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
-  void VisitExpr_(const MulNode* op) final {
-    int64_t b = op->b.as<IntImmNode>()->value;
+  ffi::Optional<VisitInterrupt> Visit_(const MulNode* op) final {
+    int64_t b = static_cast<int64_t>(op->b.as<IntImmNode>()->value);
     operator_stack.push_back(Operator{Operator::OpKind::Mul, b});
-    ExprVisitor::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     operator_stack.pop_back();
+    return std::nullopt;
   }
 
   ffi::Map<Var, Range> var_range_;
@@ -203,21 +209,24 @@ class IndexPatternFinder : public ExprVisitor {
   bool success_ = true;
 };
 
-class BufferLoadReplacer : public StmtExprMutator {
+class TensorLoadReplacer : public StmtExprMutator {
  public:
-  BufferLoadReplacer(const BufferVar& tgt_buffer, const TensorLoad& new_buffer_load)
-      : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
 
-  Expr VisitExpr_(const TensorLoadNode* op) {
-    if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(tgt_buffer_)) {
-      return new_buffer_load_;
+  TensorLoadReplacer(const TensorVar& tgt_tensor, const TensorLoad& new_tensor_load)
+      : tgt_tensor_(tgt_tensor), new_tensor_load_(new_tensor_load) {}
+
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
+    if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tgt_tensor_)) {
+      return new_tensor_load_;
     }
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
-  BufferVar tgt_buffer_;
-  TensorLoad new_buffer_load_;
+  TensorVar tgt_tensor_;
+  TensorLoad new_tensor_load_;
 };
 
 /*!
@@ -227,14 +236,17 @@ class BufferLoadReplacer : public StmtExprMutator {
  * \param storage_scope the storage scope of the new cache
  * \param compute_location the compute location.
  * \param outer_loops the outer loops of this stmt
- * \param alloc_buffer the new cache block
+ * \param alloc_tensor the new cache block
  * \return a pair. The first is the stmt after transformation.
  *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
  */
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          BufferVar* alloc_buffer) {
+                                          TensorVar* alloc_tensor) {
+  static const auto scope_wmma_accumulator = runtime::MemoryScope::Get("wmma.accumulator");
+  static const auto scope_mma_matrixC = runtime::MemoryScope::Get("mma.matrixC");
+
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -242,77 +254,80 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   bool need_relax = !compute_location.has_value();
   ffi::Map<Var, Range> var_range;
   PrimExpr vector_bytes = -1;
-  // Step 1. Perform rank promotion on the buffer access, turning a strided-changing dimension into
+  // Step 1. Perform rank promotion on the tensor access, turning a strided-changing dimension into
   // several contiguous-changing dimensions
   // Step 1.1 collect loop var range for rank promotion
   while (const ForNode* loop = body.as<ForNode>()) {
     if (need_relax) {
-      var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      var_range.Set(loop->var, Range(loop->begin, loop->end));
       loops_under_compute_location.push_back(loop);
     } else {
       loops.push_back(loop);
     }
-    if (loop == compute_location.value_or(For()).get()) {
+    if (compute_location.has_value() && loop == compute_location.value().get()) {
       need_relax = true;
     }
     if (loop->kind == ForKind::kVectorized) {
-      vector_bytes = loop->extent;
+      vector_bytes = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
     }
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   ffi::Optional<PrimExpr> predicate;
-  if (const auto* op = body.as<IfThenElseNode>()) {
+  if (const auto* op = body.as<IfNode>()) {
     // the predicate is generated by coalescing
     predicate = op->condition;
-    body = op->then_case;
+    TVM_FFI_ICHECK_EQ(op->then_case->size(), 1);
+    body = op->then_case->seq[0];
   }
+  const auto memory_scope = runtime::MemoryScope::Get(storage_scope);
   for (const For& loop : outer_loops) {
-    if (loop->kind == ForKind::kThreadBinding) {
-      const ffi::String& thread_tag = loop->thread_binding.value()->thread_tag;
-      auto thread_scope = runtime::ThreadScope::Create(thread_tag);
-      if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
+    if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
+      const ffi::String thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
+      auto thread_scope = ParseThreadBindingTag(thread_tag);
+      if (CanRelaxStorageUnderThread(memory_scope, thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {
           // writing C_reindex_m16n8k8_matrixC_shared_dyn is warp execution
           continue;
         }
-        var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+        var_range.Set(loop->var, Range(loop->begin, loop->end));
         relaxed_thread_loops.push_back(loop.get());
       }
     }
   }
 
-  arith::Analyzer analyzer;
-  const TensorLoadNode* target_buffer_load = nullptr;
+  sym::Analyzer analyzer;
+  const TensorLoadNode* target_tensor_load = nullptr;
   if (is_write_cache) {
-    auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
-      if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator" ||
-          buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
-        if (target_buffer_load == nullptr) {
-          target_buffer_load = buffer_load.get();
+    auto walk_fn = [&](const TensorLoad& tensor_load) -> ffi::Expected<ffi::WalkResult> {
+      if (tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() ==
+              scope_wmma_accumulator ||
+          tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_mma_matrixC) {
+        if (target_tensor_load == nullptr) {
+          target_tensor_load = tensor_load.get();
         } else {
-          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
-              << "More than one target buffer found";
-          TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
-          for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
+          TVM_FFI_ICHECK(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              tensor_load->source.as_or_throw<tvm::tirx::TensorVar>()))
+              << "More than one target tensor found";
+          TVM_FFI_ICHECK(target_tensor_load->indices.size() == tensor_load->indices.size());
+          for (size_t i = 0; i < target_tensor_load->indices.size(); i++) {
             TVM_FFI_ICHECK(
-                analyzer->CanProveEqual(target_buffer_load->indices[i], buffer_load->indices[i]));
+                analyzer->CanProveEqual(target_tensor_load->indices[i], tensor_load->indices[i]));
           }
         }
       }
       return ffi::WalkResult::Advance();
     };
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(stmt, walk_fn);
-    TVM_FFI_ICHECK(target_buffer_load);
+    TVM_FFI_ICHECK(target_tensor_load);
   }
 
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
   ffi::Array<PrimExpr> cache_indices;
   ffi::Array<PrimExpr> new_shape;
   bool use_rank_promotion = false;
-  if (!is_write_cache && buf_store->value.as<TensorLoadNode>()) {
+  if (!is_write_cache && tensor_store->value.as<TensorLoadNode>()) {
     ffi::Array<PrimExpr> indices =
-        is_write_cache ? buf_store->indices : buf_store->value.as<TensorLoadNode>()->indices;
+        is_write_cache ? tensor_store->indices : tensor_store->value.as<TensorLoadNode>()->indices;
     new_shape = IndexPatternFinder::getRankPromotedShape(indices, var_range, &cache_indices);
     // write cache disabled for now
     // rank promotion for write cache cannot guarantee the shape fits wmma.accumulator
@@ -325,29 +340,29 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (!use_rank_promotion) {
     cache_indices.clear();
     for (const ForNode* loop : relaxed_thread_loops) {
-      new_shape.push_back(loop->extent);
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
     for (const ForNode* loop : loops_under_compute_location) {
-      new_shape.push_back(loop->extent);
+      new_shape.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
     }
   }
 
   for (int i = 0; i < static_cast<int>(relaxed_thread_loops.size()); i++) {
     const ForNode* loop = relaxed_thread_loops[i];
-    PrimVar new_loop_var = loop->loop_var.CopyWithSuffix("_cache");
+    PrimVar new_loop_var = loop->var.CopyWithSuffix("_cache");
     new_loop_vars.push_back(new_loop_var);
-    subst_map.Set(loop->loop_var, new_loop_var);
+    subst_map.Set(loop->var, new_loop_var);
     if (!use_rank_promotion) {
-      cache_indices.push_back(loop->loop_var);
+      cache_indices.push_back(loop->var);
     }
   }
   for (int i = 0; i < static_cast<int>(loops_under_compute_location.size()); i++) {
     const ForNode* loop = loops_under_compute_location[i];
-    PrimVar new_loop_var = loop->loop_var.CopyWithSuffix("_cache");
+    PrimVar new_loop_var = loop->var.CopyWithSuffix("_cache");
     new_loop_vars.push_back(new_loop_var);
-    subst_map.Set(loop->loop_var, new_loop_var);
+    subst_map.Set(loop->var, new_loop_var);
     if (!use_rank_promotion) {
-      cache_indices.push_back(loop->loop_var);
+      cache_indices.push_back(loop->var);
     }
   }
   auto map_var = [&subst_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -357,7 +372,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   ffi::Array<PrimExpr> subst_indices;
   ffi::Array<PrimExpr> subst_cache_indices;
   if (is_write_cache) {
-    for (PrimExpr e : buf_store->indices) {
+    for (PrimExpr e : tensor_store->indices) {
       subst_indices.push_back(
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
     }
@@ -367,35 +382,38 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
   }
 
-  BufferVar new_buffer;
+  TensorVar new_tensor{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
-    new_buffer =
-        WithScope(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), storage_scope);
+    new_tensor = WithScope(target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(),
+                           runtime::MemoryScope::Get(storage_scope));
   } else {
-    new_buffer = WithScope(buf_store->buffer, storage_scope);
+    new_tensor = WithScope(tensor_store->dest.as_or_throw<TensorVar>(),
+                           runtime::MemoryScope::Get(storage_scope));
   }
-  ffi::ObjectPtr<BufferTypeNode> buffer_type = CopyBufferType(new_buffer);
-  buffer_type->shape = new_shape;
-  new_buffer = RebuildBufferVar(new_buffer, std::move(buffer_type));
-  *alloc_buffer = new_buffer;
+  ffi::ObjectPtr<TensorTypeNode> tensor_type =
+      ffi::make_object<TensorTypeNode>(*new_tensor.ty().get());
+  tensor_type->shape = new_shape;
+  new_tensor = TensorVar(new_tensor->name, TensorType(std::move(tensor_type)), new_tensor->loc);
+  *alloc_tensor = new_tensor;
 
-  Stmt generate_body;
+  Stmt generate_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    // copy from wmma to new cache buffer
-    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
+    // copy from wmma to new cache tensor
+    TensorLoad new_tensor_load = TensorLoad(new_tensor, cache_indices);
     generate_body =
-        BufferLoadReplacer(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(),
-                           new_buffer_load)(ffi::GetRef<Stmt>(buf_store));
+        ffi::make_object<TensorLoadReplacer>(
+            target_tensor_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_tensor_load)
+            ->Mutate(ffi::GetRef<Stmt>(tensor_store))
+            .ValueOrUnchanged(ffi::GetRef<Stmt>(tensor_store));
     generate_body =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(generate_body, map_var).as_or_throw<Stmt>();
   } else {
     generate_body =
-        BufferStore(new_buffer,
-                    ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(buf_store->value, map_var)
-                        .as_or_throw<PrimExpr>(),
-                    subst_cache_indices);
+        TensorStore(new_tensor, subst_cache_indices,
+                    ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(tensor_store->value, map_var)
+                        .as_or_throw<PrimExpr>());
   }
 
   if (predicate.has_value()) {
@@ -405,37 +423,36 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     PrimExpr subst_predicate =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(predicate.value(), map_var)
             .as_or_throw<PrimExpr>();
-    generate_body = IfThenElse(subst_predicate, generate_body);
+    generate_body = If(subst_predicate, generate_body);
   }
 
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = loops_under_compute_location[i];
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
-    new_loop->loop_var = new_loop_vars[i + relaxed_thread_loops.size()];
+    new_loop->var = new_loop_vars[i + relaxed_thread_loops.size()];
     new_loop->body = generate_body;
     generate_body = For(new_loop);
   }
   for (int i = static_cast<int>(relaxed_thread_loops.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = relaxed_thread_loops[i];
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
-    new_loop->loop_var = new_loop_vars[i];
+    new_loop->var = new_loop_vars[i];
     new_loop->body = generate_body;
-    new_loop->kind = ForKind::kSerial;
-    new_loop->thread_binding = std::nullopt;
+    new_loop->kind = ForKind::kDefault;
     new_loop->annotations = {};
     generate_body = For(new_loop);
   }
-  Stmt rewrite_body;
+  Stmt rewrite_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
+    TensorLoad new_tensor_load = TensorLoad(new_tensor, cache_indices);
     rewrite_body =
-        BufferStore(new_buffer, ffi::GetRef<TensorLoad>(target_buffer_load), cache_indices);
+        TensorStore(new_tensor, cache_indices, ffi::GetRef<TensorLoad>(target_tensor_load));
   } else {
-    rewrite_body =
-        BufferStore(buf_store->buffer, BufferLoad(new_buffer, cache_indices), buf_store->indices);
+    rewrite_body = TensorStore(tensor_store->dest.as_or_throw<TensorVar>(), tensor_store->indices,
+                               TensorLoad(new_tensor, cache_indices));
   }
   if (predicate.has_value()) {
-    rewrite_body = IfThenElse(predicate.value(), rewrite_body);
+    rewrite_body = If(predicate.value(), rewrite_body);
   }
   for (int i = static_cast<int>(loops_under_compute_location.size()) - 1; i >= 0; i--) {
     const ForNode* orig_loop = loops_under_compute_location[i];
@@ -443,7 +460,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     new_loop->body = rewrite_body;
     rewrite_body = For(new_loop);
   }
-  SeqStmt insert_location;
+  SeqStmt insert_location{ffi::UnsafeInit{}};
   if (is_write_cache) {
     generate_body = insert_location = SeqStmt({rewrite_body, generate_body});
   } else {
@@ -455,16 +472,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 
 Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                                OutputSet* output) const {
-  Stmt body;
-  For compute_location;
-  std::tie(body, compute_location) = LiftThreadBindingLoops(std::move(stmt));
-  BufferVar cache_buffer;
+  auto [body, compute_location] = LiftThreadBindingLoops(stmt);
+  TensorVar cache_tensor{ffi::UnsafeInit{}};
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
-                                        constraints.outer_loops, &cache_buffer)
+                                        constraints.outer_loops, &cache_tensor)
                            .first;
-  if (cache_buffer.defined()) {
-    output->alloc_buffer.push_back(cache_buffer);
-  }
+  output->alloc_tensor.push_back(cache_tensor);
   return after_caching;
 }
 

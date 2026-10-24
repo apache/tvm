@@ -119,10 +119,10 @@ src/target/**  @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masah
 include/tvm/target/**  @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi
 python/tvm/target/**  @junrushao1994 @vinx13 @tqchen @kparzysz-quic @ZihengJiang @masahi
 
-# arith: Arithmetic module and simplifiers
-src/arith/** @tqchen @junrushao1994 @vinx13
-include/tvm/arith/** @tqchen @junrushao1994 @vinx13
-python/tvm/arith/** @tqchen @junrushao1994 @vinx13
+# sym: Symbolic analysis and simplifiers
+src/sym/** @tqchen @junrushao1994 @vinx13
+include/tvm/sym/** @tqchen @junrushao1994 @vinx13
+python/tvm/sym/** @tqchen @junrushao1994 @vinx13
 
 # parser
 src/parser/** @jroesch @slyubomirsky

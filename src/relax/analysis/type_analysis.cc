@@ -27,29 +27,33 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 //--------------------------
 // GetStaticType
 //--------------------------
 class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
  public:
-  Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->span); }
+  Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->loc); }
 
   Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
 
-  Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
+  Type VisitType_(const StringTypeNode* op) final { return StringType(); }
+
+  Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->loc); }
 
   Type VisitType_(const TensorTypeNode* op) final {
-    return TensorType(op->dtype, op->ndim, op->vdevice, op->span);
+    return TensorType(op->dtype, op->ndim, op->vdevice, op->loc);
   }
 
   // module: distributed
@@ -59,15 +63,15 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
   Type VisitType_(const TupleTypeNode* op) final {
     ffi::Array<Type> fields =
         op->fields.Map([this](const Type& ty) { return this->VisitType(ty); });
-    return TupleType(fields, op->span);
+    return TupleType(fields, op->loc);
   }
 
   Type VisitType_(const FuncTypeNode* op) final {
-    if (op->IsOpaque()) return PackedFuncType(op->span);
+    if (op->IsOpaque()) return PackedFuncType(op->loc);
     ffi::Array<Type> params =
         op->params.value().Map([this](const Type& ty) { return this->VisitType(ty); });
     Type ret = this->VisitType(op->ret);
-    return FuncType(params, ret, op->purity, op->span);
+    return FuncType(params, ret, op->purity, op->loc);
   }
 };
 
@@ -85,13 +89,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type TypeFromStaticType(const Type& type) {
   if (type.as<AnyTypeNode>()) {
-    return AnyType(type->span);
+    return AnyType(type->loc);
+  } else if (type.as<StringTypeNode>()) {
+    return StringType();
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
-    return ShapeType(shape_type->ndim, type->span);
+    return ShapeType(shape_type->ndim, type->loc);
   } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
     return TensorType(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
@@ -99,19 +105,19 @@ Type TypeFromStaticType(const Type& type) {
     for (const Type& field : tuple_type->fields) {
       fields.push_back(TypeFromStaticType(field));
     }
-    return TupleType(fields, type->span);
+    return TupleType(fields, type->loc);
   } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {
     if (func_type->IsOpaque()) return FuncType::OpaqueFunc(func_type->ret, func_type->purity);
     ffi::Array<Type> params =
         func_type->params.value().Map([](const Type& param) { return TypeFromStaticType(param); });
     Type ret = TypeFromStaticType(func_type->ret);
-    return FuncType(params, ret, func_type->purity, func_type->span);
+    return FuncType(params, ret, func_type->purity, func_type->loc);
   } else if (const tvm::FuncTypeNode* func_type = type.as<tvm::FuncTypeNode>()) {
     ffi::Array<Type> params =
         func_type->arg_types.Map([](const Type& param) { return TypeFromStaticType(param); });
     Type ret = TypeFromStaticType(func_type->ret_type);
     // TODO(relax-team): Maybe add purity into the type as well
-    return FuncType(params, ret, true, func_type->span);
+    return FuncType(params, ret, true, func_type->loc);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
     return Type::Missing();
@@ -124,7 +130,7 @@ Type TypeFromStaticType(const Type& type) {
 class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
  public:
   WellDefinedEraser(std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-                    arith::AnalyzerObj* ana)
+                    sym::AnalyzerObj* ana)
       : f_var_map_(f_var_map), ana_(ana) {}
 
   Type VisitType_(const PrimTypeNode* op) final { return ffi::GetRef<Type>(op); }
@@ -143,10 +149,10 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       if (values.same_as(op->values)) {
         return ffi::GetRef<Type>(op);
       } else {
-        return ShapeType(values.value(), op->span);
+        return ShapeType(values.value(), op->loc);
       }
     } else {
-      return ShapeType(op->ndim, op->span);
+      return ShapeType(op->ndim, op->loc);
     }
   }
 
@@ -160,7 +166,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = op->vdevice.value_or(VDevice());
+    ffi::Optional<VDevice> vdev = op->vdevice;
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
@@ -168,13 +174,13 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
         return ffi::GetRef<Type>(op);
       } else {
         if (shape.has_value()) {
-          return TensorType(shape.value(), op->dtype, vdev, op->span);
+          return TensorType(shape.value(), op->dtype, vdev, op->loc);
         } else {
-          return TensorType(op->dtype, op->ndim, vdev, op->span);
+          return TensorType(op->dtype, op->ndim, vdev, op->loc);
         }
       }
     } else {
-      return TensorType(op->dtype, op->ndim, vdev, op->span);
+      return TensorType(op->dtype, op->ndim, vdev, op->loc);
     }
   }
 
@@ -200,7 +206,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
 
       PrimExpr value = ret.value().as_or_throw<PrimExpr>();
       if (value->IsInstance<IntImmNode>()) {
-        return ffi::Any(tvm::cast(PrimType::Int(64), value));
+        return ffi::Any(tvm::prim::cast(value, PrimType::Int(64)));
       }
       TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
           << "Can only provide i64 expressions in shape";
@@ -220,7 +226,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
   Expr VisitExpr_(const ShapeExprNode* op) final {
     ffi::Array<PrimExpr> values =
         op->values.Map([this](const PrimExpr& expr) { return VisitPrimitiveExpr(expr); });
-    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const VarNode* var) final {
@@ -246,27 +252,27 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
  private:
   bool has_undefined_ = false;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map_;
-  arith::AnalyzerObj* ana_;
+  sym::AnalyzerObj* ana_;
 };
 
 Type EraseToWellDefined(const Type& info,
                         std::function<ffi::Optional<Expr>(const Var& var)> f_var_map) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return EraseToWellDefined(info, f_var_map, analyzer);
 }
 
 Type EraseToWellDefined(const Type& info,
                         std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-                        const arith::Analyzer& ana) {
+                        const sym::Analyzer& ana) {
   return WellDefinedEraser(f_var_map, ana.get()).VisitType(info);
 }
 
 Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return EraseToWellDefined(info, var_map, analyzer);
 }
 
-Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
+Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const sym::Analyzer& ana) {
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
   if (!var_map.empty()) {
@@ -283,10 +289,10 @@ Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const ari
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.EraseToWellDefined",
-                        [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                        [](const Type& info, ffi::Map<tvm::Var, PrimExpr> shape_var_map,
                            ffi::Map<Var, Expr> var_map) {
                           for (const auto& [var, value] : shape_var_map) {
-                            TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
+                            TVM_FFI_CHECK(var.as<PrimVar>(), TypeError)
                                 << "Expected an exact primitive Var, but received " << var;
                             var_map.Set(var, value);
                           }
@@ -299,9 +305,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Type&)> {
  public:
-  explicit TypeBaseChecker(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeBaseChecker(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   BaseCheckResult VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     // quick path
     // Note: subclass may disable this quick path if we need to go over all type.
     if (lhs.same_as(other)) return BaseCheckResult::kPass;
@@ -311,6 +319,11 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   // AnyType is base of every Relax type
   BaseCheckResult VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return BaseCheckResult::kPass;
+  }
+
+  BaseCheckResult VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    if (other.as<StringTypeNode>()) return BaseCheckResult::kPass;
+    return other.as<AnyTypeNode>() ? BaseCheckResult::kFailL1 : BaseCheckResult::kFailL0;
   }
 
   BaseCheckResult VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -376,10 +389,10 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
-      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined())
+      if (lhs_vdevice->target.has_value() && !rhs_vdevice->target.has_value())
         return BaseCheckResult::kFailL1;
       // mismatch in either the target, vdevice_id, or memory_scope
-      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+      if ((lhs_vdevice->target.has_value() && rhs_vdevice->target.has_value()) &&
           (lhs_vdevice->target != rhs_vdevice->target ||
            lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
            lhs_vdevice->memory_scope != rhs_vdevice->memory_scope))
@@ -473,7 +486,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 
  protected:
   // analyzer
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   // struct equal checker
   ffi::StructuralEqual struct_equal_;
 
@@ -585,11 +598,11 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 };
 
 BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return TypeBaseCheck(base, derived, analyzer);
 }
 
-BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived, const sym::Analyzer& ana) {
   return TypeBaseChecker(ana.get())(base, derived);
 }
 
@@ -602,11 +615,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 bool IsBaseOf(const Type& base, const Type& derived) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return IsBaseOf(base, derived, analyzer);
 }
 
-bool IsBaseOf(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+bool IsBaseOf(const Type& base, const Type& derived, const sym::Analyzer& ana) {
   return TypeBaseCheck(base, derived, ana) == BaseCheckResult::kPass;
 }
 
@@ -622,6 +635,8 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   explicit TypeBasePreconditionCollector() {}
 
   PrimExpr VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     if (lhs.same_as(other)) {
       // Early bail-out if the Type has reference equality.
       return IntImm::Bool(true);
@@ -632,6 +647,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
   PrimExpr VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return IntImm::Bool(true);
+  }
+
+  PrimExpr VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return IntImm::Bool(other.as<StringTypeNode>() != nullptr);
   }
 
   PrimExpr VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -697,11 +716,11 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
-      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
+      if (lhs_vdevice->target.has_value() && !rhs_vdevice->target.has_value()) {
         return IntImm::Bool(false);
       }
       // mismatch in either the target, vdevice_id, or memory_scope
-      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+      if ((lhs_vdevice->target.has_value() && rhs_vdevice->target.has_value()) &&
           (lhs_vdevice->target != rhs_vdevice->target ||
            lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
            lhs_vdevice->memory_scope != rhs_vdevice->memory_scope)) {
@@ -769,12 +788,9 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
     PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
-    PrimExpr param_check;
-    if (lhs->params.has_value()) {
-      param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
-    } else {
-      param_check = IntImm::Bool(true);
-    }
+    PrimExpr param_check = lhs->params.has_value()
+                               ? ArrayCheck(lhs->params.value(), rhs->params.value())
+                               : IntImm::Bool(true);
 
     PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
 
@@ -821,7 +837,7 @@ PrimExpr TypeBaseCheckPrecondition(const Type& base, const Type& derived) {
 // from the expressions in arg(rhs) to var in param.
 class CallRetTypeDeriver : public TypeBaseChecker {
  public:
-  explicit CallRetTypeDeriver(arith::AnalyzerObj* ana) : TypeBaseChecker(ana) {}
+  explicit CallRetTypeDeriver(sym::AnalyzerObj* ana) : TypeBaseChecker(ana) {}
 
   // No short cut, so we can recursively populate all pairs.
   BaseCheckResult VisitType(const Type& lhs, const Type& other) final {
@@ -882,7 +898,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
-    if (auto var = param.as<tirx::PrimVar>()) {
+    if (auto var = param.as<PrimVar>()) {
       auto it = var_map_.find(var.value());
       // not populated
       if (it == var_map_.end()) {
@@ -908,8 +924,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::ShapeMatchCheck(lhs, rhs);
     }
 
-    if (auto* ptr = lhs.as<VarNode>();
-        ptr && !lhs.as<DataflowVarNode>() && !lhs.as<tirx::PrimVar>()) {
+    if (auto* ptr = lhs.as<VarNode>(); ptr && !lhs.as<DataflowVarNode>() && !lhs.as<PrimVar>()) {
       auto var = ffi::GetRef<Var>(ptr);
       auto it = var_map_.find(var);
       // not populated
@@ -919,7 +934,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       } else {
         // Best effort prove.
         Expr mapped_value = (*it).second;
-        if (CanProveShapeEqual(mapped_value, rhs, ffi::GetRef<arith::Analyzer>(analyzer_))) {
+        if (CanProveShapeEqual(mapped_value, rhs, ffi::GetRef<sym::Analyzer>(analyzer_))) {
           return BaseCheckResult::kPass;
         }
         return BaseCheckResult::kFailL2;
@@ -952,12 +967,12 @@ class CallRetTypeDeriver : public TypeBaseChecker {
 };
 
 Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return DeriveCallRetType(finfo, call, ctx, analyzer);
 }
 
 Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx,
-                       const arith::Analyzer& ana) {
+                       const sym::Analyzer& ana) {
   // The deriver's TVM_FFI_VISIT_THROW seeds a VisitErrorContext on the error;
   // the outer pass wrapper catches it and enriches the message with the access
   // path. Nothing to do here but propagate.
@@ -977,9 +992,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit TypeLCAFinder(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeLCAFinder(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   Type VisitType(const Type& lhs, const Type& other) final {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     // quick path
     if (lhs.same_as(other)) return lhs;
     return TypeFunctor::VisitType(lhs, other);
@@ -990,30 +1007,34 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     return ffi::GetRef<Type>(lhs);
   }
 
+  Type VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return other.as<StringTypeNode>() ? ffi::GetRef<Type>(lhs) : AnyType(lhs->loc);
+  }
+
   Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<PrimTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
     if (lhs->dtype != rhs->dtype) {
       // PrimType will be treated as their boxed Any values
       // as a result we can unify to Any.
-      return AnyType(lhs->span);
+      return AnyType(lhs->loc);
     }
     return ffi::GetRef<Type>(lhs);
   }
 
   Type VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<ShapeTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.has_value() || !rhs->values.has_value() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(),
-                            ffi::GetRef<arith::Analyzer>(analyzer_))) {
+                            ffi::GetRef<sym::Analyzer>(analyzer_))) {
       // prefers return same when possible
       if (!lhs->values.has_value() && lhs->ndim == ndim) {
         return ffi::GetRef<Type>(lhs);
       } else {
-        return ShapeType(ndim, lhs->span);
+        return ShapeType(ndim, lhs->loc);
       }
     }
     // equals to each other
@@ -1022,7 +1043,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TensorTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     // find the target dtype, ndim, and vdevice.
     ffi::Optional<PrimType> dtype = (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
@@ -1030,7 +1051,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
                                         ? ffi::Optional<PrimType>(lhs->dtype.value())
                                         : std::nullopt;
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    VDevice vdev = VDevice();
+    ffi::Optional<VDevice> vdev;
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value() &&
         lhs->vdevice.value() == rhs->vdevice.value()) {
       vdev = lhs->vdevice.value();
@@ -1039,18 +1060,18 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     // then we cannot keep in symbolic shape
     if (lhs->ndim != rhs->ndim || !lhs->shape.has_value() || !rhs->shape.has_value() ||
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(),
-                            ffi::GetRef<arith::Analyzer>(analyzer_))) {
+                            ffi::GetRef<sym::Analyzer>(analyzer_))) {
       // reuse lhs when possible
       if (!lhs->shape.has_value() && lhs->dtype == dtype && lhs->ndim == ndim &&
-          (!lhs->vdevice.has_value() || vdev.defined())) {
+          (!lhs->vdevice.has_value() || vdev.has_value())) {
         return ffi::GetRef<Type>(lhs);
       } else {
-        return TensorType(dtype, ndim, vdev, lhs->span);
+        return TensorType(dtype, ndim, vdev, lhs->loc);
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
-    if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.defined())) {
-      return TensorType(lhs->shape.value(), dtype, vdev, lhs->span);
+    if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.has_value())) {
+      return TensorType(lhs->shape.value(), dtype, vdev, lhs->loc);
     } else {
       return ffi::GetRef<Type>(lhs);
     }
@@ -1058,14 +1079,14 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TupleTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TupleTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
     ffi::Optional<ffi::Array<Type>> fields = UnifyArray(lhs->fields, rhs->fields);
     // tuple length not the same.
-    if (!fields.has_value()) return AnyType(lhs->span);
+    if (!fields.has_value()) return AnyType(lhs->loc);
 
     // same length tuple.
     if (!fields.same_as(lhs->fields)) {
-      return TupleType(fields.value(), lhs->span);
+      return TupleType(fields.value(), lhs->loc);
     } else {
       return ffi::GetRef<Type>(lhs);
     }
@@ -1073,7 +1094,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const FuncTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<FuncTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     // the unified function is pure only if both are pure
     bool purity = lhs->purity && rhs->purity;
@@ -1085,13 +1106,13 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
           return ffi::GetRef<Type>(lhs);
         } else {
           // Create a new opaque with object return
-          return FuncType::OpaqueFunc(AnyType(), purity, lhs->span);
+          return FuncType::OpaqueFunc(AnyType(), purity, lhs->loc);
         }
       } else {
         // no derivation function, only depends on ret
         Type ret = this->VisitType(lhs->ret, rhs->ret);
         if (ret.same_as(lhs->ret)) return ffi::GetRef<Type>(lhs);
-        return FuncType::OpaqueFunc(ret, purity, lhs->span);
+        return FuncType::OpaqueFunc(ret, purity, lhs->loc);
       }
     }
     // rhs is opaque, lhs is not
@@ -1099,7 +1120,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       // unify ret value, note that rhs's ret is context free(because it is opaque)
       // so result of the unify is also context-free.
       Type ret = this->VisitType(lhs->ret, rhs->ret);
-      return FuncType::OpaqueFunc(ret, purity, lhs->span);
+      return FuncType::OpaqueFunc(ret, purity, lhs->loc);
     }
 
     // Both lhs and rhs are not opaque
@@ -1129,16 +1150,16 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     } else {
       // fail to unify the params
       if (!params.has_value()) {
-        return FuncType::OpaqueFunc(ret, purity, lhs->span);
+        return FuncType::OpaqueFunc(ret, purity, lhs->loc);
       } else {
-        return FuncType(params.value(), ret, purity, lhs->span);
+        return FuncType(params.value(), ret, purity, lhs->loc);
       }
     }
   }
 
  private:
   // analyzer
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   // struct equal checker
   ffi::StructuralEqual struct_equal_;
 
@@ -1153,11 +1174,11 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 };
 
 Type TypeLCA(const Type& lhs, const Type& rhs) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return TypeLCA(lhs, rhs, analyzer);
 }
 
-Type TypeLCA(const Type& lhs, const Type& rhs, const arith::Analyzer& ana) {
+Type TypeLCA(const Type& lhs, const Type& rhs, const sym::Analyzer& ana) {
   return TypeLCAFinder(ana.get())(lhs, rhs);
 }
 
@@ -1179,17 +1200,17 @@ class TIRVarsDetector : public TypeVisitor {
   };
   explicit TIRVarsDetector(VarType collection_type) : collection_type(collection_type) {}
 
-  ffi::Array<tirx::Var> GetTIRVars() const { return tir_vars_; }
+  ffi::Array<tvm::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
   void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
-      if (auto opt = expr.as<tirx::PrimVar>()) {
+      if (auto opt = expr.as<PrimVar>()) {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
-      for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
-        if (auto prim_var = tir_var.as<tirx::PrimVar>()) {
+      for (const tvm::Var& tir_var : tvm::UndefinedVars(expr)) {
+        if (auto prim_var = tir_var.as<PrimVar>()) {
           RecordTIRVar(prim_var.value());
         }
       }
@@ -1219,26 +1240,26 @@ class TIRVarsDetector : public TypeVisitor {
     }
   }
 
-  void RecordTIRVar(const tirx::Var& tir_var) {
+  void RecordTIRVar(const tvm::Var& tir_var) {
     auto insert_res = used_tir_vars_dedup_.insert(tir_var.get());
     if (insert_res.second) {
       tir_vars_.push_back(tir_var);
     }
   }
 
-  ffi::Array<tirx::Var> tir_vars_;
-  std::unordered_set<const tirx::VarNode*> used_tir_vars_dedup_;
+  ffi::Array<tvm::Var> tir_vars_;
+  std::unordered_set<const tvm::VarNode*> used_tir_vars_dedup_;
 
   VarType collection_type;
 };
 
-ffi::Array<tirx::Var> TIRVarsInType(const Type& ty) {
+ffi::Array<tvm::Var> TIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Usage);
   detector(ty);
   return detector.GetTIRVars();
 }
 
-ffi::Array<tirx::Var> DefinableTIRVarsInType(const Type& ty) {
+ffi::Array<tvm::Var> DefinableTIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Definition);
   detector(ty);
   return detector.GetTIRVars();
@@ -1301,19 +1322,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisitor {
  public:
-  static ffi::Array<tirx::Var> Free(const Expr& expr) {
+  static ffi::Array<tvm::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.relax::ExprVisitor::VisitExpr(expr);
-    ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
-                              collector.free_symbolic_var_.end()};
+    ffi::Array<tvm::Var> ret{collector.free_symbolic_var_.begin(),
+                             collector.free_symbolic_var_.end()};
     return ret;
   }
 
-  static ffi::Array<tirx::Var> Defined(const Expr& expr) {
+  static ffi::Array<tvm::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.relax::ExprVisitor::VisitExpr(expr);
-    ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
-                              collector.defined_symbolic_var_.end()};
+    ffi::Array<tvm::Var> ret{collector.defined_symbolic_var_.begin(),
+                             collector.defined_symbolic_var_.end()};
     return ret;
   }
 
@@ -1402,7 +1423,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
-      if (auto var = expr.as<tirx::PrimVar>()) {
+      if (auto var = expr.as<PrimVar>()) {
         defined_symbolic_var_.insert(var.value());
       }
     }
@@ -1415,7 +1436,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
     if (!op->ty.as<PrimTypeNode>()) {
       return;
     }
-    tirx::PrimVar var = ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>();
+    PrimVar var = ffi::GetRef<Var>(op).as_or_throw<PrimVar>();
     // default mode, check defined.
     if (defined_symbolic_var_.count(var) == 0) {
       free_symbolic_var_.insert(var);
@@ -1426,7 +1447,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitVarDef_(const VarNode* op) final {
     if (op->ty.as<PrimTypeNode>()) {
-      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>());
+      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<PrimVar>());
     }
     relax::ExprVisitor::VisitVarDef_(op);
   }
@@ -1446,17 +1467,15 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tirx::Var> defined_symbolic_var_;
+  std::unordered_set<tvm::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tirx::Var> free_symbolic_var_;
+  std::unordered_set<tvm::Var> free_symbolic_var_;
 };
 
-ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr) {
+ffi::Array<tvm::Var> DefinedSymbolicVars(const Expr& expr) {
   return SymbolicVarCollector::Defined(expr);
 }
-ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr) {
-  return SymbolicVarCollector::Free(expr);
-}
+ffi::Array<tvm::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

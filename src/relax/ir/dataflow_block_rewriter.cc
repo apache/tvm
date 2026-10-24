@@ -22,7 +22,6 @@
  * \brief A transform to match a Relax DataflowBlock and rewrite
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -32,6 +31,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <unordered_map>
@@ -190,7 +190,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
 static std::optional<MatchState> TryValidate(
     const MatchState& current_match,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
-    const std::vector<DFConstraint>& validation_constraints, arith::AnalyzerObj* analyzer) {
+    const std::vector<DFConstraint>& validation_constraints, sym::AnalyzerObj* analyzer) {
   MatchState new_match;
 
   std::function<ffi::Optional<Var>(const DFPatternNode*)> query_match_state =
@@ -212,15 +212,15 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = tirx::as_const_int(necessary_condition);
+      const auto* known = necessary_condition.as<IntImmNode>();
 
-      if (known && *known && is_sufficient) {
+      if (known && known->value != 0 && is_sufficient) {
         // The condition passes, and the expression provided is both
         // necessary and sufficient for the constraint to pass.  Mark
         // the constraint as passing, to avoid re-checking it unless
         // we backtrack.
         new_match.add(constraint.get());
-      } else if (known && !*known) {
+      } else if (known && known->value == 0) {
         // The condition fails.  Even if additional information would
         // be required to pass a constraint, it may bail out early as
         // a failure (e.g. shape mismatch in the first two items out
@@ -244,7 +244,7 @@ static std::optional<MatchState> MatchTree(
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const std::vector<DFConstraint>& validation_constraints,
-    const MatcherUseDefAnalysis& ud_analysis, arith::AnalyzerObj* analyzer) {
+    const MatcherUseDefAnalysis& ud_analysis, sym::AnalyzerObj* analyzer) {
   auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
@@ -294,8 +294,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                    const ffi::Array<Binding>& binding_arr,
                                                    const ffi::Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
-  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextNode::kMay)
-      << "Only kMay is supported yet.";
+  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextObj::kMay) << "Only kMay is supported yet.";
   DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
@@ -346,7 +345,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
     return std::nullopt;
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
                          ctx->validation_constraints, ud_analysis, analyzer.get());
   if (!match) {
@@ -373,7 +372,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](const PatternContext& ctx, const DataflowBlock& dfb) { return MatchGraph(ctx, dfb); });
 }
 
-class PatternContextRewriterNode : public PatternMatchingRewriterNode {
+class PatternContextRewriterObj : public PatternMatchingRewriterObj {
  public:
   PatternContext pattern;
   ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
@@ -383,12 +382,12 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PatternContextRewriterNode>()
-        .def_ro("pattern", &PatternContextRewriterNode::pattern)
-        .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
+    refl::ObjectDef<PatternContextRewriterObj>()
+        .def_ro("pattern", &PatternContextRewriterObj::pattern)
+        .def_ro("rewriter_func", &PatternContextRewriterObj::rewriter_func);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterNode,
-                                    PatternMatchingRewriterNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.dpl.PatternContextRewriter", PatternContextRewriterObj,
+                                    PatternMatchingRewriterObj);
 
  private:
   ffi::Optional<ffi::Map<Var, Expr>> MatchBindings(const ffi::Array<Binding>& bindings) const {
@@ -415,11 +414,11 @@ class PatternContextRewriter : public PatternMatchingRewriter {
       ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
           rewriter_func);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternContextRewriter, PatternMatchingRewriter,
-                                             PatternContextRewriterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternContextRewriter, PatternMatchingRewriter,
+                                                PatternContextRewriterObj);
 };
 
-RewriteSpec PatternContextRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
+RewriteSpec PatternContextRewriterObj::RewriteBindings(const ffi::Array<Binding>& bindings) const {
   std::vector<Binding> remaining_bindings{bindings.begin(), bindings.end()};
 
   ffi::Map<Var, Expr> variable_rewrites;
@@ -441,8 +440,9 @@ RewriteSpec PatternContextRewriterNode::RewriteBindings(const ffi::Array<Binding
 PatternContextRewriter::PatternContextRewriter(
     PatternContext pattern,
     ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
-        rewriter_func) {
-  auto node = ffi::make_object<PatternContextRewriterNode>();
+        rewriter_func)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+  auto node = ffi::make_object<PatternContextRewriterObj>();
   node->pattern = std::move(pattern);
   node->rewriter_func = std::move(rewriter_func);
   data_ = std::move(node);
@@ -461,7 +461,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.dpl.rewrite_bindings", RewriteBindings);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { PatternContextRewriterNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { PatternContextRewriterObj::RegisterReflection(); }
 
 }  // namespace relax
 }  // namespace tvm

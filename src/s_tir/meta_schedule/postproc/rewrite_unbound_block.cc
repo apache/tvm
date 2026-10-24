@@ -18,55 +18,69 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/support/gpu_thread_tag.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Find all the blocks that are not bound */
-class UnboundBlockFinder : private StmtVisitor {
+class UnboundBlockFinder : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
-    UnboundBlockFinder finder(self);
+    auto finder = ffi::make_object<UnboundBlockFinder>(self);
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-        finder.global_var_name_ = g_var->name_hint;
-        finder(prim_func->body.as_or_throw<SBlockRealize>()->block->body);
+      if (const auto* function = base_func.as<FunctionNode>()) {
+        finder->global_var_name_ = g_var->name_hint;
+        TVM_FFI_ICHECK(function->body.has_value());
+        TVM_FFI_ICHECK_EQ(function->body.value()->size(), 1);
+        finder->Visit(function->body.value()->seq[0].as_or_throw<SBlockRealize>()->block->body);
       }
     }
-    return std::move(finder.blocks_);
+    return std::move(finder->blocks_);
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
-    runtime::ThreadScope thread_scope = GetThreadScope(loop);
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+    support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsBlockIdx(thread_scope)) {
       ++n_block_idx_;
     } else if (IsThreadIdx(thread_scope)) {
       ++n_thread_idx_;
     }
     if (n_block_idx_ == 0 || n_thread_idx_ == 0) {
-      StmtVisitor::VisitStmt_(loop);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
     if (IsBlockIdx(thread_scope)) {
       --n_block_idx_;
     } else if (IsThreadIdx(thread_scope)) {
       --n_thread_idx_;
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     blocks_.emplace_back(self_->stmt2ref.at(block), global_var_name_);
+    return std::nullopt;
   }
 
+ public:
   explicit UnboundBlockFinder(const ScheduleState& self)
       : self_{self}, blocks_{}, n_block_idx_{0}, n_thread_idx_{0} {}
 
+ private:
   /*! \brief The schedule state */
   const ScheduleState& self_;
   /*! \brief The list of unbound blocks */
@@ -84,13 +98,12 @@ class UnboundBlockFinder : private StmtVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Add thread binding to unbound blocks */
-class RewriteUnboundBlockNode : public PostprocNode {
+class RewriteUnboundBlockObj : public PostprocObj {
  public:
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   void InitializeWithTuneContext(const TuneContext& context) final {
     TVM_FFI_CHECK(context->target.has_value(), ValueError) << "target is not defined";
     ffi::Optional<int64_t> max_threads_per_block =
@@ -100,12 +113,12 @@ class RewriteUnboundBlockNode : public PostprocNode {
     this->max_threads_per_block_ = max_threads_per_block.value();
   }
 
-  // Inherited from PostprocNode
+  // Inherited from PostprocObj
   bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
-    ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
-    return Postproc(n);
+    ffi::ObjectPtr<RewriteUnboundBlockObj> n = ffi::make_object<RewriteUnboundBlockObj>(*this);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -116,13 +129,13 @@ class RewriteUnboundBlockNode : public PostprocNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RewriteUnboundBlockNode>();
+    refl::ObjectDef<RewriteUnboundBlockObj>();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteUnboundBlock",
-                                    RewriteUnboundBlockNode, PostprocNode);
+                                    RewriteUnboundBlockObj, PostprocObj);
 };
 
-bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
+bool RewriteUnboundBlockObj::Apply(const s_tir::Schedule& sch) {
   using s_tir::ExprRV;
   using s_tir::LoopRV;
   using s_tir::SBlockRV;
@@ -143,13 +156,13 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
 }
 
 Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
-  ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
+  ffi::ObjectPtr<RewriteUnboundBlockObj> n = ffi::make_object<RewriteUnboundBlockObj>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockObj::RegisterReflection(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

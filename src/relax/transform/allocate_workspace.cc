@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -45,32 +46,32 @@ class ExternFunctionRewriter : ExprMutator {
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
-      if (f->GetAttr<int64_t>(attr::kWorkspaceSize)) {
-        ret[gvar.get()] = VisitExpr(f).as_or_throw<Function>();
+      if (f->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
+        ret.insert_or_assign(gvar.get(), VisitExpr(f).as_or_throw<Function>());
       }
     }
     return ret;
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
-    if (!func_node->GetAttr<ffi::String>(attr::kCodegen) &&
-        !func_node->GetAttr<ffi::String>(attr::kComposite)) {
+    if (!func_node->GetAttr(tvm::relax::attr::kCodegen) &&
+        !func_node->GetAttr(tvm::relax::attr::kComposite)) {
       return ExprMutator::VisitExpr_(func_node);
     }
-    if (auto workspace = func_node->GetAttr<int64_t>(attr::kWorkspaceSize)) {
+    if (auto workspace = func_node->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
       // Append the workspace parameter to this function.
       ffi::Array<Var> new_params = func_node->params;
 
       auto ty = TensorType(ShapeExpr({IntImm::Int32(max_workspace_size_)}), PrimType::UInt(8));
       Var workspace_param(name_sup_->FreshName("workspace"), ty);
 
-      if (func_node->GetAttr<ffi::String>(attr::kCodegen)) {
+      if (func_node->GetAttr(tvm::relax::attr::kCodegen)) {
         workspace_var_param_ = workspace_param;
       }
 
       new_params.push_back(workspace_param);
       auto new_attrs = func_node->attrs;
-      new_attrs.CopyOnWrite()->dict.erase(attr::kWorkspaceSize);
+      new_attrs.CopyOnWrite()->dict.erase(tvm::relax::attr::kWorkspaceSize.name);
       return Function(new_params, VisitExpr(func_node->body), func_node->ret_ty, func_node->is_pure,
                       new_attrs);
     }
@@ -82,14 +83,15 @@ class ExternFunctionRewriter : ExprMutator {
     if (auto var = new_op.as<Var>()) {
       if (auto callee = builder_->LookupBinding(var.value());
           callee && callee.value()->IsInstance<FunctionNode>() &&
-          callee.value().as_or_throw<Function>()->GetAttr<ffi::String>(attr::kComposite)) {
+          callee.value().as_or_throw<Function>()->GetAttr<ffi::String>(
+              tvm::relax::attr::kComposite.name)) {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
-        TVM_FFI_ICHECK(workspace_var_param_.defined());
-        new_args.push_back(workspace_var_param_);
+        TVM_FFI_ICHECK(workspace_var_param_.has_value());
+        new_args.push_back(workspace_var_param_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
-                    call_node->span);
+                    call_node->loc);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -98,7 +100,7 @@ class ExternFunctionRewriter : ExprMutator {
  private:
   UniqueNameSupply name_sup_;
   /*! \brief A variable that represents the workspace parameter passed from main. */
-  Var workspace_var_param_;
+  ffi::Optional<Var> workspace_var_param_;
   size_t max_workspace_size_ = 0;
 };
 
@@ -110,7 +112,7 @@ class WorkspaceProvider : ExprMutator {
 
   IRModule Run() {
     for (const auto& [gvar, f] : mod_->functions) {
-      if (auto workspace = f->GetAttr<int64_t>(relax::attr::kWorkspaceSize)) {
+      if (auto workspace = f->GetAttr(tvm::relax::attr::kWorkspaceSize)) {
         max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value());
       }
     }
@@ -126,16 +128,16 @@ class WorkspaceProvider : ExprMutator {
       // This is only required since the well-formed check requires kGlobalSymbol to be the same
       // as the actual name of the global variable.
       builder_->UpdateFunction(new_gvar,
-                               WithAttr(f, tvm::attr::kGlobalSymbol, new_gvar->name_hint));
-      gvar_map_[gvar] = new_gvar;
+                               WithAttr(f, tvm::attr::kGlobalSymbol.name, new_gvar->name_hint));
+      gvar_map_.insert_or_assign(gvar, new_gvar);
       new_gvars_.insert(new_gvar);
       builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
     }
 
     for (const auto& [gvar, f] : mod_->functions) {
-      workspace_var_main_ = Var();
-      if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr<ffi::String>(attr::kCodegen) ||
-          f->GetAttr<ffi::String>(attr::kComposite)) {
+      workspace_var_main_ = std::nullopt;
+      if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr(tvm::relax::attr::kCodegen) ||
+          f->GetAttr(tvm::relax::attr::kComposite)) {
         continue;
       }
       auto func = mod_->Lookup(gvar).as_or_throw<Function>();
@@ -148,7 +150,7 @@ class WorkspaceProvider : ExprMutator {
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
-    if (!workspace_var_main_.defined()) {
+    if (!workspace_var_main_.has_value()) {
       auto shape = ShapeExpr({IntImm::Int32(max_workspace_size_)});
       auto ty = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
       auto workspace = MakeAllocTensor(shape, ty, IntImm::Int64(0));
@@ -162,7 +164,7 @@ class WorkspaceProvider : ExprMutator {
 
   Expr VisitExpr_(const GlobalVarNode* gvar_node) override {
     if (gvar_map_.count(gvar_node)) {
-      return gvar_map_[gvar_node];
+      return gvar_map_.at(gvar_node);
     }
     return ExprMutator::VisitExpr_(gvar_node);
   }
@@ -173,10 +175,10 @@ class WorkspaceProvider : ExprMutator {
     if (auto gv = new_op.as<GlobalVar>()) {
       if (new_gvars_.count(gv.value())) {
         auto new_args = call_node->args;
-        TVM_FFI_ICHECK(workspace_var_main_.defined());
-        new_args.push_back(workspace_var_main_);
+        TVM_FFI_ICHECK(workspace_var_main_.has_value());
+        new_args.push_back(workspace_var_main_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
-                    call_node->span);
+                    call_node->loc);
       }
     }
 
@@ -186,7 +188,7 @@ class WorkspaceProvider : ExprMutator {
  private:
   IRModule mod_;
   /*! \brief A variable that represents the workspace created at the beginning of main. */
-  Var workspace_var_main_;
+  ffi::Optional<Var> workspace_var_main_;
   size_t max_workspace_size_ = 0;
   /*! \brief A map from old global variables representing a function with workspace requirement to
    * the new ones that are transformed to take an additional workspace parameter. This is only
@@ -202,7 +204,7 @@ namespace transform {
 Pass AllocateWorkspace() {
   auto pass_func = [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
 
-  return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
+  return CreateModulePass(pass_func, 0, "AllocateWorkspace");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

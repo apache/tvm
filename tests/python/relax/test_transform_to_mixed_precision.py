@@ -17,27 +17,28 @@
 
 import numpy as np
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
 from tvm.relax.transform import ToMixedPrecision
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def _assert_test(input, expected=None, expected2=None):
     if expected:
         mod = ToMixedPrecision()(input)
-        tvm.ir.assert_structural_equal(mod, expected)
+        tvm_tirx.ir.assert_structural_equal(mod, expected)
 
     if expected2:
         mod = ToMixedPrecision(out_dtype="float16")(input)
-        tvm.ir.assert_structural_equal(mod, expected2)
+        tvm_tirx.ir.assert_structural_equal(mod, expected2)
 
 
 def test_conv2d():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -48,7 +49,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -72,7 +73,7 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -101,7 +102,7 @@ def test_conv2d():
 
 
 def test_conv2d_relu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -113,7 +114,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -140,7 +141,7 @@ def test_conv2d_relu():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -170,7 +171,7 @@ def test_conv2d_relu():
 
 
 def test_unknown_dtype_is_not_rewritten():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(x: R.Tensor((2, 3), dtype=None)) -> R.Tensor((2, 3), dtype=None):
@@ -180,11 +181,11 @@ def test_unknown_dtype_is_not_rewritten():
             return gv
 
     mod = ToMixedPrecision()(Input)
-    tvm.ir.assert_structural_equal(mod, Input)
+    tvm_tirx.ir.assert_structural_equal(mod, Input)
 
 
 def test_relu_conv2d_relu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -197,7 +198,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -225,7 +226,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -256,7 +257,7 @@ def test_relu_conv2d_relu():
 
 
 def test_conv2d_relu_conv2d():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -271,7 +272,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -312,7 +313,7 @@ def test_conv2d_relu_conv2d():
                 R.output(gv3)
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -357,7 +358,7 @@ def test_conv2d_relu_conv2d():
 
 
 def test_gemm_add_silu():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -372,7 +373,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -391,7 +392,7 @@ def test_gemm_add_silu():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -413,7 +414,7 @@ def test_gemm_add_silu():
 
 
 def test_tuple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -432,7 +433,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -501,7 +502,7 @@ def test_tuple():
                 R.output(gv7)
             return gv7
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -573,7 +574,7 @@ def test_tuple():
 
 
 def test_concat_matmul():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -587,7 +588,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -603,7 +604,7 @@ def test_concat_matmul():
                 R.output(lv14)
             return lv14
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -624,7 +625,7 @@ def test_concat_matmul():
 
 
 def test_conv2d_softmax():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -637,7 +638,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -665,7 +666,7 @@ def test_conv2d_softmax():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -696,7 +697,7 @@ def test_conv2d_softmax():
 
 
 def test_conv2d_bias_conv2d():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -744,7 +745,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -795,7 +796,7 @@ def test_conv2d_bias_conv2d():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -853,7 +854,7 @@ def test_conv2d_bias_conv2d():
         "w2": np.random.uniform(size=(4, 4, 1, 1)).astype("float16"),
         "w3": np.random.uniform(size=(4,)).astype("float16"),
     }
-    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
+    binding = {k: tvm_tirx.runtime.tensor(v) for k, v in binding.items()}
     Input = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
     Expected2 = relax.transform.BindParams("main", binding)(Expected2)
@@ -861,7 +862,7 @@ def test_conv2d_bias_conv2d():
 
 
 def test_tuple_get():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @R.function
         def main(
@@ -882,7 +883,7 @@ def test_tuple_get():
                 R.output(out)
             return out
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -913,7 +914,7 @@ def test_tuple_get():
 
 
 def test_conv2d_bias_fp32():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -935,7 +936,7 @@ def test_conv2d_bias_fp32():
                 R.output(lv144)
             return lv144
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -962,7 +963,7 @@ def test_conv2d_bias_fp32():
                 R.output(lv144)
             return lv144
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_no_bias_cast:
         @R.function
         def main(
@@ -992,7 +993,7 @@ def test_conv2d_bias_fp32():
         "w": np.random.uniform(size=(512, 4, 3, 3)).astype("float32"),
         "bias": np.random.uniform(size=(512,)).astype("float32"),
     }
-    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
+    binding = {k: tvm_tirx.runtime.tensor(v) for k, v in binding_np.items()}
 
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected = relax.transform.BindParams("main", binding)(Expected)
@@ -1000,7 +1001,7 @@ def test_conv2d_bias_fp32():
     _assert_test(Input_bound, expected2=Expected)
 
     binding_np["bias"][0] = 70000  # Out of fp16 range
-    binding = {k: tvm.runtime.tensor(v) for k, v in binding_np.items()}
+    binding = {k: tvm_tirx.runtime.tensor(v) for k, v in binding_np.items()}
     Input_bound = relax.transform.BindParams("main", binding)(Input)
     Expected_no_bias_cast = relax.transform.BindParams("main", binding)(Expected_no_bias_cast)
 
@@ -1008,7 +1009,7 @@ def test_conv2d_bias_fp32():
 
 
 def test_convert_sig():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -1030,7 +1031,7 @@ def test_convert_sig():
                 R.output(lv144)
             return lv144
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1050,39 +1051,58 @@ def test_convert_sig():
             return lv144
 
     mod = ToMixedPrecision(out_dtype="float16", fp16_input_names=["w", "bias"])(Input)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_call_tir_with_float16_args():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([64], "float16")):
             cls = Before
             with R.dataflow():
-                B = R.call_tir(cls.tir_identity, [A], out_ty=R.Tensor([64], "float16"))
-                C = R.call_tir(cls.tir_identity, [B], out_ty=R.Tensor([64], "float16"))
+                B = R.call_tir(cls.tir_identity, [A], ty_args=[R.Tensor([64], "float16")])
+                C = R.call_tir(cls.tir_identity, [B], ty_args=[R.Tensor([64], "float16")])
                 R.output(C)
             return C
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_identity(
-            Input: T.Buffer(64, "float16"),
-            Output: T.Buffer(64, "float16"),
+            Input: T.Tensor(64, "float16"),
+            Output: T.Tensor(64, "float16"),
         ):
             for i in range(64):
-                with T.sblock("copy"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("copy"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = Input[vi]
 
     Expected = Before
 
     After = ToMixedPrecision()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
+
+
+def test_local_function_in_dataflow_block():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((), "float32")):
+            with R.dataflow():
+
+                @R.function
+                def double(y: R.Tensor((), "float32")) -> R.Tensor((), "float32"):
+                    return R.add(y, y)
+
+                gv = double(x)
+                R.output(gv)
+            return gv
+
+    transformed = ToMixedPrecision()(Module)
+    tvm_tirx.ir.assert_structural_equal(transformed, Module)
 
 
 def test_dynamic_strided_slice():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         @R.function
         def main(
@@ -1098,7 +1118,7 @@ def test_dynamic_strided_slice():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -1135,4 +1155,4 @@ def test_dynamic_strided_slice():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

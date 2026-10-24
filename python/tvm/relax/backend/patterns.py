@@ -19,6 +19,7 @@
 
 from collections.abc import Mapping
 
+from tvm.relax import script as R
 from tvm.relax.dpl.pattern import (
     DFPattern,
     GlobalVarPattern,
@@ -28,8 +29,7 @@ from tvm.relax.dpl.pattern import (
     is_tuple_get_item,
     wildcard,
 )
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 
 def _with_bias_activation_pattern(
@@ -636,7 +636,7 @@ def make_attention_rewrite_pattern(
                 key,
                 value,
                 bias,
-                T.FloatImm(matchings[scale].data.dtype, float(matchings[scale].data.numpy())),
+                T.FloatImm(matchings[scale].value.dtype, float(matchings[scale].value.numpy())),
             ),
         )
         return out

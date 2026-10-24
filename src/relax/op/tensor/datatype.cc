@@ -25,11 +25,24 @@
 #include "datatype.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 
 namespace tvm {
 namespace relax {
+
+void AstypeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AstypeAttrs>().def_ro("dtype", &AstypeAttrs::dtype, "Target data type");
+}
+
+void WrapParamAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type",
+                                           refl::DefaultValue((DLDataType{kDLFloat, 32, 1})));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   AstypeAttrs::RegisterReflection();
@@ -42,7 +55,7 @@ Expr astype(Expr x, DLDataType dtype) {
   ffi::ObjectPtr<AstypeAttrs> attrs = ffi::make_object<AstypeAttrs>();
   attrs->dtype = dtype;
 
-  static const Op& op = Op::Get("relax.astype");
+  static const Op op = Op::Get("relax.astype");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
@@ -51,22 +64,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.astype", astype);
 }
 
-Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAstype(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 
-TVM_REGISTER_OP("relax.astype")
-    .set_attrs_type<AstypeAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeAstype)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.astype")
+      .signature(sig::arg("x", "The input tensor"), sig::call_attrs<AstypeAttrs>())
+      .set_native_fn_attr<&InferTypeAstype>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutUnaryEwise)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
 
 /* relax.wrap_param */
 
@@ -74,7 +89,7 @@ Expr MakeWrapParam(Expr data, DLDataType dtype) {
   ffi::ObjectPtr<WrapParamAttrs> attrs = ffi::make_object<WrapParamAttrs>();
   attrs->dtype = dtype;
 
-  static const Op& op = Op::Get("relax.wrap_param");
+  static const Op op = Op::Get("relax.wrap_param");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
@@ -83,20 +98,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
 }
 
-Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeWrapParam(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 
-TVM_REGISTER_OP("relax.wrap_param")
-    .set_attrs_type<WrapParamAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeWrapParam)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.wrap_param")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<WrapParamAttrs>())
+      .set_native_fn_attr<&InferTypeWrapParam>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -19,17 +19,19 @@
 # The tests here depend on tvmscript
 
 import tvm
+import tvm_tirx
 from tvm import relax as rx
-from tvm import te, tirx
-from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm import te
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_emit_te_with_symbolic_arg():
     bb = rx.BlockBuilder()
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = rx.Var("x", R.Tensor([10], "float32"))
     y = rx.Var("y", R.Shape([m]))
 
@@ -42,31 +44,32 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    @I.ir_module(s_tir=True)
+    m = T.dynamic("m", "int64")
+
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def te_func(
-            A: T.Buffer((T.int64(10),), "float32"),
+            A: T.Tensor((T.int64(10),), "float32"),
             m: T.int64,
-            B: T.Buffer((T.int64(10),), "float32"),
+            B: T.Tensor((T.int64(10),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
-                with T.sblock("B"):
-                    v_i = T.axis.spatial(T.int64(10), i)
-                    T.writes(B[v_i])
+                with Ts.sblock("B"):
+                    v_i = Ts.axis.spatial(T.int64(10), i)
+                    Ts.writes(B[v_i])
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape([m])) -> R.Tensor(
             (10,), dtype="float32"
         ):
-            m = T.int64()
             cls = Expected
             gv = R.call_tir(
                 cls.te_func,
                 (x, m),
-                out_ty=R.Tensor((10,), dtype="float32"),
+                ty_args=[R.Tensor((10,), dtype="float32")],
             )
             return gv
 
@@ -82,7 +85,7 @@ def test_symbolic_shape_in_prim_value():
     def from_builder():
         bb = rx.BlockBuilder()
         A = rx.Var("A", R.Tensor([16, 16], "float32"))
-        relax_i = rx.Var("relax_i", tvm.ir.PrimType("int64"))
+        relax_i = rx.Var("relax_i", tvm_tirx.ir.PrimType("int64"))
 
         with bb.function("main", params=[A, relax_i]):
             A_sliced = bb.emit_te(te_slice, A, relax_i)
@@ -90,33 +93,33 @@ def test_symbolic_shape_in_prim_value():
 
         return bb.get()
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def te_slice(
-            A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
+            A: T.Tensor([T.int64(16), T.int64(16)], "float32"),
             row_index: T.int64,
-            Output: T.Buffer(T.int64(16), "float32"),
+            Output: T.Tensor(T.int64(16), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
             for i in T.serial(T.int64(0), A.shape[1]):
-                with T.sblock("slice"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("slice"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 
         @R.function
         def main(
             A: R.Tensor([16, 16], "float32"),
-            arg_row_index: R.Prim("int64"),
+            arg_row_index: T.int64,
         ):
             cls = Expected
 
             gv = R.call_tir(
                 cls.te_slice,
                 (A, arg_row_index),
-                out_ty=R.Tensor([16], "float32"),
+                ty_args=[R.Tensor([16], "float32")],
             )
             return gv
 
-    tvm.ir.assert_structural_equal(from_builder(), Expected)
+    tvm_tirx.ir.assert_structural_equal(from_builder(), Expected)

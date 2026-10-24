@@ -20,61 +20,72 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/stmt.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class IrregularLoopAnnotator : public StmtMutator {
+class IrregularLoopAnnotator : public StmtExprMutator {
  public:
-  static Stmt Annotate(const Stmt& body) { return IrregularLoopAnnotator().VisitStmt(body); }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
 
- private:
+  static Stmt Annotate(const Stmt& body) {
+    return ffi::make_object<IrregularLoopAnnotator>()->Mutate(body).ValueOrUnchanged(body);
+  }
+
   IrregularLoopAnnotator() = default;
 
-  Stmt VisitStmt_(const ForNode* op) final {
+ private:
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
+    For res = StmtExprMutator::Mutate_(op, inplace_mode)
+                  .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                  .as_or_throw<For>();
     if (has_jump_) {
-      TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
-          << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
+      TVM_FFI_ICHECK(op->kind == ForKind::kDefault)
+          << "Loop kind " << op->kind << " is invalid for irregular loop " << op->var;
       for (const char* key :
-           {tirx::attr::pragma_auto_unroll_max_step, tirx::attr::pragma_unroll_explicit,
-            s_tir::attr::pragma_loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
+           {tvm::tirx::attr::kAutoUnrollMaxStep.name, tvm::tirx::attr::kUnrollExplicit.name,
+            tvm::s_tir::attr::kLoopPartitionHint.name,
+            tvm::s_tir::attr::kSoftwarePipelineStage.name}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
-            << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;
+            << "Annotation `" << key << "` is invalid for irregular loop " << op->var;
       }
-      res.CopyOnWrite()->annotations.Set(s_tir::attr::irregular_loop_mark, 1);
+      res.CopyOnWrite()->annotations.Set(tvm::s_tir::attr::kIrregularLoopMark.name, 1);
     }
     std::swap(cur_has_jump, has_jump_);
     return res;
   }
 
-  Stmt VisitStmt_(const WhileNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final {
     bool cur_has_jump = has_jump_;
     has_jump_ = false;
-    Stmt res = StmtMutator::VisitStmt_(op);
+    Stmt res = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     std::swap(cur_has_jump, has_jump_);
     return res;
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
-    if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(tirx::builtin::continue_loop()) ||
-          call->op.same_as(tirx::builtin::break_loop())) {
-        has_jump_ = true;
-      }
-    }
-    return ffi::GetRef<Evaluate>(op);
+  UnchangedOr<Stmt> Mutate_(const BreakNode* op, InplaceMode inplace_mode) final {
+    has_jump_ = true;
+    return ffi::Unchanged();
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ContinueNode* op, InplaceMode inplace_mode) final {
+    has_jump_ = true;
+    return ffi::Unchanged();
   }
 
   bool has_jump_{false};
@@ -83,12 +94,13 @@ class IrregularLoopAnnotator : public StmtMutator {
 namespace transform {
 
 Pass AnnotateIrregularLoop() {
-  auto pass_func = [](PrimFunc func, IRModule mod, PassContext ctx) -> PrimFunc {
-    func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body);
+  auto pass_func = [](Function func, IRModule mod, PassContext ctx) -> Function {
+    if (!func->body.has_value()) return func;
+    func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body.value());
     return func;
   };
 
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.AnnotateIrregularLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.AnnotateIrregularLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

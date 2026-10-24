@@ -32,8 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
-
 /*!
  * \brief This linear congruential engine is a drop-in replacement for std::minstd_rand. It strictly
  *  corresponds to std::minstd_rand and is designed to be platform-independent.

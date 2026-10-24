@@ -20,42 +20,41 @@
  * \file src/relax/transform/to_non_dataflow.cc
  * \brief Transform all dataflow structure to non-dataflow version.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
-#include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/function.h>
 
 #include "../../s_tir/schedule/ir_comparator.h"
 
 namespace tvm {
 
-static const constexpr char* kLibraryKernel = "library_kernel";
-static const constexpr char* kCSource = "c_source";
-static const constexpr char* kCSourceFmt = "c_source_fmt";
 static const constexpr char* kCSourceFmtCuda = "cu";
 
 namespace tirx {
+using namespace tvm::prim;
 
 using relax::FCodegen;
 using relax::MatchResult;
 using relax::TIRPattern;
-using s_tir::ExprComparator;
 using s_tir::TensorizeComparator;
 
 /*! \brief helper to match a for stmt to a pattern*/
 class ForMatcher : public TensorizeComparator {
  public:
+  using TensorizeComparator::Dispatch;
   using SymbolMap = std::unordered_map<Var, PrimExpr>;
-  explicit ForMatcher(const tirx::PrimFunc& pattern, const ffi::Array<Var>& pattern_vars)
+  explicit ForMatcher(const tirx::Function& pattern, const ffi::Array<Var>& pattern_vars)
       : TensorizeComparator(IRModule({{GlobalVar(""), pattern}}), false), pattern_(pattern) {
     for (const auto& pattern_var : pattern_vars) {
       this->pattern_vars_.insert(pattern_var);
@@ -64,27 +63,31 @@ class ForMatcher : public TensorizeComparator {
   }
 
   bool Match(const For& top) {
-    const ForNode* pattern_top = pattern_->body.as<SBlockRealizeNode>()->block->body.as<ForNode>();
+    TVM_FFI_ICHECK(pattern_->body.has_value() && pattern_->body.value()->size() == 1)
+        << "Invalid pattern function";
+    const auto* root = pattern_->body.value()->seq[0].as<s_tir::SBlockRealizeNode>();
+    TVM_FFI_ICHECK(root && root->block->body->size() == 1) << "Invalid pattern function";
+    const ForNode* pattern_top = root->block->body->seq[0].as<ForNode>();
     TVM_FFI_ICHECK(pattern_top) << "Invalid pattern function";
-    if (!VisitStmt(top, ffi::GetRef<Stmt>(pattern_top))) {
+    if (!Dispatch(top, ffi::GetRef<Stmt>(pattern_top))) {
       return false;
     }
-    // Get evaluated symbols, buffers from the pattern.
+    // Get evaluated symbols, tensors from the pattern.
     for (const auto& arg : pattern_->params) {
-      if (auto buffer = arg.as<tirx::BufferVar>()) {
-        auto itt = rhs_buffer_map_.find(buffer.value());
-        TVM_FFI_ICHECK(itt != rhs_buffer_map_.end());
-        evaluated_buffers.push_back(itt->second);
+      if (auto tensor = arg.as<tirx::TensorVar>()) {
+        auto itt = rhs_tensor_map_.find(tensor.value());
+        TVM_FFI_ICHECK(itt != rhs_tensor_map_.end());
+        evaluated_tensors.push_back(itt->second);
       }
     }
     return true;
   }
 
   std::vector<SymbolMap> evaluated_symbols;
-  std::vector<BufferVar> evaluated_buffers;
+  std::vector<TensorVar> evaluated_tensors;
 
  private:
-  using ExprComparator::VisitExpr_;
+  using TensorizeComparator::Dispatch_;
 
   ffi::Optional<PrimExpr> QueryEvaluatedSymbols(const Var& var) {
     for (const SymbolMap& symbol_map : evaluated_symbols) {
@@ -96,7 +99,7 @@ class ForMatcher : public TensorizeComparator {
     return std::nullopt;
   }
 
-  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+  bool Dispatch(const Expr& expr, const PrimExpr& rhs) final {
     PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (auto rhs_prim_var = rhs.as<PrimVar>()) {
       Var rhs_var = rhs_prim_var.value();
@@ -108,7 +111,7 @@ class ForMatcher : public TensorizeComparator {
             if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
-              evaluated_symbols.back()[rhs_var] = lhs;
+              evaluated_symbols.back().insert_or_assign(rhs_var, lhs);
             }
             return true;
           } else {
@@ -125,12 +128,13 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->b);
+        bool match = Dispatch(lhs, rhs_ptr->b);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 1);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->b.ty(), 1));
           return true;
         }
       }
@@ -138,12 +142,13 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->a);
+        bool match = Dispatch(lhs, rhs_ptr->a);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 1);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->a.ty(), 1));
           return true;
         }
       }
@@ -156,12 +161,13 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->b);
+        bool match = Dispatch(lhs, rhs_ptr->b);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 0);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->b.ty(), 0));
           return true;
         }
       }
@@ -169,25 +175,26 @@ class ForMatcher : public TensorizeComparator {
         Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
-        bool match = VisitExpr(lhs, rhs_ptr->a);
+        bool match = Dispatch(lhs, rhs_ptr->a);
         SymbolMap symbol_map = std::move(evaluated_symbols.back());
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 0);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->a.ty(), 0));
           return true;
         }
       }
     }
-    return TensorizeComparator::VisitExpr(lhs, rhs);
+    return TensorizeComparator::Dispatch(lhs, rhs);
   }
 
-  bool VisitExpr_(const prim::AddNode* add, const PrimExpr& other) final {
+  bool Dispatch_(const prim::AddNode* add, const PrimExpr& other) final {
     const auto* rhs = other.as<prim::AddNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(add->a, rhs->a) && VisitExpr(add->b, rhs->b);
+      bool match = Dispatch(add->a, rhs->a) && Dispatch(add->b, rhs->b);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -197,7 +204,7 @@ class ForMatcher : public TensorizeComparator {
     }
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(add->a, rhs->b) && VisitExpr(add->b, rhs->a);
+      bool match = Dispatch(add->a, rhs->b) && Dispatch(add->b, rhs->a);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -208,12 +215,12 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const prim::MulNode* mul, const PrimExpr& other) final {
+  bool Dispatch_(const prim::MulNode* mul, const PrimExpr& other) final {
     const auto* rhs = other.as<prim::MulNode>();
     if (rhs == nullptr) return false;
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(mul->a, rhs->a) && VisitExpr(mul->b, rhs->b);
+      bool match = Dispatch(mul->a, rhs->a) && Dispatch(mul->b, rhs->b);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -223,7 +230,7 @@ class ForMatcher : public TensorizeComparator {
     }
     {
       this->evaluated_symbols.push_back(SymbolMap());
-      bool match = VisitExpr(mul->a, rhs->b) && VisitExpr(mul->b, rhs->a);
+      bool match = Dispatch(mul->a, rhs->b) && Dispatch(mul->b, rhs->a);
       SymbolMap symbol_map = std::move(evaluated_symbols.back());
       this->evaluated_symbols.pop_back();
       if (match) {
@@ -234,7 +241,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const CallNode* call, const PrimExpr& other) final {
+  bool Dispatch_(const CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -248,123 +255,131 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  bool VisitStmt_(const tirx::ForNode* op, const Stmt& other) final {
+  bool Dispatch_(const tvm::ForNode* op, const Stmt& other) final {
     const auto* rhs = other.as<ForNode>();
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
     // The body of loop must be loop or BlockRealize
-    if (!op->body->IsInstance<SBlockRealizeNode>() && !op->body->IsInstance<ForNode>()) {
+    if (op->body->size() != 1 || (!op->body->seq[0]->IsInstance<s_tir::SBlockRealizeNode>() &&
+                                  !op->body->seq[0]->IsInstance<ForNode>())) {
       return false;
     }
-    if (!rhs->body->IsInstance<SBlockRealizeNode>() && !rhs->body->IsInstance<ForNode>()) {
+    if (rhs->body->size() != 1 || (!rhs->body->seq[0]->IsInstance<s_tir::SBlockRealizeNode>() &&
+                                   !rhs->body->seq[0]->IsInstance<ForNode>())) {
       return false;
     }
     // Build mapping between the loop vars
-    if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
+    if (!DefEqual(op->var, rhs->var)) return false;
     // Only handle the case where the loop start from 0
-    if (!is_zero(op->min) || !is_zero(rhs->min)) return false;
-    if (op->thread_binding.has_value() || rhs->thread_binding.has_value()) return false;
-    if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
+    if (!IsZero(op->begin) || !IsZero(rhs->begin)) return false;
+    if (op->kind != ForKind::kDefault || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
-    if (!VisitExpr(op->extent, rhs->extent)) return false;
-    return VisitStmt(op->body, rhs->body);
+    if (!Dispatch(op->end, rhs->end) || !Dispatch(op->step, rhs->step)) return false;
+    return Dispatch(op->body->seq[0], rhs->body->seq[0]);
   }
 
-  bool VisitStmt_(const tirx::SBlockNode* op, const Stmt& other) final {
-    const auto* rhs = other.as<SBlockNode>();
+  bool Dispatch_(const s_tir::SBlockNode* op, const Stmt& other) final {
+    const auto* rhs = other.as<s_tir::SBlockNode>();
     // Check block equality.
-    // All iter vars and buffer regions including the order should match.
+    // All iter vars and tensor regions including the order should match.
     // When checking iter vars, DefEqual is used to remap variables.
     if (!CompareArray(op->iter_vars, rhs->iter_vars, &ForMatcher::CompareIterVar)) {
       return false;
     }
-    // disallow alloc buffers inside the block
-    if (!op->alloc_buffers.empty() || !rhs->alloc_buffers.empty()) return false;
-    if (!CompareArray(op->writes, rhs->writes, &ForMatcher::CompareBufferRegion)) {
+    // disallow alloc tensors inside the block
+    if (!op->alloc_tensors.empty() || !rhs->alloc_tensors.empty()) return false;
+    if (!CompareArray(op->writes, rhs->writes, &ForMatcher::CompareTensorRegion)) {
       return false;
     }
-    if (!CompareArray(op->reads, rhs->reads, &ForMatcher::CompareBufferRegion)) {
+    if (!CompareArray(op->reads, rhs->reads, &ForMatcher::CompareTensorRegion)) {
       return false;
     }
-    // The body of the block has to be BufferStore
-    if (!op->body->IsInstance<BufferStoreNode>() || !rhs->body->IsInstance<BufferStoreNode>()) {
+    // The body of the block has to be TensorStore
+    if (op->body->size() != 1 || rhs->body->size() != 1 ||
+        !op->body->seq[0]->IsInstance<TensorStoreNode>() ||
+        !rhs->body->seq[0]->IsInstance<TensorStoreNode>()) {
       return false;
     }
     // Handle init block
     if (op->init.has_value() && !rhs->init.has_value()) return false;
     if (!op->init.has_value() && rhs->init.has_value()) return false;
     if (op->init.has_value() && rhs->init.has_value()) {
-      if (!VisitStmt(op->init.value(), rhs->init.value())) return false;
+      if (!Dispatch(op->init.value(), rhs->init.value())) return false;
     }
-    return VisitStmt(op->body, rhs->body);
+    return Dispatch(op->body->seq[0], rhs->body->seq[0]);
   }
 
-  bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) final {
-    const auto* rhs = other.as<SBlockRealizeNode>();
+  bool Dispatch_(const s_tir::SBlockRealizeNode* op, const Stmt& other) final {
+    const auto* rhs = other.as<s_tir::SBlockRealizeNode>();
     // Only allow trivial bindings
     for (size_t i = 0; i < op->iter_values.size(); ++i) {
-      if (!op->iter_values[i].same_as(loop_stack_lhs_[i]->loop_var)) return false;
+      if (!op->iter_values[i].same_as(loop_stack_lhs_[i]->var)) return false;
     }
     for (size_t i = 0; i < rhs->iter_values.size(); ++i) {
-      if (!rhs->iter_values[i].same_as(loop_stack_rhs_[i]->loop_var)) return false;
+      if (!rhs->iter_values[i].same_as(loop_stack_rhs_[i]->var)) return false;
     }
     // Disallow predicates now
-    if (!is_one(op->predicate) || !is_one(rhs->predicate)) return false;
-    return VisitStmt(op->block, rhs->block);
+    if (!IsOne(op->predicate) || !IsOne(rhs->predicate)) return false;
+    return Dispatch(op->block, rhs->block);
   }
 
-  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
-    const auto* rhs = other.as<BufferStoreNode>();
-    return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
+  bool Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+    const auto* rhs = other.as<TensorStoreNode>();
+    return CompareTensorAccess(op, rhs) && Dispatch(op->value, rhs->value);
   }
 
-  bool VisitExpr_(const TensorLoadNode* op, const PrimExpr& other) {
+  bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<TensorLoadNode>();
-    return CompareBufferAccess(op, rhs);
+    return CompareTensorAccess(op, rhs);
   }
 
-  bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
+  bool CompareTensor(const TensorVar& lhs, const TensorVar& rhs) {
     if (lhs.same_as(rhs)) return true;
-    auto it = rhs_buffer_map_.find(rhs);
+    auto it = rhs_tensor_map_.find(rhs);
     bool equal;
-    if (it != rhs_buffer_map_.end()) {
+    if (it != rhs_tensor_map_.end()) {
       equal = (*it).second.same_as(lhs);
     } else {
       // Compare shape
-      if (lhs->shape.size() != rhs->shape.size()) return false;
-      for (size_t i = 0; i < lhs->shape.size(); ++i) {
-        if (!VisitExpr(lhs->shape[i], rhs->shape[i])) return false;
+      if (lhs.shape().size() != rhs.shape().size()) return false;
+      for (size_t i = 0; i < lhs.shape().size(); ++i) {
+        if (!Dispatch(lhs.shape()[i], rhs.shape()[i])) return false;
       }
-      equal =
-          DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      equal = DefEqual(lhs, rhs) && lhs.dtype() == rhs.dtype() && lhs.scope() == rhs.scope();
       if (equal) {
-        rhs_buffer_map_[rhs] = lhs;
+        rhs_tensor_map_.insert_or_assign(rhs, lhs);
       }
     }
     return equal;
   }
 
-  bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs) {
-    if (!CompareBuffer(lhs->buffer, rhs->buffer)) {
+  bool CompareTensorRegion(const TensorRegion& lhs, const TensorRegion& rhs) {
+    if (!CompareTensor(lhs->source.as_or_throw<tvm::tirx::TensorVar>(),
+                       rhs->source.as_or_throw<tvm::tirx::TensorVar>())) {
       return false;
     }
     return CompareArray(lhs->region, rhs->region, &ForMatcher::CompareRange);
   }
 
-  template <typename T>
-  bool CompareBufferAccess(const T* lhs, const T* rhs) {
-    if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
-  }
-
-  bool CompareBufferAccess(const TensorLoadNode* lhs, const TensorLoadNode* rhs) {
-    if (rhs == nullptr) return false;
-    if (!CompareBuffer(lhs->source.as_or_throw<BufferVar>(),
-                       rhs->source.as_or_throw<BufferVar>())) {
+  bool CompareTensorAccess(const TensorStoreNode* lhs, const TensorStoreNode* rhs) {
+    if (!CompareTensor(lhs->dest.as_or_throw<TensorVar>(), rhs->dest.as_or_throw<TensorVar>())) {
       return false;
     }
-    return CompareArray(lhs->indices, rhs->indices, &ForMatcher::VisitExpr);
+    return CompareArray(
+        lhs->indices, rhs->indices,
+        static_cast<bool (ForMatcher::*)(const Expr&, const PrimExpr&)>(&ForMatcher::Dispatch));
+  }
+
+  bool CompareTensorAccess(const TensorLoadNode* lhs, const TensorLoadNode* rhs) {
+    if (rhs == nullptr) return false;
+    if (!CompareTensor(lhs->source.as_or_throw<TensorVar>(),
+                       rhs->source.as_or_throw<TensorVar>())) {
+      return false;
+    }
+    return CompareArray(
+        lhs->indices, rhs->indices,
+        static_cast<bool (ForMatcher::*)(const Expr&, const PrimExpr&)>(&ForMatcher::Dispatch));
   }
 
   template <typename T, typename Self, typename F>
@@ -377,16 +392,16 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
-  tirx::PrimFunc pattern_;
+  tirx::Function pattern_;
   std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pattern_vars_;
 };
 
 /*! \brief Analyze the function and match it with a list of patterns */
 class TIRPatternMatcher {
  public:
-  static ffi::Array<MatchResult> Match(ffi::Array<TIRPattern> patterns, Stmt body) {
+  static ffi::Array<MatchResult> Match(ffi::Array<TIRPattern> patterns, SeqStmt body) {
     TIRPatternMatcher matcher(patterns);
     matcher.OpMatternMatch(body);
     if (matcher.fail_) return {};
@@ -399,25 +414,26 @@ class TIRPatternMatcher {
   // Find an op that matches this block
   bool BlockPatternMatch(const For& top) {
     for (const TIRPattern& pattern : patterns_) {
-      tirx::PrimFunc pattern_func = pattern;
+      tirx::Function pattern_func = pattern;
       ffi::Array<Var> pattern_symbolic_vars;
-      int buffer_count = 0;
-      while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
-             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
-        ++buffer_count;
+      int tensor_count = 0;
+      while (tensor_count < static_cast<int>(pattern_func->params.size()) &&
+             pattern_func->params[tensor_count]->ty.as<tirx::TensorTypeNode>()) {
+        ++tensor_count;
       }
-      for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
+      for (int i = tensor_count; i < static_cast<int>(pattern_func->params.size()); i++) {
         pattern_symbolic_vars.push_back(pattern_func->params[i]);
       }
       ForMatcher block_matcher(pattern_func, pattern_symbolic_vars);
       if (block_matcher.Match(top)) {
         // We have found a match
         ffi::Array<PrimExpr> symbol_values;
-        for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
-          symbol_values.push_back(block_matcher.evaluated_symbols.back()[pattern_func->params[i]]);
+        for (int i = tensor_count; i < static_cast<int>(pattern_func->params.size()); i++) {
+          symbol_values.push_back(
+              block_matcher.evaluated_symbols.back().at(pattern_func->params[i]));
         }
         match_results_.push_back(
-            MatchResult(pattern, symbol_values, block_matcher.evaluated_buffers));
+            MatchResult(pattern, symbol_values, block_matcher.evaluated_tensors));
         return true;
       }
     }
@@ -426,18 +442,8 @@ class TIRPatternMatcher {
   }
 
   // For each block in the body, try to find its corresponding pattern one by one
-  void OpMatternMatch(const Stmt& body) {
-    ffi::Array<Stmt> blocks;
-    if (body->IsInstance<ForNode>()) {
-      // {for}
-      blocks = {body};
-    } else if (const SeqStmtNode* seq = body.as<SeqStmtNode>()) {
-      blocks = seq->seq;
-    } else {
-      fail_ = true;
-      return;
-    }
-    for (const Stmt& stmt : blocks) {
+  void OpMatternMatch(const SeqStmt& body) {
+    for (const Stmt& stmt : body->seq) {
       const ForNode* loop = stmt.as<ForNode>();
       if (loop == nullptr || !BlockPatternMatch(ffi::GetRef<For>(loop))) {
         break;
@@ -457,117 +463,125 @@ class TIRPatternMatcher {
 
 /*! \brief helper class to partition a function into 2 parts. Return function information which we
  * can use to construct the two partitioned parts.*/
-class FunctionPartitioner : public StmtExprVisitor {
+class FunctionPartitioner : public s_tir::StmtExprVisitor {
  public:
   explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
-  /*! \brief alloc_buffers for the first function */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
-  /*! \brief alloc_buffers for the second function */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
+  /*! \brief alloc_tensors for the first function */
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
+  /*! \brief alloc_tensors for the second function */
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
-  ffi::Map<SBlock, bool> block_partition;
-  /*! \brief input buffers for the first function */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
-  /*! \brief input buffers for the second function */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
-  /*! \brief The output buffer for the first function, which is also the input buffer for the second
+  ffi::Map<s_tir::SBlock, bool> block_partition;
+  /*! \brief input tensors for the first function */
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
+  /*! \brief input tensors for the second function */
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
+  /*! \brief The output tensor for the first function, which is also the input tensor for the second
   function */
-  BufferVar intermediate_buffer;
+  ffi::Optional<TensorVar> intermediate_tensor;
   /*! \brief Indicate whether we have failed. If failed, we will not do any further analysis and
   directly return the original one. */
   bool fail = false;
 
  private:
-  void VisitStmt_(const SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     block_counter_++;
     bool is_matching_ = block_counter_ <= num_matched_ops_;
-    if (block_counter_ == num_matched_ops_) {
-      allocs1.erase(intermediate_buffer);
+    if (block_counter_ == num_matched_ops_ && intermediate_tensor.has_value()) {
+      allocs1.erase(intermediate_tensor.value());
     }
     for (const auto& read : op->reads) {
       if (is_matching_) {
-        input1.insert(read->buffer);
+        input1.insert(read->source.as_or_throw<tvm::tirx::TensorVar>());
       } else {
-        input2.insert(read->buffer);
+        input2.insert(read->source.as_or_throw<tvm::tirx::TensorVar>());
       }
     }
     for (const auto& write : op->writes) {
       if (is_matching_) {
-        allocs1.insert(write->buffer);
-      } else if (allocs1.count(write->buffer)) {
+        allocs1.insert(write->source.as_or_throw<tvm::tirx::TensorVar>());
+      } else if (allocs1.count(write->source.as_or_throw<tvm::tirx::TensorVar>())) {
         fail = true;
-        return;
+        return std::nullopt;
       } else {
-        allocs2.insert(write->buffer);
+        allocs2.insert(write->source.as_or_throw<tvm::tirx::TensorVar>());
       }
       if (is_matching_) {
-        intermediate_buffer = write->buffer;
+        intermediate_tensor = write->source.as_or_throw<tvm::tirx::TensorVar>();
       } else {
-        input2.insert(write->buffer);
+        input2.insert(write->source.as_or_throw<tvm::tirx::TensorVar>());
       }
     }
-    block_partition.Set(ffi::GetRef<SBlock>(op), is_matching_);
+    block_partition.Set(ffi::GetRef<s_tir::SBlock>(op), is_matching_);
+
+    return std::nullopt;
   }
   // The number of matched ops in the function
   size_t num_matched_ops_;
   size_t block_counter_ = 0;
 };
 
-/*! \brief remove parts according to block partition, and update the alloc_buffers for blocks */
-class BlockRemover : public StmtExprMutator {
+/*! \brief remove parts according to block partition, and update the alloc_tensors for blocks */
+class BlockRemover : public s_tir::StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
-      Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
-      const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+      Stmt stmt, const ffi::Map<s_tir::SBlock, bool>& block_partition,
+      const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
-    BlockRemover remover(block_partition, allocs, is_library_part);
-    return remover(stmt);
+    auto remover = ffi::make_object<BlockRemover>(block_partition, allocs, is_library_part);
+    return remover->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
   }
 
- private:
-  BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
-               const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+  BlockRemover(const ffi::Map<s_tir::SBlock, bool>& block_partition,
+               const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
-    ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
+ private:
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+    s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<s_tir::SBlock>();
+    ffi::ObjectPtr<s_tir::SBlockNode> n = ffi::make_object<s_tir::SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
-      TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
-      bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)];
+      TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<s_tir::SBlock>(op)));
+      bool block_is_library = block_partition[ffi::GetRef<s_tir::SBlock>(op)];
       if (!(is_library_part_ ^ block_is_library)) {
         n->body = block->body;
       } else {
         erased_ = true;
       }
     }
-    ffi::Array<BufferVar> alloc_buffers;
-    for (const BufferVar& b : block->alloc_buffers) {
+    ffi::Array<TensorVar> alloc_tensors;
+    for (const TensorVar& b : block->alloc_tensors) {
       if (allocs_.count(b)) {
-        alloc_buffers.push_back(b);
+        alloc_tensors.push_back(b);
       }
     }
-    n->alloc_buffers = alloc_buffers;
-    return SBlock(n);
+    n->alloc_tensors = alloc_tensors;
+    return s_tir::SBlock(n);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> seq;
+    bool erased_all = !op->seq.empty();
     for (const Stmt& s : op->seq) {
-      Stmt new_s = VisitStmt(s);
+      Stmt new_s = Mutate(s).ValueOrUnchanged(s);
       if (erased_) {
         erased_ = false;
       } else {
+        erased_all = false;
         seq.push_back(new_s);
       }
     }
-    return SeqStmt::Flatten(seq);
+    // Let enclosing loops disappear when their only subtree was removed.
+    erased_ = erased_all;
+    return SeqStmt(seq, op->loc);
   }
 
   bool erased_ = false;
-  ffi::Map<SBlock, bool> block_partition;
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
+  ffi::Map<s_tir::SBlock, bool> block_partition;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
 
@@ -581,31 +595,35 @@ class BlockRemover : public StmtExprMutator {
  * \return A pair of functions, the first one is the library kernel and the second one is the
  * rest.
  */
-std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
-    PrimFunc func, std::vector<std::vector<int>>* arg_partition, ffi::Array<TIRPattern> patterns,
-    FCodegen f_codegen) {
+std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
+    tirx::Function func, std::vector<std::vector<int>>* arg_partition,
+    ffi::Array<TIRPattern> patterns, FCodegen f_codegen) {
   // Step 1. Find the library kernel and the rest.
-  Stmt body = func->body.as<SBlockRealizeNode>()->block->body;
-  ffi::Array<MatchResult> match_results =
-      TIRPatternMatcher::Match(patterns, func->body.as<SBlockRealizeNode>()->block->body);
+  if (!func->body.has_value() || func->body.value()->size() != 1) {
+    return {func, std::nullopt};
+  }
+  const auto* root = func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>();
+  if (root == nullptr) return {func, std::nullopt};
+  SeqStmt body = root->block->body;
+  ffi::Array<MatchResult> match_results = TIRPatternMatcher::Match(patterns, body);
   if (match_results.empty()) {
     return {func, std::nullopt};
   }
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
-  int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value;
-  ffi::Array<BufferVar> func1_args = codegen_result[2].as_or_throw<ffi::Array<BufferVar>>();
+  int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value.as<int>().value();
+  ffi::Array<TensorVar> func1_args = codegen_result[2].as_or_throw<ffi::Array<TensorVar>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
-  FunctionPartitioner partitioner(num_matched_ops);
-  partitioner(body);
-  if (partitioner.fail) {
+  auto partitioner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
+  partitioner->Visit(body);
+  if (partitioner->fail || !partitioner->intermediate_tensor.has_value()) {
     return {func, std::nullopt};
   }
   bool has_second_func = false;
-  for (const auto& pr : partitioner.block_partition) {
+  for (const auto& pr : partitioner->block_partition) {
     if (!pr.second) {
       has_second_func = true;
       break;
@@ -613,22 +631,22 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   if (!has_second_func) {
     // No need to split the function.
-    return {WithAttr(func, kLibraryKernel, library_code), std::nullopt};
+    return {WithAttr(func, tvm::relax::attr::kLibraryKernel.name, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
-  Stmt body1 = BlockRemover::RemoveBlockByPartition(func->body, partitioner.block_partition,
-                                                    partitioner.allocs1, true);
-  Stmt body2 = BlockRemover::RemoveBlockByPartition(func->body, partitioner.block_partition,
-                                                    partitioner.allocs2, false);
+  Stmt body1 = BlockRemover::RemoveBlockByPartition(
+      func->body.value(), partitioner->block_partition, partitioner->allocs1, true);
+  Stmt body2 = BlockRemover::RemoveBlockByPartition(
+      func->body.value(), partitioner->block_partition, partitioner->allocs2, false);
   // Step 3. Craft the first function.
   ffi::Array<Var> new_params1;
   std::vector<int> arg_partition1;
-  TVM_FFI_ICHECK_LE(func1_args.size(), partitioner.input1.size());
-  for (const auto& buffer : func1_args) {
-    TVM_FFI_ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
+  TVM_FFI_ICHECK_LE(func1_args.size(), partitioner->input1.size());
+  for (const auto& tensor : func1_args) {
+    TVM_FFI_ICHECK(partitioner->input1.find(tensor) != partitioner->input1.end());
     for (size_t i = 0; i < func->params.size(); i++) {
-      auto param_buffer = func->params[i].as<tirx::BufferVar>();
-      if (param_buffer.has_value() && param_buffer.value().same_as(buffer)) {
+      auto param_tensor = func->params[i].as<tirx::TensorVar>();
+      if (param_tensor.has_value() && param_tensor.value().same_as(tensor)) {
         new_params1.push_back(func->params[i]);
         arg_partition1.push_back(i);
         break;
@@ -636,17 +654,17 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(partitioner.intermediate_buffer.var());
-  PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, func->attrs);
-  func1 = WithAttr(func1, kLibraryKernel, library_code);
+  new_params1.push_back(partitioner->intermediate_tensor.value());
+  tirx::Function func1 = tirx::Function(new_params1, SeqStmt(body1), func->ret_type, func->attrs);
+  func1 = WithAttr(func1, tvm::relax::attr::kLibraryKernel.name, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(partitioner.intermediate_buffer.var());
+  new_params2.push_back(partitioner->intermediate_tensor.value());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
-    auto param_buffer = param.as<tirx::BufferVar>();
-    if (param_buffer.has_value() && partitioner.input2.count(param_buffer.value())) {
+    auto param_tensor = param.as<tirx::TensorVar>();
+    if (param_tensor.has_value() && partitioner->input2.count(param_tensor.value())) {
       new_params2.push_back(param);
       if (i != static_cast<int>(func->params.size()) - 1) {
         arg_partition2.push_back(i);
@@ -654,7 +672,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition2);
-  PrimFunc func2 = PrimFunc(new_params2, body2, func->ret_type, func->attrs);
+  tirx::Function func2 = tirx::Function(new_params2, SeqStmt(body2), func->ret_type, func->attrs);
   return {func1, func2};
 }
 }  // namespace tirx
@@ -667,19 +685,21 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
   }
 }
 
-tvm::BaseFunc CodegenWithLibrary(const tirx::PrimFuncNode* pf, ffi::String global_symbol) {
+tvm::BaseFunc CodegenWithLibrary(const tirx::FunctionNode* pf, ffi::String global_symbol) {
   using namespace tvm::tirx;
-  ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr<ffi::String>(kLibraryKernel);
+  ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr(tvm::relax::attr::kLibraryKernel);
   if (!library_code.has_value()) {
-    return ffi::GetRef<tirx::PrimFunc>(pf);
+    return ffi::GetRef<tirx::Function>(pf);
   }
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
   ExternFunc ret(global_symbol);
-  ret = WithAttrs(std::move(ret), ffi::Map<ffi::String, ffi::Any>{
-                                      {ffi::String(kCSource), ffi::String(source)},
-                                      {ffi::String(kCSourceFmt), ffi::String(kCSourceFmtCuda)},
-                                  });
+  ret =
+      WithAttrs(std::move(ret),
+                ffi::Map<ffi::String, ffi::Any>{
+                    {ffi::String(tvm::relax::attr::kCSource.name), ffi::String(source)},
+                    {ffi::String(tvm::relax::attr::kCSourceFmt.name), ffi::String(kCSourceFmtCuda)},
+                });
   return ret;
 }
 
@@ -713,23 +733,23 @@ class SplitMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_dps_packed_ = Op::Get("relax.call_dps_packed");
     if (!call->op.same_as(call_tir_op_)) return call;
     // the first argument is the function to be called
     const auto* gv_ptr = call->args[0].as<GlobalVarNode>();
     if (gv_ptr == nullptr) return call;
     GlobalVar gv = ffi::GetRef<GlobalVar>(gv_ptr);
     // retrieve the function from the module and split it
-    tirx::PrimFunc func = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    tirx::Function func = mod_->Lookup(gv).as_or_throw<tirx::Function>();
     std::vector<std::vector<int>> arg_partition;
     // split the function into two functions, one for the library kernel and one for the rest.
-    std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
+    std::pair<tirx::Function, ffi::Optional<tirx::Function>> split_funcs =
         tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
     if (!split_funcs.second.has_value()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
-      if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+      if (lib_func->IsInstance<tirx::FunctionNode>()) return ffi::GetRef<Call>(op);
       // Update the function in the module with the library kernel
       TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
       builder_->UpdateFunction(gv, lib_func);
@@ -739,8 +759,8 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tirx::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
-    tirx::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
+    tirx::Function func1 = tirx::RenewDef(split_funcs.first);
+    tirx::Function func2 = tirx::RenewDef(split_funcs.second.value());
     TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;
@@ -749,13 +769,13 @@ class SplitMutator : public ExprMutator {
     }
     // replace the function in the module with the library kernel
     tvm::BaseFunc lib_func = CodegenWithLibrary(func1.get(), gv->name_hint);
-    if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+    if (lib_func->IsInstance<tirx::FunctionNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
-    tirx::BufferVar intermediate_buffer = func1->params.back().as_or_throw<tirx::BufferVar>();
-    PrimType dtype = intermediate_buffer->dtype;
+    tirx::TensorVar intermediate_tensor = func1->params.back().as_or_throw<tirx::TensorVar>();
+    PrimType dtype = intermediate_tensor.dtype();
     Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
-               {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});
+               {TensorType(ShapeExpr(intermediate_tensor.shape()), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
     ffi::Array<Expr> args2;
@@ -765,11 +785,11 @@ class SplitMutator : public ExprMutator {
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
     Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
-    builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
+    builder_->UpdateFunction(gv, WithoutAttr(func, tvm::attr::kGlobalSymbol.name));
     return call2;
   }
 
-  const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
+  const Op call_dps_packed_ = Op::Get("relax.call_dps_packed");
   tvm::IRModule mod_;
   ffi::Array<TIRPattern> patterns_;
   FCodegen fcodegen_;
@@ -779,10 +799,9 @@ namespace transform {
 Pass SplitCallTIRByPattern(ffi::Array<TIRPattern> patterns, FCodegen fcodegen) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) { return SplitMutator::Transform(m, patterns, fcodegen); };
-  return CreateModulePass(/*pass_function=*/pass_func,            //
-                          /*opt_level=*/0,                        //
-                          /*pass_name=*/"SplitCallTIRByPattern",  //
-                          /*required=*/{});
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*pass_name=*/"SplitCallTIRByPattern");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

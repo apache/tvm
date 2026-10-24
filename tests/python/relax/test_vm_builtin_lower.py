@@ -17,21 +17,23 @@
 
 import pytest
 
-import tvm
-import tvm.script
+import tvm_tirx
+import tvm_tirx.script
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_vm_builtin_lower_mem_alloc_storage():
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             storage = R.memory.alloc_storage(R.shape([m * n * 4]), 0, "global", "uint8")
             alloc = R.memory.alloc_tensor(storage, 0, R.shape([m, n]), "float32")
@@ -41,13 +43,15 @@ def test_vm_builtin_lower_mem_alloc_storage():
             gv0 = alloc
             return gv0
 
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             # we expected RemovePurityChecking to have been called first
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             storage = R.vm.alloc_storage(R.shape([m * n * 4]), R.prim_value(0), "uint8", "global")
             alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([m, n]), "float32")
@@ -59,18 +63,20 @@ def test_vm_builtin_lower_mem_alloc_storage():
             return gv0
 
     After = relax.transform.LowerRuntimeBuiltin()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_vm_builtin_alloc_tensor_raises_error():
     """R.builtin.alloc_tensor should be handled earlier"""
 
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
@@ -107,9 +113,9 @@ def test_vm_reshape_may_be_var():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_vm_reshape_using_tensor_to_shape():
@@ -143,10 +149,10 @@ def test_vm_reshape_using_tensor_to_shape():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
