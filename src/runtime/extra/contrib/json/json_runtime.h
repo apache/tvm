@@ -95,6 +95,9 @@ class JSONRuntimeBase : public ffi::ModuleObj {
     } else if (name == "get_const_vars") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->const_names_; });
+    } else if (name == "get_shape_params") {
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->shape_params_; });
     } else if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
@@ -286,6 +289,15 @@ class JSONRuntimeBase : public ffi::ModuleObj {
         }
       } else if (key == "symbol") {
         // ignored
+      } else if (key == "shape_params") {
+        // Shape / symbol parameter names (tir_vars) that are function-level
+        // but not tensor inputs to the graph.  Downstream backends may need
+        // to pass these values at runtime for symbolic shape handling.
+        auto arr = kv.second.cast<json::Array>();
+        shape_params_.clear();
+        for (const auto& v : arr) {
+          shape_params_.push_back(v.cast<ffi::String>());
+        }
       } else {
         TVM_FFI_THROW(InternalError) << "Unknown key: " << key;
       }
@@ -322,6 +334,8 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   std::vector<uint32_t> input_var_eid_;
   /*! \brief input const node index. */
   std::vector<uint32_t> const_idx_;
+  /*! \brief Shape / symbol parameter names (tir_vars) parsed from the graph. */
+  ffi::Array<ffi::String> shape_params_;
   /*! \brief Indicate if the engine has been initialized. */
   bool initialized_{false};
   /*! \brief Initializer mutex*/
