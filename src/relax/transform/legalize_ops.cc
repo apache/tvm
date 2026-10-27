@@ -55,14 +55,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \return A boolean indicating the given type contains shape values that are all known.
  */
 bool KnowAllShapeValues(const Type& ty) {
-  if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
-  } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
+  if (const auto* tensor_ty = ty.as<TensorTypeObj>()) {
+    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprObj>();
+  } else if (const auto* shape_ty = ty.as<ShapeTypeObj>()) {
     return shape_ty->values.has_value();
-  } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+  } else if (const auto* tuple_ty = ty.as<TupleTypeObj>()) {
     return std::all_of(tuple_ty->fields.begin(), tuple_ty->fields.end(),
                        [](Type field_ty) { return KnowAllShapeValues(field_ty); });
-  } else if (ty.as<PrimTypeNode>()) {
+  } else if (ty.as<PrimTypeObj>()) {
     return true;
   } else {
     return false;
@@ -89,7 +89,7 @@ class LegalizeMutator : public ExprMutator {
   IRModule Transform() {
     for (const auto& gv : mod_->GetGlobalVars()) {
       const auto& func = mod_->Lookup(gv);
-      if (func->IsInstance<FunctionNode>()) {
+      if (func->IsInstance<FunctionObj>()) {
         auto updated_func = this->VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func.as_or_throw<BaseFunc>());
       }
@@ -118,7 +118,7 @@ class LegalizeMutator : public ExprMutator {
   bool WrapPureCondition(const Op& op, const Expr& legalized) {
     static const auto& purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
 
-    const CallNode* call = legalized.as<CallNode>();
+    const CallObj* call = legalized.as<CallObj>();
 
     if (!call) {
       // Unlikely for this condition to be met, but it is possible.
@@ -131,7 +131,7 @@ class LegalizeMutator : public ExprMutator {
     bool pure_legalized_op = [&]() -> bool {
       if (auto legalized_op = call->op.as<Op>()) {
         return purity_map.get(legalized_op.value(), false);
-      } else if (auto func_ty = call->op->ty.as<FuncTypeNode>()) {
+      } else if (auto func_ty = call->op->ty.as<FuncTypeObj>()) {
         return func_ty->purity;
       } else {
         return false;
@@ -157,14 +157,14 @@ class LegalizeMutator : public ExprMutator {
 
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
     for (auto ty : types) {
-      if (const auto* tinfo = ty.as<TensorTypeNode>()) {
+      if (const auto* tinfo = ty.as<TensorTypeObj>()) {
         if (tinfo->vdevice.has_value()) {
           auto vdevice = tinfo->vdevice.value();
           if (vdevice->target.has_value()) {
             return vdevice->target;
           }
         }
-      } else if (const auto* tup_ty = ty.as<TupleTypeNode>()) {
+      } else if (const auto* tup_ty = ty.as<TupleTypeObj>()) {
         return GetTarget(tup_ty->fields);
       }
     }
@@ -172,7 +172,7 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Expr BindTarget(Expr expr) {
-    if (!expr->IsInstance<CallNode>()) {
+    if (!expr->IsInstance<CallObj>()) {
       // FLegalize returned something other than a relax::Call.  This
       // post-processing only handles cases where legalization
       // produces a lowered call node.  In principle, this
@@ -240,7 +240,7 @@ class LegalizeMutator : public ExprMutator {
     return call;
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr VisitExpr_(const CallObj* call) final {
     Call visited_call = this->VisitExprPostOrder_(call).as_or_throw<Call>();
     static const auto& legalize_map = Op::GetAttrMap(tvm::relax::op_attr::kLegalize);
     static const auto& call_packed_map = Op::GetAttrMap(tvm::relax::op_attr::kCallPacked);
@@ -249,9 +249,9 @@ class LegalizeMutator : public ExprMutator {
     static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op call_tir_op = Op::Get("relax.call_tir");
     static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    auto* op_node = visited_call->op.as<OpNode>();
+    auto* op_node = visited_call->op.as<OpObj>();
 
-    // Not an OpNode
+    // Not an OpObj
     if (op_node == nullptr) {
       return visited_call;
     }
@@ -409,7 +409,7 @@ class LegalizeMutator : public ExprMutator {
   /*! \brief If VDevice annotations produced at least one tirx::Function with a Target attr*/
   bool generated_tir_with_target_attr_{false};
   /*!
-   * \brief A boolean value indicating if to print warnings for CallNode whose op's
+   * \brief A boolean value indicating if to print warnings for CallObj whose op's
    * legalization function is not registered.
    */
   bool enable_warning_;
