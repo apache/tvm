@@ -301,9 +301,9 @@ class ComputeVerifier final : public tirx::StmtExprVisitor {
   }
 
  private:
-  const ComputeOpObj* compute_{nullptr};   ///< ComputeOpObj to verify
-  const te::ReduceObj* reduce_{nullptr};   ///< Top level Reduce operation
-  int level_{0};                           ///< Level of op being processed
+  const ComputeOpObj* compute_{nullptr};  ///< ComputeOpObj to verify
+  const te::ReduceObj* reduce_{nullptr};  ///< Top level Reduce operation
+  int level_{0};                          ///< Level of op being processed
 };
 }  // namespace
 
