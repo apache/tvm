@@ -29,8 +29,13 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/memory.h>
+
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "storage_access.h"
 #include "tvm/s_tir/stmt.h"
@@ -58,6 +63,40 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
       return body;
     }
     return StmtExprMutator::Mutate_(region, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const BindObj* op, InplaceMode inplace_mode) final {
+    const auto* call = op->value.as<CallObj>();
+    if (call) {
+      const auto* attrs = call->attrs.as<DictAttrsObj>();
+      // Track only ordinary fresh allocations and exact, unannotated views.
+      if (!call->attrs.has_value() || (attrs && attrs->dict.empty())) {
+        if (call->op.same_as(alloc_tensor_op()) && call->args.empty()) {
+          allocations_.emplace(op->var.get(), op->var.as_or_throw<TensorVar>());
+        } else if (call->op.same_as(decl_tensor_op()) && call->args.size() == 1) {
+          const auto* data = call->args[0].as<CallObj>();
+          if (data && data->op.same_as(tensor_data_ptr_op()) && data->args.size() == 1) {
+            const auto* source = data->args[0].as<VarObj>();
+            auto it = allocations_.find(source);
+            if (it != allocations_.end()) {
+              TensorVar view = op->var.as_or_throw<TensorVar>();
+              if (view.dtype() == it->second.dtype() && view.scope() == it->second.scope() &&
+                  !view.ty()->layout.has_value()) {
+                allocations_.emplace(op->var.get(), it->second);
+              }
+            }
+          }
+        }
+      }
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ForObj* op, InplaceMode inplace_mode) final {
+    if (in_async) {
+      if (auto copy = CoalesceHalfCopy(op)) return *copy;
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   Stmt InjectPTX(const TensorLoadObj* load, const TensorStoreObj* store, bool predicated = false,
@@ -218,6 +257,76 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
   }
 
  private:
+  ffi::Optional<Stmt> CoalesceHalfCopy(const ForObj* loop) {
+    // A short, contiguous half copy can be one hardware transaction even when
+    // the general loop vectorizer leaves it scalar. Do not widen arbitrary
+    // computation, predicates, or loops with other effects.
+    const auto* extent = loop->end.as<IntImmObj>();
+    if (loop->kind != ForKind::kDefault || !prim::IsZero(loop->begin) || !loop->HasTrivialStep() ||
+        !loop->annotations.empty() || !extent ||
+        (extent->value != 2 && extent->value != 4 && extent->value != 8) ||
+        loop->body->seq.empty()) {
+      return std::nullopt;
+    }
+    const int bytes = extent->value.as<int>().value() * 2;
+    static const auto shared = runtime::MemoryScope::Get("shared");
+    static const auto shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+    static const Op copy_op = Op::Get("tirx.s_tir.cp_async_raw");
+    std::vector<std::pair<const VarObj*, PrimExpr>> destinations;
+    ffi::Array<Stmt> copies;
+    for (const Stmt& stmt : loop->body->seq) {
+      const auto* store = stmt.as<TensorStoreObj>();
+      if (!store) return std::nullopt;
+      const auto* load = store->value.as<TensorLoadObj>();
+      if (!load || load->indices.size() != 1 || store->indices.size() != 1) {
+        return std::nullopt;
+      }
+      TensorVar src = load->source.as_or_throw<TensorVar>();
+      TensorVar dst = store->dest.as_or_throw<TensorVar>();
+      auto allocation = allocations_.find(dst.get());
+      if (src.scope() != runtime::MemoryScope::Global() ||
+          (dst.scope() != shared && dst.scope() != shared_dyn) ||
+          src.dtype() != PrimType::Float(16) || store->value.ty() != src.dtype() ||
+          dst.dtype() != src.dtype() || src.ty()->layout.has_value() ||
+          dst.ty()->layout.has_value() || !load->indices[0].ty().IsScalar() ||
+          !store->indices[0].ty().IsScalar() || allocation == allocations_.end() ||
+          allocation->second.ty()->layout.has_value() ||
+          allocation->second.ty()->data_alignment < bytes ||
+          allocation->second.ty()->data_alignment % bytes != 0 ||
+          src.ty()->data_alignment < bytes || src.ty()->data_alignment % bytes != 0 ||
+          dst.ty()->data_alignment < bytes || dst.ty()->data_alignment % bytes != 0) {
+        return std::nullopt;
+      }
+      auto source = DetectLinearEquation(load->indices[0], {loop->var});
+      auto destination = DetectLinearEquation(store->indices[0], {loop->var});
+      if (source.size() != 2 || destination.size() != 2 || !prim::IsOne(source[0]) ||
+          !prim::IsOne(destination[0]) || SideEffect(source[1]) != CallEffectKind::kPure ||
+          SideEffect(destination[1]) != CallEffectKind::kPure ||
+          !analyzer_->CanProveEqual(floormod(source[1], PrimExpr(bytes / 2)), 0) ||
+          !analyzer_->CanProveEqual(floormod(destination[1], PrimExpr(bytes / 2)), 0)) {
+        return std::nullopt;
+      }
+      // Storage rewriting can merge destinations into views of one allocation.
+      // Prove their copied intervals disjoint before reordering their stores.
+      for (const auto& [root, offset] : destinations) {
+        if (root == allocation->second.get() &&
+            !analyzer_->CanProve(destination[1] + bytes / 2 <= offset) &&
+            !analyzer_->CanProve(offset + bytes / 2 <= destination[1])) {
+          return std::nullopt;
+        }
+      }
+      destinations.emplace_back(allocation->second.get(), destination[1]);
+      // Reads are global and destinations are disjoint fresh shared storage.
+      copies.push_back(
+          Evaluate(Call(dst.dtype(), copy_op,
+                        {dst.data(), destination[1], src.data(), source[1], PrimExpr(bytes)})
+                       .as_or_throw<PrimExpr>()));
+    }
+    return SeqStmt(copies);
+  }
+
+  sym::Analyzer analyzer_;
+  std::unordered_map<const VarObj*, TensorVar> allocations_;
   bool in_async{false};
 };
 
