@@ -21,7 +21,11 @@
  * TVM JS Wasm Runtime library.
  */
 import { Pointer, PtrOffset, SizeOf, TypeIndex } from "./ctypes";
-import { Disposable } from "./types";
+import {
+  Disposable,
+  SampledTokenReadbackBatch,
+  SampledTokenReadbackRingOptions,
+} from "./types";
 import { Memory, CachedCallStack, WasmByteArraySource } from "./memory";
 import {
   assert,
@@ -350,6 +354,142 @@ const DeviceStrToEnum: Record<string, number> = {
 };
 
 /**
+ * Handle to a sampled-token readback ring created on a WebGPU device.
+ */
+export class SampledTokenReadbackRing implements Disposable {
+  private lib: FFILibrary;
+  private ringId: number;
+  private disposed = false;
+
+  constructor(lib: FFILibrary, ringId: number) {
+    this.lib = lib;
+    this.ringId = ringId;
+  }
+
+  /**
+   * Submit sampled-token readback from a GPU tensor.
+   *
+   * @param from GPU tensor containing int32 token ids.
+   * @param tokenCount Number of token ids to copy.
+   * @param fromTokenOffset Token offset (in token units) from tensor start.
+   * @param into Host array to copy the token ids into when the batch maps,
+   *   instead of a new array; the batch's tokens then view its first
+   *   tokenCount elements. Reusing one array for large batches avoids an
+   *   allocation per batch. The caller must not reuse it before it has
+   *   consumed the batch; a ring disposed before the batch maps leaves it
+   *   untouched.
+   * @returns Monotonic ring-local batch sequence id.
+   */
+  submit(
+    from: Tensor,
+    tokenCount: number,
+    fromTokenOffset = 0,
+    into?: Int32Array,
+  ): number {
+    this.checkSourceTensor(from, fromTokenOffset, tokenCount);
+    return this.submitFromPointer(
+      from.getDataPtr(),
+      tokenCount,
+      from.byteOffset / 4 + fromTokenOffset,
+      into,
+    );
+  }
+
+  /**
+   * Submit one sampled token from each GPU tensor as one contiguous readback batch.
+   *
+   * This avoids a GPU packing kernel when speculative decode produces K separate
+   * one-token tensors.
+   *
+   * @param from GPU tensors containing one int32 token id each.
+   * @returns Monotonic ring-local batch sequence id.
+   */
+  submitTokens(from: Array<Tensor>): number {
+    const ctx = this.requireActiveWebGPUContext();
+    from.forEach((tensor) => this.checkSourceTensor(tensor, 0, 1));
+    return ctx.submitSampledTokenReadbackRingSources(
+      this.ringId,
+      from.map((tensor) => ({
+        from: tensor.getDataPtr(),
+        fromTokenOffset: tensor.byteOffset / 4,
+        tokenCount: 1,
+      })),
+    );
+  }
+
+  private checkSourceTensor(from: Tensor, offset: number, count: number): void {
+    if (from.device.deviceType !== DeviceStrToEnum.webgpu || from.dtype !== "int32") {
+      throw new Error("Sampled-token readback requires an int32 WebGPU tensor.");
+    }
+    if (
+      from.byteOffset % 4 !== 0 ||
+      !Number.isSafeInteger(offset) || offset < 0 ||
+      !Number.isSafeInteger(count) || count <= 0 ||
+      offset + count > from.shape.reduce((size, dim) => size * dim, 1)
+    ) {
+      throw new Error("Sampled-token readback exceeds the tensor's token range.");
+    }
+  }
+
+  /**
+   * Submit sampled-token readback from a GPU pointer.
+   */
+  private submitFromPointer(
+    fromPtr: Pointer,
+    tokenCount: number,
+    fromTokenOffset = 0,
+    into?: Int32Array,
+  ): number {
+    const ctx = this.requireActiveWebGPUContext();
+    return ctx.submitSampledTokenReadbackRing(
+      this.ringId,
+      fromPtr,
+      fromTokenOffset,
+      tokenCount,
+      into,
+    );
+  }
+
+  /**
+   * Poll ready batches in sequence order.
+   */
+  pollReady(): Array<SampledTokenReadbackBatch> {
+    const ctx = this.requireActiveWebGPUContext();
+    return ctx.pollSampledTokenReadbackRing(this.ringId);
+  }
+
+  /**
+   * Wait until at least one batch becomes ready, then poll contiguous ready batches.
+   */
+  async waitReady(): Promise<Array<SampledTokenReadbackBatch>> {
+    const ctx = this.requireActiveWebGPUContext();
+    return await ctx.waitSampledTokenReadbackRing(this.ringId);
+  }
+
+  /**
+   * Dispose ring resources.
+   */
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    this.lib.webGPUContext?.disposeSampledTokenReadbackRing(this.ringId);
+  }
+
+  private requireActiveWebGPUContext(): WebGPUContext {
+    if (this.disposed) {
+      throw new Error("SampledTokenReadbackRing has already been disposed");
+    }
+    const ctx = this.lib.webGPUContext;
+    if (ctx === undefined) {
+      throw new Error("WebGPU context is not available");
+    }
+    return ctx;
+  }
+}
+
+/**
  * Represent a runtime context where a Tensor can reside.
  */
 export class DLDevice {
@@ -399,6 +539,23 @@ export class DLDevice {
     }
     assert(this.lib.webGPUContext !== undefined);
     return this.lib.webGPUContext.submitPendingCommands();
+  }
+
+  /**
+   * Create a sampled-token readback ring on this device.
+   *
+   * @param options Ring configuration.
+   * @returns A sampled-token readback ring handle.
+   */
+  createSampledTokenReadbackRing(
+    options: SampledTokenReadbackRingOptions,
+  ): SampledTokenReadbackRing {
+    if (this.deviceType !== DeviceStrToEnum.webgpu) {
+      throw new Error("Sampled-token readback ring is only available on WebGPU devices.");
+    }
+    assert(this.lib.webGPUContext !== undefined);
+    const ringId = this.lib.webGPUContext.createSampledTokenReadbackRing(options);
+    return new SampledTokenReadbackRing(this.lib, ringId);
   }
 
   toString(): string {
@@ -548,7 +705,8 @@ export class Tensor extends TVMObject {
   device: DLDevice;
   /** Whether it is a temporary view that can become invalid after the call. */
   isView: boolean;
-  private byteOffset: number;
+  /** Byte offset from the start of the tensor's data allocation. */
+  readonly byteOffset: number;
   private dltensor: Pointer;
   private dataPtr: Pointer;
   private dlDataType: DLDataType;

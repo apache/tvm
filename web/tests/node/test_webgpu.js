@@ -48,6 +48,7 @@ function createMockDevice({
 } = {}) {
   const events = [];
   const encoders = [];
+  const buffers = [];
 
   const queue = {
     submit: jest.fn(() => events.push("submit")),
@@ -71,7 +72,10 @@ function createMockDevice({
           }),
           end: jest.fn(),
         })),
-        copyBufferToBuffer: jest.fn(() => {
+        copyBufferToBuffer: jest.fn((src, srcOffset, dst, dstOffset, size) => {
+          if (src.data && dst.data) {
+            new Uint8Array(dst.data, dstOffset, size).set(new Uint8Array(src.data, srcOffset, size));
+          }
           commands.push("copy");
           events.push("copy");
         }),
@@ -86,13 +90,17 @@ function createMockDevice({
     }),
     createBuffer: jest.fn((descriptor) => {
       const mappedData = new ArrayBuffer(descriptor.size);
-      return {
+      const buffer = {
+        data: mappedData,
         size: descriptor.size,
         destroy: jest.fn(() => events.push("destroy")),
         mapAsync: jest.fn(mapAsync),
-        getMappedRange: jest.fn(() => mappedData),
+        getMappedRange: jest.fn((offset = 0, size = descriptor.size - offset) =>
+          mappedData.slice(offset, offset + size)),
         unmap: jest.fn(),
       };
+      buffers.push(buffer);
+      return buffer;
     }),
     createBindGroupLayout: jest.fn(() => ({})),
     createPipelineLayout: jest.fn(() => ({})),
@@ -104,7 +112,7 @@ function createMockDevice({
     destroy: jest.fn(),
   };
 
-  return { device, queue, events, encoders };
+  return { device, queue, events, encoders, buffers };
 }
 
 function createContext(deviceOptions) {
@@ -179,6 +187,247 @@ test("pending WebGPU commands can be submitted without waiting", () => {
 
   expect(context.submitPendingCommands()).toBe(false);
   expect(queue.submit).toHaveBeenCalledTimes(1);
+});
+
+test("sampled-token ring copy shares the pending compute submission", async () => {
+  const { context, device, queue, encoders, source } = createContext();
+  const shader = context.createShader(
+    {
+      name: "main",
+      arg_types: [],
+      launch_param_tags: [],
+    },
+    "@compute @workgroup_size(1) fn main() {}"
+  );
+  const ringId = context.createSampledTokenReadbackRing({
+    slotCount: 2,
+    maxTokensPerBatch: 1,
+  });
+
+  shader();
+  const batchSeq = context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+
+  expect(batchSeq).toBe(1);
+  expect(device.createCommandEncoder).toHaveBeenCalledTimes(1);
+  expect(encoders[0].commands).toEqual(["compute", "copy"]);
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+  expect(queue.submit.mock.calls[0][0]).toEqual([
+    {
+      encoderId: 0,
+      commands: encoders[0].commands,
+    },
+  ]);
+
+  const batches = await context.waitSampledTokenReadbackRing(ringId);
+  expect(batches).toHaveLength(1);
+  expect(batches[0].batchSeq).toBe(1);
+  expect(batches[0].tokenCount).toBe(1);
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+test("a readback ring submit with an unknown source leaves the ring usable", async () => {
+  const { context, source } = createContext();
+  const ringId = context.createSampledTokenReadbackRing({
+    slotCount: 1,
+    maxTokensPerBatch: 1,
+  });
+
+  expect(() =>
+    context.submitSampledTokenReadbackRing(ringId, 0x7fff0000, 0, 1),
+  ).toThrow();
+
+  // The failed submit consumed neither the slot nor a batch sequence.
+  expect(context.submitSampledTokenReadbackRing(ringId, source, 0, 1)).toBe(1);
+  const batches = await context.waitSampledTokenReadbackRing(ringId);
+  expect(batches.map((batch) => batch.batchSeq)).toEqual([1]);
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+test("invalid readback ranges leave slots and sequence numbers available", async () => {
+  const { context, source } = createContext();
+  const ringId = context.createSampledTokenReadbackRing({ slotCount: 1, maxTokensPerBatch: 2 });
+  for (const [offset, count] of [[-1, 1], [0, 0], [0.5, 1], [16, 1], [15, 2], [0, 3]]) {
+    expect(() => context.submitSampledTokenReadbackRing(ringId, source, offset, count)).toThrow();
+  }
+  expect(() => context.submitSampledTokenReadbackRing(
+    ringId, source, 0, 2, new Int32Array(1),
+  )).toThrow();
+  expect(context.submitSampledTokenReadbackRing(ringId, source, 15, 1)).toBe(1);
+  expect((await context.waitSampledTokenReadbackRing(ringId))[0].batchSeq).toBe(1);
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+test("a full ring becomes reusable after draining its oldest batch", async () => {
+  const { context, source } = createContext();
+  const ringId = context.createSampledTokenReadbackRing({ slotCount: 1, maxTokensPerBatch: 1 });
+  expect(context.submitSampledTokenReadbackRing(ringId, source, 0, 1)).toBe(1);
+  expect(() => context.submitSampledTokenReadbackRing(ringId, source, 0, 1)).toThrow("full");
+  await context.waitSampledTokenReadbackRing(ringId);
+  expect(context.submitSampledTokenReadbackRing(ringId, source, 0, 1)).toBe(2);
+  await context.waitSampledTokenReadbackRing(ringId);
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+test("disposal wakes a waiter and defers buffer destruction until mapping settles", async () => {
+  const mapped = createDeferred();
+  const { context, source, buffers } = createContext({ mapAsync: () => mapped.promise });
+  const ringId = context.createSampledTokenReadbackRing({ slotCount: 1, maxTokensPerBatch: 1 });
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+  const waiting = context.waitSampledTokenReadbackRing(ringId);
+  context.disposeSampledTokenReadbackRing(ringId);
+  expect(buffers[2].destroy).not.toHaveBeenCalled();
+  await expect(waiting).resolves.toEqual([]);
+  mapped.resolve();
+  await context.sync();
+  expect(buffers[2].unmap).toHaveBeenCalledTimes(1);
+  expect(buffers[2].destroy).toHaveBeenCalledTimes(1);
+});
+
+test("submission failure rejects an existing ring waiter", async () => {
+  const mapped = createDeferred();
+  const { context, source, queue } = createContext({ mapAsync: () => mapped.promise });
+  const ringId = context.createSampledTokenReadbackRing({ slotCount: 2, maxTokensPerBatch: 1 });
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+  const waiting = context.waitSampledTokenReadbackRing(ringId);
+  queue.submit.mockImplementationOnce(() => { throw new Error("submission failed"); });
+  expect(() => context.submitSampledTokenReadbackRing(ringId, source, 0, 1))
+    .toThrow("submission failed");
+  await expect(waiting).rejects.toThrow("submission failed");
+  expect(() => context.pollSampledTokenReadbackRing(ringId)).toThrow("submission failed");
+  context.disposeSampledTokenReadbackRing(ringId);
+  mapped.resolve();
+  await context.sync();
+});
+
+test("a readback ring map failure is reported through the ring", async () => {
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const { context, source } = createContext({
+      mapAsync: () => Promise.reject(new Error("map failed")),
+    });
+    const ringId = context.createSampledTokenReadbackRing({
+      slotCount: 1,
+      maxTokensPerBatch: 1,
+    });
+    context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+
+    await expect(context.waitSampledTokenReadbackRing(ringId)).rejects.toThrow(
+      "map failed",
+    );
+    expect(() => context.pollSampledTokenReadbackRing(ringId)).toThrow("map failed");
+    await context.sync();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(unhandled).toEqual([]);
+    context.disposeSampledTokenReadbackRing(ringId);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});
+
+test.each([1, 4, 16])(
+  "sampled-token ring concatenates K=%i token buffers in one submission",
+  async (batchSize) => {
+    const { context, device, queue, encoders, buffers } = createContext();
+    const allocate = context.getDeviceAPI("deviceAllocDataSpace");
+    const tokenSources = Array.from({ length: batchSize }, () => allocate(64));
+    const ringId = context.createSampledTokenReadbackRing({
+      slotCount: 2,
+      maxTokensPerBatch: batchSize,
+    });
+
+    const batchSeq = context.submitSampledTokenReadbackRingSources(
+      ringId,
+      tokenSources.map((from) => ({ from, fromTokenOffset: 0, tokenCount: 1 })),
+    );
+
+    expect(batchSeq).toBe(1);
+    expect(device.createCommandEncoder).toHaveBeenCalledTimes(1);
+    expect(encoders[0].commands).toEqual(Array(batchSize).fill("copy"));
+    expect(encoders[0].copyBufferToBuffer.mock.calls).toEqual(
+      Array.from({ length: batchSize }, (_, index) => [
+        buffers[2 + index],
+        0,
+        buffers[2 + batchSize],
+        index * 4,
+        4,
+      ]),
+    );
+    expect(queue.submit).toHaveBeenCalledTimes(1);
+
+    const batches = await context.waitSampledTokenReadbackRing(ringId);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].tokenCount).toBe(batchSize);
+    expect(Array.from(batches[0].tokens)).toEqual(Array(batchSize).fill(0));
+    context.disposeSampledTokenReadbackRing(ringId);
+  },
+);
+
+test("sampled-token ring rejects an empty token-buffer batch", () => {
+  const { context } = createContext();
+  const ringId = context.createSampledTokenReadbackRing({
+    slotCount: 2,
+    maxTokensPerBatch: 3,
+  });
+
+  expect(() =>
+    context.submitSampledTokenReadbackRingSources(ringId, [])
+  ).toThrow("At least one sampled-token source is required.");
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+// Guards out-of-order map completion (seen in Firefox): waiting must not
+// return an empty batch list while the next batch in sequence is pending.
+test("ring wait returns batches in sequence when maps resolve out of order", async () => {
+  const resolvers = [];
+  const { context, source } = createContext({
+    mapAsync: () => new Promise((resolve) => resolvers.push(resolve)),
+  });
+  const ringId = context.createSampledTokenReadbackRing({
+    slotCount: 2,
+    maxTokensPerBatch: 1,
+  });
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 1);
+  const waiting = context.waitSampledTokenReadbackRing(ringId);
+  resolvers[1]();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  resolvers[0]();
+  const batches = await waiting;
+  expect(batches.map((batch) => batch.batchSeq)).toEqual([1, 2]);
+  context.disposeSampledTokenReadbackRing(ringId);
+});
+
+// Guards readback into a caller's array, which a caller reuses across
+// batches: a batch is copied into it, and a ring disposed while a slot maps
+// must not write into an array its owner may already have reused.
+test("ring copies a batch into the caller's array only while the ring lives", async () => {
+  const resolvers = [];
+  const { context, source, buffers } = createContext({
+    mapAsync: () => new Promise((resolve) => resolvers.push(resolve)),
+  });
+  const ringId = context.createSampledTokenReadbackRing({
+    slotCount: 2,
+    maxTokensPerBatch: 2,
+  });
+  const into = new Int32Array(4).fill(-1);
+  expect(() =>
+    context.submitSampledTokenReadbackRing(ringId, source, 0, 2, new Int32Array(1)),
+  ).toThrow("destination length");
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 2, into);
+  new Int32Array(buffers[2].data).set([7, 8]);
+  resolvers[0]();
+  const [batch] = await context.waitSampledTokenReadbackRing(ringId);
+  expect(batch.tokens.buffer).toBe(into.buffer);
+  expect(Array.from(into)).toEqual([7, 8, -1, -1]);
+
+  into.fill(-1);
+  context.submitSampledTokenReadbackRing(ringId, source, 0, 2, into);
+  context.disposeSampledTokenReadbackRing(ringId);
+  resolvers[1]();
+  await context.sync();
+  expect(Array.from(into)).toEqual([-1, -1, -1, -1]);
 });
 
 test("a host write flushes pending GPU copies before writeBuffer", () => {

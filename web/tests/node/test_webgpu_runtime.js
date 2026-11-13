@@ -17,7 +17,45 @@
  * under the License.
  */
 jest.mock("../../src/compact", () => ({}));
-const { DLDevice } = require("../../src/runtime");
+const { DLDevice, Tensor } = require("../../src/runtime");
+
+function tokenTensor(byteOffset = 0) {
+  return Object.assign(Object.create(Tensor.prototype), {
+    handle: 1, dataPtr: 10, byteOffset, dtype: "int32", shape: [2],
+    device: { deviceType: 15 },
+  });
+}
+
+test("tensor readback includes view offsets and checks tensor bounds", () => {
+  const context = {
+    createSampledTokenReadbackRing: jest.fn(() => 1),
+    submitSampledTokenReadbackRing: jest.fn(() => 1),
+    submitSampledTokenReadbackRingSources: jest.fn(() => 2),
+    disposeSampledTokenReadbackRing: jest.fn(),
+  };
+  const ring = new DLDevice("webgpu", 0, { webGPUContext: context })
+    .createSampledTokenReadbackRing({ maxTokensPerBatch: 2 });
+  const from = tokenTensor(8);
+  expect(ring.submit(from, 1, 1)).toBe(1);
+  expect(context.submitSampledTokenReadbackRing).toHaveBeenCalledWith(1, 10, 3, 1, undefined);
+  expect(ring.submitTokens([from, tokenTensor(4)])).toBe(2);
+  expect(context.submitSampledTokenReadbackRingSources).toHaveBeenCalledWith(1, [
+    { from: 10, fromTokenOffset: 2, tokenCount: 1 },
+    { from: 10, fromTokenOffset: 1, tokenCount: 1 },
+  ]);
+  expect(() => ring.submit(from, 2, 1)).toThrow("token range");
+  from.dtype = "float32";
+  expect(() => ring.submit(from, 1)).toThrow("int32 WebGPU tensor");
+  ring.dispose();
+  ring.dispose();
+  expect(context.disposeSampledTokenReadbackRing).toHaveBeenCalledTimes(1);
+  expect(() => ring.submitTokens([])).toThrow("disposed");
+});
+
+test("readback rings reject CPU devices", () => {
+  expect(() => new DLDevice("cpu", 0, {}).createSampledTokenReadbackRing({maxTokensPerBatch: 1}))
+    .toThrow("only available on WebGPU");
+});
 
 test("public nonblocking submission delegates only for WebGPU devices", () => {
   const context = { submitPendingCommands: jest.fn().mockReturnValueOnce(true).mockReturnValueOnce(false) };
