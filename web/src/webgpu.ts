@@ -490,6 +490,19 @@ export class WebGPUContext {
   }
 
   /**
+   * Submit pending commands without waiting for GPU completion.
+   *
+   * @returns Whether a command buffer was submitted.
+   */
+  submitPendingCommands(): boolean {
+    if (!this.pendingEncoder) {
+      return false;
+    }
+    this.flushCommands();
+    return true;
+  }
+
+  /**
    * Dispose context.
    */
   dispose() {

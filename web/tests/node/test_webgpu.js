@@ -162,6 +162,25 @@ test("compute dispatches and GPU copies share one submission", async () => {
   expect(queue.submit).toHaveBeenCalledTimes(1);
 });
 
+test("pending WebGPU commands can be submitted without waiting", () => {
+  const { context, queue } = createContext();
+  const shader = context.createShader(
+    {
+      name: "main",
+      arg_types: [],
+      launch_param_tags: [],
+    },
+    "@compute @workgroup_size(1) fn main() {}"
+  );
+  shader();
+  expect(context.submitPendingCommands()).toBe(true);
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+  expect(queue.onSubmittedWorkDone).not.toHaveBeenCalled();
+
+  expect(context.submitPendingCommands()).toBe(false);
+  expect(queue.submit).toHaveBeenCalledTimes(1);
+});
+
 test("a host write flushes pending GPU copies before writeBuffer", () => {
   const { context, queue, events, source, destination } = createContext();
   const copyWithinGPU = context.getDeviceAPI("deviceCopyWithinGPU");
