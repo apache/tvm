@@ -4200,6 +4200,34 @@ def test_unbind():
     verify_model(Unbind2(), single_dim_args, {}, expected3)
 
 
+@pytest.mark.skipif(not device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize(
+    "input_hw, size, scale_factor, align_corners",
+    [
+        ((4, 4), (1, 6), None, True),
+        ((4, 4), (6, 1), None, True),
+        ((4, 4), (1, 1), None, True),
+        ((1, 4), None, 1.5, True),
+        ((4, 4), (2, 3), None, True),
+        ((4, 4), (1, 6), None, False),
+    ],
+)
+def test_interpolate_bilinear_singleton_axis(input_hw, size, scale_factor, align_corners):
+    class Interpolate(Module):
+        def forward(self, x):
+            return torch.nn.functional.interpolate(
+                x,
+                size=size,
+                scale_factor=scale_factor,
+                mode="bilinear",
+                align_corners=align_corners,
+            )
+
+    height, width = input_hw
+    x = torch.arange(height * width, dtype=torch.float32).reshape(1, 1, height, width)
+    verify_model_numerically(Interpolate(), (x,), rtol=1e-6, atol=1e-6)
+
+
 def test_interpolate():
     class InterpolateBilinear(Module):
         def forward(self, input):
