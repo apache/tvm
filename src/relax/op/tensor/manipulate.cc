@@ -1775,21 +1775,34 @@ InferLayoutOutput InferLayoutStack(
 
   int n_tensor = nlayout.NestedArray().size();
   LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+  int output_ndim = GetTypeAs<TensorTypeObj>(call)->ndim;
+  SLayout initial_input_layout = InitialLayout(output_ndim - 1);
+  if (layout->layout.has_value() &&
+      layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+    // As with expand_dims, rank insertion uses an unblocked input layout.
+    layout = LayoutDecision(initial_input_layout);
+  }
+
+  int64_t axis = attrs->axis.value_or(0);
+  if (axis < 0) axis += output_ndim;
+  TVM_FFI_ICHECK(0 <= axis && axis < output_ndim);
+
+  // Relabel the input axes using the output's axis names, then apply the
+  // input permutation before inserting the new axis at its physical position.
+  std::string input_axes = InitialLayout(output_ndim).name();
+  char stack_axis = input_axes.at(axis);
+  input_axes.erase(axis, 1);
+  std::string output_axes = TransposeStrLike(input_axes, initial_input_layout, layout->layout);
+  output_axes.insert(axis, 1, stack_axis);
+
   ffi::Array<NLayout> input_layouts, output_layouts;
   for (int i = 0; i < n_tensor; ++i) {
     input_layouts.push_back(layout);
   }
-
-  // For stack, we need to adjust the output layout by inserting a new axis
-  std::string layout_str =
-      (layout->layout.has_value() ? layout->layout.value().name() : "__undef__");
-  int axis = attrs->axis.has_value() ? static_cast<int>(attrs->axis.value()) : 0;
-  layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
-  SLayout output_layout = SLayout(layout_str);
-  output_layouts.push_back(LayoutDecision(output_layout));
+  output_layouts.push_back(LayoutDecision(SLayout::Create(output_axes)));
 
   ffi::ObjectPtr<StackAttrs> new_attrs = ffi::make_object<StackAttrs>(*attrs);
-  new_attrs->axis = static_cast<int64_t>(FindAxis(layout->layout.value(), axis));
+  new_attrs->axis = axis;
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
