@@ -4118,6 +4118,46 @@ def test_shape_unknown_rank_input():
     assert "relax.shape_of" in op_names
 
 
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize("first_dim", [None, 0])
+def test_independent_anonymous_input_dimensions(first_dim):
+    x_dims = [first_dim, None, "batch"]
+    z_dims = ["batch", None]
+    graph = helper.make_graph(
+        [helper.make_node("Identity", ["x"], ["y"]), helper.make_node("Identity", ["z"], ["w"])],
+        "independent_anonymous_input_dimensions",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_dims),
+            helper.make_tensor_value_info("z", TensorProto.FLOAT, z_dims),
+        ],
+        [
+            helper.make_tensor_value_info("y", TensorProto.FLOAT, x_dims),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, z_dims),
+        ],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    onnx.checker.check_model(model, full_check=True)
+    mod = from_onnx(model)
+
+    # Different anonymous extents are legal within and across inputs.
+    extent = 2 if first_dim is None else first_dim
+    x = np.arange(extent * 3 * 4, dtype=np.float32).reshape(extent, 3, 4)
+    z = np.arange(20, dtype=np.float32).reshape(4, 5)
+    executable = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(executable, tvm_tirx.cpu())
+    y, w = vm["main"](tvm_tirx.runtime.tensor(x), tvm_tirx.runtime.tensor(z))
+    np.testing.assert_array_equal(y.numpy(), x, strict=True)
+    np.testing.assert_array_equal(w.numpy(), z, strict=True)
+
+    x_shape, z_shape = [param.ty.shape.values for param in mod["main"].params]
+    assert x_shape[2].same_as(z_shape[0])
+    assert not x_shape[1].same_as(z_shape[1])
+    if first_dim is None:
+        assert not x_shape[0].same_as(x_shape[1])
+    else:
+        assert isinstance(x_shape[0], tvm_tirx.ir.IntImm) and x_shape[0].value == 0
+
+
 def test_slice_of_scalar_shape():
     # Slice consuming Shape of a rank-0 input used to raise "Slice requires a
     # statically known input rank", because Shape handed it an opaque value
