@@ -2328,6 +2328,25 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Special case: if there's only one non-None index, use take operation
         if len(non_none_indices) == 1:
             axis, index_tensor = non_none_indices[0]
+            if str(index_tensor.ty.dtype) == "bool":
+                data_shape = list(self.shape_of(data))
+                mask_rank = index_tensor.ty.ndim
+                end_axis = axis + mask_rank
+                mask_shape = data_shape[axis:end_axis]
+                mask_type = relax.TensorType(mask_shape, "bool")
+                if not tvm_ffi.structural_equal(self.shape_of(index_tensor), mask_type.shape):
+                    index_tensor = self.block_builder.match_cast(index_tensor, mask_type)
+
+                if mask_rank != 1:
+                    # An ATen boolean mask consumes its rank in consecutive input axes.
+                    # Flatten exactly those axes, preserving the dimensions before and after.
+                    flat_shape = [*data_shape[:axis], math.prod(mask_shape), *data_shape[end_axis:]]
+                    data = self.block_builder.emit(
+                        relax.op.reshape(data, relax.ShapeExpr(flat_shape))
+                    )
+                    index_tensor = self.block_builder.emit(relax.op.reshape(index_tensor, [-1]))
+
+                index_tensor = self._nonzero_indices_1d(index_tensor, node, axis)
             return self.block_builder.emit(relax.op.take(data, index_tensor, axis=axis))
 
         # If no dimension is sliced (no None entries), this is plain NumPy-style
@@ -2964,10 +2983,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         data_flat = self.block_builder.emit(relax.op.reshape(data, [-1]))
         mask_flat = self.block_builder.emit(relax.op.reshape(mask, [-1]))
-        indices = self.block_builder.emit(relax.op.nonzero(mask_flat))
+        indices = self._nonzero_indices_1d(mask_flat, node, axis=0)
+        return self.block_builder.emit(relax.op.take(data_flat, indices, axis=0))
+
+    def _nonzero_indices_1d(self, mask: relax.Expr, node: fx.Node, axis: int) -> relax.Var:
+        """Return the selected positions with a shape bound to the FX output axis."""
+        indices = self.block_builder.emit(relax.op.nonzero(mask))
         tensor_meta = node.meta.get("tensor_meta")
-        if tensor_meta is not None and len(tensor_meta.shape) == 1:
-            num_selected = tensor_meta.shape[0]
+        if tensor_meta is not None and axis < len(tensor_meta.shape):
+            num_selected = tensor_meta.shape[axis]
             if not isinstance(num_selected, int):
                 num_selected = tvm_tirx.ir.Var(str(num_selected), "int64")
         else:
@@ -2975,11 +2999,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         indices = self.block_builder.match_cast(
             indices, relax.TensorType([1, num_selected], "int64")
         )
-        indices_1d = self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
-
-        result = self.block_builder.emit(relax.op.take(data_flat, indices_1d, axis=0))
-
-        return result
+        return self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
 
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
