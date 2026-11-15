@@ -5963,8 +5963,12 @@ def test_lp_normalization(opset, symbolic, dtype, axis, p):
     assert actual.dtype == values.dtype
     tolerance = 2e-3 if dtype == "float16" else 1e-6
     tvm_tirx.testing.assert_allclose(actual, expected, rtol=tolerance, atol=1e-7)
+    # The CI ONNX Runtime supports the equivalent opset 13 kernel for these dtypes.
+    reference_model = ModelProto()
+    reference_model.CopyFrom(model)
+    reference_model.opset_import[0].version = 13
     ort_output = onnxruntime.InferenceSession(
-        model.SerializeToString(), providers=["CPUExecutionProvider"]
+        reference_model.SerializeToString(), providers=["CPUExecutionProvider"]
     ).run(None, {"x": values})[0]
     tvm_tirx.testing.assert_allclose(actual, ort_output, rtol=tolerance, atol=1e-7)
 
