@@ -19,18 +19,18 @@
 
 from unittest import mock
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
+from tvm.s_tir import script as Ts
 from tvm.s_tir.dlight.gpu import low_batch_gemv
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_batch_decode_gemv():
     # fmt: off
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -60,7 +60,7 @@ def test_batch_decode_gemv():
                     NT_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul_intermediate[v_i0, v_i1, v_i2] = NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv807[v_i0, v_i1, v_k] * dequantize_intermediate_intermediate[v_i2, v_k]
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -84,7 +84,7 @@ def test_batch_decode_gemv():
                                     Ts.reads()
                                     Ts.writes(NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1])
                                     NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(112), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(112), annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                             for ax0_0_1, ax1 in T.grid(T.int64(2), T.int64(8)):
                                 for ax0_1 in T.vectorized(T.int64(1)):
                                     with Ts.sblock("dequantize"):
@@ -105,7 +105,7 @@ def test_batch_decode_gemv():
                                         NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] + T.if_then_else(v0 < batch_size, lv807[v0, T.int64(0), vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * dequantize_intermediate_intermediate_local[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.y"}):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):
@@ -147,10 +147,9 @@ def test_batch_decode_gemv():
                                 NT_matmul_intermediate[v0, T.int64(0), v1] = NT_matmul_intermediate_pad_local[v0, T.int64(0), v1]
 
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("metal"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=Target("metal"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_batch_gemv():
@@ -158,7 +157,7 @@ def test_batch_gemv():
     K = 4096
 
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Tensor((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(N)), 'float16')):
@@ -174,7 +173,7 @@ def test_batch_gemv():
                     NT_matmul[v_i0, v_i1, v_i2] = T.float16(0)
                 NT_matmul[v_i0, v_i1, v_i2] = NT_matmul[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
@@ -197,7 +196,7 @@ def test_batch_gemv():
                                     Ts.reads()
                                     Ts.writes(NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1])
                                     NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -210,7 +209,7 @@ def test_batch_gemv():
                                         NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] + T.if_then_else(v0 < batch_size, A[v0, T.int64(0), vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * B[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x"}):
                     for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.y"}):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"tirx.auto_unroll_max_step": 8, "tirx.unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):
@@ -251,15 +250,14 @@ def test_batch_gemv():
                                 Ts.writes(NT_matmul[v0, T.int64(0), v1])
                                 NT_matmul[v0, T.int64(0), v1] = NT_matmul_pad_local[v0, T.int64(0), v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("metal"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=Target("metal"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_reduction_symbolic_var():
     # fmt: off
-    kv_seq_len = T.dynamic("kv_seq_len")
+    kv_seq_len = T.dynamic("kv_seq_len", "int64")
 
     @Ts.function(private=True)
     def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len), "float32"), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128)), "float32"), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
@@ -275,14 +273,13 @@ def test_reduction_symbolic_var():
                     matmul[v_i0, v_i1, v_i2, v_i3] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("metal"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], before)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=Target("metal"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 def test_small_spatial_axis():
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def func(
@@ -302,7 +299,7 @@ def test_small_spatial_axis():
                 C[v_i0, v_i1] = C[v_i0, v_i1] + A[v_i0, v_k] * B[v_i1, v_k]
 
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(8), T.int64(4096)), "float16"), C: T.Tensor((batch_size, T.int64(8)), 'float16')):
@@ -326,7 +323,7 @@ def test_small_spatial_axis():
                                     Ts.reads()
                                     Ts.writes(C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1])
                                     C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -340,7 +337,7 @@ def test_small_spatial_axis():
                                         C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] = C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] + T.if_then_else(v0 < batch_size, A[v0, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * B[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
                     for ax0 in T.parallel(T.int64(32), annotations={"thread_binding": "threadIdx.x"}):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):
@@ -385,10 +382,9 @@ def test_small_spatial_axis():
                                 C[v0, v1] = C_pad_local[v0, v1]
     # fmt: on
 
-    mod = tvm.IRModule({"main": func})
-    with Target("cuda"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=Target("cuda"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction():
@@ -531,15 +527,14 @@ def test_outer_reduction():
                             Ts.writes(C[v0, 0, v1])
                             C[v0, 0, v1] = C_pad_local[v0, 0, v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("metal"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=Target("metal"))(mod)  # pylint: disable=not-callable
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(128), T.int64(128)), "float16"), C: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16')):
@@ -558,14 +553,13 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     target = Target({"kind": "cuda", "max_num_threads": 1024})
     assert target.attrs.get("max_shared_memory_per_block", None) is None
 
-    mod = tvm.IRModule({"main": before})
-    with target:
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4), target=target)(mod)
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
 def test_low_batch_gemv_rejects_non_einsum_tensor_access():
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(
@@ -582,14 +576,14 @@ def test_low_batch_gemv_rejects_non_einsum_tensor_access():
                     C[vi, vj] = T.float16(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, T.max(vi + vk - 7, 0)]
 
-    with Target("webgpu") as target:
-        result = dl.gpu.LowBatchGEMV(4).apply(before, target, False)
+    target = Target("webgpu")
+    result = dl.gpu.LowBatchGEMV(4).apply(before, target, False)
     assert result is None
 
 
 def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function(private=True)
     def before(
@@ -625,14 +619,15 @@ def test_low_batch_gemv_broadcast_epilogue():
                 )
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
+    mod = tvm_tirx.IRModule({"main": before})
     with mock.patch.object(low_batch_gemv, "is_broadcast_epilogue", return_value=True) as check:
-        with Target("nvidia/geforce-rtx-3090-ti"):
-            mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+        mod = dl.ApplyDefaultSchedule(
+            dl.gpu.LowBatchGEMV(4), target=Target("nvidia/geforce-rtx-3090-ti")
+        )(mod)
 
     check.assert_called_once()
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

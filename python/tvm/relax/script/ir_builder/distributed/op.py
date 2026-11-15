@@ -17,13 +17,13 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """Distributed Relax expression operators."""
 
-from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax.distributed import DeviceMesh, Placement
 from tvm.relax.expr import Expr
 from tvm.relax.op import call_tir as call_tir
 from tvm.relax.op.distributed import annotate_sharding as _annotate_sharding
 from tvm.relax.op.distributed import call_tir_local_view, redistribute_replica_to_shard
 from tvm.relax.op.distributed import redistribute as _redistribute
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from .ir import _lookup_device_mesh
 

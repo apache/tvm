@@ -37,7 +37,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         new_region_(new_region),
         tensor_index_type_(tensor_index_type) {}
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* op, InplaceMode inplace_mode) final {
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
@@ -49,7 +49,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         << "Tensor index out of range";
     regions.Set(tensor_index_, new_region_);
 
-    SBlockNode* n = block.CopyOnWrite();
+    SBlockObj* n = block.CopyOnWrite();
     if (tensor_index_type_ == TensorIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {
@@ -59,8 +59,8 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     // Annotate the block with explicit_read_region or explicit_write_region
     ffi::Map<ffi::String, ffi::Any> new_annotations = n->annotations;
     ffi::String annotation_key = tensor_index_type_ == TensorIndexType::kWrite
-                                     ? s_tir::attr::kExplicitWriteRegion
-                                     : s_tir::attr::kExplicitReadRegion;
+                                     ? s_tir::attr::kExplicitWriteRegion.name
+                                     : s_tir::attr::kExplicitReadRegion.name;
     if (new_annotations.count(annotation_key)) {
       ffi::Array<int64_t> tensor_indices =
           new_annotations[annotation_key].as_or_throw<ffi::Array<int64_t>>();
@@ -92,7 +92,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
 void AnnotateTensorAccess(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
                           TensorIndexType tensor_index_type, const IndexMap& index_map) {
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar tensor =
       GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, tensor_index_type);
 

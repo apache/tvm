@@ -19,9 +19,9 @@
 
 import enum
 
-from tvm.ir import Call
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Call
+from tvm_tirx.script import tirx as T
 
 from ... import op
 from ...block_builder import BlockBuilder

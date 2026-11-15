@@ -18,7 +18,6 @@
 """Relax transformations."""
 
 from .transform import (
-    AdjustMatmulOrder,
     AllocateWorkspace,
     AlterOpImpl,
     AnnotateTIROpPattern,

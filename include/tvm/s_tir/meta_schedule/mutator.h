@@ -20,6 +20,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_MUTATOR_H_
 #define TVM_S_TIR_META_SCHEDULE_MUTATOR_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -136,8 +137,6 @@ class Mutator : public ffi::ObjectRef {
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultLLVM();
   /*! \brief Create default mutators for CUDA */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDA();
-  /*! \brief Create default mutators for CUDA with TensorCore */
-  TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 

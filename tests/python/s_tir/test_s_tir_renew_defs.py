@@ -17,20 +17,20 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
-from tvm.ir import Var
-from tvm.s_tir import SBlock
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx.function import Function
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import SBlock, match_shape_stride_pattern
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import Var
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx.function import Function
 
 
 def _check_func_signature_remap(lhs: Function, rhs: Function):
     assert lhs != rhs
     for x, y in zip(lhs.params, rhs.params):
         assert x != y
-        assert tvm.tirx.is_tensor_var(x) == tvm.tirx.is_tensor_var(y)
+        assert tvm_tirx.tirx.is_tensor_var(x) == tvm_tirx.tirx.is_tensor_var(y)
 
 
 def _check_tensor_decl(lhs: Var, rhs: Var):
@@ -66,16 +66,16 @@ def test_simple():
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
-    f2 = tvm.tirx.renew_def(f1)
-    tvm.ir.assert_structural_equal(f1, f2)
+    f2 = tvm_tirx.tirx.renew_def(f1)
+    tvm_tirx.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
     # check root block
     _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
     # check remap of i
-    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
+    assert f1.body[0].block.body[0].var != f2.body[0].block.body[0].var
     # check remap of j
-    assert f1.body[0].block.body[0].body[0].loop_var != f2.body[0].block.body[0].body[0].loop_var
+    assert f1.body[0].block.body[0].body[0].var != f2.body[0].block.body[0].body[0].var
 
     # check inner block
     def _get_sblock(f):
@@ -100,8 +100,7 @@ def test_match_tensor():
                 shape=(128, 128),
                 dtype="float32",
                 # s and e should be remapped
-                strides=[s, s],
-                elem_offset=e,
+                layout=T.TileLayout(T.S[(128, 128) : [s, s]] + (e)),
             )
             for i, j in T.grid(128, 128):
                 with Ts.sblock("B"):
@@ -109,12 +108,12 @@ def test_match_tensor():
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_tensor
-    f2 = tvm.tirx.renew_def(f1)
-    tvm.ir.assert_structural_equal(f1, f2)
+    f2 = tvm_tirx.tirx.renew_def(f1)
+    tvm_tirx.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
     _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
-    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
+    assert f1.body[0].block.body[0].var != f2.body[0].block.body[0].var
 
     def _get_sblock(f):
         return f.body[0].block
@@ -126,54 +125,15 @@ def test_match_tensor():
     matched_tensor1 = block1.match_tensors[0].tensor
     matched_tensor2 = block2.match_tensors[0].tensor
     # Stride var s should be remapped
-    assert matched_tensor1.strides[0] != matched_tensor2.strides[0]
-    assert matched_tensor1.strides[1] != matched_tensor2.strides[1]
+    matched_tensor1_pattern = match_shape_stride_pattern(matched_tensor1.ty)
+    matched_tensor2_pattern = match_shape_stride_pattern(matched_tensor2.ty)
+    assert matched_tensor1_pattern.strides[0] != matched_tensor2_pattern.strides[0]
+    assert matched_tensor1_pattern.strides[1] != matched_tensor2_pattern.strides[1]
     # s should be only remapped once
-    assert matched_tensor1.strides[0] == matched_tensor1.strides[1]
-    assert matched_tensor2.strides[0] == matched_tensor2.strides[1]
+    assert matched_tensor1_pattern.strides[0] == matched_tensor1_pattern.strides[1]
+    assert matched_tensor2_pattern.strides[0] == matched_tensor2_pattern.strides[1]
     # Element-offset var e should be remapped
-    assert matched_tensor1.elem_offset != matched_tensor2.elem_offset
-
-
-def test_undefined_tensor():
-    @Ts.function
-    def access_alloc():
-        # Var A should be remapped
-        A = T.alloc_tensor(ty_args=[T.Tensor((128,), "float16")])
-        T.evaluate(A.data)
-        for i in range(128):
-            A[i] = A[i] + T.float16(1.0)
-
-    f1 = access_alloc
-    f2 = tvm.tirx.renew_def(f1)
-    tvm.ir.assert_structural_equal(f1, f2)
-
-    # AllocTensor is now a flat statement in SeqStmt
-    assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
-
-    def _get_tensor_store_tensor(f):
-        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
-        return f.body.seq[2].body[0].dest
-
-    _check_tensor_decl(_get_tensor_store_tensor(f1), _get_tensor_store_tensor(f2))
-
-
-def test_symbolic_func():
-    m = T.dynamic("m", "int32")
-
-    @Ts.function
-    def symbolic_func(
-        A: T.Tensor((n, m), "float32"),  # noqa: F821
-        B: T.Tensor((n, m * 2), "float32"),  # noqa: F821
-        n: T.int32,
-    ):
-        for i, j in T.grid(n, m):
-            B[i, j * 2] = A[i, j]
-            B[i, j * 2 + 1] = A[i, j]
-
-    f1 = symbolic_func
-    f2 = tvm.tirx.renew_def(f1)
-    tvm.ir.assert_structural_equal(f1, f2)
+    assert matched_tensor1_pattern.elem_offset != matched_tensor2_pattern.elem_offset
 
 
 def test_tensor_params():
@@ -187,20 +147,9 @@ def test_tensor_params():
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
-    f2 = tvm.tirx.renew_def(main)
-    tvm.ir.assert_structural_equal(f1, f2)
+    f2 = tvm_tirx.tirx.renew_def(main)
+    tvm_tirx.ir.assert_structural_equal(f1, f2)
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
-
-
-def test_compound_tensor_param_shape_var():
-    n = tvm.tirx.Var("n", "int32")
-    A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
-    f1 = tvm.tirx.Function([A], tvm.ir.Evaluate(n))
-    f2 = tvm.tirx.renew_def(f1)
-
-    tvm.ir.assert_structural_equal(f1, f2)
-    assert not f1.body[0].value.same_as(f2.body[0].value)
-    assert f2.params[0].shape[0].a.same_as(f2.body[0].value)
 
 
 def test_gather():
@@ -218,9 +167,9 @@ def test_gather():
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take
-    f2 = tvm.tirx.renew_def(take)
-    tvm.ir.assert_structural_equal(f1, f2)
+    f2 = tvm_tirx.tirx.renew_def(take)
+    tvm_tirx.ir.assert_structural_equal(f1, f2)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

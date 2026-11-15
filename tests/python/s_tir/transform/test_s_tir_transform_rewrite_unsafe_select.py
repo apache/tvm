@@ -16,10 +16,11 @@
 # under the License.
 # ruff: noqa: E501, F401, F841
 import tvm
+import tvm_tirx
 from tvm import s_tir
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_rewrite_Select():
@@ -64,11 +65,11 @@ def test_rewrite_Select():
             )
 
     aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.seq[-1].value
-    builtin_if_then_else = tvm.ir.Op.get("prim.if_then_else")
+    builtin_if_then_else = tvm_tirx.ir.Op.get("prim.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)
     assert yy.op.same_as(builtin_if_then_else)
-    assert isinstance(aa, tvm.tirx.Select)
+    assert isinstance(aa, tvm_tirx.tirx.Select)
 
 
 def test_scalar_address_survives_generic_transforms():
@@ -82,7 +83,7 @@ def test_scalar_address_survives_generic_transforms():
         tvm.s_tir.transform.RewriteUnsafeSelect(),
         tvm.s_tir.transform.ThreadSync("shared"),
         tvm.s_tir.transform.MergeSharedMemoryAllocations(),
-        tvm.tirx.transform.StorageRewrite(),
+        tvm_tirx.tirx.transform.StorageRewrite(),
     ]
     for transform in transforms:
         transformed = transform(Before)

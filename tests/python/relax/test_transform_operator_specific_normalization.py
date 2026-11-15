@@ -23,14 +23,18 @@ import tvm_ffi
 
 import tvm
 import tvm.relax.testing.transform
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
-define_normalization = tvm.testing.parameter(True)
+
+@pytest.fixture(params=[True], scope="session")
+def define_normalization(request):
+    return request.param
 
 
 @pytest.fixture
@@ -64,10 +68,12 @@ def custom_op(define_normalization):
     if define_normalization:
         op_attrs["FNormalize"] = normalize
 
+    if op_name not in tvm_tirx.ir.Op.list_op_names():
+        tvm_tirx.ir._ffi_api.RegisterOp(op_name, "Custom Relax test operator")
     for key, value in op_attrs.items():
-        tvm.ir.register_op_attr(op_name, key, value)
+        tvm_tirx.ir.register_op_attr(op_name, key, value)
 
-    op = tvm.ir.Op.get(op_name)
+    op = tvm_tirx.ir.Op.get(op_name)
     yield op
 
     for key in op_attrs:
@@ -115,7 +121,7 @@ def test_normalization_applied_during_cpp_mutator(custom_op):
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
     assert not tvm_ffi.structural_equal(Before, After)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_normalization_applied_during_python_mutator(custom_op):
@@ -136,7 +142,7 @@ def test_normalization_applied_during_python_mutator(custom_op):
     after = EmptyPyExprMutator().visit_expr(before)
 
     assert not tvm_ffi.structural_equal(before, after)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_normalized_call_node_is_well_formed(custom_op):
@@ -148,7 +154,7 @@ def test_normalized_call_node_is_well_formed(custom_op):
         def main(A: R.Tensor):
             return relax.Call(custom_op, [A, A])
 
-    relax.analysis.well_formed(Module)
+    relax.analysis.check_well_formed(Module)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -167,9 +173,10 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
             return relax.Call(custom_op, [A])
 
     if define_normalization:
-        assert not relax.analysis.check_well_formed(Module)
+        with pytest.raises((ValueError, TypeError)):
+            relax.analysis.check_well_formed(Module)
     else:
-        relax.analysis.well_formed(Module)
+        relax.analysis.check_well_formed(Module)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -183,7 +190,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir"),
+                tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
                 ty_args=[A.ty],
             )
@@ -200,7 +207,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
             cls = Expected
             args = (A,)
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir"),
+                tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([A])],
                 ty_args=[A.ty],
             )
@@ -213,7 +220,7 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
     assert not tvm_ffi.structural_equal(Before, After)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -230,7 +237,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
         def main(args: R.Tuple([R.Tensor([16], "float32")])):
             cls = Before
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir"),
+                tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, args],
                 ty_args=[args[0].ty],
             )
@@ -246,7 +253,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
         def main(args: R.Tuple([R.Tensor([16], "float32")])):
             cls = Expected
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir"),
+                tvm_tirx.ir.Op.get("relax.call_tir"),
                 [cls.multiply_by_two, relax.Tuple([args[0]])],
                 ty_args=[args[0].ty],
             )
@@ -259,7 +266,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
     assert not tvm_ffi.structural_equal(Before, After)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -296,7 +303,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir_inplace"),
+                tvm_tirx.ir.Op.get("relax.call_tir_inplace"),
                 [cls.multiply_by_two, args],
                 attrs=inplace_attrs,
                 ty_args=[A.ty],
@@ -310,7 +317,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
     assert not tvm_ffi.structural_equal(Before, After)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 @pytest.mark.skip_well_formed_check_before_transform
@@ -354,7 +361,7 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
             cls = Before
             args = (A,)
             return relax.Call(
-                tvm.ir.Op.get("relax.call_tir_with_grad"),
+                tvm_tirx.ir.Op.get("relax.call_tir_with_grad"),
                 [cls.multiply_by_two, args],
                 attrs=with_grad_attrs,
                 ty_args=[A.ty],
@@ -375,8 +382,8 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
     assert not tvm_ffi.structural_equal(Before, After)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

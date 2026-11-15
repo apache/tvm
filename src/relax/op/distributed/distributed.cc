@@ -27,7 +27,7 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/op/ccl.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -74,11 +74,9 @@ Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.annotate_sharding")
       .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAnnotateSharding)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAnnotateSharding)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAnnotateSharding)
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferTypeAnnotateSharding)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.dist.redistribute */
@@ -99,7 +97,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
-  const auto* ty = GetTypeAs<distributed::DTensorTypeNode>(call->args[0]);
+  const auto* ty = GetTypeAs<distributed::DTensorTypeObj>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
 }
@@ -107,16 +105,15 @@ Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute")
       .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
-                                       InferDistTypeRedistribute)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeRedistribute)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
   }
-  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
+  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarObj>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
          "tirx::Function. "
       << "However, gets " << call->args[0];
@@ -128,14 +125,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeCallTIRLocalView)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeCallTIRLocalView)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list) {
   for (const distributed::DTensorType& ty : out_ty_list) {
-    const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
+    const auto* shape = ty->tensor_ty->shape.as<ShapeExprObj>();
     TVM_FFI_ICHECK(shape != nullptr)
         << "out_ty of call_tir_local_view should have defined ShapeExpr as shape. "
            "However, one given type information is "
@@ -233,10 +229,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute_replica_to_shard")
       .signature(sig::arg("input", "The buffer to be sliced."),
                  sig::call_attrs<ScatterCollectiveAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeRtoS)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
-                                       InferDistTypeRtoS)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeRtoS)
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeRtoS)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

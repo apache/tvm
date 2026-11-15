@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/type.h>
 
 #include "../utils.h"
 
@@ -25,30 +26,6 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
-
-/*!
- * \brief Calculate the strides of the tensor
- * \param tensor The tensor
- * \return The strides
- */
-ffi::Array<PrimExpr> GetStrides(const TensorVar& tensor) {
-  if (!tensor->strides.empty()) {
-    TVM_FFI_ICHECK_EQ(tensor->strides.size(), tensor->shape.size());
-    return tensor->strides;
-  }
-  int ndim = tensor->shape.size();
-  if (ndim == 0) {
-    return {};
-  }
-  std::vector<PrimExpr> strides;
-  strides.reserve(ndim);
-  PrimExpr stride = IntImm(PrimType(tensor->DefaultIndexType()), 1);
-  for (int i = ndim - 1; i >= 0; --i) {
-    strides.push_back(stride);
-    stride = stride * tensor->shape[i];
-  }
-  return ffi::Array<PrimExpr>(strides.rbegin(), strides.rend());
-}
 
 /*!
  * \brief Auxiliary class that collects the IterSplitExpr in the indexing pattern
@@ -105,9 +82,9 @@ class SplitExprCollector {
  private:
   void Visit(const sym::IterSplitExpr& expr) {
     if (auto var = expr->source->source.as<PrimVar>()) {
-      const auto* lower_factor_imm = expr->lower_factor.as<IntImmNode>();
+      const auto* lower_factor_imm = expr->lower_factor.as<IntImmObj>();
       auto lower_factor = lower_factor_imm ? lower_factor_imm->value.as<int64_t>() : std::nullopt;
-      const auto* extent_imm = expr->extent.as<IntImmNode>();
+      const auto* extent_imm = expr->extent.as<IntImmObj>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!lower_factor.has_value() || !extent.has_value()) {
         failed_ = true;
@@ -137,21 +114,22 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         sym::AnalyzerObj* analyzer) {
-  int ndim = tensor->shape.size();
+  int ndim = tensor.shape().size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
   ffi::Map<PrimVar, Range> input_iters;
-  std::unordered_map<const VarNode*, int> var2id;
+  std::unordered_map<const VarObj*, int> var2id;
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {
     const For& loop = loops[i];
-    input_iters.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    var2id.emplace(loop->loop_var.get(), i);
+    input_iters.Set(loop->var, Range(loop->begin, loop->end));
+    var2id.emplace(loop->var.get(), i);
   }
   // Step 2. Calculate a functor that flattens a multi-dimensional index
-  auto f_flatten_index = [ndim, strides = GetStrides(tensor), dtype = tensor->DefaultIndexType()](
-                             const ffi::Array<PrimExpr>& indices) -> PrimExpr {
-    PrimExpr flatten_index = IntImm(PrimType(dtype), 0);
+  auto f_flatten_index =
+      [ndim, strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>(),
+       dtype = tensor.ty()->DefaultIndexType()](const ffi::Array<PrimExpr>& indices) -> PrimExpr {
+    PrimExpr flatten_index = IntImm(dtype, 0);
     for (int i = 0; i < ndim; ++i) {
       flatten_index = flatten_index + strides[i] * indices[i];
     }
@@ -185,12 +163,16 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
   auto f_alter_layout = [f_flatten_index = std::move(f_flatten_index),  //
                          &split_exprs,                                  //
                          &order,                                        //
-                             & shape = tensor->shape,                   //
+                             & shape = tensor.shape(),                  //
                          analyzer                                       //
   ](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), shape.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
-      analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
+      {
+        auto context = analyzer->GetConstraintContext();
+        context->Append(sym::RangeConstraint(indices[i], Range::FromMinExtent(0, shape[i])));
+        analyzer->SyncConstraintContext(context);
+      }
     }
     // Step 5.1: Fuse all indices into a flattened one
     PrimExpr index =
@@ -215,7 +197,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
     return results;
   };
   // Step 6: Create the inverse index mapping.
-  auto f_inverse = [&inverse_order, &split_exprs, &shape = tensor->shape,
+  auto f_inverse = [&inverse_order, &split_exprs, &shape = tensor.shape(),
                     analyzer](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
     TVM_FFI_ICHECK_EQ(indices.size(), split_exprs.size());
     // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
@@ -225,7 +207,12 @@ ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& tensor,
     for (int i = 0, n = indices.size(); i < n; ++i) {
       const Var& index = indices[inverse_order[i]];
       inv_permuted_indices.push_back(index);
-      analyzer->Bind(index, Range::FromMinExtent(0, IntImm::Int32(split_exprs[i].extent)));
+      {
+        auto context = analyzer->GetConstraintContext();
+        context->Append(sym::RangeConstraint(
+            index, Range::FromMinExtent(0, IntImm::Int32(split_exprs[i].extent))));
+        analyzer->SyncConstraintContext(context);
+      }
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.

@@ -28,7 +28,7 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 
@@ -173,7 +173,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
 }
 
-Type InferTypeResize2D(const CallNode* call_node) {
+Type InferTypeResize2D(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -181,9 +181,9 @@ Type InferTypeResize2D(const CallNode* call_node) {
         << call->args.size();
   }
 
-  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
-  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
-  const auto* size_value = call->args[1].as<ShapeExprNode>();
+  const auto* data_ty = GetTypeAs<TensorTypeObj>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeObj>(call->args[1]);
+  const auto* size_value = call->args[1].as<ShapeExprObj>();
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize2D expects the input data to be a Tensor, while the given data is "
@@ -261,11 +261,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize2DAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize2D>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize2d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeResize2D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutResize2d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.resize3d */
@@ -294,7 +293,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize3d", resize3d);
 }
 
-Type InferTypeResize3D(const CallNode* call_node) {
+Type InferTypeResize3D(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -302,9 +301,9 @@ Type InferTypeResize3D(const CallNode* call_node) {
         << call->args.size();
   }
 
-  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
-  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
-  const auto* size_value = call->args[1].as<ShapeExprNode>();
+  const auto* data_ty = GetTypeAs<TensorTypeObj>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeObj>(call->args[1]);
+  const auto* size_value = call->args[1].as<ShapeExprObj>();
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Resize3D expects the input data to be a Tensor, while the given data is "
@@ -380,11 +379,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize3DAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize3D>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize3d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeResize3D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutResize3d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   /* relax.grid_sample */
 
@@ -408,7 +406,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
 }
 
-Type InferTypeGridSample(const CallNode* call_node) {
+Type InferTypeGridSample(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -416,8 +414,8 @@ Type InferTypeGridSample(const CallNode* call_node) {
         << call->args.size();
   }
 
-  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
-  const auto* grid_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
+  const auto* data_ty = GetTypeAs<TensorTypeObj>(call->args[0]);
+  const auto* grid_ty = GetTypeAs<TensorTypeObj>(call->args[1]);
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -445,7 +443,7 @@ Type InferTypeGridSample(const CallNode* call_node) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ffi::GetRef<TensorType>(data_ty), data_layout);
-  const auto* grid_shape = grid_ty->shape.as<ShapeExprNode>();
+  const auto* grid_shape = grid_ty->shape.as<ShapeExprObj>();
 
   if (!data_shape.has_value() || grid_shape == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
@@ -474,11 +472,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("grid", "The grid tensor for sampling."),
                  sig::call_attrs<GridSampleAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeGridSample>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeGridSample>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.image.affine_grid */
@@ -497,7 +493,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
 }
 
-Type InferTypeAffineGrid(const CallNode* call_node) {
+Type InferTypeAffineGrid(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -505,9 +501,9 @@ Type InferTypeAffineGrid(const CallNode* call_node) {
         << call->args.size();
   }
 
-  const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
-  const auto* size_ty = GetTypeAs<ShapeTypeNode>(call->args[1]);
-  const auto* size_value = call->args[1].as<ShapeExprNode>();
+  const auto* data_ty = GetTypeAs<TensorTypeObj>(call->args[0]);
+  const auto* size_ty = GetTypeAs<ShapeTypeObj>(call->args[1]);
+  const auto* size_value = call->args[1].as<ShapeExprObj>();
 
   if (data_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -535,10 +531,10 @@ Type InferTypeAffineGrid(const CallNode* call_node) {
                                           << data_ty->ndim;
   }
 
-  const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_ty->shape.as<ShapeExprObj>();
   if (data_shape != nullptr) {
     if (data_shape->values.size() >= 2) {
-      auto* dim1 = data_shape->values[1].as<IntImmNode>();
+      auto* dim1 = data_shape->values[1].as<IntImmObj>();
       if (dim1 != nullptr && dim1->value != spatial) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "AffineGrid expects the second dimension of input to be " << spatial << ", but got "
@@ -546,7 +542,7 @@ Type InferTypeAffineGrid(const CallNode* call_node) {
       }
     }
     if (data_shape->values.size() >= 3) {
-      auto* dim2 = data_shape->values[2].as<IntImmNode>();
+      auto* dim2 = data_shape->values[2].as<IntImmObj>();
       if (dim2 != nullptr && dim2->value != spatial + 1) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "AffineGrid expects the third dimension of input to be " << spatial + 1
@@ -577,11 +573,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input affine matrix tensor."),
                  sig::arg("size", "The target output shape (H, W)."),
                  sig::call_attrs<AffineGridAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeAffineGrid>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAffineGrid>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

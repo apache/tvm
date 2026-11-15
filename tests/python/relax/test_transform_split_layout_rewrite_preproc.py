@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_single_buffer():
@@ -103,7 +103,7 @@ def test_single_buffer():
             return gv
 
     mod = relax.transform.SplitLayoutRewritePreproc()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    tvm_tirx.ir.assert_structural_equal(mod, After)
 
 
 def test_multiple_buffers():
@@ -219,7 +219,7 @@ def test_multiple_buffers():
             return gv
 
     mod = relax.transform.SplitLayoutRewritePreproc()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    tvm_tirx.ir.assert_structural_equal(mod, After)
 
 
 def test_attr_inheritance():
@@ -303,8 +303,8 @@ def test_attr_inheritance():
             return gv
 
     mod = relax.transform.SplitLayoutRewritePreproc()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    tvm_tirx.ir.assert_structural_equal(mod, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_STATISTICAL_H_
 #define TVM_RELAX_OP_DISTRIBUTED_STATISTICAL_H_
 
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include "utils.h"
 
@@ -38,7 +38,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx);
 // clang-format off
 #define RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(OpName) \
   OpDef("relax." #OpName)                              \
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeStatistical)
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeStatistical)
 // clang-format on
 
 }  // namespace distributed

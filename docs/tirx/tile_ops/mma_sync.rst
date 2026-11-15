@@ -18,18 +18,47 @@
 mma.sync
 ========
 
+Call parameters
+---------------
+
+``T.cuda.tile.apply(T.ptx[opcode], *operands, scope="thread", **parameters)``
+
+Operand order: ``D, A, B, C``.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Type / default
+     - Meaning
+   * - ``scope``
+     - static str; default "thread"
+     - Execution scope; group axes follow :doc:`../cuda_tile_patterns`. It does not elect an issuing thread.
+
+Only the parameters listed here are instruction parameters. Opcode qualifiers are
+written in ``T.ptx[opcode]``.
+
+Data representation
+-------------------
+
+D/C use f32 accumulator elements. A/B use b32 containers packing two f16/bf16 values.
+The supported tile forms are m16n8k8 and m16n8k16 with f32 accumulation; opcode fixes
+the formats and row/column interpretation.
+
+Operand specification
+---------------------
+
 The warp tile pattern supports the explicit
-``mma.sync.aligned.m16n8k{8,16}.row.col.f32.{f16,bf16}.{f16,bf16}.f32``
-forms registered by the PTX dialect. Each issue multiplies fixed register
-fragments and accumulates into four float32 registers per lane. The tile
-layer does not select K=8 versus K=16, change input type, load shared memory,
-or transpose an operand implicitly.
+``mma.sync.aligned.m16n8k{8,16}.row.col.f32.{f16,bf16}.{f16,bf16}.f32`` forms registered
+by the PTX dialect. Each issue multiplies fixed register fragments and accumulates into
+four float32 registers per lane. The tile layer does not select K=8 versus K=16, change
+input type, load shared memory, or transpose an operand implicitly.
 
 Operand coordinates and ownership
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The call takes ``D,A,B,C``. After optional execution-group and batch axes,
-the canonical shapes are:
+The call takes ``D,A,B,C``. After optional execution-group and batch axes, the canonical
+shapes are:
 
 .. list-table::
    :header-rows: 1
@@ -47,8 +76,8 @@ the canonical shapes are:
      - ``(N_repeat,K_repeat,8,k/2)``
      - The same packed representation
 
-B's logical atom axes are ``(N,K/2)``, even though the mathematical product
-uses B transposed. For lane ``l``, native register ``r`` corresponds to:
+B's logical atom axes are ``(N,K/2)``, even though the mathematical product uses B
+transposed. For lane ``l``, native register ``r`` corresponds to:
 
 .. list-table::
    :header-rows: 1
@@ -66,15 +95,34 @@ uses B transposed. For lane ``l``, native register ``r`` corresponds to:
      - ``(l//4+8*(r//2), 2*(l%4)+r%2)``
      - 4
 
-Local offsets can be strided; lane ownership must match these coordinates.
-All 32 lanes execute the warp instruction. Warpgroup/CTA scope prepends a
-warp group axis; that axis is not an additional matrix dimension.
+Local offsets can be strided; lane ownership must match these coordinates. All 32 lanes
+execute the warp instruction. Warpgroup/CTA scope prepends a warp group axis; that axis
+is not an additional matrix dimension.
+
+Legality conditions
+-------------------
+
+All tensor operands are local, with the fixed fragment ownership below. D/A/B and tensor
+C have matching group/batch and M/N/K repeat extents as applicable. C may be an explicit
+scalar broadcast. Writable D slots are nonoverlapping. All 32 warp lanes participate. No
+instruction-specific keyword, including pred, is accepted.
+
+Code generation
+---------------
+
+Expand batch, M_repeat, N_repeat, K_repeat in that order. Bind each native fragment
+using the selected shape's lane/register coordinates. Feed C on K_repeat=0 and the
+previous D thereafter, and emit one selected mma.sync. No alpha/beta arithmetic,
+implicit fragment conversion or memory staging is inserted.
+
+Examples
+--------
 
 Example: a 16x8 result with two K16 issues
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The complete kernel below loads the exact packed A/B words each lane needs.
-The host prepares these words from ordinary row-major half matrices.
+The complete kernel below loads the exact packed A/B words each lane needs. The host
+prepares these words from ordinary row-major half matrices.
 
 .. code-block:: python
 
@@ -133,27 +181,26 @@ The host prepares these words from ordinary row-major half matrices.
         out.numpy(), a.astype("float32") @ b.astype("float32").T, rtol=2e-4, atol=2e-4
     )
 
-``M_repeat=N_repeat=1`` and ``K_repeat=2``, so each warp issues exactly two
-K16 instructions. The first uses scalar C=0; the second uses the preceding
-D registers. No separate zeroing of dr or add instruction is required.
+``M_repeat=N_repeat=1`` and ``K_repeat=2``, so each warp issues exactly two K16
+instructions. The first uses scalar C=0; the second uses the preceding D registers. No
+separate zeroing of dr or add instruction is required.
 
 Accumulation, transpose and alpha/beta
---------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Repeat order is batch, M, N, then K. C can be a matching register tensor or
-an explicit scalar broadcast. Only the first K issue reads the original C;
-later issues read D. This is the documented recurrence, rather than an
-arbitrary traversal inferred from layouts.
+Repeat order is batch, M, N, then K. C can be a matching register tensor or an explicit
+scalar broadcast. Only the first K issue reads the original C; later issues read D. This
+is the documented recurrence, rather than an arbitrary traversal inferred from layouts.
 
-To transpose a logical input, prepare a view whose canonical A/B coordinates
-refer to the intended values while preserving the required lane map. A view
-alone cannot exchange values between lanes; an incompatible physical owner
-requires explicit preparation. ``alpha``/``beta`` scaling likewise belongs
-before or after MMA at the call site, with the intended rounding order.
+To transpose a logical input, prepare a view whose canonical A/B coordinates refer to
+the intended values while preserving the required lane map. A view alone cannot exchange
+values between lanes; an incompatible physical owner requires explicit preparation.
+``alpha``/``beta`` scaling likewise belongs before or after MMA at the call site, with
+the intended rounding order.
 
-The tile call inserts no shared loads, ``ldmatrix``, communication, or
-barrier. Use :doc:`ldmatrix_stmatrix` to prepare fragments when that native
-shared/register image matches your operands. Sparse and other MMA shapes
-require their own explicit pattern; this page does not claim those forms.
+The tile call inserts no shared loads, ``ldmatrix``, communication, or barrier. Use
+:doc:`ldmatrix_stmatrix` to prepare fragments when that native shared/register image
+matches your operands. Sparse and other MMA shapes require their own explicit pattern;
+this page does not claim those forms.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/mma.py``.

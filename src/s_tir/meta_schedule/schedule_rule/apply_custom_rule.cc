@@ -45,8 +45,8 @@ class ApplyCustomRuleObj : public ScheduleRuleObj {
     TVM_FFI_CHECK(this->target_.has_value(), ValueError)
         << "ApplyCustomRule is not initialized with TuneContext that has a Target.";
     ffi::Array<ffi::String> keys = this->target_.value()->keys;
-    if (ffi::Optional<ffi::String> ann =
-            s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), tvm::s_tir::attr::kScheduleRule)) {
+    if (ffi::Optional<ffi::String> ann = s_tir::GetAnn<ffi::String>(
+            sch->GetSRef(block_rv), tvm::s_tir::attr::kScheduleRule.name)) {
       if (ann.value() != "None") {
         for (const ffi::String& key : keys) {
           if (const auto custom_schedule_fn =
@@ -63,7 +63,7 @@ class ApplyCustomRuleObj : public ScheduleRuleObj {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }
         LOG(WARNING) << os.str();
-        sch->Unannotate(block_rv, tvm::s_tir::attr::kScheduleRule);
+        sch->Unannotate(block_rv, tvm::s_tir::attr::kScheduleRule.name);
       }
     }
     return {sch};

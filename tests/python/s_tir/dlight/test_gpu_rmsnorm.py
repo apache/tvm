@@ -16,21 +16,20 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
-import tvm.testing
-from tvm.ir import IRModule, assert_structural_equal
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import IRModule, assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _check(mod_before: IRModule, mod_after: IRModule):
     target = Target("nvidia/geforce-rtx-3090-ti")
-    with target:
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
-            dl.gpu.RMSNorm(),
-        )(mod_before)
+    mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        dl.gpu.RMSNorm(), target=target
+    )(mod_before)
     assert_structural_equal(mod, mod_after)
 
 
@@ -285,4 +284,4 @@ def test_rms_norm_without_casting():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

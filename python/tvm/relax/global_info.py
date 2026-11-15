@@ -18,9 +18,9 @@
 
 import tvm_ffi
 
-from tvm.ir import GlobalInfo
-from tvm.runtime import Device, MemoryScope, convert
-from tvm.target import Target
+from tvm_tirx.ir import GlobalInfo
+from tvm_tirx.runtime import Device, MemoryScope
+from tvm_tirx.target import Target
 
 from . import _ffi_api
 
@@ -46,7 +46,7 @@ class VDevice(GlobalInfo):
         memory_scope: str | MemoryScope = MemoryScope("global"),
     ) -> None:
         if isinstance(target, dict | str):
-            target = Target(convert(target))
+            target = Target(tvm_ffi.convert(target))
         if isinstance(target, Device):
             target = Target.from_device(target)
         self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

@@ -19,8 +19,8 @@
 
 # pylint: disable=missing-docstring
 
-from tvm import te, tirx, topi
-from tvm.target import Target
+from tvm import te, topi
+from tvm_tirx import tirx
 
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
@@ -522,12 +522,13 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     tile_size: int = 4,
+    *,
+    target=None,
 ) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
         _conv2d_winograd_nhwc_impl,
     )
 
-    target = Target.current(allow_none=True)
     if target is not None and target.kind.name == "cuda":
         write_cache_level = 3
     else:

@@ -18,20 +18,61 @@
 cp.async.bulk: shared to cluster shared
 =======================================
 
-This pattern issues
-``cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes``.
-It copies one contiguous shared-memory chunk to another CTA in the launch
-cluster and completes transaction bytes on a barrier in the destination CTA.
-For global tensor maps, use :doc:`cp_async_bulk_tensor` instead.
+Call parameters
+---------------
 
-The pointer contract
+``T.cuda.tile.apply(T.ptx[opcode], *operands, scope="thread", **parameters)``
+
+Operand order: ``dst_shared, src_shared``.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Type / default
+     - Meaning
+   * - ``scope``
+     - static str; default "thread"
+     - Execution scope; group axes follow :doc:`../cuda_tile_patterns`. It does not elect an issuing thread.
+   * - ``chunk_bytes``
+     - static positive int; required
+     - Bytes per atom; divisible by 16.
+   * - ``mbar``
+     - runtime pointer; required
+     - Local shared address of the completion barrier in the destination CTA image.
+   * - ``remote_cta_id``
+     - runtime integer; required
+     - Destination CTA rank within the cluster.
+   * - ``pred``
+     - runtime bool; default None
+     - Execute the instruction when true; None is unconditional. A skipped asynchronous issue performs no completion accounting.
+
+Only the parameters listed here are instruction parameters. Opcode qualifiers are
+written in ``T.ptx[opcode]``.
+
+Data representation
+-------------------
+
+Each operand ends in chunk_bytes*8/storage_bits scalar elements. Source, destination and
+mbar denote local shared addresses before remote address mapping.
+
+Operand specification
 ---------------------
 
-``apply`` takes ``dst_shared, src_shared`` followed by explicit
-``chunk_bytes``, ``mbar`` and ``remote_cta_id``. Source and destination
-regions use coordinates ``(*group,*repeat,element)``. The final axis covers
-exactly ``chunk_bytes``, a positive multiple of 16; its bytes are consecutive
-and its origin is 16-byte aligned. Both shared/shared.dyn storage are accepted.
+This pattern issues
+``cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes``. It copies
+one contiguous shared-memory chunk to another CTA in the launch cluster and completes
+transaction bytes on a barrier in the destination CTA. For global tensor maps, use
+:doc:`cp_async_bulk_tensor` instead.
+
+The pointer contract
+~~~~~~~~~~~~~~~~~~~~~
+
+``apply`` takes ``dst_shared, src_shared`` followed by explicit ``chunk_bytes``,
+``mbar`` and ``remote_cta_id``. Source and destination regions use coordinates
+``(*group,*repeat,element)``. The final axis covers exactly ``chunk_bytes``, a positive
+multiple of 16; its bytes are consecutive and its origin is 16-byte aligned. Both
+shared/shared.dyn storage are accepted.
 
 All three addresses supplied by the caller are **local** shared addresses:
 
@@ -41,16 +82,35 @@ All three addresses supplied by the caller are **local** shared addresses:
 * ``mbar`` names the local counterpart of the completion barrier. Lowering
   maps it to the same remote CTA once before the repeat loop.
 
-Do not pass an already mapped destination or barrier. Both CTAs must have
-corresponding live shared allocations at those offsets. ``remote_cta_id``
-is the rank within the cluster, not an absolute block index. ``pred`` gates
-the copy instruction and must agree with the caller's transaction accounting.
+Do not pass an already mapped destination or barrier. Both CTAs must have corresponding
+live shared allocations at those offsets. ``remote_cta_id`` is the rank within the
+cluster, not an absolute block index. ``pred`` gates the copy instruction and must agree
+with the caller's transaction accounting.
+
+Legality conditions
+-------------------
+
+Both regions use shared/shared.dyn storage, contain whole elements and contiguous
+chunks, and have 16-byte-aligned starts. Group/repeat shapes agree. The caller supplies
+a valid cluster rank and matching launch/completion protocol.
+
+Code generation
+---------------
+
+Map mbar to remote_cta_id once per tile call. In each repeat, map the destination atom
+pointer with mapa and emit one cp.async.bulk using the local source, mapped
+destination/barrier and chunk_bytes. The core instruction count equals the repeat
+product; address preparation includes mapa. Allocation, barrier
+initialization/transaction accounting and cluster synchronization belong to the caller.
+
+Examples
+--------
 
 Example: CTA 0 sends 256 bytes to CTA 1
----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The one-thread blocks here keep election and initialization visible. The
-same operation can be issued by an elected thread in a larger CTA.
+The one-thread blocks here keep election and initialization visible. The same operation
+can be issued by an elected thread in a larger CTA.
 
 .. code-block:: python
 
@@ -86,11 +146,10 @@ same operation can be issued by an elected thread in a larger CTA.
                 Out[i] = dst[i]
         T.cuda.cluster_sync()
 
-The sender emits one barrier-address mapa, one destination-address mapa,
-and one 256-byte bulk copy. The source address stays local. CTA 1 expects
-256 transaction bytes and waits for phase zero before consuming the data.
-The last cluster barrier keeps both CTAs' shared allocations alive until
-the communication is finished.
+The sender emits one barrier-address mapa, one destination-address mapa, and one
+256-byte bulk copy. The source address stays local. CTA 1 expects 256 transaction bytes
+and waits for phase zero before consuming the data. The last cluster barrier keeps both
+CTAs' shared allocations alive until the communication is finished.
 
 Compile and verify on a device supporting thread-block clusters:
 
@@ -106,19 +165,19 @@ Compile and verify on a device supporting thread-block clusters:
     np.testing.assert_array_equal(out.numpy(), x)
 
 Repeated chunks and synchronization
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A float16 view ``(8,128):(256,1)`` with ``chunk_bytes=256`` represents eight
-separate contiguous chunks with gaps between them. It emits eight bulk
-copies. Set expected transaction bytes to ``8*256``. The source and
-destination may have different outer strides, provided each matching
-128-element chunk is contiguous and aligned on its own side.
+A float16 view ``(8,128):(256,1)`` with ``chunk_bytes=256`` represents eight separate
+contiguous chunks with gaps between them. It emits eight bulk copies. Set expected
+transaction bytes to ``8*256``. The source and destination may have different outer
+strides, provided each matching 128-element chunk is contiguous and aligned on its own
+side.
 
-Do not flatten across a physical gap and request one larger chunk: it would
-describe different bytes and is rejected. There is no automatic split or
-fallback to a scalar loop. Cluster launch configuration, issuer election,
-barrier initialization, expected-byte accounting, proxy fences, phase
-progression and storage lifetime are caller responsibilities. Ordinary
-``cp.async.commit_group``/``wait_group`` is not this completion mechanism.
+Do not flatten across a physical gap and request one larger chunk: it would describe
+different bytes and is rejected. There is no automatic split or fallback to a scalar
+loop. Cluster launch configuration, issuer election, barrier initialization,
+expected-byte accounting, proxy fences, phase progression and storage lifetime are
+caller responsibilities. Ordinary ``cp.async.commit_group``/``wait_group`` is not this
+completion mechanism.
 
 Implementation: ``python/tvm/backend/cuda/tile/patterns/async_copy.py``.

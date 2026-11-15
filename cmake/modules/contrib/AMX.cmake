@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_AMX)
-    file(GLOB AMX_RUNTIME_CONFIG src/runtime/extra/contrib/amx/amx_config.cc)
+if(TVM_USE_AMX)
+    file(GLOB AMX_RUNTIME_CONFIG CONFIGURE_DEPENDS src/runtime/extra/contrib/amx/amx_config.cc)
     add_library(tvm_amx_objs OBJECT ${AMX_RUNTIME_CONFIG})
+    tvm_configure_target(tvm_amx_objs)
     target_link_libraries(tvm_amx_objs PRIVATE tvm_runtime_extra_defs)
     target_compile_options(tvm_amx_objs PRIVATE -march=sapphirerapids)
     target_link_libraries(tvm_runtime_extra PRIVATE tvm_amx_objs)

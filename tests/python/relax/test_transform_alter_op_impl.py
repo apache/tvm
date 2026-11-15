@@ -16,13 +16,13 @@
 # under the License.
 # ruff: noqa: E501, E731, F841
 
-import tvm.testing
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 kOperatorName = "operator_name"
 
@@ -39,7 +39,7 @@ def _check(
         {operator_name: layout_changes},
     )(before)
     after = relax.transform.DeadCodeElimination()(after)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
 def test_single_output():
@@ -256,8 +256,8 @@ def test_supported_implicit_padding():
                     Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-    p0 = T.dynamic("p0")
-    i0 = T.dynamic("i0")
+    p0 = T.dynamic("p0", "int64")
+    i0 = T.dynamic("i0", "int64")
 
     @I.ir_module
     class Expected:
@@ -502,4 +502,4 @@ def test_reshape():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

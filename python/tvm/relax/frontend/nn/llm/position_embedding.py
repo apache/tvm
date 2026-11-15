@@ -22,10 +22,10 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any
 
-from tvm import tirx
 from tvm.relax.frontend.nn import Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name
 
@@ -391,8 +391,8 @@ def llama_rope(  # pylint: disable=too-many-arguments
             expr = tirx.Let(var, value, expr)
         return expr
 
-    batch_size = T.dynamic("batch_size")
-    seq_len = T.dynamic("seq_len")
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
@@ -527,7 +527,9 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     @Ts.function
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
-        position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
+        position_map: T.Tensor(
+            (seq_len,), "int32", layout=T.TileLayout(T.S[(seq_len,)] + (position_map_elem_offset))
+        ),
         q: T.Tensor((seq_len, num_q_heads, head_dim), dtype),
         k: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
         v: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
@@ -558,13 +560,15 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    seq_len = T.dynamic("seq_len")
-    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+    seq_len = T.dynamic("seq_len", "int64")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int64")
 
     @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
-        position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
+        position_map: T.Tensor(
+            (seq_len,), "int32", layout=T.TileLayout(T.S[(seq_len,)] + (position_map_elem_offset))
+        ),
         q: T.Tensor((seq_len, num_q_heads, head_dim), dtype),
         k: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
         v: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
@@ -588,7 +592,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 T.Tensor(
                     (rotary_dim // 2,),
                     "float32",
-                    elem_offset=rotary_dim // 2,
+                    layout=T.TileLayout(T.S[(rotary_dim // 2,)] + (rotary_dim // 2)),
                     data=ext_factors.data,
                 )
             ],
@@ -752,7 +756,9 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
     @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
-        position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
+        position_map: T.Tensor(
+            (seq_len,), "int32", layout=T.TileLayout(T.S[(seq_len,)] + (position_map_elem_offset))
+        ),
         q: T.Tensor((seq_len, num_q_heads, head_dim), dtype),
         k: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
         v: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
@@ -783,13 +789,15 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 else:
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
-    seq_len = T.dynamic("seq_len")
-    position_map_elem_offset = T.dynamic("position_map_elem_offset")
+    seq_len = T.dynamic("seq_len", "int64")
+    position_map_elem_offset = T.dynamic("position_map_elem_offset", "int64")
 
     @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
-        position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
+        position_map: T.Tensor(
+            (seq_len,), "int32", layout=T.TileLayout(T.S[(seq_len,)] + (position_map_elem_offset))
+        ),
         q: T.Tensor((seq_len, num_q_heads, head_dim), dtype),
         k: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
         v: T.Tensor((seq_len, num_kv_heads, head_dim), dtype),
@@ -813,7 +821,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                 T.Tensor(
                     (rotary_dim // 2,),
                     "float32",
-                    elem_offset=rotary_dim // 2,
+                    layout=T.TileLayout(T.S[(rotary_dim // 2,)] + (rotary_dim // 2)),
                     data=ext_factors.data,
                 )
             ],

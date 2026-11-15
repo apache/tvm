@@ -19,12 +19,13 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _target() -> Target:
@@ -47,7 +48,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCuda0:
     @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
@@ -82,7 +83,7 @@ class Conv2dCuda0:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCuda1:
     @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
@@ -121,7 +122,7 @@ class Conv2dCuda1:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCuda2:
     @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
@@ -160,7 +161,7 @@ class Conv2dCuda2:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dCuda3:
     @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
@@ -400,4 +401,4 @@ def test_postproc_check_fail(mod):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

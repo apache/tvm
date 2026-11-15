@@ -27,10 +27,10 @@ from typing import TYPE_CHECKING
 from typing import Any as _Any
 
 if TYPE_CHECKING:
-    from tvm.ir import IRModule
     from tvm.relax.base_py_module import BasePyModule
-    from tvm.runtime import Device
-    from tvm.target import Target
+    from tvm_tirx.ir import IRModule
+    from tvm_tirx.runtime import Device
+    from tvm_tirx.target import Target
 
 
 _initialized = False
@@ -43,7 +43,7 @@ def _initialize() -> None:
         return
     _initializing = True
     try:
-        from tvm.script.parser import entry, register_namespace
+        from tvm_tirx.script.parser import entry, register_namespace
 
         from . import ir_builder as builder
 
@@ -83,8 +83,8 @@ class _PyModuleFactory:
         self.__name__ = original_class.__name__
 
     def __call__(self, device: Device | None = None, target: Target | None = None) -> BasePyModule:
-        from tvm import cpu, ir
         from tvm.relax.base_py_module import BasePyModule
+        from tvm_tirx import cpu, ir
 
         source = self.ir_module
         instance_module = ir.IRModule(
@@ -157,10 +157,11 @@ def py_module(
     """
 
     def apply(source_class: type) -> IRModule | _PyModuleFactory:
-        from tvm import ir, relax
+        from tvm import relax
         from tvm.relax.base_py_module import BasePyModule
-        from tvm.script.parser.entry import parse
-        from tvm.script.parser.inspect_source import acquire_source, capture_definition_scope
+        from tvm_tirx import ir
+        from tvm_tirx.script.parser.entry import parse
+        from tvm_tirx.script.parser.inspect_source import acquire_source, capture_definition_scope
 
         if not _inspect.isclass(source_class):
             raise TypeError(f"Expect a class, but got: {source_class}")

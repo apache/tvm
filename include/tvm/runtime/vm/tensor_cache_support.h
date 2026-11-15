@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>
@@ -46,8 +47,9 @@ struct TensorCacheMetadata {
        * \param staging_buffer The buffer to be used to avoid extra OpenCL copies. Pass in a nullptr
        * in other cases
        */
-      TVM_RUNTIME_DLL ffi::Tensor Load(Device device, const std::string* raw_data,
-                                       ffi::Optional<ffi::Tensor>* staging_buffer = nullptr) const;
+      TVM_RUNTIME_EXTRA_DLL ffi::Tensor Load(
+          Device device, const std::string* raw_data,
+          ffi::Optional<ffi::Tensor>* staging_buffer = nullptr) const;
 
       /*! \brief Name of the parameter */
       std::string name;
@@ -64,7 +66,7 @@ struct TensorCacheMetadata {
     };
 
     /*! \brief Load a FileRecord into memory */
-    TVM_RUNTIME_DLL ffi::Array<ffi::Tensor> Load(
+    TVM_RUNTIME_EXTRA_DLL ffi::Array<ffi::Tensor> Load(
         Device device,                   //
         const std::string& path_prefix,  //
         std::string* raw_data_buffer,    //
@@ -85,10 +87,10 @@ struct TensorCacheMetadata {
   std::string path;
 
   /*! \brief Load the metadata from a specific directory */
-  TVM_RUNTIME_DLL static TensorCacheMetadata Load(const std::string& path);
+  TVM_RUNTIME_EXTRA_DLL static TensorCacheMetadata Load(const std::string& path);
   /*! \brief Load the metadata from a given JSON string */
-  TVM_RUNTIME_DLL static TensorCacheMetadata LoadFromStr(const std::string& json_str,
-                                                         const std::string& path);
+  TVM_RUNTIME_EXTRA_DLL static TensorCacheMetadata LoadFromStr(const std::string& json_str,
+                                                               const std::string& path);
 };
 
 }  // namespace vm

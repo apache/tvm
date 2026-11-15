@@ -20,6 +20,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/extra_base.h>
 
 #include "../../../support/process_id.h"
 #include "./protocol.h"
@@ -27,7 +28,7 @@
 namespace tvm {
 namespace runtime {
 
-TVM_RUNTIME_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
+TVM_RUNTIME_EXTRA_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
   TVM_FFI_CHECK(ret, ValueError) << "The current thread is not a DiscoWorker thread";
   return ret;

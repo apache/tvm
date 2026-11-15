@@ -42,8 +42,8 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    int ndim = static_cast<int>(tensor_->shape.size());
-    os << "The tensor to set storage alignment of, " << tensor_.name() << ", has " << ndim
+    int ndim = static_cast<int>(tensor_.shape().size());
+    os << "The tensor to set storage alignment of, " << tensor_->name << ", has " << ndim
        << " dimension(s), so `axis` is required to be in [" << -(ndim) << ", " << ndim
        << ") for storage_align. However, the input `axis` is " << axis_
        << ", which is out of the expected range.";
@@ -54,7 +54,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
   static int CheckAndUpdate(const IRModule& mod, const TensorVar& tensor, int axis) {
-    int ndim = static_cast<int>(tensor->shape.size());
+    int ndim = static_cast<int>(tensor.shape().size());
     if (axis < -ndim || axis >= ndim) {
       throw MakeScheduleError<StorageAlignAxisOutOfRangeError>(mod, tensor, axis);
     }
@@ -82,7 +82,7 @@ class NonAllocatedTensorError : public ScheduleErrorContextObj {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The input tensor " << tensor_.name()
+    os << "The input tensor " << tensor_->name
        << " is not allocated by a block. This means the tensor is either a function parameter or "
           "defined in `match_tensor` of a block.";
     return os.str();
@@ -152,14 +152,14 @@ class StorageAlignInvalidAnnotationError : public ScheduleErrorContextObj {
     std::ostringstream os;
     os << "The block annotation for storage align is expected to be an array of 4-integer-tuples "
           "(tensor_index, axis, factor, offset). However, the block annotation with key "
-       << s_tir::attr::kTensorDimAlign << " of the block {0} is "
-       << block_->annotations.at(s_tir::attr::kTensorDimAlign) << ", which is unexpected.";
+       << s_tir::attr::kTensorDimAlign.name << " of the block {0} is "
+       << block_->annotations.at(s_tir::attr::kTensorDimAlign.name) << ", which is unexpected.";
     return os.str();
   }
 
   static StorageAlignAnnotation CheckAndGetAnnotation(const IRModule& mod, const SBlock& block) {
     // Get existing annotation value.
-    auto it = block->annotations.find(s_tir::attr::kTensorDimAlign);
+    auto it = block->annotations.find(s_tir::attr::kTensorDimAlign.name);
     if (it != block->annotations.end()) {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw MakeScheduleError<StorageAlignInvalidAnnotationError>(mod, block);
@@ -232,7 +232,7 @@ class StorageScopeMutator : public ReplaceTensorMutator {
 
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int tensor_index, int axis,
                   int factor, int offset) {
-  const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar tensor = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block_ptr), tensor_index,
                                         TensorIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
@@ -261,13 +261,13 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int tensor_ind
 
   // Step 3: Replace the block with the new annotation
   SBlock new_block =
-      WithAnnotation(block_ptr, s_tir::attr::kTensorDimAlign, storage_align_annotation);
+      WithAnnotation(block_ptr, s_tir::attr::kTensorDimAlign.name, storage_align_annotation);
   self->Replace(block_sref, new_block, {{ffi::GetRef<SBlock>(block_ptr), new_block}});
 }
 
 void SetScope(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
               const ffi::String& storage_scope) {
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar tensor =
       GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, TensorIndexType::kWrite);
 
@@ -282,7 +282,7 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
   // Step 3. Get the allocation site of the target tensor.
   StmtSRef alloc_site_sref =
       NonAllocatedTensorError::CheckAndGetTensorAllocationSite(self->mod, block_sref, tensor);
-  const SBlockNode* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
+  const SBlockObj* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
 
   // Step 4. Recursively replace the old tensor to a new tensor, where the new tensor has the given
   // storage scope. In the meanwhile, collect the block sref reuse information.
@@ -319,7 +319,7 @@ class DTypeMutator : public ReplaceTensorMutator {
   DTypeMutator(const TensorVar& old_tensor, TensorVar new_tensor, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceTensorMutator(old_tensor, std::move(new_tensor), block_sref_reuse),
-        src_dtype_(old_tensor->dtype),
+        src_dtype_(old_tensor.dtype()),
         tgt_dtype_(dtype) {}
 
  private:
@@ -327,7 +327,7 @@ class DTypeMutator : public ReplaceTensorMutator {
     if (auto replacement =
             VarRemapGet(match_tensor->source->source.as_or_throw<tvm::tirx::TensorVar>())
                 .as<TensorVar>()) {
-      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value()->dtype);
+      TensorVar new_target_tensor = WithDType(match_tensor->tensor, replacement.value().dtype());
       VarRemapSet(match_tensor->tensor, new_target_tensor);
       return MatchTensorRegion(
           new_target_tensor,
@@ -337,7 +337,7 @@ class DTypeMutator : public ReplaceTensorMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* op, InplaceMode inplace_mode) final {
     TensorVar original_tensor = op->dest.as_or_throw<TensorVar>();
     TensorStore node = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -349,13 +349,13 @@ class DTypeMutator : public ReplaceTensorMutator {
     return node;
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* op, InplaceMode inplace_mode) final {
     Expr original_tensor = op->source;
     TensorLoad node = StmtExprMutator::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     if (auto replacement = VarRemapGet(original_tensor).as<TensorVar>()) {
-      return Cast(src_dtype_, MakeTensorLoad(replacement.value(), node->indices));
+      return Cast(src_dtype_, TensorLoad(replacement.value(), node->indices));
     }
     return node;
   }
@@ -365,20 +365,20 @@ class DTypeMutator : public ReplaceTensorMutator {
 
 void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
                     const ffi::String& dtype) {
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar tensor =
       GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), tensor_index, TensorIndexType::kWrite);
   PrimType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
-  if (tensor->dtype == target_dtype) {
+  if (tensor.dtype() == target_dtype) {
     return;
   }
 
   // Step 2. Get the allocation site of the target tensor.
   StmtSRef alloc_site_sref =
       NonAllocatedTensorError::CheckAndGetTensorAllocationSite(self->mod, block_sref, tensor);
-  const SBlockNode* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
+  const SBlockObj* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
 
   // Step 3. Recursively replace old tensor to a new tensor, where the new tensor has the given
   // dtype, and insert data type conversions.

@@ -39,7 +39,7 @@ class PurityRemover : public ExprMutator {
     bool purity = func->is_pure;
     auto ret = func;
     if (purity) {
-      ret = WithAttr<Function>(func, tvm::relax::attr::kForcePure, true);
+      ret = WithAttr<Function>(func, tvm::relax::attr::kForcePure.name, true);
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
@@ -48,7 +48,7 @@ class PurityRemover : public ExprMutator {
     return ret;
   }
 
-  Expr VisitExpr_(const CallNode* call) override {
+  Expr VisitExpr_(const CallObj* call) override {
     if (call->op.same_as(call_pure_packed_op_)) {
       auto ret = Call(Type::Missing(), call->args[0],
                       ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
@@ -69,7 +69,7 @@ class PurityRemover : public ExprMutator {
     return ExprMutator::VisitExpr_(call);
   }
 
-  Expr VisitExpr_(const FunctionNode* func) override {
+  Expr VisitExpr_(const FunctionObj* func) override {
     // handling inner functions: we will remove purity annotations from them too
     return RemovePurity(ffi::GetRef<Function>(func));
   }

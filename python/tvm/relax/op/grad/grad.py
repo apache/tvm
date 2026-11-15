@@ -22,10 +22,10 @@ gradients for forward operators. The ty inference for grad operators just return
 ty of the input.
 """
 
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
-from tvm.ir.location import Location as _Location
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
+from tvm_tirx.ir.location import Location as _Location
 
 from ...expr import Expr
 
@@ -43,7 +43,7 @@ def no_grad(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Expr:
     result : relax.Expr
       The no-gradient representation w.r.t. input.
     """
-    return _Call("relax.grad.no_grad", [input], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.grad.no_grad", [input], loc=loc, ty=ty)  # type: ignore
 
 
 def start_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Expr:
@@ -83,8 +83,8 @@ def start_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> 
     return _Call(
         "relax.grad.start_checkpoint",
         [input],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -104,8 +104,8 @@ def end_checkpoint(input: Expr, *, ty=None, loc: _Location = _UNKNOWN_LOC) -> Ex
     return _Call(
         "relax.grad.end_checkpoint",
         [input],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -139,8 +139,8 @@ def nll_loss_backward(
         attrs=_make_attrs(
             "relax.attrs.NLLLossAttrs", reduction=reduction, ignore_index=ignore_index
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -194,8 +194,8 @@ def max_pool2d_backward(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -249,8 +249,8 @@ def avg_pool2d_backward(
             layout=layout,
             out_layout=(layout if out_layout is None else out_layout),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -280,6 +280,6 @@ def take_backward(
         "relax.grad.take_backward",
         [output_grad, x, indices],
         attrs=_make_attrs("relax.attrs.TakeBackwardAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

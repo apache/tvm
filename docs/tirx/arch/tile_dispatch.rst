@@ -28,8 +28,9 @@ The public C++ tile interfaces are grouped under ``include/tvm/tirx/tile/``:
 
 - ``op.h`` declares the instruction registration and validation contract.
 - ``dispatch.h`` declares ``FTileOpDispatch`` and the dispatcher entry point.
-- ``exec_scope.h`` defines backend execution hierarchy nodes used by layouts
-  and tile calls. The shared ``tirx::ExecScope`` type remains unchanged.
+- ``thread_scope.h`` defines backend-qualified ``tirx::ThreadScope`` enum tags
+  used by layouts, tile Calls, and dispatch contexts. Backends attach explicit
+  hierarchy ranks through enum attributes.
 - ``context.h`` defines the backend-neutral ``tile::DispatchContext`` and its
   allocation and initialization callbacks.
 
@@ -38,13 +39,16 @@ active-thread execution contexts, and predicate analysis remain private to
 ``src/backend/cuda/tile/``. Generic tensor layout types remain in
 ``include/tvm/tirx/layout.h``.
 
-``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.
+``tirx.TileDispatch`` runs before ``LowerTensorLayouts`` in the generic compilation pipeline.
+Backends may instead follow dispatch with their own layout-lowering pass.
 The pass recognizes ``Evaluate(Call)`` by the presence of the operator's
 ``FTileOpDispatch`` attribute. It validates the call, reads its reflected
-``scope`` attribute, resolves the scope against the active thread set,
+``ThreadScope`` ``scope`` attribute, checks its backend against the target,
+resolves the scope against the active thread set,
 constructs a ``DispatchContext``, and
 invokes the instruction's registered lowerer. It replaces the Evaluate with
-the returned function body and lowers any nested tensor calls.
+the returned statement and lowers any nested tensor calls. A lowerer may return
+a single statement or a ``SeqStmt`` containing multiple statements.
 
 This preserves launch parameters, inter/intra scope maps, value ranges,
 descriptor caches, host initialization, and allocation/initialization

@@ -19,20 +19,21 @@
 from __future__ import annotations
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, topi
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def _check(mod_actual, mod_expected):
     mod_actual = relax.transform.AnnotateTIROpPattern()(mod_actual)
     mod_actual = relax.transform.FuseOps()(mod_actual)
     mod_expected = relax.transform.AnnotateTIROpPattern()(mod_expected)
-    tvm.ir.assert_structural_equal(mod_actual, mod_expected)
+    tvm_tirx.ir.assert_structural_equal(mod_actual, mod_expected)
 
 
 def test_fuse_simple():
@@ -1146,7 +1147,7 @@ def test_multiple_paths():
     mod = relax.transform.LegalizeOps()(Module)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dead_group():
@@ -1281,8 +1282,8 @@ def test_dead_group():
 
 
 def test_symbolic_shape_aware_fuse():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1295,10 +1296,10 @@ def test_symbolic_shape_aware_fuse():
                 R.output(gv)
             return gv
 
-    n_fused_add_exp_squeeze = T.dynamic("n")
-    m_fused_add_exp_squeeze = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
+    n_fused_add_exp_squeeze = T.dynamic("n", "int64")
+    m_fused_add_exp_squeeze = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1329,7 +1330,7 @@ def test_symbolic_shape_aware_fuse():
 
 
 def test_symbolic_shape_aware_fuse_2():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1337,13 +1338,13 @@ def test_symbolic_shape_aware_fuse_2():
         def main(s: R.Shape([n])):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 R.output(gv)
             return gv
 
-    n_fused_full_trilu_broadcast_to = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_full_trilu_broadcast_to = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1361,7 +1362,7 @@ def test_symbolic_shape_aware_fuse_2():
                     "float32",
                     0,
                 )
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(
                     topi.broadcast_to,
                     lv1,
@@ -1384,7 +1385,7 @@ def test_symbolic_shape_aware_fuse_2():
 
 
 def test_symbolic_prim_arg_after_tensor_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1439,7 +1440,7 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1447,21 +1448,21 @@ def test_symbolic_prim_arg_after_tensor_arg():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert not isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert not isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_before_tensor_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1516,7 +1517,7 @@ def test_symbolic_prim_arg_before_tensor_arg():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1524,21 +1525,21 @@ def test_symbolic_prim_arg_before_tensor_arg():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert not isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert not isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1606,7 +1607,7 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
     )
     assert len(fused.params) == 2
     assert isinstance(fused.params[1].ty, relax.ShapeType)
-    assert all(not isinstance(param.ty, tvm.ir.PrimType) for param in fused.params)
+    assert all(not isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params)
 
     mod = relax.transform.FuseTIR()(mod)
     fused_tir = next(
@@ -1614,12 +1615,12 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class Before:
@@ -1685,7 +1686,7 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
     )
     assert len(fused.params) == 3
     assert sum(isinstance(param.ty, relax.ShapeType) for param in fused.params) == 1
-    assert sum(isinstance(param.ty, tvm.ir.PrimType) for param in fused.params) == 1
+    assert sum(isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params) == 1
 
 
 def test_primitive_call_arg_not_inlined():
@@ -1717,7 +1718,9 @@ def test_primitive_call_arg_not_inlined():
         def main(x: R.Tensor((4,), dtype="int64")):
             cls = Before
             with R.dataflow():
-                value: T.int64 = R.call_pure_packed("get_scalar", ty_args=tvm.ir.PrimType("int64"))
+                value: T.int64 = R.call_pure_packed(
+                    "get_scalar", ty_args=tvm_tirx.ir.PrimType("int64")
+                )
                 lv = R.call_tir(
                     cls.add_scalar,
                     (x, value),
@@ -1733,7 +1736,7 @@ def test_primitive_call_arg_not_inlined():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1741,16 +1744,16 @@ def test_primitive_call_arg_not_inlined():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 2
-    assert sum(isinstance(param.ty, tvm.ir.PrimType) for param in fused.params) == 1
+    assert sum(isinstance(param.ty, tvm_tirx.ir.PrimType) for param in fused.params) == 1
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_primitive_call_arg_used_by_output_shape_not_inlined():
@@ -1777,7 +1780,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
         @R.function(pure=False)
         def main():
             cls = Before
-            n: T.int64 = R.call_packed("get_extent", ty_args=tvm.ir.PrimType("int64"))
+            n: T.int64 = R.call_packed("get_extent", ty_args=tvm_tirx.ir.PrimType("int64"))
             with R.dataflow():
                 lv = R.call_tir(
                     cls.make,
@@ -1794,7 +1797,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1802,7 +1805,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
         if global_var.name_hint.startswith("fused_")
     )
     assert len(fused.params) == 1
-    assert isinstance(fused.params[0].ty, tvm.ir.PrimType)
+    assert isinstance(fused.params[0].ty, tvm_tirx.ir.PrimType)
 
     packed_calls = []
 
@@ -1826,7 +1829,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
 
 
 def test_symbolic_prim_arg_used_only_by_output_shape():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1875,7 +1878,7 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
     mod = relax.transform.AnnotateTIROpPattern()(Before)
     mod = relax.transform.FuseOps()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     fused = next(
         mod[global_var]
@@ -1887,17 +1890,17 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
     assert fused.ret_ty.shape is not None
 
     mod = relax.transform.FuseTIR()(mod)
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
     fused_tir = next(
         mod[global_var]
         for global_var in mod.get_global_vars()
         if global_var.name_hint.startswith("fused_")
     )
-    assert tvm.s_tir.analysis.verify_well_formed(fused_tir)
+    tvm.s_tir.analysis.check_well_formed(fused_tir)
 
 
 def test_shape_expr_arg():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1905,7 +1908,7 @@ def test_shape_expr_arg():
         def main(s: R.Shape([n]), kv_cache: R.Any):
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
                 gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
@@ -1916,8 +1919,8 @@ def test_shape_expr_arg():
                 R.output(gv, lv2)
             return gv, lv2
 
-    n_fused_full_trilu_broadcast_to = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_fused_full_trilu_broadcast_to = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1935,7 +1938,7 @@ def test_shape_expr_arg():
                     "float32",
                     0,
                 )
-                lv1 = R.emit_te(topi.trilu, lv0, tvm.tirx.const(1, "int32"), upper=True)
+                lv1 = R.emit_te(topi.trilu, lv0, tvm_tirx.tirx.const(1, "int32"), upper=True)
                 gv = R.emit_te(
                     topi.broadcast_to,
                     lv1,
@@ -1964,8 +1967,8 @@ def test_shape_expr_arg():
 
 
 def test_skipping_match_cast():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -2257,4 +2260,4 @@ def test_packed_params():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

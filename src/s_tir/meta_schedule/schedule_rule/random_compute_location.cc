@@ -44,10 +44,10 @@ class RandomComputeLocationObj : public ScheduleRuleObj {
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
     ffi::Array<s_tir::SBlockRV> producers;
-    if (s_tir::HasAnn(sch->GetSRef(block_rv), tvm::s_tir::attr::kMetaScheduleRandomComputeProducer,
-                      true)) {
+    if (s_tir::HasAnn(sch->GetSRef(block_rv),
+                      tvm::s_tir::attr::kMetaScheduleRandomComputeProducer.name, true)) {
       producers = sch->GetProducers(block_rv);
-      sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleRandomComputeProducer);
+      sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleRandomComputeProducer.name);
       TVM_FFI_ICHECK_EQ(producers.size(), 1);
     }
 

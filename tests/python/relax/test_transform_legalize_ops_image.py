@@ -16,25 +16,25 @@
 # under the License.
 # ruff: noqa: E501
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def test_image_resize2d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Resize2D:
         @R.function
         def main(x: R.Tensor((2, 8, 8, 3), "float32")) -> R.Tensor((2, 16, 16, 3), "float32"):
             gv: R.Tensor((2, 16, 16, 3), "float32") = R.image.resize2d(x, size=(16, 16), layout="NHWC", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 8, 8, 3), "float32")) -> R.Tensor((2, 16, 16, 3), "float32"):
@@ -53,39 +53,39 @@ def test_image_resize2d():
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_image_resize2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Resize2D:
         @R.function
         def main(dumb_param: R.Tensor((oh, ow)), x: R.Tensor((n, c, h, w, 16), "float32")) -> R.Tensor((n, c, oh, ow, 16), "float32"):
             gv: R.Tensor((n, c, oh, ow, 16), "float32") = R.image.resize2d(x, size=(oh, ow), layout="NCHW16c", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    oh_main = T.dynamic("oh")
-    ow_main = T.dynamic("ow")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_resize2d = T.dynamic("c")
-    h_resize2d = T.dynamic("h")
-    n_resize2d = T.dynamic("n")
-    oh_resize2d = T.dynamic("oh")
-    ow_resize2d = T.dynamic("ow")
-    w_resize2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    oh_main = T.dynamic("oh", "int64")
+    ow_main = T.dynamic("ow", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_resize2d = T.dynamic("c", "int64")
+    h_resize2d = T.dynamic("h", "int64")
+    n_resize2d = T.dynamic("n", "int64")
+    oh_resize2d = T.dynamic("oh", "int64")
+    ow_resize2d = T.dynamic("ow", "int64")
+    w_resize2d = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((oh_main, ow_main)), x: R.Tensor((n_main, c_main, h_main, w_main, 16), "float32")) -> R.Tensor((n_main, c_main, oh_main, ow_main, 16), "float32"):
@@ -105,19 +105,19 @@ def test_image_resize2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_image_affine_grid():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AffineGrid:
         @R.function
         def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
             gv: R.Tensor((2, 2, 16, 16), "float32") = R.image.affine_grid(theta, size=(16, 16))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
@@ -140,12 +140,12 @@ def test_image_affine_grid():
     # fmt: on
 
     mod = LegalizeOps()(AffineGrid)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_image_resize3d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Resize3D:
         @R.function
         def main(x: R.Tensor((2, 3, 8, 8, 8), "float32")) -> R.Tensor((2, 3, 4, 6, 7), "float32"):
@@ -168,7 +168,7 @@ def test_image_resize3d():
     def _visit(expr):
         nonlocal seen_call_tir, seen_resize3d_relax_op
         if isinstance(expr, relax.Call):
-            if isinstance(expr.op, tvm.ir.Op):
+            if isinstance(expr.op, tvm_tirx.ir.Op):
                 if expr.op.name == "relax.call_tir":
                     seen_call_tir = True
                 if expr.op.name == "relax.image.resize3d":
@@ -180,4 +180,4 @@ def test_image_resize3d():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

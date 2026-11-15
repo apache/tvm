@@ -33,8 +33,10 @@ CUDA
 .. py:function:: T.cuda.tile.apply(instruction, *operands, scope='thread', **parameters)
 
    Apply an exact ``T.ptx[opcode]`` to canonical ``group × repeat × atom``
-   tensor views. Keyword parameters are serialized Call arguments. See
-   :doc:`../cuda_tile_patterns` for each family's required fields.
+   tensor views. Keyword parameters are serialized Call arguments. The :doc:`../tile_ops` instruction pages list every parameter, default,
+   canonical operand image and code-generation rule. Common scope/region
+   conventions are in :doc:`../cuda_tile_patterns`. Shared matrix descriptors
+   for tcgen05.cp/mma are obtained from the operand layouts.
 
 .. py:function:: T.cuda.tile.ewise(function, dst, *inputs, scope='thread')
 

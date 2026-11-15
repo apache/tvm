@@ -19,7 +19,7 @@
 
 /*!
  * \file src/runtime/timer.cc
- * \brief Runtime timer primitives: Timer, WrapTimeEvaluator.
+ * \brief Parent runtime timing and benchmarking policy.
  */
 
 #include <tvm/ffi/extra/module.h>
@@ -28,7 +28,8 @@
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/timer.h>
+#include <tvm/runtime/tensor.h>
+#include <tvm/runtime/timing.h>
 
 #include <chrono>
 #include <mutex>
@@ -56,7 +57,7 @@ class DefaultTimerObj : public TimerObj {
   virtual ~DefaultTimerObj() {}
 
   explicit DefaultTimerObj(Device dev) : device_(dev) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimerNode", DefaultTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.DefaultTimer", DefaultTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -74,7 +75,7 @@ class CPUTimerObj : public TimerObj {
   virtual void Stop() { duration_ = std::chrono::high_resolution_clock::now() - start_; }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerObj() {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimerNode", CPUTimerObj, TimerObj);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.CPUTimer", CPUTimerObj, TimerObj);
 
  private:
   std::chrono::high_resolution_clock::time_point start_;
@@ -88,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-Timer Timer::Start(Device dev) {
+Timer StartTimer(Device dev) {
   // Function-local statics: thread-safe lazy init (C++11 magic statics),
   // visible only to this function.
   static std::set<DLDeviceType> seen_devices;
@@ -155,7 +156,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
         }
         DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
         // start timing
-        Timer t = Timer::Start(dev);
+        Timer t = StartTimer(dev);
         for (int j = 0; j < number; ++j) {
           pf.CallPacked(args, num_args, &temp);
         }
@@ -268,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         repeats_to_cooldown, cache_flush_bytes, f_preproc_name)
                  .cast<ffi::Function>();
            })
-      .def_packed("cache_flush_cpu_non_first_arg",
+      .def_packed("runtime.CacheFlushCPUArguments",
                   [](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
 }
 

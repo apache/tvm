@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import pytest
 
-import tvm.testing
+import tvm
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_gemv_basic():
@@ -84,7 +85,7 @@ def test_gemv_basic():
         for ax0_fused in range(32):
             for ax1_fused_0 in T.parallel((n + 63) // 64):
                 for ax1_fused_1 in T.vectorized(64):
-                    for ax2_fused_0 in T.serial(2, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax2_fused_0 in T.serial(2, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax2_fused_1, u_0, u_1 in T.grid(64, 1, 1):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(32, ax0_fused)
@@ -105,10 +106,9 @@ def test_gemv_basic():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv_256_threads():
@@ -140,7 +140,7 @@ def test_decode_gemv_256_threads():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(22016, ax0_fused_0 * 128 + ax0_fused_1)
@@ -152,10 +152,9 @@ def test_decode_gemv_256_threads():
                                 var_NT_matmul_intermediate[0, 0, v0] = var_NT_matmul_intermediate[0, 0, v0] + lv1654[0, 0, v1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571[v0, v1 // 8], T.Cast("uint32", v1 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7.0)) * lv572[v0, v1 // 32])
         # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target('llvm'))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv1():
@@ -188,7 +187,7 @@ def test_decode_gemv1():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(22016, ax0_fused_0 * 128 + ax0_fused_1)
@@ -200,10 +199,9 @@ def test_decode_gemv1():
                                 var_NT_matmul_intermediate[0, 0, v0] = var_NT_matmul_intermediate[0, 0, v0] + lv1654[0, 0, v1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(lv571[v0, v1 // 8], T.Cast("uint32", v1 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7.0)) * lv572[v0, v1 // 32])
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv2():
@@ -244,7 +242,7 @@ def test_decode_gemv2():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(250):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(32000, ax0_fused_0 * 128 + ax0_fused_1)
@@ -262,10 +260,9 @@ def test_decode_gemv2():
                 p_output0_intermediate[0, 0, v0] = T.Cast("float32", var_NT_matmul_intermediate[0, 0, v0])
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv3():
@@ -306,7 +303,7 @@ def test_decode_gemv3():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(T.int64(64)):
                 for ax0_fused_1 in T.vectorized(T.int64(64)):
-                    for ax1_0_fused_0 in T.serial(T.int64(11), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(T.int64(11), annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(T.int64(128), T.int64(1), T.int64(8)):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(T.int64(4096), ax0_fused_0 * T.int64(64) + ax0_fused_1)
@@ -325,10 +322,9 @@ def test_decode_gemv3():
                 p_output0_intermediate[T.int64(0), T.int64(0), v0] = lv570[T.int64(0), T.int64(0), v0] + var_NT_matmul_intermediate[T.int64(0), T.int64(0), v0]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_autogptq_decode_gemv():
@@ -363,10 +359,9 @@ def test_autogptq_decode_gemv():
 
     # The GeMV rule does not yet support the inner dim being grouped.
     # So the rule is expected to skip transforming this function.
-    mod = tvm.IRModule({"main": func})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], func)
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], func)
 
 
 def test_outer_reduction_adreno():
@@ -425,15 +420,14 @@ def test_outer_reduction_adreno():
                 Ts.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv570[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_outer_reduction_adreno_dynamic():
     # fmt: off
-    v = T.dynamic("v")
+    v = T.dynamic("v", "int64")
 
     @Ts.function(private=True)
     def before(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):
@@ -463,7 +457,7 @@ def test_outer_reduction_adreno_dynamic():
                 Ts.writes(p_output0_intermediate[v_i0, v_i1, v_i2])
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
 
-    v = T.dynamic("v")
+    v = T.dynamic("v", "int64")
 
     @Ts.function(private=True)
     def expected(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v), "float32")):
@@ -494,10 +488,9 @@ def test_outer_reduction_adreno_dynamic():
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_matmul_intermediate[v_i0, v_i1, v_i2])
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_blockized_gemv():
@@ -535,7 +528,7 @@ def test_blockized_gemv():
                 for u_fused in range(1):
                     for ax0_fused_0 in T.parallel(128):
                         for ax0_fused_1 in T.vectorized(128):
-                            for ax1_fused_0 in T.serial(64, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_fused_0 in T.serial(64, annotations={"tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_fused_1, u_0, u_1 in T.grid(64, 1, 1):
                                     with Ts.sblock("gemv"):
                                         v0 = Ts.axis.spatial(16384, ax0_fused_0 * 128 + ax0_fused_1)
@@ -546,10 +539,9 @@ def test_blockized_gemv():
                                             o[v_expert_id_o, v0] = T.float16(0.0)
                                         o[v_expert_id_o, v0] = o[v_expert_id_o, v0] + x[0, v1] * w[indptr[v_expert_id_o], v0, v1]
     # fmt: on
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_func_to_skip():
@@ -579,11 +571,10 @@ def test_func_to_skip():
             )
 
     # This function should be skipped.
-    mod = tvm.IRModule({"main": before})
-    with Target("llvm"):
-        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-        tvm.ir.assert_structural_equal(mod["main"], before)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV(), target=Target("llvm"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], before)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

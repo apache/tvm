@@ -18,16 +18,48 @@
 tcgen05.cp
 ==========
 
-``tcgen05.cp`` copies a descriptor-defined shared image into TMEM. It is
-issued by a single thread, not collectively by the warps whose TMEM lanes
-receive the data. Select shape, CTA group, multicast and optional
-decompression directly in the opcode.
+Call parameters
+---------------
+
+``T.cuda.tile.apply(T.ptx[opcode], *operands, scope="thread", **parameters)``
+
+Operand order: ``dst_tmem, src_shared``.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Type / default
+     - Meaning
+   * - ``scope``
+     - static str; default "thread"
+     - Execution scope; group axes follow :doc:`../cuda_tile_patterns`. It does not elect an issuing thread.
+   * - ``pred``
+     - runtime bool; default None
+     - Execute the instruction when true; None is unconditional. A skipped asynchronous issue performs no completion accounting.
+
+Only the parameters listed here are instruction parameters. Opcode qualifiers are
+written in ``T.ptx[opcode]``.
+
+Data representation
+-------------------
+
+Both regions use scalar 32-bit storage words. Opcode shape gives (rows,words); multicast
+determines destination replicas. Decompression uses the same b32 footprint but
+explicitly changes the packed payload semantics.
+
+Operand specification
+---------------------
+
+``tcgen05.cp`` copies a descriptor-defined shared image into TMEM. It is issued by a
+single thread, not collectively by the warps whose TMEM lanes receive the data. Select
+shape, CTA group, multicast and optional decompression directly in the opcode.
 
 TMEM shape and replicas
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Operands are ``dst_tmem, src_shared``, both with suffix ``(row,b32_word)``
-and 32-bit storage elements. An earlier axis is an explicit repeat.
+Operands are ``dst_tmem, src_shared``, both with suffix ``(row,b32_word)`` and 32-bit
+storage elements. An earlier axis is an explicit repeat.
 
 .. list-table::
    :header-rows: 1
@@ -54,30 +86,51 @@ and 32-bit storage elements. An earlier axis is an explicit repeat.
      - ``(32,4)``
      - 32 consecutive lanes, four replicas 32 lanes apart
 
-The destination layout must state these replicas explicitly; the pattern
-does not infer multicast. Columns are consecutive b32 cells with a 128-bit
-aligned origin. The whole footprint, including replicas, must stay inside
-the 128-lane, 512-column TMEM address space. A CTA-group-2 opcode makes both
-CTAs copy from their own corresponding shared storage into their own TMEM.
-The launch, allocation and commit must use the matching CTA-group protocol.
+The destination layout must state these replicas explicitly; the pattern does not infer
+multicast. Columns are consecutive b32 cells with a 128-bit aligned origin. The whole
+footprint, including replicas, must stay inside the 128-lane, 512-column TMEM address
+space. A CTA-group-2 opcode makes both CTAs copy from their own corresponding shared
+storage into their own TMEM. The launch, allocation and commit must use the matching
+CTA-group protocol.
 
 Shared descriptor address walk
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Supply ``ldo_bytes``, ``sdo_bytes`` and ``swizzle=0/1/2/3``. Before swizzling,
-row ``r`` starts at ``(r//8)*sdo_bytes + (r%8)*(16 << swizzle)`` bytes
-relative to the descriptor origin. Without swizzling, word ``w`` adds
-``(w//4)*ldo_bytes + (w%4)*4``. With swizzling, words are contiguous and add
+The shared layout determines internal byte strides LDO/SDO and swizzle mode 0/1/2/3.
+These are not call parameters. Before swizzling, row ``r`` starts at ``(r//8)*SDO +
+(r%8)*(16 << swizzle)`` bytes relative to the descriptor origin. Without swizzling, word
+``w`` adds ``(w//4)*LDO + (w%4)*4``. With swizzling, words are contiguous and add
 ``4*w``; hardware ignores LDO in that case.
 
-Descriptor strides are nonnegative 16-byte multiples below 2^18; origins
-are 16-byte aligned. Swizzled bases require 256/512/1024-byte period
-alignment for modes 1/2/3. The complete physical walk is checked, including
-the origin's swizzle phase. A 4-row logical region still needs a backing
-storage block large enough for the descriptor's eight-row organization.
+Descriptor strides are nonnegative 16-byte multiples below 2^18; origins are 16-byte
+aligned. Swizzled bases require 256/512/1024-byte period alignment for modes 1/2/3. The
+complete physical walk is checked, including the origin's swizzle phase. A 4-row logical
+region still needs a backing storage block large enough for the descriptor's eight-row
+organization.
+
+Legality conditions
+-------------------
+
+Both regions end in the selected (rows,words). Shared must match one of the descriptor
+address walks in the operand specification. TMEM row/column mapping and replicas match the opcode exactly.
+Column origin is 128-bit aligned and the full image fits 128 lanes and 512 columns.
+Shared origins are 16B aligned, descriptor strides are nonnegative 16B multiples below
+2^18, and swizzled allocations align to their full period.
+
+Code generation
+---------------
+
+Extract LDO/SDO/swizzle from the shared region using
+:ref:`cuda-matrix-descriptor-extraction`. For each repeat, encode the shared atom
+origin, compute the TMEM address from TLane/TCol, and emit one selected tcgen05.cp. A
+single elected thread issues it; allocation, proxy fencing, commit, wait and
+deallocation remain explicit caller code.
+
+Examples
+--------
 
 Example: one 128x128b copy and readback
----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -114,9 +167,6 @@ Example: one 128x128b copy and readback
                 T.ptx["tcgen05.cp.cta_group::1.128x128b"],
                 mem,
                 shared,
-                ldo_bytes=16,
-                sdo_bytes=128,
-                swizzle=0,
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mbar.ptr_to([0])
@@ -133,9 +183,9 @@ Example: one 128x128b copy and readback
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(address[0], T.uint32(32))
 
-One cp instruction copies 2048 bytes. Its commit triggers one barrier
-arrival, rather than a TMA-style expected-byte transaction. The scalar x1
-readback issues are caller code and independently expose each TMEM word.
+One cp instruction copies 2048 bytes. Its commit triggers one barrier arrival, rather
+than a TMA-style expected-byte transaction. The scalar x1 readback issues are caller
+code and independently expose each TMEM word.
 
 .. code-block:: python
 
@@ -149,23 +199,22 @@ readback issues are caller code and independently expose each TMEM word.
     np.testing.assert_array_equal(out.numpy(), x)
 
 Native FP4/FP6 decompression
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Append ``.b8x16.b4x16_p64`` or ``.b8x16.b6x16_p32`` to the opcode. The b32
-footprint above stays unchanged: each 16-byte shared block contains sixteen
-packed values followed by eight bytes (FP4) or four bytes (FP6) of padding.
-The destination contains sixteen expanded bytes. Four-bit values gain two
-low zero bits; six-bit values gain two high zero bits. A 256-bit row contains
-two such blocks. The pattern emits one native decompression instruction per
-repeat, with no software unpacking loop.
+Append ``.b8x16.b4x16_p64`` or ``.b8x16.b6x16_p32`` to the opcode. The b32 footprint
+above stays unchanged: each 16-byte shared block contains sixteen packed values followed
+by eight bytes (FP4) or four bytes (FP6) of padding. The destination contains sixteen
+expanded bytes. Four-bit values gain two low zero bits; six-bit values gain two high
+zero bits. A 256-bit row contains two such blocks. The pattern emits one native
+decompression instruction per repeat, with no software unpacking loop.
 
 For instance, the example's opcode can be explicitly replaced with
-``tcgen05.cp.cta_group::1.128x128b.b8x16.b4x16_p64`` **when the source data
-has been prepared in that packed format**. The reference then compares the
-expanded values, not the original words or padding. A dtype name alone
-neither prepares the payload nor chooses this qualifier.
+``tcgen05.cp.cta_group::1.128x128b.b8x16.b4x16_p64`` **when the source data has been
+prepared in that packed format**. The reference then compares the expanded values, not
+the original words or padding. A dtype name alone neither prepares the payload nor
+chooses this qualifier.
 
-Allocation, shared proxy fencing, election, commit, wait and deallocation
-are caller code. ``pred`` gates the cp but does not adjust a surrounding
-completion protocol. Implementation: ``patterns/tmem_copy.py`` and
-``patterns/descriptors.py`` under ``python/tvm/backend/cuda/tile``.
+Allocation, shared proxy fencing, election, commit, wait and deallocation are caller
+code. ``pred`` gates the cp but does not adjust a surrounding completion protocol.
+Implementation: ``patterns/tmem_copy.py`` and ``patterns/descriptors.py`` under
+``python/tvm/backend/cuda/tile``.

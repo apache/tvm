@@ -18,7 +18,7 @@
 
 import numpy as np
 
-import tvm.runtime
+import tvm_tirx.runtime
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.feature_extractor import PyFeatureExtractor
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
@@ -33,7 +33,7 @@ def test_meta_schedule_feature_extractor():
             context: TuneContext,  # pylint: disable = unused-argument
             candidates: list[MeasureCandidate],  # pylint: disable = unused-argument
         ) -> list[np.ndarray]:
-            return [tvm.runtime.tensor(np.random.rand(4, 5))]
+            return [tvm_tirx.runtime.tensor(np.random.rand(4, 5))]
 
     extractor = FancyFeatureExtractor()
     features = extractor.extract_from(TuneContext(), [])

@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name
 """searchsorted operator"""
 
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from . import te, utils
 from .math import cast
@@ -38,8 +38,8 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     Note that we index N-D Buffer by 1-D linearlized indices.
 
     """
-    lo_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
-    hi_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
+    lo_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
+    hi_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], out_dtype, scope="local")]))
     lo = lo_buf
     hi = hi_buf
 

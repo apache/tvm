@@ -20,14 +20,15 @@ import pytest
 
 import tvm
 import tvm.s_tir.tensor_intrin
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -754,7 +755,7 @@ def elementwise_predicate_producer_inlined(
 
 
 # fmt: off
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_before:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
@@ -846,7 +847,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
                                                 Ts.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                                                 Ts.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 Ts.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
-                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], "int32") * T.cast(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i], "int32")
+                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.cast(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], ty="int32") * T.cast(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i], ty="int32")
                         for ax0_0, ax1_0 in T.grid(1, 2):
                             with Ts.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                                 v0_o = Ts.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2)
@@ -875,7 +876,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
                     Ts.writes(compute[i0_13, i1_13, i2_13, i3_13])
                     compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(compute_3[i0_13, i1_13, i2_13, i3_13] + T.Cast("int32", T.shift_right(T.Cast("int64", p9[i0_13, i1_13, i2_13, i3_13]) * T.Cast("int64", 2101000910), (31) - (0))), 255), 0)
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_after:
     @Ts.function
     def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((256,), "int32"), p5: T.Tensor((256,), "int32"), p6: T.Tensor((256,), "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor((1,), "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
@@ -990,7 +991,13 @@ class Conv2dInt8_TensorCore_with_predicate_after:
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_compute_inline_elementwise(use_block_name):
@@ -1319,8 +1326,8 @@ def test_reverse_compute_inline_producer_is_reduction():
 
 def test_compute_inline_softmax():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @Ts.function
     def before(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
@@ -1366,8 +1373,8 @@ def test_compute_inline_softmax():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", var_T_softmax_norm_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @Ts.function
     def after(lv44: T.Tensor((T.int64(1), T.int64(32), n, m), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
@@ -1415,7 +1422,7 @@ def test_compute_inline_softmax():
 
 def test_reverse_compute_inline_layer_norm():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def before(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
@@ -1424,7 +1431,7 @@ def test_reverse_compute_inline_layer_norm():
         A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         var_T_layer_norm_intermediate = Ts.sblock_alloc_tensor((T.int64(1), n, T.int64(2560)))
-        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("A_red_temp"):
@@ -1456,7 +1463,7 @@ def test_reverse_compute_inline_layer_norm():
                 Ts.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
                 var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_layer_norm_intermediate[v_i0, v_i1, v_i2])
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def after(lv6: T.Tensor((T.int64(1), n, T.int64(2560)), "float32"), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
@@ -1465,7 +1472,7 @@ def test_reverse_compute_inline_layer_norm():
         # with Ts.sblock("root"):
         A_red_temp_v0_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_tensor((T.int64(1), n), scope="shared")
-        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+        for ax0_ax1_fused in T.parallel(n, annotations={"thread_binding": "blockIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.parallel(T.int64(256), annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("A_red_temp"):
@@ -1595,4 +1602,4 @@ def test_inline_with_reduction():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -32,10 +32,10 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from tvm.s_tir.utils import derived_object
-from tvm.support.tar import tar, untar
+from tvm_tirx.runtime import Tensor
+from tvm_tirx.support.tar import tar, untar
+from tvm_tirx.target import Target
 
-from ....runtime import Tensor
-from ....target import Target
 from ..cost_model import PyCostModel
 from ..database import JSONDatabase
 from ..feature_extractor import FeatureExtractor, PerStoreFeature

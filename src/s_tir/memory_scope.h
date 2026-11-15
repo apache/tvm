@@ -27,7 +27,7 @@ namespace s_tir {
 // Backend scopes may be registered after a compiler pass is initialized.  Look
 // up optional identities without caching absence or registering unknown names.
 inline ffi::Optional<runtime::MemoryScope> GetRegisteredMemoryScope(const ffi::String& name) {
-  static ffi::reflection::TypeAttrColumn states(ffi::reflection::type_attr::kEnumState);
+  static ffi::reflection::TypeAttrColumn states(ffi::type_attr::kEnumState);
   auto state = states[runtime::MemoryScopeObj::RuntimeTypeIndex()].cast<ffi::EnumState>();
   if (auto entry = state->indexes.Get(name)) return entry->as_or_throw<runtime::MemoryScope>();
   return std::nullopt;

@@ -29,14 +29,14 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
-#include <tvm/s_tir/stmt_functor_with_analyzer.h>
+#include <tvm/s_tir/stmt_functor_with_constraint_context.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>
 
-#include "../../../texture_utils.h"
+#include "texture_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -52,7 +52,7 @@ class TextureLoweringBase : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   explicit TextureLoweringBase(const ffi::Array<Var>& params,
-                               StmtExprVisitorWithAnalyzer* bound_analyzer)
+                               StmtExprVisitorWithConstraintContext* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
     for (const Var& param : params) {
       if (auto tensor = param.as<TensorVar>()) {
@@ -76,12 +76,12 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor->scope; }
+  runtime::MemoryScope GetStorageScope(const TensorVar& tensor) { return tensor.scope(); }
 
   // Set of all external input and output tensors
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_tensor_;
   // Bound analzer
-  StmtExprVisitorWithAnalyzer* bound_analyzer_;
+  StmtExprVisitorWithConstraintContext* bound_analyzer_;
 };
 
 // Lower Nd storage access to 2d texture access using lowering convention
@@ -92,12 +92,12 @@ class TextureFlattener : public TextureLoweringBase {
   using TextureLoweringBase::Mutate_;
 
   explicit TextureFlattener(const ffi::Array<Var>& params,
-                            StmtExprVisitorWithAnalyzer* bound_analyzer)
+                            StmtExprVisitorWithConstraintContext* bound_analyzer)
       : TextureLoweringBase(params, bound_analyzer) {}
 
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<TensorStoreNode>();
+    op = stmt.as<TensorStoreObj>();
     runtime::MemoryScope storage_scope = GetStorageScope(op->dest.as_or_throw<TensorVar>());
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
@@ -109,10 +109,10 @@ class TextureFlattener : public TextureLoweringBase {
     return stmt;
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* op, InplaceMode inplace_mode) final {
     PrimExpr expr =
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
-    op = expr.as<TensorLoadNode>();
+    op = expr.as<TensorLoadObj>();
     // Lower to two dimensional access
     runtime::MemoryScope storage_scope =
         GetStorageScope(op->source.as_or_throw<tvm::tirx::TensorVar>());
@@ -120,7 +120,7 @@ class TextureFlattener : public TextureLoweringBase {
       ffi::Array<Expr> args =
           GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::TensorVar>());
       args.push_back(op->indices.back());
-      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype,
+      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>().dtype(),
                   tvm::backend::opencl::texture2d_load_op(), args)
                  .as_or_throw<PrimExpr>();
     }
@@ -132,22 +132,22 @@ class TextureFlattener : public TextureLoweringBase {
   template <typename T>
   ffi::Array<Expr> GetTextureAccessArgs(const T* op, const TensorVar& tensor) {
     ffi::Array<Expr> args;
-    if (let_binding_.count(tensor.var())) {
-      args.push_back(let_binding_.at(tensor.var()));
+    if (let_binding_.count(tensor)) {
+      args.push_back(let_binding_.at(tensor));
     } else {
       args.push_back(tensor.data());
     }
     ffi::Array<PrimExpr> row_dims, row_indices, col_dims, col_indices, depth_dims, depth_indices;
-    size_t axis = DefaultTextureLayoutSeparator(tensor->shape.size(), GetStorageScope(tensor));
-    for (size_t i = 0; i < tensor->shape.size() - 1; i++) {
+    size_t axis = DefaultTextureLayoutSeparator(tensor.shape().size(), GetStorageScope(tensor));
+    for (size_t i = 0; i < tensor.shape().size() - 1; i++) {
       if (i < (axis - 1)) {
-        depth_dims.push_back(tensor->shape[i]);
+        depth_dims.push_back(tensor.shape()[i]);
         depth_indices.push_back(op->indices[i]);
       } else if (i < axis) {
-        col_dims.push_back(tensor->shape[i]);
+        col_dims.push_back(tensor.shape()[i]);
         col_indices.push_back(op->indices[i]);
       } else {
-        row_dims.push_back(tensor->shape[i]);
+        row_dims.push_back(tensor.shape()[i]);
         row_indices.push_back(op->indices[i]);
       }
     }
@@ -156,7 +156,7 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size =
         IntImm(PrimType::Int(32, 1),
-               tensor->shape.back().as_or_throw<IntImm>()->value * tensor->dtype.bits());
+               tensor.shape().back().as_or_throw<IntImm>()->value * tensor.dtype().bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);
@@ -170,7 +170,7 @@ class TextureFlattener : public TextureLoweringBase {
 
 Function TextureFlattenHandler(Function func) {
   auto fptr = func.CopyOnWrite();
-  auto bound_analyzer = ffi::make_object<StmtExprVisitorWithAnalyzer>();
+  auto bound_analyzer = ffi::make_object<StmtExprVisitorWithConstraintContext>();
   bound_analyzer->Visit(fptr->body);
   fptr->body = ffi::make_object<TextureFlattener>(fptr->params, bound_analyzer.get())
                    ->Mutate(fptr->body, InplaceMode::kAllow)

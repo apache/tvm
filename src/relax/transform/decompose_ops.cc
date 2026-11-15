@@ -147,7 +147,7 @@ Expr DecomposeLayerNorm(const Call& call) {
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
   Expr expr = call_node->args[0];
-  const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
+  const ShapeTypeObj* ty = GetTypeAs<ShapeTypeObj>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
@@ -178,7 +178,7 @@ class TrainingOperatorMutator : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return MutateBatchNormForTraining(call);
@@ -200,7 +200,7 @@ class OpDecomposer : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return DecomposeBatchNorm(call);
@@ -235,11 +235,11 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
 
     for (auto [gvar, func] : mod->functions) {
       if (gvar->name_hint == func_name) {
-        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+        if (!func->GetAttr(tvm::attr::kGlobalSymbol).has_value()) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
           internal_functions.insert(gvar->name_hint);
-          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol.name, gvar->name_hint);
         }
       } else {
         // Replace non-target functions with stubs to keep references intact.
@@ -263,7 +263,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           write_ptr->Remove((*it).second);
         }
         if (internal_functions.count(gvar->name_hint)) {
-          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol.name);
         }
         write_ptr->Add(gvar, func);
       }

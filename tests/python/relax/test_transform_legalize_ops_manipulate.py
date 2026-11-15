@@ -17,29 +17,30 @@
 # ruff: noqa: E501, E731, F841
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm.testing import device_enabled
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 ##################### Manipulation #####################
 
 
 def test_broadcast_to():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BroadcastTo:
         @R.function
         def main(x: R.Tensor((2, 1, 3), "float32")) -> R.Tensor((4, 2, 5, 3), "float32"):
             gv: R.Tensor((4, 2, 5, 3), "float32") = R.broadcast_to(x, (4, 2, 5, 3))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3), "float32")) -> R.Tensor((4, 2, 5, 3), "float32"):
@@ -58,33 +59,33 @@ def test_broadcast_to():
     # fmt: on
 
     mod = LegalizeOps()(BroadcastTo)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_broadcast_to_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BroadcastTo:
         @R.function
         def main(dumb_param: R.Tensor((a, c)), x: R.Tensor((b, 1, d), "float32")) -> R.Tensor((a, b, c, d), "float32"):
             gv: R.Tensor((a, b, c, d), "float32") = R.broadcast_to(x, (a, b, c, d))
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    d_main = T.dynamic("d")
-    a_broadcast_to = T.dynamic("a")
-    b_broadcast_to = T.dynamic("b")
-    c_broadcast_to = T.dynamic("c")
-    d_broadcast_to = T.dynamic("d")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    d_main = T.dynamic("d", "int64")
+    a_broadcast_to = T.dynamic("a", "int64")
+    b_broadcast_to = T.dynamic("b", "int64")
+    c_broadcast_to = T.dynamic("c", "int64")
+    d_broadcast_to = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((a_main, c_main)), x: R.Tensor((b_main, 1, d_main), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
@@ -104,19 +105,19 @@ def test_broadcast_to_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(BroadcastTo)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_concat():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Concat:
         @R.function
         def main(x1: R.Tensor((1, 2, 3), "float32"), x2: R.Tensor((1, 3, 3), "float32"), x3: R.Tensor((1, 4, 3), "float32")) -> R.Tensor((1, 9, 3), "float32"):
             gv: R.Tensor((1, 9, 3), "float32") = R.concat((x1, x2, x3), axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x1: R.Tensor((1, 2, 3), "float32"), x2: R.Tensor((1, 3, 3), "float32"), x3: R.Tensor((1, 4, 3), "float32")) -> R.Tensor((1, 9, 3), "float32"):
@@ -135,19 +136,19 @@ def test_concat():
     # fmt: on
 
     mod = LegalizeOps()(Concat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_concat_input_tuple_var():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Concat:
         @R.function
         def main(t: R.Tuple(R.Tensor((3, 4), "float32"), R.Tensor((3, 5), "float32"))) -> R.Tensor((3, 9), "float32"):
             gv: R.Tensor((3, 9), "float32") = R.concat(t, axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(t: R.Tuple(R.Tensor((3, 4), "float32"), R.Tensor((3, 5), "float32"))) -> R.Tensor((3, 9), "float32"):
@@ -168,33 +169,33 @@ def test_concat_input_tuple_var():
     # fmt: on
 
     mod = LegalizeOps()(Concat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_concat_input_tuple_var_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b0 = T.dynamic("b0")
-    b1 = T.dynamic("b1")
-    b2 = T.dynamic("b2")
+    a = T.dynamic("a", "int64")
+    b0 = T.dynamic("b0", "int64")
+    b1 = T.dynamic("b1", "int64")
+    b2 = T.dynamic("b2", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Concat:
         @R.function
         def main(t: R.Tuple(R.Tensor((a, b0), "float32"), R.Tensor((a, b1), "float32"), R.Tensor((a, b2), "float32"))) -> R.Tensor((a, b0 + b1 + b2), "float32"):
             gv: R.Tensor((a, b0 + b1 + b2), "float32") = R.concat(t, axis=1)
             return gv
 
-    a_main = T.dynamic("a")
-    b0_main = T.dynamic("b0")
-    b1_main = T.dynamic("b1")
-    b2_main = T.dynamic("b2")
-    a_concatenate = T.dynamic("a")
-    b0_concatenate = T.dynamic("b0")
-    b1_concatenate = T.dynamic("b1")
-    b2_concatenate = T.dynamic("b2")
+    a_main = T.dynamic("a", "int64")
+    b0_main = T.dynamic("b0", "int64")
+    b1_main = T.dynamic("b1", "int64")
+    b2_main = T.dynamic("b2", "int64")
+    a_concatenate = T.dynamic("a", "int64")
+    b0_concatenate = T.dynamic("b0", "int64")
+    b1_concatenate = T.dynamic("b1", "int64")
+    b2_concatenate = T.dynamic("b2", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(t: R.Tuple(R.Tensor((a_main, b0_main), "float32"), R.Tensor((a_main, b1_main), "float32"), R.Tensor((a_main, b2_main), "float32"))) -> R.Tensor((a_main, b0_main + b1_main + b2_main), "float32"):
@@ -217,19 +218,19 @@ def test_concat_input_tuple_var_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Concat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_expand_dims():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ExpandDims:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), "float32"):
             gv: R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), "float32") = R.expand_dims(x, axis=[-1, 1, -6, 3, 5])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 1, 1, 1, 3, 1, 4, 1), "float32"):
@@ -248,30 +249,30 @@ def test_expand_dims():
     # fmt: on
 
     mod = LegalizeOps()(ExpandDims)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_expand_dims_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ExpandDims:
         @R.function
         def main(x: R.Tensor((a, b, c), "float32")) -> R.Tensor((a, 1, b, 1, c, 1), "float32"):
             gv: R.Tensor((a, 1, b, 1, c, 1), "float32") = R.expand_dims(x, axis=[1, 3, 5])
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_expand_dims = T.dynamic("a")
-    b_expand_dims = T.dynamic("b")
-    c_expand_dims = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_expand_dims = T.dynamic("a", "int64")
+    b_expand_dims = T.dynamic("b", "int64")
+    c_expand_dims = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main, 1, b_main, 1, c_main, 1), "float32"):
@@ -291,19 +292,19 @@ def test_expand_dims_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(ExpandDims)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_flatten():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Flatten:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((24,), "float32"):
             gv: R.Tensor((24,), "float32") = R.flatten(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((24,), "float32"):
@@ -322,19 +323,19 @@ def test_flatten():
     # fmt: on
 
     mod = LegalizeOps()(Flatten)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_flatten_zero_rank():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Flatten:
         @R.function
         def main(x: R.Tensor((), "float32")) -> R.Tensor((1,), "float32"):
             gv: R.Tensor((1,), "float32") = R.flatten(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((), "float32")) -> R.Tensor((1,), "float32"):
@@ -353,30 +354,30 @@ def test_flatten_zero_rank():
     # fmt: on
 
     mod = LegalizeOps()(Flatten)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_flatten_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Flatten:
         @R.function
         def main(x: R.Tensor((a, b, c), "float32")) -> R.Tensor((a * b * c,), "float32"):
             gv: R.Tensor((a * b * c,), "float32") = R.flatten(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
-    c_reshape = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
+    c_reshape = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main * b_main * c_main,), "float32"):
@@ -396,19 +397,19 @@ def test_flatten_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Flatten)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_permute_dims():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class PermuteDims:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((2, 4, 3, 1), "float32"):
             gv: R.Tensor((2, 4, 3, 1), "float32") = R.permute_dims(x, axes=[1, -1, 2, -4])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((2, 4, 3, 1), "float32"):
@@ -427,33 +428,33 @@ def test_permute_dims():
     # fmt: on
 
     mod = LegalizeOps()(PermuteDims)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_permute_dims_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
-    d = T.dynamic("d")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
+    d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class PermuteDims:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((b, d, c, a), "float32"):
             gv: R.Tensor((b, d, c, a), "float32") = R.permute_dims(x, axes=[1, -1, 2, -4])
             return gv
 
-    b_main = T.dynamic("b")
-    d_main = T.dynamic("d")
-    c_main = T.dynamic("c")
-    a_main = T.dynamic("a")
-    a_transpose = T.dynamic("a")
-    b_transpose = T.dynamic("b")
-    c_transpose = T.dynamic("c")
-    d_transpose = T.dynamic("d")
+    b_main = T.dynamic("b", "int64")
+    d_main = T.dynamic("d", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    a_transpose = T.dynamic("a", "int64")
+    b_transpose = T.dynamic("b", "int64")
+    c_transpose = T.dynamic("c", "int64")
+    d_transpose = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")) -> R.Tensor((b_main, d_main, c_main, a_main), dtype="float32"):
@@ -473,19 +474,19 @@ def test_permute_dims_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(PermuteDims)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reshape():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Reshape:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((8, 3), "float32"):
             gv: R.Tensor((8, 3), "float32") = R.reshape(x, (8, 3))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((8, 3), "float32"):
@@ -504,11 +505,11 @@ def test_reshape():
     # fmt: on
 
     mod = LegalizeOps()(Reshape)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
     # fmt: off
     # ShapeExpr might be produced by shape computation
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Reshape2:
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((8, 3), "float32"):
@@ -517,7 +518,7 @@ def test_reshape():
             return gv
 
     # After lowering, redundant var might be removed by later dead code elimination
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @Ts.function(private=True)
         def reshape(
@@ -553,27 +554,27 @@ def test_reshape():
     # fmt: on
 
     mod2 = LegalizeOps()(Reshape2)
-    tvm.ir.assert_structural_equal(mod2, Expected2)
+    tvm_tirx.ir.assert_structural_equal(mod2, Expected2)
 
 
 def test_reshape_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Reshape:
         @R.function
         def main(x: R.Tensor((a, b), "float32")) -> R.Tensor((a // 2, b * 2), "float32"):
             gv: R.Tensor((a // 2, b * 2), "float32") = R.reshape(x, (a // 2, b * 2))
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main), "float32")) -> R.Tensor((a_main // 2, b_main * 2), "float32"):
@@ -593,13 +594,13 @@ def test_reshape_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Reshape)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
     # ShapeExpr might be produced by shape computation
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Reshape2:
         @R.function
         def main(x: R.Tensor((a, b), "float32")) -> R.Tensor((a // 2, b * 2), "float32"):
@@ -608,12 +609,12 @@ def test_reshape_symbolic():
             return gv
 
     # After lowering, redundant var might be removed by later dead code elimination
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_reshape = T.dynamic("a")
-    b_reshape = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_reshape = T.dynamic("a", "int64")
+    b_reshape = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def main(x: R.Tensor((a_main, b_main), "float32")) -> R.Tensor(
@@ -650,11 +651,11 @@ def test_reshape_symbolic():
                     ]
 
     mod2 = LegalizeOps()(Reshape2)
-    tvm.ir.assert_structural_equal(mod2, Expected2)
+    tvm_tirx.ir.assert_structural_equal(mod2, Expected2)
 
     # ShapeExpr might be produced by shape computation
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Reshape3:
@@ -665,8 +666,8 @@ def test_reshape_symbolic():
             return gv
 
     # After lowering, redundant var might be removed by later dead code elimination
-    b_reshape = T.dynamic("b")
-    b_main = T.dynamic("b")
+    b_reshape = T.dynamic("b", "int64")
+    b_main = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected3:
@@ -704,12 +705,12 @@ def test_reshape_symbolic():
             return gv
 
     mod3 = LegalizeOps()(Reshape3)
-    tvm.ir.assert_structural_equal(mod3, Expected3)
+    tvm_tirx.ir.assert_structural_equal(mod3, Expected3)
 
 
 def test_data_dependent_reshape():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class DDReshape:
         @R.function
         def main(
@@ -721,15 +722,15 @@ def test_data_dependent_reshape():
             return gv
     # fmt: on
 
-    relax.analysis.well_formed(DDReshape)
+    relax.analysis.check_well_formed(DDReshape)
     mod = relax.transform.DecomposeOpsForInference()(DDReshape)
     out_mod = relax.transform.LegalizeOps()(mod)
 
     # fmt: off
-    M_main = T.dynamic("M")
-    N_main = T.dynamic("N")
-    M_reshape = T.dynamic("M")
-    N_reshape = T.dynamic("N")
+    M_main = T.dynamic("M", "int64")
+    N_main = T.dynamic("N", "int64")
+    M_reshape = T.dynamic("M", "int64")
+    N_reshape = T.dynamic("N", "int64")
 
     @I.ir_module
     class Expected:
@@ -759,19 +760,19 @@ def test_data_dependent_reshape():
                     T_reshape[vi,vj] = rxplaceholder[(vi*N_reshape + vj) % 16]
 
     # fmt: on
-    tvm.ir.assert_structural_equal(out_mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(out_mod, Expected)
 
 
 def test_split_by_indices():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Split:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")]):
             gv: R.Tuple([R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")]) = R.split(x, [3, 7], axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 3, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 3, 4), "float32")]):
@@ -802,19 +803,19 @@ def test_split_by_indices():
     # fmt: on
 
     mod = LegalizeOps()(Split)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_split_by_indices_n_section_indivisible():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Split:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]):
             gv: R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]) = R.split(x, indices_or_sections=3, axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]):
@@ -846,19 +847,19 @@ def test_split_by_indices_n_section_indivisible():
     # fmt: on
 
     mod = LegalizeOps()(Split)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_split_by_indices_n_section_divisible():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Split:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")]):
             gv: R.Tuple([R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")]) = R.split(x, 2, axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 5, 4), "float32"), R.Tensor((2, 5, 4), "float32")]):
@@ -883,33 +884,33 @@ def test_split_by_indices_n_section_divisible():
     # fmt: on
 
     mod = LegalizeOps()(Split)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_split_by_indices_n_section_divisible_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Split:
         @R.function
         def main(dumb_param: R.Tensor((n,)), x: R.Tensor((m, n * 3), "float32")) -> R.Tuple([R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32")]):
             gv: R.Tuple([R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32")]) = R.split(x, 3, axis=1)
             return gv
 
-    m_main = T.dynamic("m")
-    n = T.dynamic("n")
-    m_split = T.dynamic("m")
+    m_main = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    m_split = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((n,)), x: R.Tensor((m_main, n * 3), "float32")) -> R.Tuple(R.Tensor((m_main, n * 3 // 3), "float32"), R.Tensor((m_main, n * 3 // 3 * 2 - n * 3 // 3), "float32"), R.Tensor((m_main, n * 3 - n * 3 // 3 * 2), "float32")):
             gv = R.call_tir(Expected.split, (x, n), ty_args=[_TupleType([R.Tensor((m_main, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m_main, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m_main, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")])])
             return gv
 
-        split_n = T.int64()
+        split_n = T.dynamic("split_n", "int64")
 
         @Ts.function(private=True)
         def split(rxplaceholder: T.Tensor([m_split, split_n * T.int64(3)], dtype='float32'), n: split_n, T_split_sections: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_1: T.Tensor([m_split, (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype='float32'), T_split_sections_2: T.Tensor([m_split, split_n * T.int64(3) - (split_n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype='float32')):
@@ -936,19 +937,19 @@ def test_split_by_indices_n_section_divisible_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Split)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_squeeze():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Squeeze:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) -> R.Tensor((2, 3, 1, 4), "float32"):
             gv: R.Tensor((2, 3, 1, 4), "float32") = R.squeeze(x, [1, 4])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) -> R.Tensor((2, 3, 1, 4), "float32"):
@@ -967,19 +968,19 @@ def test_squeeze():
     # fmt: on
 
     mod = LegalizeOps()(Squeeze)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_squeeze_no_axis():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Squeeze:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
             gv: R.Tensor((2, 3, 4), "float32") = R.squeeze(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
@@ -998,27 +999,27 @@ def test_squeeze_no_axis():
     # fmt: on
 
     mod = LegalizeOps()(Squeeze)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_squeeze_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Squeeze:
         @R.function
         def main(x: R.Tensor((a, 1, b, 1), "float32")) -> R.Tensor((a, b, 1), "float32"):
             gv: R.Tensor((a, b, 1), "float32") = R.squeeze(x, [1])
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_squeeze = T.dynamic("a")
-    b_squeeze = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_squeeze = T.dynamic("a", "int64")
+    b_squeeze = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, 1, b_main, 1), "float32")) -> R.Tensor((a_main, b_main, 1), "float32"):
@@ -1038,19 +1039,19 @@ def test_squeeze_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Squeeze)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_collapse_sum_like():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CollapseSumLike:
         @R.function
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1, 3), "float32")) -> R.Tensor((1, 3), "float32"):
             gv: R.Tensor((1, 3), "float32") = R.collapse_sum_like(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1, 3), "float32")) -> R.Tensor((1, 3), "float32"):
@@ -1071,19 +1072,19 @@ def test_collapse_sum_like():
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_collapse_sum_to():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CollapseSumTo:
         @R.function
         def main(x: R.Tensor((3, 2, 3), "float32")) -> R.Tensor((2, 1), "float32"):
             gv: R.Tensor((2, 1), "float32") = R.collapse_sum_to(x, (2, 1))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1107,7 +1108,7 @@ def test_collapse_sum_to():
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumTo)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_repeat():
@@ -1139,7 +1140,7 @@ def test_repeat():
     # fmt: on
 
     mod = LegalizeOps()(Repeat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_repeat_no_axis():
@@ -1193,14 +1194,14 @@ def test_repeat_no_axis():
     # fmt: on
 
     mod = LegalizeOps()(Repeat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_repeat_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class Repeat:
@@ -1209,12 +1210,12 @@ def test_repeat_symbolic():
             gv = R.repeat(x, 2, 0)
             return gv
 
-    a_repeat = T.dynamic("a")
-    b_repeat = T.dynamic("b")
-    c_repeat = T.dynamic("c")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
+    a_repeat = T.dynamic("a", "int64")
+    b_repeat = T.dynamic("b", "int64")
+    c_repeat = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @I.ir_module
     class Expected:
@@ -1237,7 +1238,7 @@ def test_repeat_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Repeat)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_tile():
@@ -1269,14 +1270,14 @@ def test_tile():
     # fmt: on
 
     mod = LegalizeOps()(Tile)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_tile_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class Tile:
@@ -1285,12 +1286,12 @@ def test_tile_symbolic():
             gv = R.tile(x, (2, 1, 2, 3))
             return gv
 
-    a_tile = T.dynamic("a")
-    b_tile = T.dynamic("b")
-    c_tile = T.dynamic("c")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
+    a_tile = T.dynamic("a", "int64")
+    b_tile = T.dynamic("b", "int64")
+    c_tile = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
 
     @I.ir_module
     class Expected:
@@ -1312,7 +1313,7 @@ def test_tile_symbolic():
             return gv
     # fmt: on
     mod = LegalizeOps()(Tile)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_flip():
@@ -1350,13 +1351,13 @@ def test_flip():
     # fmt: on
 
     mod = LegalizeOps()(Flip)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_flip_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
 
     @I.ir_module
     class Flip:
@@ -1365,10 +1366,10 @@ def test_flip_symbolic():
             gv = R.flip(x, axis=1)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    a_flip = T.dynamic("a")
-    b_flip = T.dynamic("b")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    a_flip = T.dynamic("a", "int64")
+    b_flip = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected:
@@ -1396,7 +1397,7 @@ def test_flip_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Flip)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_reverse_sequence():
@@ -1452,7 +1453,7 @@ def test_reverse_sequence():
     # fmt: on
 
     mod = LegalizeOps()(ReverseSequence)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_scatter_elements():
@@ -1463,13 +1464,17 @@ def test_scatter_elements():
         def main(x: R.Tensor((4,4), "float32"), indices: R.Tensor((2,2), "int64"), updates: R.Tensor((2,2), "float32")):
             gv = R.scatter_elements(x, indices, updates, axis=1)
             return gv
+    expected_rxplaceholder_offset = T.dynamic("expected_rxplaceholder_offset", "int64")
+    expected_rxplaceholder_1_offset = T.dynamic("expected_rxplaceholder_1_offset", "int64")
+    expected_rxplaceholder_2_offset = T.dynamic("expected_rxplaceholder_2_offset", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32", offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64', offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder: T.Tensor((T.int64(4), T.int64(4)), "float32",  layout=T.TileLayout(T.S[(T.int64(4), T.int64(4))] + (expected_rxplaceholder_offset))),
+            rxplaceholder_1: T.Tensor((T.int64(2), T.int64(2)), 'int64',  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (expected_rxplaceholder_1_offset))),
+            rxplaceholder_2: T.Tensor((T.int64(2), T.int64(2)), "float32",  layout=T.TileLayout(T.S[(T.int64(2), T.int64(2))] + (expected_rxplaceholder_2_offset))),
             out_buf: T.Tensor((T.int64(4), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1540,15 +1545,15 @@ def test_scatter_elements():
 
     # fmt: on
     mod = LegalizeOps()(ScatterElements)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_scatter_elements_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ScatterElements:
@@ -1556,22 +1561,26 @@ def test_scatter_elements_symbolic():
         def main(x: R.Tensor((a, b), "float32"), indices:R.Tensor((m, n), "int64"), updates:R.Tensor((m,n), "float32")):
             gv = R.scatter_elements(x, indices, updates, axis=1)
             return gv
-    a_scatter_elements = T.dynamic("a")
-    b_scatter_elements = T.dynamic("b")
-    m_scatter_elements = T.dynamic("m")
-    n_scatter_elements = T.dynamic("n")
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
+    a_scatter_elements = T.dynamic("a", "int64")
+    b_scatter_elements = T.dynamic("b", "int64")
+    m_scatter_elements = T.dynamic("m", "int64")
+    n_scatter_elements = T.dynamic("n", "int64")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+
+    expected_rxplaceholder_offset_1 = T.dynamic("expected_rxplaceholder_offset_1", "int64")
+    expected_rxplaceholder_1_offset_1 = T.dynamic("expected_rxplaceholder_1_offset_1", "int64")
+    expected_rxplaceholder_2_offset_1 = T.dynamic("expected_rxplaceholder_2_offset_1", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
         def scatter_elements(
-            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64', offset_factor=1, elem_offset=T.int64()),
-            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32", offset_factor=1, elem_offset=T.int64()),
+            rxplaceholder: T.Tensor((a_scatter_elements, b_scatter_elements), "float32",  layout=T.TileLayout(T.S[(a_scatter_elements, b_scatter_elements)] + (expected_rxplaceholder_offset_1))),
+            rxplaceholder_1: T.Tensor((m_scatter_elements, n_scatter_elements), 'int64',  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (expected_rxplaceholder_1_offset_1))),
+            rxplaceholder_2: T.Tensor((m_scatter_elements, n_scatter_elements), "float32",  layout=T.TileLayout(T.S[(m_scatter_elements, n_scatter_elements)] + (expected_rxplaceholder_2_offset_1))),
             out_buf: T.Tensor((a_scatter_elements, b_scatter_elements), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
@@ -1633,11 +1642,11 @@ def test_scatter_elements_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(ScatterElements)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_scatter_elements_gpu():
     """scatter_elements lowered for GPU must build"""
     target = "cuda"
@@ -1656,8 +1665,7 @@ def test_scatter_elements_gpu():
                 R.output(gv)
             return gv
 
-    with tvm.target.Target(target):
-        mod = LegalizeOps()(Mod)
+    mod = LegalizeOps(target=tvm_tirx.target.Target(target))(Mod)
     relax.build(mod, target=target)
 
 
@@ -1696,7 +1704,7 @@ def test_layout_transform():
     # fmt: on
 
     mod = LegalizeOps()(LayoutTransform)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_layout_transform_with_pad():
@@ -1734,7 +1742,7 @@ def test_layout_transform_with_pad():
     # fmt: on
 
     mod = LegalizeOps()(LayoutTransform)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_layout_transform_symbolic():
@@ -1742,9 +1750,9 @@ def test_layout_transform_symbolic():
     pad_value = 2
 
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
     @I.ir_module
     class LayoutTransform:
@@ -1755,12 +1763,12 @@ def test_layout_transform_symbolic():
             )
             return gv
 
-    a_te_layout_transform_with_pad = T.dynamic("a")
-    b_te_layout_transform_with_pad = T.dynamic("b")
-    c_te_layout_transform_with_pad = T.dynamic("c")
-    a_main = T.dynamic("a")
-    c_main = T.dynamic("c")
-    b_main = T.dynamic("b")
+    a_te_layout_transform_with_pad = T.dynamic("a", "int64")
+    b_te_layout_transform_with_pad = T.dynamic("b", "int64")
+    c_te_layout_transform_with_pad = T.dynamic("c", "int64")
+    a_main = T.dynamic("a", "int64")
+    c_main = T.dynamic("c", "int64")
+    b_main = T.dynamic("b", "int64")
 
     @I.ir_module
     class Expected:
@@ -1784,7 +1792,7 @@ def test_layout_transform_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(LayoutTransform)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_func_ty_of_legalized_layout_transform():
@@ -1811,7 +1819,7 @@ def test_func_ty_of_legalized_layout_transform():
                 R.output(gv)
             return gv
 
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             relax.transform.LegalizeOps(),
             relax.transform.ToNonDataflow(),
@@ -1850,7 +1858,7 @@ def test_func_ty_of_legalized_layout_transform():
                     vi = Ts.axis.spatial(T.int64(16), i)
                     te_layout_transform[vi // T.int64(4), vi % T.int64(4)] = A[vi]
 
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_scatter_nd():
@@ -1868,6 +1876,9 @@ def test_scatter_nd():
 
     After = relax.transform.LegalizeOps()(Before)
 
+    expected_data_offset = T.dynamic("expected_data_offset", "int64")
+    expected_updates_offset = T.dynamic("expected_updates_offset", "int64")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1882,7 +1893,7 @@ def test_scatter_nd():
             return gv
 
         @Ts.function(private=True)
-        def scatter_nd(data: T.Tensor((T.int64(8),), "float32", offset_factor=1, elem_offset=T.int64()), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32", offset_factor=1, elem_offset=T.int64()), out_buf: T.Tensor((T.int64(8),), "float32")):
+        def scatter_nd(data: T.Tensor((T.int64(8),), "float32",  layout=T.TileLayout(T.S[(T.int64(8),)] + (expected_data_offset))), indices: T.Tensor((T.int64(4), T.int64(1)), 'int64'), updates: T.Tensor((T.int64(4),), "float32",  layout=T.TileLayout(T.S[(T.int64(4),)] + (expected_updates_offset))), out_buf: T.Tensor((T.int64(8),), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("root"):
@@ -1907,11 +1918,11 @@ def test_scatter_nd():
                             out_buf[k + T_transpose[j // T.int64(4), j % T.int64(4)]] = updates[j + k]
 
     # fmt: on
-    tvm.ir.assert_structural_equal(After, Expected)
+    tvm_tirx.ir.assert_structural_equal(After, Expected)
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+@pytest.mark.skipif(not device_enabled("cuda"), reason="cuda not enabled")
 def test_scatter_nd_gpu():
     """scatter_nd lowered for GPU must build"""
     target = "cuda"
@@ -1930,10 +1941,9 @@ def test_scatter_nd_gpu():
                 R.output(gv)
             return gv
 
-    with tvm.target.Target(target):
-        mod = LegalizeOps()(Mod)
+    mod = LegalizeOps(target=tvm_tirx.target.Target(target))(Mod)
     relax.build(mod, target=target)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -33,7 +33,7 @@ using namespace tvm::tirx;
  * \param sref The sref of loop
  * \return Whether the loop has any annotation
  */
-inline bool HasAnnOrBinding(const ForNode* loop) {
+inline bool HasAnnOrBinding(const ForObj* loop) {
   return tvm::s_tir::GetThreadBinding(loop).has_value() || !loop->annotations.empty();
 }
 
@@ -58,14 +58,14 @@ class StrideExtractor : public StmtExprVisitor {
   explicit StrideExtractor(const Var& var) : var_(var) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const MulObj* node) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
 
-    if (const auto* a = node->a.as<IntImmNode>()) {
+    if (const auto* a = node->a.as<IntImmObj>()) {
       if (strides_.count(node->b.get())) {
         strides_[node] = static_cast<int64_t>(strides_[node->b.get()] * a->value);
       }
-    } else if (const auto* b = node->b.as<IntImmNode>()) {
+    } else if (const auto* b = node->b.as<IntImmObj>()) {
       if (strides_.count(node->a.get())) {
         strides_[node] = static_cast<int64_t>(strides_[node->a.get()] * b->value);
       }
@@ -73,7 +73,7 @@ class StrideExtractor : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const AddObj* node) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
     int64_t stride_a, stride_b;
     if (strides_.count(node->a.get())) {
@@ -92,7 +92,7 @@ class StrideExtractor : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarObj* node) final {
     if (node == var_.get()) {
       strides_[node] = 1;
     }
@@ -100,7 +100,7 @@ class StrideExtractor : public StmtExprVisitor {
   }
 
   const Var& var_;
-  std::unordered_map<const ExprNode*, int64_t> strides_;
+  std::unordered_map<const ExprObj*, int64_t> strides_;
 };
 
 struct ParsedAnnotation {
@@ -116,22 +116,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
-    if (ann.first == tvm::s_tir::attr::kMetaScheduleParallel) {
+    if (ann.first == tvm::s_tir::attr::kMetaScheduleParallel.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleVectorize) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleVectorize.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollExplicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value.as<int>().value();
       }
-    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollImplicit) {
+    } else if (ann.first == tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value.as<int>().value();
@@ -144,16 +144,16 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
 void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
                      const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleParallel);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleParallel.name);
   }
   if (parsed.max_vectorize_extent != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleVectorize);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleVectorize.name);
   }
   if (parsed.unroll_explicit != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit.name);
   }
   if (parsed.unroll_implicit != -1) {
-    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit);
+    sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit.name);
   }
 }
 
@@ -163,7 +163,7 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
   TVM_FFI_ICHECK_EQ(loop_srefs.size(), loop_types.size());
   for (size_t i = 0; i < loop_srefs.size(); ++i) {
     const StmtSRef& loop_sref = loop_srefs[i];
-    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+    const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
     if (HasAnnOrBinding(loop)) {
       continue;
     }
@@ -176,7 +176,8 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
       continue;
     }
     // Check if the loop extent is valid
-    if (const auto* extent = loop->extent.as<IntImmNode>();
+    PrimExpr extent_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+    if (const auto* extent = extent_expr.as<IntImmObj>();
         !extent || !extent->value.as<int64_t>().has_value()) {
       continue;
     }
@@ -213,7 +214,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
   ffi::Array<TensorRegion> tensor_access(realize->block->reads);
   tensor_access.insert(tensor_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
-  std::unordered_map<const VarNode*, PrimExpr> binding_map;
+  std::unordered_map<const VarObj*, PrimExpr> binding_map;
   for (size_t i = 0; i < realize->iter_values.size(); i++) {
     binding_map.insert_or_assign(realize->block->iter_vars[i]->var.get(), realize->iter_values[i]);
   }
@@ -233,19 +234,19 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     // get strides for each loop var
     for (const StmtSRef& loop_sref : loop_srefs) {
       int64_t stride = 0, tensor_stride = 1;
-      const auto* var = loop_sref->StmtAs<ForNode>();
+      const auto* var = loop_sref->StmtAs<ForObj>();
       sym::Analyzer analyzer;
       for (int i = access->region.size() - 1; i >= 0; i--) {
         PrimExpr idx = analyzer->Simplify(
-            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->min, f_substitute)
+            ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(access->region[i]->begin, f_substitute)
                 .as_or_throw<PrimExpr>());
-        int64_t coef = StrideExtractor::Extract(idx, var->loop_var);
+        int64_t coef = StrideExtractor::Extract(idx, var->var);
         if (coef != 0) {
           stride = coef * tensor_stride;
           break;
         }
         const auto* shape =
-            access->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i].as<IntImmNode>();
+            access->source.as_or_throw<tvm::tirx::TensorVar>().shape()[i].as<IntImmObj>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;
@@ -277,8 +278,10 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         prev_used_iter = i;
       } else {
         // contiguous memory access
-        const auto* prev_used_iter_extent_imm =
-            TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->extent.as<IntImmNode>();
+        PrimExpr prev_used_iter_extent_imm_expr =
+            Range::GetExtentFromBeginEnd(TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->begin,
+                                         TVM_SREF_TO_FOR(loop_srefs[prev_used_iter])->end);
+        const auto* prev_used_iter_extent_imm = prev_used_iter_extent_imm_expr.as<IntImmObj>();
         auto prev_used_iter_extent = prev_used_iter_extent_imm
                                          ? prev_used_iter_extent_imm->value.as<int64_t>()
                                          : std::nullopt;
@@ -306,12 +309,13 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     int64_t prod_extent = 1;
     for (int i = 0; i < n_loops && loop_types[i] == IterVarType::kDataPar; ++i) {
       const StmtSRef& loop_sref = loop_srefs[i];
-      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+      const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
       if (HasAnnOrBinding(loop)) {
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmObj>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;
@@ -336,7 +340,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
     for (int i = n_loops - 1;
          i >= 0 && loop_types[i] == IterVarType::kDataPar && num_fusible < max_fusible; --i) {
       const StmtSRef& loop_sref = loop_srefs[i];
-      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+      const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
       if (HasAnnOrBinding(loop)) {
         break;
       }
@@ -349,7 +353,8 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
         break;
       }
       // Check if the loop extent is valid
-      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      PrimExpr extent_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+      const auto* extent_imm = extent_imm_expr.as<IntImmObj>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (!extent.has_value()) {
         break;
@@ -384,11 +389,9 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, SBloc
   for (const auto& kv : mod->functions) {
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
-    if (const auto* function = base_func.as<FunctionNode>()) {
-      const SBlockRealizeNode* block_realize =
-          function->body.has_value() && function->body.value()->size() == 1
-              ? function->body.value()->seq[0].as<SBlockRealizeNode>()
-              : nullptr;
+    if (const auto* function = base_func.as<FunctionObj>()) {
+      const SBlockRealizeObj* block_realize =
+          function->body->size() == 1 ? function->body->seq[0].as<SBlockRealizeObj>() : nullptr;
       if (block_realize != nullptr) {
         SBlock block = block_realize->block;
         if (ParseAnnotation(block, parsed)) {
@@ -444,8 +447,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep, max_step);
-  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit, unroll_explicit);
+  sch->Annotate(loop, tvm::tirx::attr::kAutoUnrollMaxStep.name, max_step);
+  sch->Annotate(loop, tvm::tirx::attr::kUnrollExplicit.name, unroll_explicit);
 }
 
 }  // namespace s_tir

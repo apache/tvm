@@ -339,7 +339,7 @@ inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
   if (is_empty_shape(target_shape) || is_empty_shape(x->shape)) {
     return compute(
         target_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(0, PrimType(x->dtype)); },
         name, tag);
   } else {
     return compute(
@@ -597,8 +597,8 @@ inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimEx
   begin_ids.push_back(0);
 
   for (auto idx : split_indices) {
-    auto idx_node = idx.as<IntImmNode>();
-    auto back_node = begin_ids.back().as<IntImmNode>();
+    auto idx_node = idx.as<IntImmObj>();
+    auto back_node = begin_ids.back().as<IntImmObj>();
     if (idx_node && back_node) {
       TVM_FFI_ICHECK_GT(idx_node->value, back_node->value) << "split_indices must be sorted";
     }
@@ -653,7 +653,7 @@ inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimEx
   PrimExpr begin_range = tvm::if_then_else(stride < 0, -1, 0);
   PrimExpr end_range = tvm::if_then_else(stride < 0, extent - 1, extent);
 
-  if (!(index->IsInstance<tvm::IntImmNode>() && index.as_or_throw<IntImm>()->value >= 0)) {
+  if (!(index->IsInstance<tvm::IntImmObj>() && index.as_or_throw<IntImm>()->value >= 0)) {
     index = tvm::if_then_else(index < 0, index + extent, index);
   }
 
@@ -670,8 +670,8 @@ inline int64_t StaticCanonicalizeIndex(int64_t index, int64_t extent, int64_t st
 }
 
 inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
-  if (index->IsInstance<tvm::IntImmNode>() && extent->IsInstance<tvm::IntImmNode>() &&
-      stride->IsInstance<tvm::IntImmNode>()) {
+  if (index->IsInstance<tvm::IntImmObj>() && extent->IsInstance<tvm::IntImmObj>() &&
+      stride->IsInstance<tvm::IntImmObj>()) {
     return tvm::IntImm(
         tvm::PrimType::Int(64),
         StaticCanonicalizeIndex(GetConstInt(index), GetConstInt(extent), GetConstInt(stride)));
@@ -837,9 +837,9 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
                                         std::string name = "T_strided_slice_dynamic",
                                         std::string tag = topi::kInjective) {
   PrimType index_ty = begin->shape[0].ty();
-  const int64_t num_dynamic_axes = static_cast<int64_t>(begin->shape[0].as<IntImmNode>()->value);
-  TVM_FFI_ICHECK_EQ(end->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
-  TVM_FFI_ICHECK_EQ(strides->shape[0].as<IntImmNode>()->value, num_dynamic_axes);
+  const int64_t num_dynamic_axes = static_cast<int64_t>(begin->shape[0].as<IntImmObj>()->value);
+  TVM_FFI_ICHECK_EQ(end->shape[0].as<IntImmObj>()->value, num_dynamic_axes);
+  TVM_FFI_ICHECK_EQ(strides->shape[0].as<IntImmObj>()->value, num_dynamic_axes);
 
   ffi::Array<PrimExpr> begin_expr, end_expr, strides_expr;
   for (int64_t i = 0; i < num_dynamic_axes; ++i) {
@@ -1120,7 +1120,7 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
         auto bid = out_index[1 - axis];
         len_index.push_back(bid);
         PrimExpr ret = tvm::if_then_else(
-            tvm::prim::cast(PrimType(valid_length->dtype), tid) >= valid_length(len_index),
+            tvm::prim::cast(tid, PrimType(valid_length->dtype)) >= valid_length(len_index),
             tvm::prim::MakeConst(PrimType(data->dtype), mask_value), data(out_index));
         return ret;
       },
@@ -1152,7 +1152,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
   TVM_FFI_ICHECK_LT(axis, a->shape.size()) << "axis out of bounds";
   auto axis_dim = a->shape[axis];
   auto indices_shape = [&]() -> ffi::Array<PrimExpr> {
-    if (auto tensor = indices.as<TensorNode>()) {
+    if (auto tensor = indices.as<TensorObj>()) {
       return tensor->shape;
     } else {
       return {};
@@ -1446,7 +1446,7 @@ inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name =
   if (is_empty_shape(new_shape)) {
     return compute(
         new_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(0, PrimType(x->dtype)); },
         name, tag);
   } else {
     return compute(
@@ -1482,7 +1482,7 @@ inline Tensor dyn_tile(const Tensor& x, ffi::Array<PrimExpr> new_shape, size_t r
   if (is_empty_shape(new_shape)) {
     return compute(
         new_shape,
-        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(PrimType(x->dtype), 0); },
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(0, PrimType(x->dtype)); },
         name, tag);
   } else {
     return compute(
@@ -1526,7 +1526,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   }
   TVM_FFI_ICHECK_GE(axis, 0);
   TVM_FFI_ICHECK_LT(axis, ndim_d);
-  if (indices->shape[axis].as<IntImmNode>()) {
+  if (indices->shape[axis].as<IntImmObj>()) {
     size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
     TVM_FFI_ICHECK_GE(indices_dim_i, 1);
   }
@@ -1606,7 +1606,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
             real_indices.push_back(indices(indices_position));
           } else {
             real_indices.push_back(
-                tvm::prim::cast(tvm::PrimType::Int(32), indices(indices_position)));
+                tvm::prim::cast(indices(indices_position), tvm::PrimType::Int(32)));
           }
         }
         if (real_indices.size() == ndim_d) {
@@ -1776,8 +1776,8 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
     } else {
       // fallback path for non-integer or step of unknown sign
       return tvm::prim::cast(
-          PrimType(DefaultIndexType()),
-          tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), stop - start) / step));
+          tvm::prim::ceil(tvm::prim::cast(stop - start, tvm::PrimType::Float(32)) / step),
+          DefaultIndexType());
     }
   }();
   num_elem = analyzer->Simplify(num_elem);
@@ -1785,7 +1785,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
   return compute(
       {num_elem},
       [&](const ffi::Array<PrimVar>& indices) {
-        return tvm::prim::cast(dtype, start + step * indices[0]);
+        return tvm::prim::cast(start + step * indices[0], dtype);
       },
       name, tag);
 }
@@ -1858,7 +1858,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   ffi::Array<PrimExpr> dst_shape = layout_converter.value().ForwardShape(src->shape);
 
   ffi::Map<ffi::String, ffi::Any> attrs = {
-      {tvm::s_tir::attr::kScheduleRule, ffi::String(schedule_rule)},
+      {tvm::s_tir::attr::kScheduleRule.name, ffi::String(schedule_rule)},
       // Information about layouts needed for the schedule rule
       {tvm::topi::attr::kSrcLayout, ffi::String(src_layout)},
       {tvm::topi::attr::kDstLayout, ffi::String(dst_layout)},
@@ -1875,7 +1875,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
           in_range = in_range && (src_indices[i] < src->shape[i]);
         }
         return if_then_else(in_range, src(src_indices),
-                            tvm::prim::cast(PrimType(src->dtype), PrimExpr(0)));
+                            tvm::prim::cast(PrimExpr(0), PrimType(src->dtype)));
       },
       name, tag, attrs);
 }
@@ -2025,7 +2025,7 @@ inline Tensor shape(const Tensor& src, PrimType dtype, const std::string name = 
         for (int i = 0; i < ndim; ++i) {
           ret = tvm::if_then_else(idx == i, src->shape[i], ret);
         }
-        return tvm::prim::cast(dtype, ret);
+        return tvm::prim::cast(ret, dtype);
       },
       name, tag);
 }
@@ -2055,7 +2055,7 @@ inline te::Tensor tensor_size(const te::Tensor& src, PrimType dtype,
         for (int i = 0; i < ndim; ++i) {
           ret *= src->shape[i];
         }
-        return tvm::prim::cast(dtype, ret);
+        return tvm::prim::cast(ret, dtype);
       },
       name, tag);
 }
@@ -2097,8 +2097,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
     }
   }
 
-  PrimExpr on_value_cast = prim::cast(dtype, on_value);
-  PrimExpr off_value_cast = prim::cast(dtype, off_value);
+  PrimExpr on_value_cast = prim::cast(on_value, dtype);
+  PrimExpr off_value_cast = prim::cast(off_value, dtype);
   return compute(
       oshape,
       [&](const ffi::Array<PrimVar>& iter_vars) {
@@ -2308,9 +2308,9 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
   TVM_FFI_ICHECK_EQ(begin.ndim(), 1);
   TVM_FFI_ICHECK_EQ(end.ndim(), 1);
   TVM_FFI_ICHECK_EQ(strides.ndim(), 1);
-  const auto* len_begin = begin->shape[0].as<IntImmNode>();
-  const auto* len_end = end->shape[0].as<IntImmNode>();
-  const auto* len_strides = strides->shape[0].as<IntImmNode>();
+  const auto* len_begin = begin->shape[0].as<IntImmObj>();
+  const auto* len_end = end->shape[0].as<IntImmObj>();
+  const auto* len_strides = strides->shape[0].as<IntImmObj>();
   TVM_FFI_ICHECK(len_begin);
   TVM_FFI_ICHECK(len_end);
   TVM_FFI_ICHECK(len_strides);

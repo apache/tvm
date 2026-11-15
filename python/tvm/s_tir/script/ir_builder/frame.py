@@ -18,8 +18,8 @@
 
 from tvm_ffi import register_object
 
-from tvm.script.ir_builder.frame import StmtFrame
-from tvm.tirx.script.ir_builder.frame import FunctionFrame as TIRxFunctionFrame
+from tvm_tirx.script.ir_builder.frame import StmtFrame
+from tvm_tirx.tirx.script.ir_builder.frame import FunctionFrame as TIRxFunctionFrame
 
 
 @register_object("script.ir_builder.s_tir.FunctionFrame")

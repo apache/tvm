@@ -40,10 +40,10 @@ FindLoopLCA(const Stmt& root) {
    public:
     using StmtExprVisitor::Visit_;
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-      if (value.as<ExprNode>()) return std::nullopt;
+      if (value.as<ExprObj>()) return std::nullopt;
       return StmtExprVisitor::Visit(value);
     }
-    ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const ForObj* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (tvm::s_tir::GetThreadBinding(op).has_value()) {
@@ -53,7 +53,7 @@ FindLoopLCA(const Stmt& root) {
       return std::nullopt;
     }
 
-    void UpdateLCA(const ForNode* loop) {
+    void UpdateLCA(const ForObj* loop) {
       std::string thread_tag = tvm::s_tir::GetThreadBinding(loop).value();
       {
         ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
@@ -63,8 +63,8 @@ FindLoopLCA(const Stmt& root) {
       }
       auto it = iters.find(thread_tag);
       if (it == iters.end()) {
-        IterVar iter_var(Range::FromMinExtent(loop->min, loop->extent),  //
-                         loop->loop_var
+        IterVar iter_var(Range(loop->begin, loop->end),  //
+                         loop->var
                              .as_or_throw<Var>()        //
                              .CopyWithName(thread_tag)  //
                              .as_or_throw<PrimVar>(),   //
@@ -72,10 +72,10 @@ FindLoopLCA(const Stmt& root) {
                          thread_tag);
         iters.emplace(thread_tag, iter_var);
         lca[thread_tag] = stack;
-        var_subst.Set(loop->loop_var, iter_var->var);
+        var_subst.Set(loop->var, iter_var->var);
         return;
       }
-      var_subst.Set(loop->loop_var, it->second->var);
+      var_subst.Set(loop->var, it->second->var);
       std::vector<Stmt>& path = lca[thread_tag];
       uint32_t i = 0;
       for (; i < stack.size() && i < path.size(); ++i) {
@@ -121,7 +121,7 @@ class ThreadBindingLifter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
     if (tvm::s_tir::GetThreadBinding(op).has_value()) {
@@ -137,9 +137,11 @@ class ThreadBindingLifter : public StmtExprMutator {
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
         auto annotations = annotation;
-        annotations.Set(tvm::s_tir::attr::kThreadBinding, iter_var->thread_tag);
-        body = For(iter_var->var, iter_var->dom.value()->min, iter_var->dom.value()->extent,
-                   ForKind::kParallel, std::move(body), std::move(annotations), std::nullopt);
+        annotations.Set(tvm::s_tir::attr::kThreadBinding.name, iter_var->thread_tag);
+        body = For(iter_var->var, iter_var->dom.value()->begin,
+                   iter_var->dom.value()->begin + iter_var->dom.value()->extent,
+                   IntImm(iter_var->var.ty(), 1), ForKind::kParallel, std::move(body),
+                   std::move(annotations));
       }
     }
     if (is_kernel_root) {
@@ -153,7 +155,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     }
   }
 
-  void SetKernelRoot(const ForNode* op) {
+  void SetKernelRoot(const ForObj* op) {
     auto result = FindLoopLCA(ffi::GetRef<Stmt>(op));
     this->iter_lca = std::move(result.first);
     for (const auto& [var, replacement] : result.second) VarRemapSet(var, replacement);
@@ -168,7 +170,7 @@ namespace transform {
 
 Pass LiftThreadBinding() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    FunctionNode* fptr = f.CopyOnWrite();
+    FunctionObj* fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<ThreadBindingLifter>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));

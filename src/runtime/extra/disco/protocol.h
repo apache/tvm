@@ -19,11 +19,11 @@
 #ifndef TVM_RUNTIME_DISCO_PROTOCOL_H_
 #define TVM_RUNTIME_DISCO_PROTOCOL_H_
 
+#include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/support/base64.h>
 #include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
@@ -227,10 +227,9 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     std::string result;
     {
       support::BytesOutStream mstrm(&result);
-      support::Base64OutStream b64strm(&mstrm);
-      runtime::SaveTensor(array, &b64strm);
-      b64strm.Finish();
+      runtime::SaveTensor(array, &mstrm);
     }
+    result = ffi::Base64Encode(ffi::Bytes(result));
     result.push_back('1');
     return result;
   } else if (auto opt_obj = this->data.as<ffi::ObjectRef>()) {
@@ -252,10 +251,9 @@ inline ffi::ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::strin
   if (control_bit == '0') {
     result->data = ffi::FromJSONGraph(ffi::json::Parse(json_str));
   } else if (control_bit == '1') {
-    support::BytesInStream mstrm(json_str);
-    support::Base64InStream b64strm(&mstrm);
-    b64strm.InitPosition();
-    ffi::Tensor array = LoadTensor(&b64strm);
+    ffi::Bytes bytes = ffi::Base64Decode(json_str);
+    support::BytesInStream mstrm(bytes.data(), bytes.size());
+    ffi::Tensor array = LoadTensor(&mstrm);
     result->data = std::move(array);
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported control bit: " << control_bit

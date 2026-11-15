@@ -20,7 +20,9 @@
 import math
 from collections import deque
 
-import tvm
+import tvm_ffi
+
+import tvm_tirx
 from tvm.s_tir import meta_schedule
 from tvm.s_tir.schedule import ExprRV, LoopRV, SBlockRV, Schedule
 
@@ -430,7 +432,7 @@ def create_cached_read(
     block_read = sch.reindex_cache_read(
         block_write,
         read_tensor_index=0,
-        index_map=tvm.tirx.IndexMap.from_func(
+        index_map=tvm_tirx.tirx.IndexMap.from_func(
             lambda *loops: [loops[dst_to_src_map[i]] for i, _ in enumerate(loops)],
             ndim=len(new_src_layout_str),
         ),
@@ -486,20 +488,20 @@ def auto_inline_into(sch: Schedule, start_block: SBlockRV) -> SBlockRV:
         sch = autoinline_rule.apply(sch, cur_block)[0]
 
 
-def get_max_tile_size() -> int:
+def get_max_tile_size(target=None) -> int:
     """Returns the max tile size.
 
     This is assuming only threads in a warp can have coalesced accesses. 32 is the default if
     no target information can be gotten.
     """
     max_tile_size = 32
-    cur_target = tvm.target.Target.current()
+    cur_target = target
     if cur_target is not None and "thread_warp_size" in cur_target.attrs:
         max_tile_size = int(cur_target.attrs["thread_warp_size"])
     return max_tile_size
 
 
-@tvm.register_global_func("s_tir.meta_schedule.cuda.layout_transform")
+@tvm_ffi.register_global_func("s_tir.meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
     sch: Schedule, block: SBlockRV, testing_tile_sizes: list[int] | None = None
 ) -> list[Schedule]:
@@ -567,7 +569,9 @@ def cuda_layout_transform_schedule_rule(
 
     # Try tile size 2,3...threads_per_warp as tile size of 1 has no coaslescing.
     if testing_tile_sizes is None:
-        tile_sizes = list(range(2, get_max_tile_size() + 1))
+        tile_sizes = list(
+            range(2, get_max_tile_size(sch.mod[sch.func_working_on].attrs.get("target")) + 1)
+        )
     else:
         tile_sizes = testing_tile_sizes
 

@@ -17,8 +17,9 @@
 # pylint: disable=missing-docstring, invalid-name
 """A Conv2d schedule rule for Adreno GPU operators."""
 
-from tvm import s_tir, tirx
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import tirx
+from tvm_tirx.target import Target
 
 from .. import analysis
 from .base import AdrenoScheduleRule
@@ -94,6 +95,6 @@ class Conv2d(AdrenoScheduleRule):
         conv_blk = reduction_blocks[0]
         Conv2d.schedule_conv2d(sch, conv_blk)
         remaining_blocks = schedule_inline_blocks(sch, remaining_blocks)
-        schedule_default(sch, remaining_blocks)
+        schedule_default(sch, remaining_blocks, target=target)
 
         return sch

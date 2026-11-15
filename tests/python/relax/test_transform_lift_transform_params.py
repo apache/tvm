@@ -22,21 +22,22 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize("consume_params", [True, False])
 def test_basic(consume_params):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @Ts.function
         def transform_layout_IOHW_to_OIHW(
@@ -70,7 +71,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -141,7 +142,7 @@ def test_basic(consume_params):
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ExpectedConsumeParams:
         @R.function
         def main(
@@ -226,11 +227,11 @@ def test_basic(consume_params):
 
     mod = Before
     expected = Expected if not consume_params else ExpectedConsumeParams
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={"relax.lift_transform_params.consume_params": consume_params}
     ):
         after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm_tirx.ir.assert_structural_equal(after, expected)
 
     names_after = [param.name for param in after["main"].params]
     names_expected = [param.name for param in expected["main"].params]
@@ -238,7 +239,7 @@ def test_basic(consume_params):
 
 
 def test_tuple():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -257,7 +258,7 @@ def test_tuple():
                 R.output(conv2)
             return conv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -308,13 +309,13 @@ def test_tuple():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_condition():
     """Test case that the conditional statement can't be lifted"""
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -333,7 +334,7 @@ def test_condition():
                 R.output(conv1)
             return conv1
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main_transform_params(
@@ -369,11 +370,11 @@ def test_condition():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_multiple_functions():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def func1(
@@ -410,7 +411,7 @@ def test_multiple_functions():
                 R.output(y)
             return y
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def func1(
@@ -470,7 +471,7 @@ def test_multiple_functions():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_share_identical_transform_across_multiple_functions():
@@ -563,7 +564,7 @@ def test_share_identical_transform_across_multiple_functions():
             return output
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_incompatible_weights_in_shared_transform_raises_error():
@@ -812,7 +813,7 @@ def test_share_transform_across_multiple_functions_has_intersection_of_transform
             return y
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_share_transforms_with_different_binding_order():
@@ -917,7 +918,7 @@ def test_share_transforms_with_different_binding_order():
             return output
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_share_transforms_resulting_in_identical_functions():
@@ -1011,7 +1012,7 @@ def test_share_transforms_resulting_in_identical_functions():
             return output
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_share_transform_across_specified_functions():
@@ -1160,7 +1161,7 @@ def test_share_transform_across_specified_functions():
             return y
 
     after = relax.transform.LiftTransformParams(shared_transform=["func1", "func2"])(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_share_transform_with_unused_parameter():
@@ -1256,7 +1257,7 @@ def test_share_transform_with_unused_parameter():
             return y1
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 @pytest.mark.xfail
@@ -1350,11 +1351,11 @@ def test_share_transform_with_no_shared_preprocessing():
             return y1
 
     after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_stop_lifting():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def func1(
@@ -1398,13 +1399,13 @@ def test_stop_lifting():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_symbolic_var_1():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(shape: R.Shape([n])):
@@ -1413,7 +1414,7 @@ def test_symbolic_var_1():
                 zeros = R.zeros((n, n), "float32")
             return shape
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1434,12 +1435,12 @@ def test_symbolic_var_1():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_symbolic_var_2():
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Before:
@@ -1465,8 +1466,8 @@ def test_symbolic_var_2():
                 R.output()
             return shape
 
-    n_zeros = T.dynamic("n")
-    n_main = T.dynamic("n")
+    n_zeros = T.dynamic("n", "int64")
+    n_main = T.dynamic("n", "int64")
 
     @I.ir_module
     class Expected:
@@ -1500,11 +1501,11 @@ def test_symbolic_var_2():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 def test_symbolic_var_from_shape():
-    slice_index = T.dynamic("slice_index")
+    slice_index = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Before:
@@ -1543,8 +1544,8 @@ def test_symbolic_var_from_shape():
                     vj = Ts.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
-    slice_index_main = T.dynamic("slice_index")
-    slice_index_main_transform_params = T.dynamic("slice_index")
+    slice_index_main = T.dynamic("slice_index", "int64")
+    slice_index_main_transform_params = T.dynamic("slice_index", "int64")
 
     @I.ir_module
     class Expected:
@@ -1600,14 +1601,14 @@ def test_symbolic_var_from_shape():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(Expected, after)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
 
 
 def test_symbolic_var_in_param_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -1626,9 +1627,9 @@ def test_symbolic_var_in_param_shape():
                 R.output(conv2)
             return conv2
 
-    m_main_transform_params = T.dynamic("m")
-    n = T.dynamic("n")
-    m_main = T.dynamic("m")
+    m_main_transform_params = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
 
     @I.ir_module
     class Expected:
@@ -1692,7 +1693,7 @@ def test_symbolic_var_in_param_shape():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 # not supported yet
@@ -1708,10 +1709,10 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     not variable definitions.
     """
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -1726,11 +1727,11 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
                 R.output(output)
             return output
 
-    k = T.dynamic("k")
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    k = T.dynamic("k", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main_transform_params(params: R.Tuple(R.Tensor((k,), dtype="float32"))) -> R.Tuple(
@@ -1758,7 +1759,7 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
             return output
 
     After = relax.transform.LiftTransformParams()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_only_lift_when_variable_uses_constants():
@@ -1768,7 +1769,7 @@ def test_only_lift_when_variable_uses_constants():
     calls.
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Before:
         @R.function
         def main(
@@ -1784,7 +1785,7 @@ def test_only_lift_when_variable_uses_constants():
                 R.output(output)
             return output
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1812,15 +1813,15 @@ def test_only_lift_when_variable_uses_constants():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
 @pytest.mark.parametrize("shared_transform", [True, False])
 def test_lift_transform_is_idempotent(shared_transform):
     """Multiple applicates of LiftTransformParams are allowed"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:
@@ -1844,16 +1845,16 @@ def test_lift_transform_is_idempotent(shared_transform):
     AfterTwoRounds = transform(AfterOneRound)
     assert len(AfterTwoRounds.functions) == 2
 
-    tvm.ir.assert_structural_equal(AfterOneRound, AfterTwoRounds)
+    tvm_tirx.ir.assert_structural_equal(AfterOneRound, AfterTwoRounds)
 
 
 def test_lift_transform_when_one_already_exists():
     """If the module already contains `transform_params`, the
     functions are composed together"""
 
-    batch_size = T.dynamic("batch_size")
-    lora_rank_main = T.dynamic("lora_rank")
-    lora_rank_main_transform_params = T.dynamic("lora_rank")
+    batch_size = T.dynamic("batch_size", "int64")
+    lora_rank_main = T.dynamic("lora_rank", "int64")
+    lora_rank_main_transform_params = T.dynamic("lora_rank", "int64")
 
     @I.ir_module
     class Module:
@@ -1886,7 +1887,7 @@ def test_lift_transform_when_one_already_exists():
     del Module["main_transform_params"]
     after_lift_without_previous_identity_function = transform(Module)
 
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         after_lift_without_previous_identity_function,
         after_lift_with_previous_identity_function,
     )
@@ -1908,12 +1909,12 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
 
     old_extent = Before["main"].params[1]
     after = relax.transform.LiftTransformParams(shared_transform=False)(Before)
-    relax.analysis.well_formed(after)
+    relax.analysis.check_well_formed(after)
 
     transform = after["main_transform_params"]
     bundled_ty = transform.params[0].ty
     assert isinstance(bundled_ty, relax.TupleType)
-    assert isinstance(bundled_ty.fields[0], tvm.ir.PrimType)
+    assert isinstance(bundled_ty.fields[0], tvm_tirx.ir.PrimType)
     assert isinstance(bundled_ty.fields[1], relax.TensorType)
     assert bundled_ty.fields[1].shape is None
     assert bundled_ty.fields[1].ndim == 1
@@ -1922,7 +1923,7 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
     extent_index = next(
         i
         for i, binding in enumerate(bindings)
-        if isinstance(binding, relax.VarBinding) and tvm.ir.is_prim_var(binding.var)
+        if isinstance(binding, relax.VarBinding) and tvm_tirx.ir.is_prim_var(binding.var)
     )
     match_cast_index = next(
         i for i, binding in enumerate(bindings) if isinstance(binding, relax.MatchCast)
@@ -1940,4 +1941,4 @@ def test_lift_transform_with_primitive_param_used_by_model_tensor():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

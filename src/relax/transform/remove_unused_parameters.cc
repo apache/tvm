@@ -57,7 +57,7 @@ struct CalleeAnalysis {
 };
 
 std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
-  bool is_exposed = func->attrs.GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+  bool is_exposed = func->attrs.GetAttr(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return std::nullopt;
 
   auto free_relax_vars = [&]() -> PSet<Var> {
@@ -157,7 +157,7 @@ class CallSiteMutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const FunctionNode* op) override {
+  Expr VisitExpr_(const FunctionObj* op) override {
     auto node = ExprMutator::VisitExpr_(op);
 
     // If a function was modified, that means it called into a private
@@ -170,7 +170,7 @@ class CallSiteMutator : public ExprMutator {
     return node;
   }
 
-  Expr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallObj* op) override {
     auto node = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     if (auto gvar = node->op.as<GlobalVar>()) {

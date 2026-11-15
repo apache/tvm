@@ -19,9 +19,11 @@
 
 from math import pi
 
-from tvm import ir, te, tirx
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+import tvm_tirx
+from tvm import te
+from tvm_tirx import ir, tirx
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 
 def stft(
@@ -138,7 +140,7 @@ def stft(
 
             return ib.get()
 
-    output_buf = tirx.decl_tensor(output_shape, data.dtype, "output_buf", layout=None)
+    output_buf = tirx.Var("output_buf", tirx.TensorType(output_shape, data.dtype, layout=None))
     loop_kind = "vectorize"
     if ir.is_prim_var(output_shape[2]):  # any_dim
         loop_kind = "serial"
@@ -159,7 +161,7 @@ def stft(
 def dft(
     re_data: te.Tensor,
     im_data: te.Tensor,
-    inverse: tirx.IntImm,
+    inverse: tvm_tirx.ir.IntImm,
 ):
     """
     Computes the discrete Fourier transform of input (calculation along the last axis).

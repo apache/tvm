@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BACKEND_ADRENO_TRANSFORM_H_
 #define TVM_RELAX_BACKEND_ADRENO_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
 namespace tvm {

@@ -42,8 +42,8 @@ In this guide, we will study an example compilation flow in the compiler. The fi
   equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
 - **Target Translation**: The compiler translates(codegen) the IRModule to an executable format specified by the target.
-  The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
-- **Runtime Execution**: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
+  The target translation result is encapsulated as a `tvm_ffi.Module` that can be exported, loaded, and executed on the target runtime environment.
+- **Runtime Execution**: the user loads back a `tvm_ffi.Module` and runs the compiled functions in the supported runtime environment.
 
 
 .. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_overall_flow.svg
@@ -148,36 +148,38 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
 .. code-block:: python
 
     import tvm
+    import tvm_ffi
     # Example runtime execution program in python, with type annotated
-    mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
+    mod: tvm_ffi.Module = tvm.runtime.load_module("compiled_artifact.so")
     arr: tvm.runtime.Tensor = tvm.runtime.tensor([1, 2, 3], device=tvm.cuda(0))
     fun: tvm_ffi.Function = mod["addone"]
     fun(arr)
     print(arr.numpy())
 
 
-:py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain :py:class:`tvm_ffi.Function` instances by name.
+:py:class:`tvm_ffi.Module` encapsulates the result of compilation. A tvm_ffi.Module contains a GetFunction method to obtain :py:class:`tvm_ffi.Function` instances by name.
 
 :py:class:`tvm_ffi.Function` is a type-erased function interface for both the generated functions. A tvm_ffi.Function can take arguments and return values with the
-following types: POD types(int, float), string, tvm_ffi.Function, runtime.Module, runtime.Tensor, and other sub-classes of runtime.Object.
+following types: POD types(int, float), string, tvm_ffi.Function, tvm_ffi.Module, runtime.Tensor, and other sub-classes of tvm_ffi.Object.
 
-:py:class:`tvm.runtime.Module` and :py:class:`tvm_ffi.Function` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another tvm_ffi.Function from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
+:py:class:`tvm_ffi.Module` and :py:class:`tvm_ffi.Function` are powerful mechanisms to modularize the runtime. For example, to get the above `addone` function on CUDA, we can use LLVM to generate the host-side code to compute the launching parameters(e.g. size of the thread groups) and then call into another tvm_ffi.Function from a CUDAModule that is backed by the CUDA driver API. The same mechanism can be used for OpenCL kernels.
 
-The above example only deals with a simple `addone` function. The code snippet below gives an example of an end-to-end model execution using the Relax Virtual Machine, which is built on the same runtime.Module and tvm_ffi.Function interface:
+The above example only deals with a simple `addone` function. The code snippet below gives an example of an end-to-end model execution using the Relax Virtual Machine, which is built on the same tvm_ffi.Module and tvm_ffi.Function interface:
 
 .. code-block:: python
 
    import tvm
+   import tvm_ffi
    from tvm import relax
    # Load the compiled artifact
-   mod: tvm.runtime.Module = tvm.runtime.load_module("resnet18.so")
+   mod: tvm_ffi.Module = tvm.runtime.load_module("resnet18.so")
    # Create a VM instance on cuda(0)
    vm = relax.VirtualMachine(mod, tvm.cuda(0))
    data: tvm.runtime.Tensor = get_input_data()
    # Run the model — vm["main"] returns a PackedFunc
    result = vm["main"](data).numpy()
 
-The main take away is that runtime.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
+The main take away is that tvm_ffi.Module and runtime.PackedFunc are sufficient to encapsulate both operator level programs (such as addone), as well as the end-to-end models.
 
 Summary and Discussions
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -185,7 +187,7 @@ Summary and Discussions
 In summary, the key data structures in the compilation flows are:
 
 - IRModule: contains relax.Function and tirx.Function
-- runtime.Module: contains runtime.PackedFunc
+- tvm_ffi.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
 
@@ -355,7 +357,7 @@ mechanism, IR builder frame stack, printer pipeline, and syntax reference.
 
 tvm/target
 ----------
-The target module contains all the code generators that translate an IRModule to a target runtime.Module.
+The target module contains all the code generators that translate an IRModule to a target tvm_ffi.Module.
 It also provides a common `Target` class that describes the target.
 
 Targets can be constructed from a registered tag, a configuration dictionary, or a tag with attribute overrides:

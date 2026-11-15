@@ -38,6 +38,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/runtime/vm/tensor_cache_support.h>
 #include <tvm/support/file_utils.h>
@@ -109,7 +110,7 @@ TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str
   return result;
 }
 
-TVM_RUNTIME_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
+TVM_RUNTIME_EXTRA_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
   std::string json_str = support::ReadBytesFromFile(path + "/tensor-cache.json");
   ffi::String err;
   json::Value json_info = json::Parse(json_str, &err);
@@ -169,7 +170,7 @@ ffi::Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
   return arr;
 }
 
-TVM_RUNTIME_DLL ffi::Array<ffi::Tensor> TensorCacheMetadata::FileRecord::Load(
+TVM_RUNTIME_EXTRA_DLL ffi::Array<ffi::Tensor> TensorCacheMetadata::FileRecord::Load(
     Device device,
     const std::string& path_prefix,  //
     std::string* raw_data_buffer,    //

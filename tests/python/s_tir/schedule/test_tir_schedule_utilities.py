@@ -21,15 +21,16 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule, Range
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -114,7 +115,7 @@ def matmul_relu_ann2(
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithMultipleFuncs:
     @Ts.function
     def vector_add(
@@ -171,7 +172,13 @@ def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "f
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_tir_schedule_creation():
@@ -216,9 +223,9 @@ def test_tir_schedule_get_loops(use_block_name):
     sch = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block = "update" if use_block_name else sch.get_sblock(name="update")
     i, j, k = sch.get_loops(block)
-    assert sch.get(i).loop_var.name == "i"
-    assert sch.get(j).loop_var.name == "j"
-    assert sch.get(k).loop_var.name == "k"
+    assert sch.get(i).var.name == "i"
+    assert sch.get(j).var.name == "j"
+    assert sch.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_1(use_block_name):
@@ -227,15 +234,15 @@ def test_tir_schedule_copy_1(use_block_name):
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_sblock(name="update")
     i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
-    assert sch_1.get(i).loop_var.name == "i"
-    assert sch_1.get(j).loop_var.name == "j"
-    assert sch_1.get(k).loop_var.name == "k"
+    assert sch_1.get(i).var.name == "i"
+    assert sch_1.get(j).var.name == "j"
+    assert sch_1.get(k).var.name == "k"
 
     sch_2 = sch_1.copy()
     assert sch_2.get(block_rv).name_hint == "update"
-    assert sch_2.get(i).loop_var.name == "i"
-    assert sch_2.get(j).loop_var.name == "j"
-    assert sch_2.get(k).loop_var.name == "k"
+    assert sch_2.get(i).var.name == "i"
+    assert sch_2.get(j).var.name == "j"
+    assert sch_2.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_2():
@@ -251,8 +258,14 @@ def test_tir_schedule_copy_2():
     i_0, i_1 = sch.split(i, factors=[None, 64])
     j_0, j_1 = sch_copy.split(j, factors=[None, 32])
 
-    assert sch.get_sref(i_0).stmt.extent == 2
-    assert sch.get_sref(i_1).stmt.extent == 64
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_0).stmt.begin, sch.get_sref(i_0).stmt.end)
+        == 2
+    )
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_1).stmt.begin, sch.get_sref(i_1).stmt.end)
+        == 64
+    )
     with pytest.raises(IndexError):
         sch_copy.get_sref(i_0)
     with pytest.raises(IndexError):
@@ -262,8 +275,18 @@ def test_tir_schedule_copy_2():
         sch.get_sref(j_0)
     with pytest.raises(IndexError):
         sch.get_sref(j_1)
-    assert sch_copy.get_sref(j_0).stmt.extent == 4
-    assert sch_copy.get_sref(j_1).stmt.extent == 32
+    assert (
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_0).stmt.begin, sch_copy.get_sref(j_0).stmt.end
+        )
+        == 4
+    )
+    assert (
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_1).stmt.begin, sch_copy.get_sref(j_1).stmt.end
+        )
+        == 32
+    )
     verify_trace_roundtrip(sch, mod=matmul)
     verify_trace_roundtrip(sch_copy, mod=matmul)
 
@@ -300,7 +323,7 @@ def test_get_producers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "relu" if use_block_name else sch.get_sblock("relu")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("matmul")).stmt,
     )
@@ -311,7 +334,7 @@ def test_get_producers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_sblock("T_add")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("data_red_temp")).stmt,
     )
@@ -321,7 +344,7 @@ def test_get_consumers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_sblock("matmul")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("relu")).stmt,
     )
@@ -332,7 +355,7 @@ def test_get_consumers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_sblock("data_red_temp")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("T_add")).stmt,
     )
@@ -432,4 +455,4 @@ def test_get_output_blocks_nested():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

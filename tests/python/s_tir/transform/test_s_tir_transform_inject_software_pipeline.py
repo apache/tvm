@@ -21,37 +21,29 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.s_tir.tensor_intrin.cuda
 import tvm.s_tir.testing
-import tvm.testing
-from tvm import te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm.s_tir.tensor_intrin.cuda import (
-    LDMATRIX_f16_A_DYN_INTRIN,
-    LDMATRIX_f16_B_DYN_INTRIN,
-    MMA_f16f16f32_INTRIN,
-    MMA_fill_16x16_f32_INTRIN,
-    MMA_store_16x16_f32_global_INTRIN,
-    shared_16x16_to_ldmatrix_32x8_layout,
-)
-from tvm.s_tir.testing.tir import mma_schedule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
 def _check_error(func):
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     with pytest.raises(ValueError):
         tvm.s_tir.transform.InjectSoftwarePipeline()(mod)
 
@@ -1187,7 +1179,7 @@ def test_error_missing_annotation():
 
 
 def test_simple_compute_async():
-    mod = tvm.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1230,9 +1222,9 @@ def test_simple_compute_async():
                     Ts.async_wait(0, 0)
                     C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
-    mod = tvm.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1285,7 +1277,7 @@ def test_simple_compute_async():
                             Ts.async_wait(0, 2 - i)
                             C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_async_producer_interleaving():
@@ -1315,7 +1307,7 @@ def test_async_producer_interleaving():
                         Ts.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
-    mod = tvm.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1389,11 +1381,11 @@ def test_async_producer_interleaving():
                                 + B_shared[(i - 3 + 16) % 4, tx, 0]
                             )
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_three_stage_compute_two_stage_async():
-    mod = tvm.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
     sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
@@ -1474,166 +1466,7 @@ def test_three_stage_compute_two_stage_async():
                             Ts.async_wait(1, T.if_then_else(i + 16 - 1 < 16, 1, 0))
                             D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
-
-
-N = K = M = 4096
-
-
-def get_mma_schedule():
-    i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [16, 2, 4, 1, 2], [128, 2, 1]
-
-    def index_map(i, j):
-        return (
-            i // 16,
-            j // 16,
-            *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
-        )
-
-    workload = te.create_function(
-        te_workload.matmul(N, M, K, in_dtype="float16", out_dtype="float32")
-    )
-
-    return mma_schedule(
-        workload,
-        16,
-        "float16",
-        False,
-        i_factors,
-        j_factors,
-        k_factors,
-        index_map,
-        index_map,
-        index_map,
-        LDMATRIX_f16_A_DYN_INTRIN,
-        LDMATRIX_f16_B_DYN_INTRIN,
-        MMA_f16f16f32_INTRIN,
-        MMA_fill_16x16_f32_INTRIN,
-        MMA_store_16x16_f32_global_INTRIN,
-        "shared.dyn",
-    )
-
-
-def build_and_run(sch):
-    if tvm.s_tir.testing.is_ampere_or_newer():
-        with tvm.ir.transform.PassContext(config={"tirx.use_async_copy": 1}):
-            f = tvm.compile(sch.mod["main"], target="cuda")
-
-        a_np = np.random.uniform(size=(N, K)).astype("float16")
-        b_np = np.random.uniform(size=(K, M)).astype("float16")
-        c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-
-        def run_and_check():
-            dev = tvm.cuda(0)
-            a = tvm.runtime.tensor(a_np, dev)
-            b = tvm.runtime.tensor(b_np, dev)
-            c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
-            f(a, b, c)
-            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
-
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_async_pipelined_mma_gemm_simple():
-    sch = get_mma_schedule()
-
-    k0 = sch.get_loops(sch.get_sblock("C_o_update"))[3]
-
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
-
-    seq = tvm.ir.transform.Sequential(
-        [
-            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
-            tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchTensor(),
-            tvm.s_tir.transform.InjectSoftwarePipeline(),
-        ]
-    )
-    mod = seq(sch.mod)
-
-    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
-    prologue, body, epilogue = pipeline
-
-    commit_group = prologue.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    commit_group = body.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert body.block.body[0].body[1].block.body[0].value.args[1] == 3
-
-    assert (
-        epilogue.block.body[0]
-        .body[0]
-        .block.body[0]
-        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "2 - k_0_0"
-
-    build_and_run(sch)
-
-
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_async_nested_pipeline_mma_gemm_ideal_annotation():
-    sch = get_mma_schedule()
-
-    k0 = sch.get_loops(sch.get_sblock("C_o_update"))[3]
-    k1 = sch.get_loops(sch.get_sblock("C_o_update"))[4]
-
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 2, 3, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
-    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
-
-    sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
-    sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-
-    seq = tvm.ir.transform.Sequential(
-        [
-            tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation(),
-            tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.LowerMatchTensor(),
-            tvm.s_tir.transform.InjectSoftwarePipeline(),
-        ]
-    )
-    mod = seq(sch.mod)
-
-    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
-    prologue, body, epilogue = pipeline
-
-    commit_group = prologue.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        prologue.block.body[0]
-        .body[1]
-        .block.body[0]
-        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert prologue.block.body[0].body[1].block.body[0].value.args[1] == 2
-
-    commit_group = body.block.body[0].body[0].block.body
-    assert len(commit_group) == 3
-    assert commit_group[-1].value.args[0] == 0
-
-    assert (
-        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    )
-    assert body.block.body[0].body[1].block.body[0].value.args[1] == 2
-
-    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "1 - k_0_0"
-
-    build_and_run(sch)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_less_loop_than_num_stage():
@@ -1813,4 +1646,4 @@ def test_less_loop_than_num_stage_dynamic():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

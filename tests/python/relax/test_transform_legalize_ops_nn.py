@@ -18,28 +18,28 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.ir import TupleType as _TupleType
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 ##################### Neural network #####################
 
 
 def test_conv1d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv1d:
         @R.function
         def main(x: R.Tensor((2, 128, 28), "float32"), w: R.Tensor((64, 16, 3), "float32")) -> R.Tensor((2, 64, 13), "float32"):
             gv: R.Tensor((2, 64, 13), "float32") = R.nn.conv1d(x, w, strides=(2,), padding=(1,), dilation=(2,), groups=8)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28), dtype="float32"), w: R.Tensor((64, 16, 3), dtype="float32")) -> R.Tensor((2, 64, 13), dtype="float32"):
@@ -67,19 +67,19 @@ def test_conv1d():
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv1d_with_out_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv1d:
         @R.function
         def main(x: R.Tensor((2, 3, 28), "float32"), w: R.Tensor((4, 3, 3), "float32")) -> R.Tensor((2, 4, 26), "float16"):
             gv: R.Tensor((2, 4, 26), "float16") = R.nn.conv1d(x, w, out_dtype="float16")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28), dtype="float32"), w: R.Tensor((4, 3, 3), dtype="float32")) -> R.Tensor((2, 4, 26), dtype="float16"):
@@ -108,19 +108,19 @@ def test_conv1d_with_out_dtype():
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv1d_nwc():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv1d:
         @R.function
         def main(x: R.Tensor((2, 28, 128), "float32"), w: R.Tensor((64, 128, 3), "float32")) -> R.Tensor((2, 26, 64), "float32"):
             gv: R.Tensor((2, 26, 64), "float32") = R.nn.conv1d(x, w, data_layout="NWC")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 28, 128), dtype="float32"), w: R.Tensor((64, 128, 3), dtype="float32")) -> R.Tensor((2, 26, 64), dtype="float32"):
@@ -149,36 +149,36 @@ def test_conv1d_nwc():
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv1d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv1d:
         @R.function
         def main(x: R.Tensor((n, c, w), "float32"), kernel: R.Tensor((f, c, kw), "float32")) -> R.Tensor((n, f, w - kw + 1), "float32"):
             gv: R.Tensor((n, f, w - kw + 1), "float32") = R.nn.conv1d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    n_conv1d = T.dynamic("n")
-    c_conv1d = T.dynamic("c")
-    w_conv1d = T.dynamic("w")
-    f_conv1d = T.dynamic("f")
-    kw_conv1d = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    n_conv1d = T.dynamic("n", "int64")
+    c_conv1d = T.dynamic("c", "int64")
+    w_conv1d = T.dynamic("w", "int64")
+    f_conv1d = T.dynamic("f", "int64")
+    kw_conv1d = T.dynamic("kw", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, w_main), dtype="float32"), kernel: R.Tensor((f_main, c_main, kw_main), dtype="float32")) -> R.Tensor((n_main, f_main, w_main - kw_main + 1), dtype="float32"):
@@ -208,7 +208,7 @@ def test_conv1d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Conv1d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv1d_transpose():
@@ -255,19 +255,19 @@ def test_conv1d_transpose():
     # fmt: on
 
     mod = LegalizeOps()(Conv1dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2d:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((64, 16, 3, 3), "float32")) -> R.Tensor((2, 64, 13, 13), "float32"):
             gv: R.Tensor((2, 64, 13, 13), "float32") = R.nn.conv2d(x, w, strides=(2, 2), padding=(1, 1), dilation=(2, 2), groups=8)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((64, 16, 3, 3), "float32")) -> R.Tensor((2, 64, 13, 13), "float32"):
@@ -295,19 +295,19 @@ def test_conv2d():
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_with_out_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2d:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")) -> R.Tensor((2, 4, 26, 26), "float16"):
             gv: R.Tensor((2, 4, 26, 26), "float16") = R.nn.conv2d(x, w, out_dtype="float16")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")) -> R.Tensor((2, 4, 26, 26), "float16"):
@@ -335,19 +335,19 @@ def test_conv2d_with_out_dtype():
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_nhwc():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2d:
         @R.function
         def main(x: R.Tensor((2, 28, 28, 128), "float32"), w: R.Tensor((64, 128, 3, 3), "float32")) -> R.Tensor((2, 26, 26, 64), "float32"):
             gv: R.Tensor((2, 26, 26, 64), "float32") = R.nn.conv2d(x, w, data_layout="NHWC")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 28, 28, 128), "float32"), w: R.Tensor((64, 128, 3, 3), "float32")) -> R.Tensor((2, 26, 26, 64), "float32"):
@@ -375,42 +375,42 @@ def test_conv2d_nhwc():
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2d:
         @R.function
         def main(x: R.Tensor((n, c, h, w), "float32"), kernel: R.Tensor((f, c, kh, kw), "float32")) -> R.Tensor((n, f, h - kh + 1, w - kw + 1), "float32"):
             gv: R.Tensor((n, f, h - kh + 1, w - kw + 1), "float32") = R.nn.conv2d(x, kernel)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    c_main = T.dynamic("c")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    h_conv2d = T.dynamic("h")
-    kh_conv2d = T.dynamic("kh")
-    kw_conv2d = T.dynamic("kw")
-    n_conv2d = T.dynamic("n")
-    w_conv2d = T.dynamic("w")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    h_conv2d = T.dynamic("h", "int64")
+    kh_conv2d = T.dynamic("kh", "int64")
+    kw_conv2d = T.dynamic("kw", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    w_conv2d = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, h_main, w_main), "float32"), kernel: R.Tensor((f_main, c_main, kh_main, kw_main), "float32")) -> R.Tensor((n_main, f_main, h_main - kh_main + 1, w_main - kw_main + 1), "float32"):
@@ -439,33 +439,33 @@ def test_conv2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_symbolic_group():
     # fmt: off
-    n = T.dynamic("n")
-    f = T.dynamic("f")
-    c = T.dynamic("c")
-    c_div_8 = T.dynamic("c_div_8")
+    n = T.dynamic("n", "int64")
+    f = T.dynamic("f", "int64")
+    c = T.dynamic("c", "int64")
+    c_div_8 = T.dynamic("c_div_8", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2d:
         @R.function
         def main(x: R.Tensor((n, c, 28, 28), "float32"), w: R.Tensor((f, c_div_8, 3, 3), "float32")) -> R.Tensor((n, f, 26, 26), "float32"):
             gv: R.Tensor((n, f, 26, 26), "float32") = R.nn.conv2d(x, w, groups=8)
             return gv
 
-    n_main = T.dynamic("n")
-    f_main = T.dynamic("f")
-    c_main = T.dynamic("c")
-    c_div_8_main = T.dynamic("c_div_8")
-    n_conv2d = T.dynamic("n")
-    c_conv2d = T.dynamic("c")
-    f_conv2d = T.dynamic("f")
-    c_div_8_conv2d = T.dynamic("c_div_8")
+    n_main = T.dynamic("n", "int64")
+    f_main = T.dynamic("f", "int64")
+    c_main = T.dynamic("c", "int64")
+    c_div_8_main = T.dynamic("c_div_8", "int64")
+    n_conv2d = T.dynamic("n", "int64")
+    c_conv2d = T.dynamic("c", "int64")
+    f_conv2d = T.dynamic("f", "int64")
+    c_div_8_conv2d = T.dynamic("c_div_8", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, c_main, 28, 28), dtype="float32"), w: R.Tensor((f_main, c_div_8_main, 3, 3), dtype="float32")) -> R.Tensor((n_main, f_main, 26, 26), dtype="float32"):
@@ -494,7 +494,7 @@ def test_conv2d_symbolic_group():
     # fmt: on
 
     mod = LegalizeOps()(Conv2d)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_transpose():
@@ -549,12 +549,12 @@ def test_conv2d_transpose():
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv3d_transpose():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv3dTranspose:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 4, 4), "float32"), w: R.Tensor((3, 4, 3, 3, 3), "float32")):
@@ -603,12 +603,12 @@ def test_conv3d_transpose():
     # fmt: on
 
     mod = LegalizeOps()(Conv3dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv3d_transpose_with_out_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv3dTranspose:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 4, 4), "float32"), w: R.Tensor((3, 4, 3, 3, 3), "float32")):
@@ -657,12 +657,12 @@ def test_conv3d_transpose_with_out_dtype():
     # fmt: on
 
     mod = LegalizeOps()(Conv3dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_transpose_with_out_dtype():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2dTranspose:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((3, 4, 3, 3), "float32")):
@@ -712,40 +712,40 @@ def test_conv2d_transpose_with_out_dtype():
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_transpose_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    f = T.dynamic("f")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    f = T.dynamic("f", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2dTranspose:
         @R.function
         def main(x: R.Tensor((n, c, h, w), "float32"), kernel: R.Tensor((f, c, kh, kw), "float32")):
             gv = R.nn.conv2d_transpose(x, kernel, strides=(3, 3))
             return gv
 
-    n_main = T.dynamic("n")
-    c_main = T.dynamic("c")
-    h_main = T.dynamic("h")
-    kh_main = T.dynamic("kh")
-    w_main = T.dynamic("w")
-    kw_main = T.dynamic("kw")
-    f_main = T.dynamic("f")
-    n_conv2d_transpose = T.dynamic("n")
-    c_conv2d_transpose = T.dynamic("c")
-    h_conv2d_transpose = T.dynamic("h")
-    w_conv2d_transpose = T.dynamic("w")
-    f_conv2d_transpose = T.dynamic("f")
-    kh_conv2d_transpose = T.dynamic("kh")
-    kw_conv2d_transpose = T.dynamic("kw")
+    n_main = T.dynamic("n", "int64")
+    c_main = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    kh_main = T.dynamic("kh", "int64")
+    w_main = T.dynamic("w", "int64")
+    kw_main = T.dynamic("kw", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_conv2d_transpose = T.dynamic("n", "int64")
+    c_conv2d_transpose = T.dynamic("c", "int64")
+    h_conv2d_transpose = T.dynamic("h", "int64")
+    w_conv2d_transpose = T.dynamic("w", "int64")
+    f_conv2d_transpose = T.dynamic("f", "int64")
+    kh_conv2d_transpose = T.dynamic("kh", "int64")
+    kw_conv2d_transpose = T.dynamic("kw", "int64")
 
     @I.ir_module
     class Expected:
@@ -791,12 +791,12 @@ def test_conv2d_transpose_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_conv2d_transpose_dilation():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Conv2dTranspose:
         @R.function
         def main(x: R.Tensor((1, 1, 3, 3), "float32"), w: R.Tensor((1, 1, 2, 2), "float32")):
@@ -843,19 +843,19 @@ def test_conv2d_transpose_dilation():
     # fmt: on
 
     mod = LegalizeOps()(Conv2dTranspose)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_pool2d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2D:
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
             gv: R.Tensor((4, 56, 56, 6), "float32") = R.nn.max_pool2d(x, pool_size=[3, 3], strides=[2, 2], dilation=[1, 1], padding=[1, 1, 1, 1], layout="NHWC")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
@@ -884,19 +884,19 @@ def test_max_pool2d():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_pool2d_NCHW16c():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2D:
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
             gv: R.Tensor((4, 4, 110, 110, 16), "float32") = R.nn.max_pool2d(x, pool_size=[3, 3], layout="NCHW16c")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
@@ -918,19 +918,19 @@ def test_max_pool2d_NCHW16c():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_pool2d_ceil_mode():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2D:
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), "float32")) -> R.Tensor((4, 6, 38, 38), "float32"):
             gv: R.Tensor((4, 6, 38, 38), "float32") = R.nn.max_pool2d(x, pool_size=[3, 3], strides=[3, 3], dilation=[1, 1], padding=[1, 1, 1, 1], ceil_mode=True)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
@@ -959,20 +959,20 @@ def test_max_pool2d_ceil_mode():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_max_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2D:
         @R.function
         def main(dumb_param: R.Tensor((kh, kw)), x: R.Tensor((n, c, h, w), "float32")) -> R.Tensor((n, c, h - kh + 1, w - kw + 1), "float32"):
@@ -982,12 +982,12 @@ def test_max_pool2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_avg_pool2d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2D:
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), "float32")) -> R.Tensor((4, 56, 56, 6), "float32"):
@@ -1031,12 +1031,12 @@ def test_avg_pool2d():
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_avg_pool2d_NCHW16c():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2D:
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), "float32")) -> R.Tensor((4, 4, 110, 110, 16), "float32"):
@@ -1072,12 +1072,12 @@ def test_avg_pool2d_NCHW16c():
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_avg_pool2d_ceil_mode():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2D:
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), "float32")) -> R.Tensor((4, 6, 38, 38), "float32"):
@@ -1122,20 +1122,20 @@ def test_avg_pool2d_ceil_mode():
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    kh = T.dynamic("kh")
-    kw = T.dynamic("kw")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    kh = T.dynamic("kh", "int64")
+    kw = T.dynamic("kw", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2D:
         @R.function
         def main(dumb_param: R.Tensor((kh, kw)), x: R.Tensor((n, c, h, w), "float32")) -> R.Tensor((n, c, h - kh + 1, w - kw + 1), "float32"):
@@ -1145,19 +1145,19 @@ def test_avg_pool2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_adaptive_avg_pool2d():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AdaptiveAvgPool2D:
         @R.function
         def main(x: R.Tensor((2, 4, 7, 7, 16), "float32")) -> R.Tensor((2, 4, 1, 1, 16), "float32"):
             gv: R.Tensor((2, 4, 1, 1, 16), "float32") = R.nn.adaptive_avg_pool2d(x, output_size=[1, 1], layout="NCHW16c")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 4, 7, 7, 16), "float32")) -> R.Tensor((2, 4, 1, 1, 16), "float32"):
@@ -1186,19 +1186,19 @@ def test_adaptive_avg_pool2d():
     # fmt: on
 
     mod = LegalizeOps()(AdaptiveAvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_adaptive_avg_pool2d_without_output_size():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AdaptiveAvgPool2D:
         @R.function
         def main(x: R.Tensor((2, 16, 7, 7), "float32")) -> R.Tensor((2, 16, 7, 7), "float32"):
             gv: R.Tensor((2, 16, 7, 7), "float32") = R.nn.adaptive_avg_pool2d(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 16, 7, 7), "float32")) -> R.Tensor((2, 16, 7, 7), "float32"):
@@ -1227,20 +1227,20 @@ def test_adaptive_avg_pool2d_without_output_size():
     # fmt: on
 
     mod = LegalizeOps()(AdaptiveAvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 @pytest.mark.skip("TOPI pooling casts every shape value to i32.")
 def test_adaptive_avg_pool2d_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    oh = T.dynamic("oh")
-    ow = T.dynamic("ow")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    oh = T.dynamic("oh", "int64")
+    ow = T.dynamic("ow", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AdaptiveAvgPool2D:
         @R.function
         def main(dumb_param: R.Tensor((oh, ow)), x: R.Tensor((n, c, h, w), "float32")) -> R.Tensor((n, c, oh, ow), "float32"):
@@ -1249,19 +1249,19 @@ def test_adaptive_avg_pool2d_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(AdaptiveAvgPool2D)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_relu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Relu:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.relu(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
@@ -1280,27 +1280,27 @@ def test_relu():
     # fmt: on
 
     mod = LegalizeOps()(Relu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_relu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Relu:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.nn.relu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_relu = T.dynamic("m")
-    n_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_relu = T.dynamic("m", "int64")
+    n_relu = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
@@ -1320,19 +1320,19 @@ def test_relu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Relu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_leakyrelu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LeakyRelu:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.leakyrelu(x, 0.02)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
@@ -1351,27 +1351,27 @@ def test_leakyrelu():
     # fmt: on
 
     mod = LegalizeOps()(LeakyRelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_leakyrelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LeakyRelu:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.nn.leakyrelu(x, 0.03)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_leaky_relu = T.dynamic("m")
-    n_leaky_relu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_leaky_relu = T.dynamic("m", "int64")
+    n_leaky_relu = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
@@ -1391,19 +1391,19 @@ def test_leakyrelu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(LeakyRelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_prelu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class PRelu:
         @R.function
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1,), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.prelu(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
@@ -1430,24 +1430,24 @@ def test_prelu():
     # fmt: on
 
     mod = LegalizeOps()(PRelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_prelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class PRelu:
         @R.function
         def main(x: R.Tensor((m, 7), "float32"), y: R.Tensor((1,), "float32")) -> R.Tensor((m, 7), "float32"):
             gv: R.Tensor((m, 7), "float32") = R.nn.prelu(x, y)
             return gv
 
-    m_main = T.dynamic("m")
-    m_prelu = T.dynamic("m")
+    m_main = T.dynamic("m", "int64")
+    m_prelu = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, 7), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor((m_main, 7), dtype="float32"):
@@ -1475,19 +1475,19 @@ def test_prelu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(PRelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_gelu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Gelu:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.gelu(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
@@ -1534,27 +1534,27 @@ def test_gelu():
     # fmt: on
 
     mod = LegalizeOps()(Gelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_gelu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Gelu:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.nn.gelu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu = T.dynamic("m")
-    n_gelu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu = T.dynamic("m", "int64")
+    n_gelu = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
@@ -1602,19 +1602,19 @@ def test_gelu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Gelu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_gelu_tanh():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GeluTanh:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.gelu_tanh(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
@@ -1688,27 +1688,27 @@ def test_gelu_tanh():
                     T_multiply[v_ax0, v_ax1] = T_multiply_1[v_ax0, v_ax1] * T_add_1[v_ax0, v_ax1]
 
     mod = LegalizeOps()(GeluTanh)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_gelu_tanh_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GeluTanh:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.nn.gelu_tanh(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_gelu_tanh = T.dynamic("m")
-    n_gelu_tanh = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_gelu_tanh = T.dynamic("m", "int64")
+    n_gelu_tanh = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), dtype="float32")) -> R.Tensor((m_main, n_main), dtype="float32"):
@@ -1784,19 +1784,19 @@ def test_gelu_tanh_symbolic():
                     T_multiply[v_ax0, v_ax1] = T_multiply_1[v_ax0, v_ax1] * T_add_1[v_ax0, v_ax1]
 
     mod = LegalizeOps()(GeluTanh)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_silu():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Silu:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.silu(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
@@ -1822,27 +1822,27 @@ def test_silu():
     # fmt: on
 
     mod = LegalizeOps()(Silu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_silu_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Silu:
         @R.function
         def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
             gv: R.Tensor((m, n), "float32") = R.nn.silu(x)
             return gv
 
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    m_silu = T.dynamic("m")
-    n_silu = T.dynamic("n")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    m_silu = T.dynamic("m", "int64")
+    n_silu = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((m_main, n_main), "float32")) -> R.Tensor((m_main, n_main), "float32"):
@@ -1869,19 +1869,19 @@ def test_silu_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Silu)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_softmax():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Softmax:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), "float32")) -> R.Tensor((2, 3, 16, 32), "float32"):
             gv: R.Tensor((2, 3, 16, 32), "float32") = R.nn.softmax(x, axis=-2)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), "float32")) -> R.Tensor((2, 3, 16, 32), "float32"):
@@ -1926,30 +1926,30 @@ def test_softmax():
     # fmt: on
 
     mod = LegalizeOps()(Softmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Softmax:
         @R.function
         def main(x: R.Tensor((a, b, c), "float32")) -> R.Tensor((a, b, c), "float32"):
             gv: R.Tensor((a, b, c), "float32") = R.nn.softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_softmax = T.dynamic("a")
-    b_softmax = T.dynamic("b")
-    c_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_softmax = T.dynamic("a", "int64")
+    b_softmax = T.dynamic("b", "int64")
+    c_softmax = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), "float32")) -> R.Tensor((a_main, b_main, c_main), "float32"):
@@ -1995,19 +1995,19 @@ def test_softmax_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Softmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_log_softmax():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LogSoftmax:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), "float32")) -> R.Tensor(None, "float32", ndim=4):
             gv: R.Tensor((2, 3, 16, 32), "float32") = R.nn.log_softmax(x, axis=-2)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 16, 32), dtype="float32")) -> R.Tensor((2, 3, 16, 32), dtype="float32"):
@@ -2045,30 +2045,30 @@ def test_log_softmax():
     # fmt: on
 
     mod = LegalizeOps()(LogSoftmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_log_softmax_symbolic():
     # fmt: off
-    a = T.dynamic("a")
-    b = T.dynamic("b")
-    c = T.dynamic("c")
+    a = T.dynamic("a", "int64")
+    b = T.dynamic("b", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LogSoftmax:
         @R.function
         def main(x: R.Tensor((a, b, c), "float32")) -> R.Tensor((a, b, c), "float32"):
             gv: R.Tensor((a, b, c), "float32") = R.nn.log_softmax(x)
             return gv
 
-    a_main = T.dynamic("a")
-    b_main = T.dynamic("b")
-    c_main = T.dynamic("c")
-    a_log_softmax = T.dynamic("a")
-    b_log_softmax = T.dynamic("b")
-    c_log_softmax = T.dynamic("c")
+    a_main = T.dynamic("a", "int64")
+    b_main = T.dynamic("b", "int64")
+    c_main = T.dynamic("c", "int64")
+    a_log_softmax = T.dynamic("a", "int64")
+    b_log_softmax = T.dynamic("b", "int64")
+    c_log_softmax = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main), dtype="float32")) -> R.Tensor((a_main, b_main, c_main), dtype="float32"):
@@ -2108,19 +2108,19 @@ def test_log_softmax_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(LogSoftmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_cross_entropy_with_logits():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CrossEntropyWithLogits:
         @R.function
         def main(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")) -> R.Tensor(None, "float32", ndim=2):
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((3,), dtype="float32"), y: R.Tensor((3,), dtype="float32")):
@@ -2154,19 +2154,19 @@ def test_cross_entropy_with_logits():
     # fmt: on
 
     mod = LegalizeOps()(CrossEntropyWithLogits)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_cross_entropy_with_logits_batch():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CrossEntropyWithLogits:
         @R.function
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(None, "float32", ndim=2):
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
@@ -2206,27 +2206,27 @@ def test_cross_entropy_with_logits_batch():
     # fmt: on
 
     mod = LegalizeOps()(CrossEntropyWithLogits)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_cross_entropy_with_logits_batch_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    m = T.dynamic("m")
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CrossEntropyWithLogits:
         @R.function
         def main(x: R.Tensor((n, m), "float32"), y: R.Tensor((n, m), "float32")) -> R.Tensor(None, "float32", ndim=2):
             gv: R.Tensor((), "float32") = R.nn.cross_entropy_with_logits(x, y)
             return gv
 
-    n_main = T.dynamic("n")
-    m_main = T.dynamic("m")
-    m_cross_entropy_with_logits = T.dynamic("m")
-    n_cross_entropy_with_logits = T.dynamic("n")
+    n_main = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    m_cross_entropy_with_logits = T.dynamic("m", "int64")
+    n_cross_entropy_with_logits = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, m_main), dtype="float32"), y: R.Tensor((n_main, m_main), dtype="float32")):
@@ -2267,19 +2267,19 @@ def test_cross_entropy_with_logits_batch_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(CrossEntropyWithLogits)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_batch_norm():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BatchNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), "float32"), gamma: R.Tensor((3,), "float32"), beta: R.Tensor((3,), "float32"), moving_mean: R.Tensor((3,), "float32"), moving_var: R.Tensor((3,), "float32")) -> R.Tuple(R.Tensor((2, 3, 28, 28), "float32"), R.Tensor((3,), "float32"), R.Tensor((3,), "float32")):
             gv: R.Tuple(R.Tensor((2, 3, 28, 28), "float32"), R.Tensor((3,), "float32"), R.Tensor((3,), "float32")) = R.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def batch_norm(x: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), gamma: T.Tensor((T.int64(3),), "float32"), beta: T.Tensor((T.int64(3),), "float32"), moving_mean: T.Tensor((T.int64(3),), "float32"), moving_var: T.Tensor((T.int64(3),), "float32"), T_add: T.Tensor((T.int64(2), T.int64(3), T.int64(28), T.int64(28)), "float32"), T_add_1: T.Tensor((T.int64(3),), "float32"), T_add_2: T.Tensor((T.int64(3),), "float32")):
@@ -2549,33 +2549,33 @@ def test_batch_norm():
     # fmt: on
 
     mod = LegalizeOps()(BatchNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_batch_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
-    c = T.dynamic("c")
+    n = T.dynamic("n", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
+    c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BatchNorm:
         @R.function
         def main(x: R.Tensor((n, h, w, c), "float32"), gamma: R.Tensor((c,), "float32"), beta: R.Tensor((c,), "float32"), moving_mean: R.Tensor((c,), "float32"), moving_var: R.Tensor((c,), "float32")) -> R.Tuple(R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")):
             gv: R.Tuple(R.Tensor((n, h, w, c), "float32"), R.Tensor((c,), "float32"), R.Tensor((c,), "float32")) = R.nn.batch_norm(x, gamma, beta, moving_mean, moving_var, axis=1)
             return gv
 
-    n_batch_norm = T.dynamic("n")
-    h_batch_norm = T.dynamic("h")
-    w_batch_norm = T.dynamic("w")
-    c_batch_norm = T.dynamic("c")
-    n_main = T.dynamic("n")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
-    c_main = T.dynamic("c")
+    n_batch_norm = T.dynamic("n", "int64")
+    h_batch_norm = T.dynamic("h", "int64")
+    w_batch_norm = T.dynamic("w", "int64")
+    c_batch_norm = T.dynamic("c", "int64")
+    n_main = T.dynamic("n", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
+    c_main = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def batch_norm(x: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), gamma: T.Tensor((c_batch_norm,), "float32"), beta: T.Tensor((c_batch_norm,), "float32"), moving_mean: T.Tensor((c_batch_norm,), "float32"), moving_var: T.Tensor((c_batch_norm,), "float32"), T_add: T.Tensor((n_batch_norm, h_batch_norm, w_batch_norm, c_batch_norm), "float32"), T_add_1: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32"), T_add_2: T.Tensor((T.max(c_batch_norm, h_batch_norm),), "float32")):
@@ -2844,19 +2844,19 @@ def test_batch_norm_symbolic():
             return gv
 
     mod = LegalizeOps()(BatchNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_layer_norm():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LayerNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), gamma: R.Tensor((4, 5), "float32"), beta: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
             gv: R.Tensor((2, 3, 4, 5), "float32") = R.nn.layer_norm(x, gamma, beta, axes=[-2, -1])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), gamma: R.Tensor((4, 5), "float32"), beta: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
@@ -2900,7 +2900,7 @@ def test_layer_norm():
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (x[v_ax0, v_ax1, v_ax2, v_ax3] - x_mean[v_ax0, v_ax1]) * T.rsqrt(x_var_sum[v_ax0, v_ax1] / T.float32(20.0) + T.float32(1.0000000000000001e-05)) * gamma[v_ax2, v_ax3] + beta[v_ax2, v_ax3]
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_layer_norm_1d():
@@ -2964,12 +2964,12 @@ def test_layer_norm_1d():
             return gv
     # fmt: on
     mod = LegalizeOps()(LayerNorm_1D)
-    tvm.ir.assert_structural_equal(mod, LayerNorm_1D_Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, LayerNorm_1D_Expected)
 
 
 def test_layer_norm_fp16():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LayerNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float16"), gamma: R.Tensor((4, 5), "float16"), beta: R.Tensor((4, 5), "float16")) -> R.Tensor((2, 3, 4, 5), "float16"):
@@ -3025,30 +3025,30 @@ def test_layer_norm_fp16():
             return gv
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_layer_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class LayerNorm:
         @R.function
         def main(x: R.Tensor((n, s, f), "float32"), gamma: R.Tensor((s, f), "float32"), beta: R.Tensor((s, f), "float32")) -> R.Tensor((n, s, f), "float32"):
             gv: R.Tensor((n, s, f), "float32") = R.nn.layer_norm(x, gamma, beta, axes=[1, 2])
             return gv
 
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
-    n_layer_norm = T.dynamic("n")
-    s_layer_norm = T.dynamic("s")
-    f_layer_norm = T.dynamic("f")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
+    n_layer_norm = T.dynamic("n", "int64")
+    s_layer_norm = T.dynamic("s", "int64")
+    f_layer_norm = T.dynamic("f", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((n_main, s_main, f_main), "float32"), gamma: R.Tensor((s_main, f_main), "float32"), beta: R.Tensor((s_main, f_main), "float32")) -> R.Tensor((n_main, s_main, f_main), "float32"):
@@ -3093,19 +3093,19 @@ def test_layer_norm_symbolic():
                     T_layer_norm[v_ax0, v_ax1, v_ax2] = (x[v_ax0, v_ax1, v_ax2] - x_mean[v_ax0]) * T.rsqrt(x_var_sum[v_ax0] / (T.Cast("float32", s_layer_norm) * T.Cast("float32", f_layer_norm)) + T.float32(1.0000000000000001e-05)) * gamma[v_ax1, v_ax2] + beta[v_ax1, v_ax2]
     # fmt: on
     mod = LegalizeOps()(LayerNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_group_norm():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroupNorm:
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), "float32"), gamma: R.Tensor((4,), "float32"), beta: R.Tensor((4,), "float32")) -> R.Tensor((2, 4, 4, 5), "float32"):
             gv: R.Tensor((2, 4, 4, 5), "float32") = R.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=1, axes=[2, 3])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def group_norm(rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4),), "float32"), rxplaceholder_2: T.Tensor((T.int64(4),), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(4), T.int64(5)), "float32")):
@@ -3165,19 +3165,19 @@ def test_group_norm():
             return gv
     # fmt: on
     mod = LegalizeOps()(GroupNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_group_norm_fp16():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroupNorm:
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), "float16"), gamma: R.Tensor((4,), "float16"), beta: R.Tensor((4,), "float16")) -> R.Tensor((2, 4, 4, 5), "float16"):
             gv: R.Tensor((2, 4, 4, 5), "float16") = R.nn.group_norm(x, gamma, beta, num_groups=2, channel_axis=1, axes=[2, 3])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 4, 4, 5), dtype="float16"), gamma: R.Tensor((4,), dtype="float16"), beta: R.Tensor((4,), dtype="float16")) -> R.Tensor((2, 4, 4, 5), dtype="float16"):
@@ -3246,32 +3246,32 @@ def test_group_norm_fp16():
     # fmt: on
 
     mod = LegalizeOps()(GroupNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_group_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    c = T.dynamic("c")
-    h = T.dynamic("h")
-    w = T.dynamic("w")
+    n = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h = T.dynamic("h", "int64")
+    w = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroupNorm:
         @R.function
         def main(s: R.Shape([c]), x: R.Tensor((n, 4 * c, h, w), "float32"), gamma: R.Tensor((4 * c,), "float32"), beta: R.Tensor((4 * c,), "float32")) -> R.Tensor((n, 4 * c, h, w), "float32"):
             gv: R.Tensor((n, 4 * c, h, w), "float32") = R.nn.group_norm(x, gamma, beta, num_groups=4, channel_axis=1, axes=[2, 3])
             return gv
 
-    n_group_norm = T.dynamic("n")
-    h_group_norm = T.dynamic("h")
-    w_group_norm = T.dynamic("w")
-    n_main = T.dynamic("n")
-    c = T.dynamic("c")
-    h_main = T.dynamic("h")
-    w_main = T.dynamic("w")
+    n_group_norm = T.dynamic("n", "int64")
+    h_group_norm = T.dynamic("h", "int64")
+    w_group_norm = T.dynamic("w", "int64")
+    n_main = T.dynamic("n", "int64")
+    c = T.dynamic("c", "int64")
+    h_main = T.dynamic("h", "int64")
+    w_main = T.dynamic("w", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         group_norm_c = T.int64()
 
@@ -3335,19 +3335,19 @@ def test_group_norm_symbolic():
             return gv
     # fmt: on
     mod = LegalizeOps()(GroupNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_rms_norm():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class RMSNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), weight: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
             gv: R.Tensor((2, 3, 4, 5), "float32") = R.nn.rms_norm(x, weight, axes=[-2, -1])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Tensor((T.int64(4), T.int64(5)), "float32"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
@@ -3411,19 +3411,19 @@ def test_rms_norm():
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_rms_norm_fp16():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class RMSNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float16"), weight: R.Tensor((4, 5), "float16")) -> R.Tensor((2, 3, 4, 5), "float16"):
             gv: R.Tensor((2, 3, 4, 5), "float16") = R.nn.rms_norm(x, weight, axes=[-2, -1])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"), B: T.Tensor((T.int64(4), T.int64(5)), "float16"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16")):
@@ -3487,30 +3487,30 @@ def test_rms_norm_fp16():
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_rms_norm_symbolic():
     # fmt: off
-    n = T.dynamic("n")
-    s = T.dynamic("s")
-    f = T.dynamic("f")
+    n = T.dynamic("n", "int64")
+    s = T.dynamic("s", "int64")
+    f = T.dynamic("f", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class RMSNorm:
         @R.function
         def main(x: R.Tensor((n, s, f), "float32"), weight: R.Tensor((s, f), "float32")) -> R.Tensor((n, s, f), "float32"):
             gv: R.Tensor((n, s, f), "float32") = R.nn.rms_norm(x, weight, axes=[1, 2])
             return gv
 
-    n_rms_norm = T.dynamic("n")
-    s_rms_norm = T.dynamic("s")
-    f_rms_norm = T.dynamic("f")
-    n_main = T.dynamic("n")
-    s_main = T.dynamic("s")
-    f_main = T.dynamic("f")
+    n_rms_norm = T.dynamic("n", "int64")
+    s_rms_norm = T.dynamic("s", "int64")
+    f_rms_norm = T.dynamic("f", "int64")
+    n_main = T.dynamic("n", "int64")
+    s_main = T.dynamic("s", "int64")
+    f_main = T.dynamic("f", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def rms_norm(A: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32"), B: T.Tensor((s_rms_norm, f_rms_norm), "float32"), T_cast: T.Tensor((n_rms_norm, s_rms_norm, f_rms_norm), "float32")):
@@ -3575,19 +3575,19 @@ def test_rms_norm_symbolic():
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_rms_norm_no_bias():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class RMSNorm:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32"), weight: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
             gv: R.Tensor((2, 3, 4, 5), "float32") = R.nn.rms_norm(x, weight, axes=[-2, -1])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def rms_norm(A: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Tensor((T.int64(4), T.int64(5)), "float32"), T_cast: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
@@ -3651,19 +3651,19 @@ def test_rms_norm_no_bias():
             return gv
     # fmt: on
     mod = LegalizeOps()(RMSNorm)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_attention():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Attention:
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), "float32"), k: R.Tensor((4, 8, 32, 8), "float32"), v: R.Tensor((4, 8, 32, 16), "float32"), bias: R.Tensor((4, 32, 16, 8), "float32")):
             gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale=T.FloatImm("float32", 0.1), causal_mask="TopLeft")
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def attention_bias(q: T.Tensor((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), k: T.Tensor((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), v: T.Tensor((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), bias: T.Tensor((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Tensor((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
@@ -3833,7 +3833,7 @@ def test_attention():
             return gv
     # fmt: on
     mod = LegalizeOps()(Attention)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_dynamic_attention():
@@ -3844,10 +3844,10 @@ def test_dynamic_attention():
     legalization.
     """
 
-    seq_len = T.dynamic("seq_len")
-    seq_len_kv = T.dynamic("seq_len_kv")
+    seq_len = T.dynamic("seq_len", "int64")
+    seq_len_kv = T.dynamic("seq_len_kv", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Attention:
         @R.function
         def main(
@@ -3870,9 +3870,9 @@ def test_dynamic_batch_attention():
     fix https://github.com/apache/tvm/issues/19696
     """
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Attention:
         @R.function
         def main(
@@ -3885,9 +3885,9 @@ def test_dynamic_batch_attention():
 
     LegalizeOps()(Attention)
 
-    batch_size = T.dynamic("batch_size")
+    batch_size = T.dynamic("batch_size", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AttentionBias:
         @R.function
         def main(
@@ -3906,7 +3906,7 @@ def test_dynamic_batch_attention():
 
 def test_nll_loss():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLoss:
         @R.function
         def main(
@@ -3917,7 +3917,7 @@ def test_nll_loss():
             gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -3978,19 +3978,19 @@ def test_nll_loss():
                 output[()] = nll_loss_red[()] / nll_loss_red_1[()]
     # fmt: on
     mod = LegalizeOps()(NLLLoss)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_no_weight():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLoss:
         @R.function
         def main(predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64")) -> R.Tensor((), "float32"):
             gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, reduction="mean", ignore_index=-1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"),) -> R.Tensor((), dtype="float32"):
@@ -4051,24 +4051,24 @@ def test_nll_no_weight():
     # fmt: on
 
     mod = LegalizeOps()(NLLLoss)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_no_batch():
     # fmt: off
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLoss:
         @R.function
         def main(predictions: R.Tensor((C,), "float32"), targets: R.Tensor((), "int64"), weights: R.Tensor((C,), "float32")) -> R.Tensor((), "float32"):
             gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=1)
             return gv
 
-    C_main = T.dynamic("C")
-    C_nll_loss = T.dynamic("C")
+    C_main = T.dynamic("C", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(predictions: R.Tensor((C_main,), dtype="float32"), targets: R.Tensor((), dtype="int64"), weights: R.Tensor((C_main,), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -4100,33 +4100,33 @@ def test_nll_no_batch():
     # fmt: on
 
     mod = LegalizeOps()(NLLLoss)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_loss_symbolic():
     # fmt: off
-    N = T.dynamic("N")
-    C = T.dynamic("C")
-    d1 = T.dynamic("d1")
-    d2 = T.dynamic("d2")
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    d1 = T.dynamic("d1", "int64")
+    d2 = T.dynamic("d2", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLoss:
         @R.function
         def main(predictions: R.Tensor((N, C, d1, d2), "float32"), targets: R.Tensor((N, d1, d2), "int64"), weights: R.Tensor((C,), "float32")) -> R.Tensor((), "float32"):
             gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
-    N_main = T.dynamic("N")
-    C_main = T.dynamic("C")
-    d1_main = T.dynamic("d1")
-    d2_main = T.dynamic("d2")
-    C_nll_loss = T.dynamic("C")
-    N_nll_loss = T.dynamic("N")
-    d1_nll_loss = T.dynamic("d1")
-    d2_nll_loss = T.dynamic("d2")
+    N_main = T.dynamic("N", "int64")
+    C_main = T.dynamic("C", "int64")
+    d1_main = T.dynamic("d1", "int64")
+    d2_main = T.dynamic("d2", "int64")
+    C_nll_loss = T.dynamic("C", "int64")
+    N_nll_loss = T.dynamic("N", "int64")
+    d1_nll_loss = T.dynamic("d1", "int64")
+    d2_nll_loss = T.dynamic("d2", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(predictions: R.Tensor((N_main, C_main, d1_main, d2_main), dtype="float32"), targets: R.Tensor((N_main, d1_main, d2_main), dtype="int64"), weights: R.Tensor((C_main,), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -4180,18 +4180,18 @@ def test_nll_loss_symbolic():
                 T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
     # fmt: on
     mod = LegalizeOps()(NLLLoss)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_pad():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Pad:
         @R.function
         def main(x: R.Tensor((2, 128, 28), "float32")) -> R.Tensor((2, 130, 30), "float32"):
             gv: R.Tensor((2, 130, 30), "float32") = R.nn.pad(x, (0, 0, 1, 1, 1, 1))
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -4222,19 +4222,19 @@ def test_pad():
                     )
 
     mod = LegalizeOps()(Pad)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_batch_flatten():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BatchFlatten:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 60), "float32"):
             gv: R.Tensor((2, 60), "float32") = R.nn.batch_flatten(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 60), dtype="float32"):
@@ -4253,11 +4253,11 @@ def test_batch_flatten():
     # fmt: on
 
     mod = LegalizeOps()(BatchFlatten)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_batch_flatten_undefined_shape():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class BatchFlattenUndefinedShape:
         @R.function
         def main(x: R.Tensor(ndim=4, dtype="float32")) -> R.Tensor(ndim=2, dtype="float32"):
@@ -4265,19 +4265,19 @@ def test_batch_flatten_undefined_shape():
             return gv
 
     mod = LegalizeOps()(BatchFlattenUndefinedShape)
-    tvm.ir.assert_structural_equal(mod, BatchFlattenUndefinedShape)
+    tvm_tirx.ir.assert_structural_equal(mod, BatchFlattenUndefinedShape)
 
 
 def test_dropout():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Dropout:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")):
             gv: R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")) = R.nn.dropout(x, rate=0.5)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def dropout(x: T.Tensor((T.int64(2), T.int64(3)), "float32"), compute: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_full_like: T.Tensor((T.int64(2), T.int64(3)), "float32")):
@@ -4303,8 +4303,8 @@ def test_dropout():
     # fmt: on
 
     mod = LegalizeOps()(Dropout)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

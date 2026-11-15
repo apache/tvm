@@ -22,7 +22,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 #include <vector>
@@ -293,7 +293,7 @@ InferLayoutOutput InferLayoutPool1d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 3) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool1DAttrs>();
@@ -311,11 +311,10 @@ InferLayoutOutput InferLayoutPool1d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.max_pool2d */
@@ -433,7 +432,7 @@ InferLayoutOutput InferLayoutPool2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 4) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool2DAttrs>();
@@ -450,8 +449,7 @@ InferLayoutOutput InferLayoutPool2d(
         TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
-    ffi::Optional<ShapeExpr> data_shape =
-        ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
+    ffi::Optional<ShapeExpr> data_shape = ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprObj>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
       new_attrs->layout = desired_layout.value().name();
@@ -474,11 +472,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.max_pool3d */
@@ -611,7 +608,7 @@ InferLayoutOutput InferLayoutPool3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 5) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool3DAttrs>();
@@ -629,11 +626,10 @@ InferLayoutOutput InferLayoutPool3d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool1d */
@@ -650,11 +646,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool1D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool1d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool2d */
@@ -671,11 +666,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool2d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool2D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool2d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.avg_pool3d */
@@ -692,11 +686,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypePool3D)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutPool3d)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool1d */
@@ -723,7 +716,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
 }
 
-Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
+Type InferTypeAdaptiveAvgPool1D(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -759,7 +752,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 3) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool1DAttrs>();
@@ -777,12 +770,10 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeAdaptiveAvgPool1D>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool1D)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool1D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool1D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool2d */
@@ -812,7 +803,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
 }
 
-Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
+Type InferTypeAdaptiveAvgPool2D(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -849,7 +840,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 4) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool2DAttrs>();
@@ -865,8 +856,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
         TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
-    ffi::Optional<ShapeExpr> data_shape =
-        ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
+    ffi::Optional<ShapeExpr> data_shape = ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprObj>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
       new_attrs->layout = desired_layout.value().name();
@@ -888,12 +878,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeAdaptiveAvgPool2D>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool2D)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool2D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool2D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.adaptive_avg_pool3d */
@@ -923,7 +911,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
 }
 
-Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
+Type InferTypeAdaptiveAvgPool3D(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -961,7 +949,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
-  const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call);
+  const auto* tensor_ty = GetTypeAs<TensorTypeObj>(call);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 5) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool3DAttrs>();
@@ -979,12 +967,10 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType,
-                            FInferType::FromNative<&InferTypeAdaptiveAvgPool3D>())
-      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool3D)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeAdaptiveAvgPool3D>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kInferLayout, InferLayoutAdaptiveAvgPool3D)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kFollow)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax
