@@ -24,7 +24,7 @@ from tvm.relax.dpl import TuplePattern, is_op, rewrite_call, wildcard
 from tvm_tirx.ir import Range
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.ir.transform import PassContext
-from tvm_tirx.sym import Analyzer
+from tvm_tirx.sym import Analyzer, ConstraintContext, RangeConstraint
 
 from . import function_pass
 
@@ -87,8 +87,10 @@ class OptimizeLayoutTransform:
                     # their composition is identity over the input domain.
                     inner_map = matches[self.inner_transform].attrs.index_map
                     analyzer = Analyzer()
+                    constraints = ConstraintContext()
                     for index, extent in zip(inner_map.initial_indices, arg2.ty.shape):
-                        analyzer.bind(index, Range.from_min_extent(0, extent))
+                        constraints.append(RangeConstraint(index, Range.from_min_extent(0, extent)))
+                    analyzer.sync_constraint_context(constraints)
                     mapped_indices = arg1.attrs.index_map.map_indices(
                         inner_map.final_indices, analyzer=analyzer
                     )
