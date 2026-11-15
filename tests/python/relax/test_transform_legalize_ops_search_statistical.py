@@ -340,7 +340,7 @@ def test_max():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax1])
                     Ts.writes(rxplaceholder_red[ax0, ax1])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1] = T.min_value(ty="float32")
+                        rxplaceholder_red[ax0, ax1] = T.float32("-inf")
                     rxplaceholder_red[ax0, ax1] = T.max(rxplaceholder_red[ax0, ax1], rxplaceholder[ax0, k1, k2, ax1])
     # fmt: on
 
@@ -388,7 +388,7 @@ def test_max_symbolic():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax1])
                     Ts.writes(rxplaceholder_red[ax0, ax1])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1] = T.min_value(ty="float32")
+                        rxplaceholder_red[ax0, ax1] = T.float32("-inf")
                     rxplaceholder_red[ax0, ax1] = T.max(rxplaceholder_red[ax0, ax1], rxplaceholder[ax0, k1, k2, ax1])
     # fmt: on
 
@@ -421,7 +421,7 @@ def test_min():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax3])
                     Ts.writes(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value(ty="float32")
+                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.float32("inf")
                     rxplaceholder_red[ax0, ax1, ax2, ax3] = T.min(rxplaceholder_red[ax0, ax1, ax2, ax3], rxplaceholder[ax0, k1, k2, ax3])
     # fmt: on
 
@@ -469,7 +469,7 @@ def test_min_symbolic():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax3])
                     Ts.writes(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value(ty="float32")
+                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.float32("inf")
                     rxplaceholder_red[ax0, ax1, ax2, ax3] = T.min(rxplaceholder_red[ax0, ax1, ax2, ax3], rxplaceholder[ax0, k1, k2, ax3])
     # fmt: on
 

@@ -24,12 +24,30 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 
+#include <limits>
+
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::prim;
 using namespace tvm::tirx;
+
+namespace {
+
+// The identity element used by the max/min reducers.  Floating point types
+// with an IEEE infinity use -inf/+inf so that the identity is neutral for
+// infinity inputs as well.  Other types keep their finite extrema.
+PrimExpr ReductionIdentity(bool is_max, PrimType ty) {
+  if (ty.MatchesCode(DLDataTypeCode::kDLFloat) &&
+      (ty.bits() == 16 || ty.bits() == 32 || ty.bits() == 64)) {
+    return FloatImm(ty, is_max ? -std::numeric_limits<double>::infinity()
+                               : std::numeric_limits<double>::infinity());
+  }
+  return is_max ? min_value(ty) : max_value(ty);
+}
+
+}  // namespace
 
 /*!
  * \brief A helper class to create a new scope that contains decomposed init body
@@ -375,7 +393,7 @@ struct ReducerRegistry {
                       min(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{max_value(values[0].ty())};
+                  return ffi::Array<PrimExpr>{ReductionIdentity(/*is_max=*/false, values[0].ty())};
                 }),
             CreateReducerGetter(
                 /*n_tensors=*/1,
@@ -384,7 +402,7 @@ struct ReducerRegistry {
                       max(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{min_value(values[0].ty())};
+                  return ffi::Array<PrimExpr>{ReductionIdentity(/*is_max=*/true, values[0].ty())};
                 }),
             CreateReducerGetter(
                 /*n_tensors=*/2,

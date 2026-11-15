@@ -1585,7 +1585,7 @@ def test_cpu_sfm():
                     Ts.reads(A[v_i0, vk_0 * 64 + vk_1])
                     Ts.writes(T_softmax_maxelem_rf[v_i0, vk_0])
                     with Ts.init():
-                        T_softmax_maxelem_rf[v_i0, vk_0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[v_i0, vk_0] = T.float32("-inf")
                     T_softmax_maxelem_rf[v_i0, vk_0] = T.max(T_softmax_maxelem_rf[v_i0, vk_0], A[v_i0, vk_0 * 64 + vk_1])
             for i0, k_0 in T.grid(256, 4):
                 with Ts.sblock("T_softmax_maxelem"):
@@ -1593,7 +1593,7 @@ def test_cpu_sfm():
                     Ts.reads(T_softmax_maxelem_rf[v_i0, vk_0])
                     Ts.writes(T_softmax_maxelem[v_i0])
                     with Ts.init():
-                        T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[v_i0] = T.float32("-inf")
                     T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_0])
             for i0, k_0, k_1 in T.grid(256, 16, 16):
                 with Ts.sblock("T_softmax_expsum_rf"):
@@ -1640,7 +1640,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, vk_0 * 64 + vk_1])
                         Ts.writes(T_softmax_maxelem_rf[v_i0, vk_1])
                         with Ts.init():
-                            T_softmax_maxelem_rf[v_i0, vk_1] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_rf[v_i0, vk_1] = T.float32("-inf")
                         T_softmax_maxelem_rf[v_i0, vk_1] = T.max(T_softmax_maxelem_rf[v_i0, vk_1], A[v_i0, vk_0 * 64 + vk_1])
                 for i1 in range(256):
                     for ax0, ax1 in T.grid(64, 1):
@@ -1650,7 +1650,7 @@ def test_cpu_sfm():
                             Ts.reads(T_softmax_maxelem_rf[v_i0, vk_1])
                             Ts.writes(T_softmax_maxelem[v_i0])
                             with Ts.init():
-                                T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                                T_softmax_maxelem[v_i0] = T.float32("-inf")
                             T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_1])
                     with Ts.sblock("T_softmax_exp"):
                         v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
@@ -1696,7 +1696,7 @@ def test_cpu_sfm():
                     Ts.reads(A[v_i0, v_k])
                     Ts.writes(T_softmax_maxelem[v_i0])
                     with Ts.init():
-                        T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[v_i0] = T.float32("-inf")
                     T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
             for i0, k_0, k_1 in T.grid(256, 16, 16):
                 with Ts.sblock("T_softmax_expsum_rf"):
@@ -1742,7 +1742,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, vk_0 + vk_1])
                         Ts.writes(T_softmax_maxelem_rf[v_i0, vk_0])
                         with Ts.init():
-                            T_softmax_maxelem_rf[v_i0, vk_0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_rf[v_i0, vk_0] = T.float32("-inf")
                         T_softmax_maxelem_rf[v_i0, vk_0] = T.max(T_softmax_maxelem_rf[v_i0, vk_0], A[v_i0, vk_0 + vk_1])
                 for ax0, ax1 in T.grid(256, 1):
                     with Ts.sblock("T_softmax_maxelem"):
@@ -1751,7 +1751,7 @@ def test_cpu_sfm():
                         Ts.reads(T_softmax_maxelem_rf[v_i0, vk_0])
                         Ts.writes(T_softmax_maxelem[v_i0])
                         with Ts.init():
-                            T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[v_i0] = T.float32("-inf")
                         T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_0])
                 for ax0, ax1 in T.grid(1, 256):
                     with Ts.sblock("T_softmax_exp"):
@@ -1807,7 +1807,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, vk_0 + vk_1])
                         Ts.writes(T_softmax_maxelem_rf[v_i0, vk_1])
                         with Ts.init():
-                            T_softmax_maxelem_rf[v_i0, vk_1] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_rf[v_i0, vk_1] = T.float32("-inf")
                         T_softmax_maxelem_rf[v_i0, vk_1] = T.max(T_softmax_maxelem_rf[v_i0, vk_1], A[v_i0, vk_0 + vk_1])
                 for k_1 in range(1):
                     with Ts.sblock("T_softmax_maxelem"):
@@ -1815,7 +1815,7 @@ def test_cpu_sfm():
                         Ts.reads(T_softmax_maxelem_rf[v_i0, vk_1])
                         Ts.writes(T_softmax_maxelem[v_i0])
                         with Ts.init():
-                            T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[v_i0] = T.float32("-inf")
                         T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_1])
             for i0, i1 in T.grid(256, 256):
                 with Ts.sblock("T_softmax_exp"):
@@ -1865,7 +1865,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, v_k])
                         Ts.writes(T_softmax_maxelem[v_i0])
                         with Ts.init():
-                            T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[v_i0] = T.float32("-inf")
                         T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
                 for ax0, ax1 in T.grid(1, 256):
                     with Ts.sblock("T_softmax_exp"):
@@ -1920,7 +1920,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, vk_0 * 4 + vk_1])
                         Ts.writes(T_softmax_maxelem_rf[v_i0, vk_0])
                         with Ts.init():
-                            T_softmax_maxelem_rf[v_i0, vk_0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_rf[v_i0, vk_0] = T.float32("-inf")
                         T_softmax_maxelem_rf[v_i0, vk_0] = T.max(T_softmax_maxelem_rf[v_i0, vk_0], A[v_i0, vk_0 * 4 + vk_1])
                 for k_0 in range(64):
                     with Ts.sblock("T_softmax_maxelem"):
@@ -1928,7 +1928,7 @@ def test_cpu_sfm():
                         Ts.reads(T_softmax_maxelem_rf[v_i0, vk_0])
                         Ts.writes(T_softmax_maxelem[v_i0])
                         with Ts.init():
-                            T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[v_i0] = T.float32("-inf")
                         T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_0])
             for i0, k in T.grid(256, 256):
                 with Ts.sblock("T_softmax_expsum"):
@@ -1961,7 +1961,7 @@ def test_cpu_sfm():
                     Ts.reads(A[v_i0, vk_0 * 4 + vk_1])
                     Ts.writes(T_softmax_maxelem_rf[v_i0, vk_1])
                     with Ts.init():
-                        T_softmax_maxelem_rf[v_i0, vk_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[v_i0, vk_1] = T.float32("-inf")
                     T_softmax_maxelem_rf[v_i0, vk_1] = T.max(T_softmax_maxelem_rf[v_i0, vk_1], A[v_i0, vk_0 * 4 + vk_1])
             for i0, k_1 in T.grid(256, 4):
                 with Ts.sblock("T_softmax_maxelem"):
@@ -1969,7 +1969,7 @@ def test_cpu_sfm():
                     Ts.reads(T_softmax_maxelem_rf[v_i0, vk_1])
                     Ts.writes(T_softmax_maxelem[v_i0])
                     with Ts.init():
-                        T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[v_i0] = T.float32("-inf")
                     T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], T_softmax_maxelem_rf[v_i0, vk_1])
             for i0, i1 in T.grid(256, 256):
                 for ax0, ax1 in T.grid(1, 256):
@@ -2005,7 +2005,7 @@ def test_cpu_sfm():
                         Ts.reads(A[v_i0, v_k])
                         Ts.writes(T_softmax_maxelem[v_i0])
                         with Ts.init():
-                            T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[v_i0] = T.float32("-inf")
                         T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
                 for i1 in range(256):
                     with Ts.sblock("T_softmax_exp"):
