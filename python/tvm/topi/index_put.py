@@ -17,12 +17,15 @@
 # pylint: disable=invalid-name
 """IndexPut operator"""
 
+import tvm_ffi
+
 from tvm import te
 from tvm_tirx import tirx
 from tvm_tirx.script.ir_builder import IRBuilder
 from tvm_tirx.tirx.script import ir_builder as T
 
 from . import utils
+from .broadcast import broadcast_to
 
 
 def index_put(data, indices, values, accumulate=False):
@@ -38,7 +41,8 @@ def index_put(data, indices, values, accumulate=False):
         Index tensors are broadcast together following NumPy broadcasting rules.
 
     values : tvm.te.Tensor
-        The values to place at the specified indices.
+        The values to place at the specified indices.  ``values`` is
+        broadcast to the shape of the indexed region following NumPy rules.
 
     accumulate : bool, optional
         Whether to accumulate (add) values rather than replace.
@@ -83,6 +87,16 @@ def index_put(data, indices, values, accumulate=False):
                     elif not utils.equal_const_int(dim_size, max_dim):
                         raise ValueError(f"Cannot broadcast index shapes: {index_shapes}")
         broadcast_shape.append(max_dim)
+
+    # The indexed region has the broadcast index shape.  Broadcast ``values``
+    # to that shape so that the flat index used below is also valid when
+    # ``values`` needs broadcasting (e.g. x[:, [0, 2]] = v with v of shape
+    # (2, 1)).  Without this, the flat index reads past the end of values.
+    if len(values.shape) != len(broadcast_shape) or any(
+        not tvm_ffi.structural_equal(values_dim, region_dim)
+        for values_dim, region_dim in zip(values.shape, broadcast_shape)
+    ):
+        values = broadcast_to(values, broadcast_shape)
 
     # Compute total number of elements after broadcasting
     index_len = 1

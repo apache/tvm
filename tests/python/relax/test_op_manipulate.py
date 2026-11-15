@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F841
+import numpy as np
 import pytest
 
+import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm import relax
@@ -3530,6 +3532,44 @@ def test_one_hot_infer_ty():
                 -1,
             )
         )
+
+
+@pytest.mark.parametrize("accumulate", [False, True])
+def test_index_put_broadcast_values(accumulate):
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", R.Tensor((2, 3), "float32"))
+    indices_0 = relax.Var("indices_0", R.Tensor((2, 1), "int32"))
+    indices_1 = relax.Var("indices_1", R.Tensor((2,), "int32"))
+    values = relax.Var("values", R.Tensor((2, 1), "float32"))
+
+    with bb.function("main", [data, indices_0, indices_1, values]):
+        with bb.dataflow():
+            out = bb.emit(
+                relax.op.index_put(data, relax.Tuple([indices_0, indices_1]), values, accumulate)
+            )
+            gv = bb.emit_output(out)
+        bb.emit_func_output(gv)
+
+    exe = tvm.compile(bb.get(), target="llvm")
+    vm = relax.VirtualMachine(exe, tvm_tirx.cpu())
+
+    data_np = np.arange(6, dtype="float32").reshape(2, 3)
+    indices_0_np = np.array([[0], [1]], dtype="int32")
+    indices_1_np = np.array([0, 2], dtype="int32")
+    values_np = np.array([[10.0], [20.0]], dtype="float32")
+    expected = data_np.copy()
+    if accumulate:
+        np.add.at(expected, (indices_0_np, indices_1_np), np.broadcast_to(values_np, (2, 2)))
+    else:
+        expected[indices_0_np, indices_1_np] = values_np
+
+    out = vm["main"](
+        *(
+            tvm_tirx.runtime.tensor(value)
+            for value in (data_np, indices_0_np, indices_1_np, values_np)
+        )
+    )
+    tvm_tirx.testing.assert_allclose(out.numpy(), expected)
 
 
 if __name__ == "__main__":

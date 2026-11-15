@@ -173,6 +173,52 @@ def test_gpu_imperative_tensors(kind):
 
 @pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize(
+    "values_shape, accumulate",
+    [
+        ((2, 1), False),
+        ((2,), False),
+        ((), False),
+        ((2, 1), True),
+        ((2,), True),
+    ],
+)
+def test_index_put_broadcast_values(values_shape, accumulate):
+    data = np.arange(6, dtype="float32").reshape(2, 3)
+    indices_0 = np.array([[0], [1]], dtype="int32")
+    indices_1 = np.array([0, 2], dtype="int32")
+    if values_shape == (2,):
+        values = np.array([10.0, 20.0], dtype="float32")
+    elif values_shape == (2, 1):
+        values = np.array([[10.0], [20.0]], dtype="float32")
+    else:
+        values = np.array(7.0, dtype="float32")
+
+    indexed = np.broadcast_to(values, (2, 2))
+    expected = data.copy()
+    if accumulate:
+        np.add.at(expected, (indices_0, indices_1), indexed)
+    else:
+        expected[indices_0, indices_1] = indexed
+
+    x = te.placeholder(data.shape, "float32")
+    i = te.placeholder(indices_0.shape, "int32")
+    j = te.placeholder(indices_1.shape, "int32")
+    v = te.placeholder(values.shape, "float32")
+    out = topi.index_put(x, [i, j], v, accumulate=accumulate)
+
+    executable = tvm_tirx.tirx.compile(te.create_function([x, i, j, v, out]), target="llvm")
+    actual = tvm_tirx.runtime.empty(data.shape, "float32")
+    executable(
+        tvm_tirx.runtime.tensor(data),
+        tvm_tirx.runtime.tensor(indices_0),
+        tvm_tirx.runtime.tensor(indices_1),
+        tvm_tirx.runtime.tensor(values),
+        actual,
+    )
+    tvm_tirx.testing.assert_allclose(actual.numpy(), expected, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize(
     "kind",
     [
         "searchsorted",
