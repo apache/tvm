@@ -1526,9 +1526,8 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
   }
   TVM_FFI_ICHECK_GE(axis, 0);
   TVM_FFI_ICHECK_LT(axis, ndim_d);
-  if (indices->shape[axis].as<IntImmObj>()) {
-    size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
-    TVM_FFI_ICHECK_GE(indices_dim_i, 1);
+  if (const auto* indices_dim = indices->shape[axis].as<IntImmObj>()) {
+    TVM_FFI_ICHECK_GE(indices_dim->value, 0);
   }
   // Index tensors are validated by integer element kind; vector lane encoding is irrelevant here.
   PrimType indices_ty = indices->dtype;
