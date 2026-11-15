@@ -96,6 +96,85 @@ def test_lower_match_tensor():
     tvm_tirx.ir.assert_structural_equal(mod, BranchWithMatchTensor, True)
 
 
+def test_zero_extent_reduction_init():
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
+    @tvm_tirx.script.ir_module
+    class Before:
+        @Ts.function
+        def main(A: T.Tensor((n, m), "float32"), B: T.Tensor((n,), "float32")) -> None:
+            for i in T.serial(n):
+                for k in T.serial(m):
+                    with Ts.sblock():
+                        vi, vk = Ts.axis.remap("SR", [i, k])
+                        Ts.reads(A[vi, vk])
+                        Ts.writes(B[vi])
+                        with Ts.init():
+                            B[vi] = T.float32(0)
+                        B[vi] += A[vi, vk]
+
+    @tvm_tirx.script.ir_module
+    class Expected:
+        @Ts.function
+        def main(A: T.Tensor((n, m), "float32"), B: T.Tensor((n,), "float32")) -> None:
+            for i in T.serial(n):
+                if T.int64(0) == m:
+                    B[i] = T.float32(0)
+                for k in T.serial(m):
+                    with Ts.sblock():
+                        vi, vk = Ts.axis.remap("SR", [i, k])
+                        Ts.reads(A[vi, vk])
+                        Ts.writes(B[vi])
+                        if vk == T.int64(0):
+                            B[vi] = T.float32(0)
+                        B[vi] += A[vi, vk]
+
+    mod = tvm.s_tir.transform.LowerInitBlock()(Before)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected, True)
+
+
+def test_zero_extent_reduction_init_multiple_reduce_axes():
+    n = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module
+    class Before:
+        @Ts.function
+        def main(A: T.Tensor((2, n, n), "float32"), B: T.Tensor((2,), "float32")) -> None:
+            for i in T.serial(2):
+                for j in T.serial(n):
+                    for k in T.serial(n):
+                        with Ts.sblock():
+                            vi, vj, vk = Ts.axis.remap("SRR", [i, j, k])
+                            Ts.reads(A[vi, vj, vk])
+                            Ts.writes(B[vi])
+                            with Ts.init():
+                                B[vi] = T.float32(0)
+                            B[vi] += A[vi, vj, vk]
+
+    @tvm_tirx.script.ir_module
+    class Expected:
+        @Ts.function
+        def main(A: T.Tensor((2, n, n), "float32"), B: T.Tensor((2,), "float32")) -> None:
+            for i in T.serial(2):
+                if T.int64(0) == n:
+                    B[i] = T.float32(0)
+                for j in T.serial(n):
+                    if T.int64(0) == n:
+                        B[i] = T.float32(0)
+                    for k in T.serial(n):
+                        with Ts.sblock():
+                            vi, vj, vk = Ts.axis.remap("SRR", [i, j, k])
+                            Ts.reads(A[vi, vj, vk])
+                            Ts.writes(B[vi])
+                            if vj == T.int64(0) and vk == T.int64(0):
+                                B[vi] = T.float32(0)
+                            B[vi] += A[vi, vj, vk]
+
+    mod = tvm.s_tir.transform.LowerInitBlock()(Before)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected, True)
+
+
 if __name__ == "__main__":
     test_lower_reduction()
     test_lower_match_tensor()

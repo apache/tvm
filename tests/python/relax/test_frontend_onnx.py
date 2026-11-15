@@ -7325,6 +7325,23 @@ def test_reduce_funcs_axes_input_numerical(
     )
 
 
+def test_reduce_prod_zero_extent_numerical():
+    node = helper.make_node("ReduceProd", ["x", "axes"], ["y"], keepdims=0)
+    graph = helper.make_graph(
+        [node],
+        "reduce_prod_zero_extent",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 0])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+        [helper.make_tensor("axes", TensorProto.INT64, [1], [1])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reduce_prod_zero_extent",
+        opset_imports=[helper.make_opsetid("", 18)],
+    )
+    check_correctness(model, {"x": np.empty((2, 0), dtype=np.float32)}, opset=18)
+
+
 def test_composite_reduce_funcs_axes_input_ir():
     for func in COMPOSITE_REDUCE_FUNCS:
         for keepdims in [True, False]:
