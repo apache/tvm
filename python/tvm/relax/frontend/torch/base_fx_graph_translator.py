@@ -3067,8 +3067,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.ty, relax.TensorType)
-            if isinstance(node.args[1], int):
-                return x
             if not isinstance(node.args[1], list | tuple):
                 indices = [node.args[1]]
             else:
@@ -3079,6 +3077,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             stride_end = []
             stride = []
             stride_axes = []
+            squeeze_axes = []
             expand_dim = []
             i = 0
             shape = self.shape_of(x)
@@ -3088,10 +3087,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     non_ellipsis_cnt += 1
             for index in indices:
                 if isinstance(index, int):
-                    stride_begin.append(index)
-                    stride_end.append(index + 1)
+                    start = shape[i] + index if index < 0 else index
+                    stride_begin.append(start)
+                    stride_end.append(start + 1)
                     stride.append(1)
                     stride_axes.append(i)
+                    squeeze_axes.append(i)
                     i = i + 1
                 elif isinstance(index, slice):
                     stride_begin.append(0 if index.start is None else index.start)
@@ -3100,7 +3101,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                     stride_axes.append(i)
                     i = i + 1
                 elif index is None:
-                    expand_dim.append(len(stride_axes) + len(expand_dim))
+                    expand_dim.append(i - len(squeeze_axes) + len(expand_dim))
                 elif index is Ellipsis:
                     for _ in range(len(shape) - non_ellipsis_cnt):
                         stride_begin.append(0)
@@ -3133,6 +3134,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             sliced = self.block_builder.emit(
                 relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
             )
+            if squeeze_axes:
+                selected = self.block_builder.emit(relax.op.squeeze(sliced, squeeze_axes))
+                if expand_dim:
+                    return self.block_builder.emit(relax.op.expand_dims(selected, expand_dim))
+                return selected
             sliced_shape = list(self.shape_of(sliced))
             for i in expand_dim:
                 sliced_shape.insert(i, 1)

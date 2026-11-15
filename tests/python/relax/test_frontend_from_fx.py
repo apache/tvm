@@ -2671,7 +2671,7 @@ def test_getitem():
     class expected1:
         @R.function
         def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 1, 10, 3), dtype="float32"
+            (1, 10, 3), dtype="float32"
         ):
             # block 0
             with R.dataflow():
@@ -2682,8 +2682,8 @@ def test_getitem():
                     end=[1, T.int64(3), T.int64(10), 3],
                     strides=[1, 2, 1, 1],
                 )
-                lv1: R.Tensor((1, 1, 10, 3), dtype="float32") = R.reshape(lv, (1, 1, 10, 3))
-                gv: R.Tensor((1, 1, 10, 3), dtype="float32") = lv1
+                lv1: R.Tensor((1, 10, 3), dtype="float32") = R.squeeze(lv, axis=[0])
+                gv: R.Tensor((1, 10, 3), dtype="float32") = lv1
                 R.output(gv)
             return gv
 
