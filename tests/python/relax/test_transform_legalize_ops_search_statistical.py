@@ -129,7 +129,7 @@ def test_argmax():
                     Ts.reads(rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2])
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2])
                     with Ts.init():
-                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.int64(-1)
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.max_value(ty="int64")
                         rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.min_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] == rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] < v_k1), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], v_k1)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2])
@@ -140,7 +140,7 @@ def test_argmax():
                     v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
                     Ts.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2])
                     Ts.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
-                    rxplaceholder_red[v_ax0, v_ax1, v_ax2] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2]
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] == T.max_value(ty="int64"), T.int64(0), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2])
     # fmt: on
 
     mod = LegalizeOps()(Argmax)
@@ -190,7 +190,7 @@ def test_argmax_symbolic():
                     Ts.reads(rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3])
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
-                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value(ty="int64")
                         rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.min_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_k1), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_k1)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3])
@@ -201,7 +201,7 @@ def test_argmax_symbolic():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
-                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3]
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = T.Select(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] == T.max_value(ty="int64"), T.int64(0), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
     # fmt: on
 
     mod = LegalizeOps()(Argmax)
@@ -230,7 +230,7 @@ def test_argmin():
                     Ts.reads(rxplaceholder[v_k0, v_k1, v_k2, v_k3])
                     Ts.writes(rxplaceholder_red_temp_v0[()], rxplaceholder_red_temp_v1[()])
                     with Ts.init():
-                        rxplaceholder_red_temp_v0[()] = T.int64(-1)
+                        rxplaceholder_red_temp_v0[()] = T.max_value(ty="int64")
                         rxplaceholder_red_temp_v1[()] = T.max_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or (rxplaceholder_red_temp_v1[()] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[()] < v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3), rxplaceholder_red_temp_v0[()], v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[()], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
@@ -240,7 +240,7 @@ def test_argmin():
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(rxplaceholder_red_temp_v0[()])
                 Ts.writes(rxplaceholder_red[()])
-                rxplaceholder_red[()] = rxplaceholder_red_temp_v0[()]
+                rxplaceholder_red[()] = T.Select(rxplaceholder_red_temp_v0[()] == T.max_value(ty="int64"), T.int64(0), rxplaceholder_red_temp_v0[()])
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((), dtype="int64"):
@@ -289,7 +289,7 @@ def test_argmin_symbolic():
                     Ts.reads(rxplaceholder[v_k0, v_k1, v_k2, v_k3])
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
-                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
+                        rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value(ty="int64")
                         rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < ((v_k0 * b_argmin + v_k1) * c_argmin + v_k2) * d_argmin + v_k3), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], ((v_k0 * b_argmin + v_k1) * c_argmin + v_k2) * d_argmin + v_k3)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
@@ -300,7 +300,7 @@ def test_argmin_symbolic():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
-                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3]
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] = T.Select(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] == T.max_value(ty="int64"), T.int64(0), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3])
 
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")) -> R.Tensor((1, 1, 1, 1), dtype="int64"):

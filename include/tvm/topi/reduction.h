@@ -194,20 +194,34 @@ inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<int6
 }
 
 /*!
+ * \brief The identity index of the argmin and argmax reducers, which loses every tie.
+ *
+ * \param type The type of the index.
+ * \param select_last_index Whether the reducer selects the last index of equal values.
+ *
+ * \return The identity index.
+ */
+inline PrimExpr ArgReduceIdentityIndex(PrimType type, bool select_last_index) {
+  return select_last_index ? tvm::prim::MakeConst(type, -1) : tvm::prim::max_value(type);
+}
+
+/*!
  * \brief Create an index reduction operation.
  *
  * \param data The input tensor.
  * \param axis The axes along which the reduction is performed.
- * \param func The reduction function
+ * \param func The reduction function, from MakeArgminReducer or MakeArgmaxReducer.
  * \param keepdims If this is set to true, the axes which are reduced are
  * left in the result as dimensions with size one. This enables the result
  * to broadcast correctly against the input array.
  * \param atleast1d Whether the output need to be atleast1d.
+ * \param select_last_index Whether func selects the last index of equal values.
  *
  * \return The result tensor.
  */
 inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& axis,
-                            FCommReduce func, bool keepdims, bool atleast1d) {
+                            FCommReduce func, bool keepdims, bool atleast1d,
+                            bool select_last_index = false) {
   auto ndim = data->shape.size();
   TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -249,8 +263,32 @@ inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<i
       tvm::te::compute(target_shape, compute, data->op.value()->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
+  // The identity value is finite, so an all +inf (-inf for argmax) float row keeps the
+  // identity index.
+  if (data->dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
+                              DLDataTypeCode::kDLBool)) {
+    return tvm::te::compute(
+        target_shape, [&temp_idx](const ffi::Array<PrimVar>& indices) { return temp_idx(indices); },
+        data->op.value()->name + "_red", kCommReduceIdx);
+  }
+  PrimType idx_ty = temp_idx->dtype;
+  PrimExpr identity_idx = ArgReduceIdentityIndex(idx_ty, select_last_index);
+  PrimExpr all_equal_idx = tvm::prim::MakeConst(idx_ty, 0);
+  if (select_last_index) {
+    ffi::Array<PrimExpr> last_indices;
+    ffi::Array<PrimExpr> ravel_shape;
+    for (auto i : real_axis) {
+      last_indices.push_back(data->shape[i] - 1);
+      ravel_shape.push_back(data->shape[i]);
+    }
+    all_equal_idx = tvm::prim::cast(detail::RavelIndex(last_indices, ravel_shape), idx_ty);
+  }
   return tvm::te::compute(
-      target_shape, [&temp_idx](const ffi::Array<PrimVar>& indices) { return temp_idx(indices); },
+      target_shape,
+      [&](const ffi::Array<PrimVar>& indices) {
+        PrimExpr idx = temp_idx(indices);
+        return tvm::prim::Select(idx == identity_idx, all_equal_idx, idx);
+      },
       data->op.value()->name + "_red", kCommReduceIdx);
 }
 
@@ -478,10 +516,11 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
     result.push_back(tvm::prim::Select(is_smaller, lhs[1], rhs[1]));    // val
     return result;
   };
-  auto fidentity = [&](std::vector<PrimType> types) {
+  // Finite, as WGSL has no infinity literal. CommReduceIdx handles all +inf input.
+  auto fidentity = [=](std::vector<PrimType> types) {
     ffi::Array<PrimExpr> result;
-    result.push_back(tvm::prim::MakeConst(types[0], -1));  // idx
-    result.push_back(tvm::prim::max_value(types[1]));      // val
+    result.push_back(ArgReduceIdentityIndex(types[0], select_last_index));  // idx
+    result.push_back(tvm::prim::max_value(types[1]));                       // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmin");
@@ -507,7 +546,7 @@ inline Tensor argmin(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgminReducer(select_last_index);
-  return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
+  return CommReduceIdx(data, axis, reducer, keepdims, atleast1d, select_last_index);
 }
 
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
@@ -535,10 +574,11 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     result.push_back(tvm::prim::Select(is_bigger, lhs[1], rhs[1]));     // val
     return result;
   };
-  auto fidentity = [&](std::vector<PrimType> types) {
+  // Finite, as WGSL has no infinity literal. CommReduceIdx handles all -inf input.
+  auto fidentity = [=](std::vector<PrimType> types) {
     ffi::Array<PrimExpr> result;
-    result.push_back(tvm::prim::MakeConst(types[0], -1));  // idx
-    result.push_back(tvm::prim::min_value(types[1]));      // val
+    result.push_back(ArgReduceIdentityIndex(types[0], select_last_index));  // idx
+    result.push_back(tvm::prim::min_value(types[1]));                       // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmax");
@@ -563,7 +603,7 @@ inline Tensor argmax(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>
                      bool keepdims = false, bool atleast1d = false,
                      bool select_last_index = false) {
   auto reducer = MakeArgmaxReducer(select_last_index);
-  return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
+  return CommReduceIdx(data, axis, reducer, keepdims, atleast1d, select_last_index);
 }
 
 /*!

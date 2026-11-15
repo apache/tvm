@@ -342,6 +342,19 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
 /******** Commutative Reducer ********/
 
 /*!
+ * \brief The identity index of the topi argmin and argmax reducers without select_last_index.
+ * An index of -1, from older TIR, is kept.
+ * \param index The identity index of the reduction block.
+ */
+static PrimExpr TopiArgReduceIdentityIndex(const PrimExpr& index) {
+  const auto* imm = index.as<IntImmObj>();
+  if (imm != nullptr && imm->value == -1) {
+    return index;
+  }
+  return max_value(index.ty());
+}
+
+/*!
  * \brief A structure used for registering new commutative reducers, and store all the registered
  * reducers. The reducers are preserved in a list, in the form of "reducer-getter function". When
  * invoking a reducer-getter function with a specific datatype, the reducer-getter will return the
@@ -426,7 +439,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{TopiArgReduceIdentityIndex(values[0]),
                                               min_value(values[1].ty())};
                 }),
             CreateReducerGetter(
@@ -458,7 +471,7 @@ struct ReducerRegistry {
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{prim::MakeConst(values[0].ty(), -1),
+                  return ffi::Array<PrimExpr>{TopiArgReduceIdentityIndex(values[0]),
                                               max_value(values[1].ty())};
                 }),
             // argmax with `lhs_val > rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
