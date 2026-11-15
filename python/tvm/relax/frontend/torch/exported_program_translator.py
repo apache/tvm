@@ -1314,7 +1314,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         """Convert torch.nn.functional.grid_sample to relax.op.image.grid_sample."""
         args = self.retrieve_args(node)
         data = args[0]
-        grid = args[1]
+        # PyTorch uses [N, H_out, W_out, 2]; Relax NCHW uses [N, 2, H_out, W_out].
+        grid = self.block_builder.emit(relax.op.permute_dims(args[1], axes=[0, 3, 1, 2]))
         interp_mode = args[2] if len(args) > 2 else 0
         pad_mode = args[3] if len(args) > 3 else 0
         align_corners = args[4] if len(args) > 4 else False
