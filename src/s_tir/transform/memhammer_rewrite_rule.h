@@ -66,10 +66,10 @@ struct ConstraintSet {
         read_region(read_region),
         write_region(write_region),
         data_bits(data_bits) {
-    if (auto add_local_stage = ann.Get(tvm::s_tir::attr::kLocalStage)) {
+    if (auto add_local_stage = ann.Get(tvm::s_tir::attr::kLocalStage.name)) {
       this->add_local_stage = static_cast<bool>(add_local_stage.value().cast<IntImm>()->value);
     }
-    if (auto vector_bytes = ann.Get(tvm::s_tir::attr::kVectorBytes)) {
+    if (auto vector_bytes = ann.Get(tvm::s_tir::attr::kVectorBytes.name)) {
       this->vector_bytes = vector_bytes.value().cast<IntImm>()->value.as<int>().value();
     }
   }

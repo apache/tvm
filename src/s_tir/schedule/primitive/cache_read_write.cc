@@ -27,6 +27,7 @@
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include <unordered_set>
 
@@ -47,7 +48,7 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
     TVM_FFI_ICHECK_GT(write_blocks.size(), 1);
     write_blocks_.reserve(write_blocks.size());
     for (const StmtSRef& block_sref : write_blocks) {
-      const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+      const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
       write_blocks_.push_back(ffi::GetRef<SBlock>(block));
     }
   }
@@ -203,7 +204,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
   ffi::Array<Range>& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+    old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                               .template as_or_throw<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
@@ -235,11 +236,9 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For(/*loop_var=*/loop_vars[i - 1],
-               /*min=*/info->loop_ranges[i - 1]->min,
-               /*extent=*/info->loop_ranges[i - 1]->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/body);
+    body = For(loop_vars[i - 1], info->loop_ranges[i - 1]->begin,
+               info->loop_ranges[i - 1]->begin + info->loop_ranges[i - 1]->extent,
+               IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -267,7 +266,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   for (const Range& axis_range : cache_region->region) {
     PrimVar loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.ty());
     loop_vars.push_back(loop_var);
-    iter_values.push_back(cache_full_region ? (axis_range->min + loop_var) : loop_var);
+    iter_values.push_back(cache_full_region ? (axis_range->begin + loop_var) : loop_var);
   }
   // block variables
   ffi::Array<IterVar> block_vars;
@@ -299,16 +298,16 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
           /*IterVarType=*/kDataPar));
       if (cache_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info->read_tensor)) {
         // cache_read
-        read_access_indices.push_back(axis_range->min + var);
+        read_access_indices.push_back(axis_range->begin + var);
         read_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->begin + var, IntImm(var.ty(), 1)));
         write_access_indices.push_back(var);
         write_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       } else {
         // cache_write
-        write_access_indices.push_back(axis_range->min + var);
+        write_access_indices.push_back(axis_range->begin + var);
         write_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->begin + var, IntImm(var.ty(), 1)));
         read_access_indices.push_back(var);
         read_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       }
@@ -338,11 +337,8 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
                             /*block=*/block);
   // Create surrounding loops
   for (size_t i = loop_vars.size(); i >= 1; --i) {
-    body = For(/*loop_var=*/loop_vars[i - 1],
-               /*min=*/0,
-               /*extent=*/cache_region->region[i - 1]->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/body);
+    body = For(loop_vars[i - 1], 0, cache_region->region[i - 1]->extent,
+               IntImm(loop_vars[i - 1].ty(), 1), ForKind::kDefault, body);
   }
   info->cache_stage = std::move(body);
   return block;
@@ -456,11 +452,9 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
 
   // Create the chain of loops
   for (int i = static_cast<int>(new_block_iters.size()) - 1; i >= 0; --i) {
-    body = For(/*loop_var=*/loop_vars[i],
-               /*min=*/new_block_iters[i]->dom.value()->min,
-               /*extent=*/new_block_iters[i]->dom.value()->extent,
-               /*kind=*/ForKind::kDefault,
-               /*body=*/std::move(body));
+    body = For(loop_vars[i], new_block_iters[i]->dom.value()->begin,
+               new_block_iters[i]->dom.value()->begin + new_block_iters[i]->dom.value()->extent,
+               IntImm(loop_vars[i].ty(), 1), ForKind::kDefault, std::move(body));
   }
   // Update cache info, which will be used in the later rewriting.
   info->cache_stage = std::move(body);
@@ -490,7 +484,7 @@ bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) 
  * \return A SeqStmt, the result after insertion
  */
 Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtObj>()) {
     ffi::Array<Stmt> seq = seq_stmt->seq;
     TVM_FFI_ICHECK_LE(pos, seq.size())
         << "Cannot insert at position " << pos << " into sequence of length " << seq.size();
@@ -551,9 +545,9 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
 bool AllConsumersUnderStmt(ScheduleState self, TensorVar tensor, StmtSRef scope_sref,
                            StmtSRef stmt_sref) {
   // Collect all children blocks of the target stmt.
-  std::unordered_set<const SBlockNode*> blocks_under_target;
+  std::unordered_set<const SBlockObj*> blocks_under_target;
   for (const StmtSRef& block_sref : GetChildBlocks(self, stmt_sref)) {
-    const auto* block = block_sref->StmtAs<SBlockNode>();
+    const auto* block = block_sref->StmtAs<SBlockObj>();
     TVM_FFI_ICHECK(block != nullptr);
     blocks_under_target.insert(block);
   }
@@ -562,7 +556,7 @@ bool AllConsumersUnderStmt(ScheduleState self, TensorVar tensor, StmtSRef scope_
   // input tensor, check if it is also a child block of the
   // target stmt.
   for (const StmtSRef& block_sref : GetChildBlocks(self, scope_sref)) {
-    const auto* block = block_sref->StmtAs<SBlockNode>();
+    const auto* block = block_sref->StmtAs<SBlockObj>();
     TVM_FFI_ICHECK(block != nullptr);
     if (GetTensorRegionFromTensor(block->reads, tensor).has_value()) {
       if (blocks_under_target.find(block) == blocks_under_target.end()) {
@@ -593,15 +587,15 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& 
     using StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-      if (value.as<ExprNode>()) return std::nullopt;
+      if (value.as<ExprObj>()) return std::nullopt;
       return StmtExprVisitor::Visit(value);
     }
 
     Collector(const TensorVar& tensor, TensorIndexType idx_type)
         : tensor_(tensor), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
-    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
-      const SBlockNode* block = realize->block.get();
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeObj* realize) final {
+      const SBlockObj* block = realize->block.get();
       const auto& regions = (index_type_ == TensorIndexType::kRead) ? block->reads : block->writes;
       bool accesses_tensor = false;
       for (const TensorRegion& region : regions) {
@@ -674,7 +668,7 @@ TensorRegion RelaxTensorRegion(ScheduleState self, const TensorRegion& tensor_re
     return ffi::Unchanged();
   };
   ffi::Array<Range> mapped_region = tensor_region->region.Map([&f_substitute](const Range& range) {
-    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
+    PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, f_substitute)
                        .as_or_throw<PrimExpr>();
     PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, f_substitute)
                           .as_or_throw<PrimExpr>();
@@ -706,7 +700,7 @@ class CacheLocDetector : public StmtExprVisitor {
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
+    if (value.as<ExprObj>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
 
@@ -756,7 +750,7 @@ class CacheLocDetector : public StmtExprVisitor {
     } else {
       info->loc_sref = scope_sref;
 
-      info->loc_pos = scope_sref->StmtAs<SBlockNode>()->body->size();
+      info->loc_pos = scope_sref->StmtAs<SBlockObj>()->body->size();
     }
   }
 
@@ -776,7 +770,7 @@ class CacheLocDetector : public StmtExprVisitor {
         related_blocks_(related_blocks) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtObj* seq_stmt) final {
     bool previous_visited_block = visited_block_;
     visited_block_ = false;
 
@@ -799,7 +793,7 @@ class CacheLocDetector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockObj* block) final {
     // Only visit the current scope under tensor writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
@@ -829,7 +823,7 @@ class CacheLocDetector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForObj* loop) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && visited_related_ && !loc_sref_.has_value() && loc_pos_ != -1) {
       loc_sref_ = self_->stmt2ref.at(loop);
@@ -861,7 +855,7 @@ class CacheInplaceLocDetector : public StmtExprVisitor {
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
+    if (value.as<ExprObj>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
 
@@ -892,7 +886,7 @@ class CacheInplaceLocDetector : public StmtExprVisitor {
       : self_(self), block_sref_(block_sref), scope_sref_(scope_sref) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtObj* seq_stmt) final {
     for (size_t i = 0; i < seq_stmt->size(); ++i) {
       if (loc_pos_ != -1) {
         break;
@@ -908,7 +902,7 @@ class CacheInplaceLocDetector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockObj* block) final {
     // Only visit the current scope under tensor writer's parent block
     if (block == scope_sref_->stmt) {
       // The block visited is the current parent scope
@@ -927,7 +921,7 @@ class CacheInplaceLocDetector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForObj* loop) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     if (visited_block_ && !loc_sref_.has_value()) {
       loc_sref_ = self_->stmt2ref.at(loop);
@@ -984,7 +978,7 @@ class CacheReadRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->begin - offset[i]->begin),
                                            region[i]->extent));
       }
       return ret;
@@ -1030,27 +1024,27 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* loop, InplaceMode inplace_mode) final {
     Stmt stmt =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
-      ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
+      ffi::ObjectPtr<ForObj> n = ffi::make_object<ForObj>(*stmt.as<ForObj>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       stmt = Stmt(n);
     }
     return stmt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* block, InplaceMode inplace_mode) override {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Check if this block is one of the specified consumers.
     // If no consumer blocks are specified, all blocks should be considered consumers.
     bool is_consumer = info_->consumer_blocks.empty();
     // Otherwise check if this is one of the specified blocks.
     for (StmtSRef consumer_sref : info_->consumer_blocks) {
-      const SBlockNode* consumer_node = TVM_SREF_TO_SBLOCK(consumer_sref);
+      const SBlockObj* consumer_node = TVM_SREF_TO_SBLOCK(consumer_sref);
       SBlock consumer_block = ffi::GetRef<SBlock>(consumer_node);
       if (old_stmt.same_as(consumer_block)) {
         is_consumer = true;
@@ -1065,7 +1059,7 @@ class CacheReadRewriter : public StmtExprMutator {
     }
     // Mutate the body
     // Cache accesses change storage; the original allocation still owns its source.
-    auto input_node = ffi::make_object<SBlockNode>(*block);
+    auto input_node = ffi::make_object<SBlockObj>(*block);
     input_node->alloc_tensors.clear();
     SBlock input(std::move(input_node));
     SBlock stmt = StmtExprMutator::Mutate_(input.get(), InplaceMode::kDisallow)
@@ -1075,14 +1069,14 @@ class CacheReadRewriter : public StmtExprMutator {
     // Check the insertion point
     if (block == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the block if it is the right place
-      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       stmt = SBlock(n);
     }
     // Check if it is the block corresponding to the parent scope
     if (block == scope_sref_->stmt) {
       // If so, put tensor allocation on the parent scope
-      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
       // In cache_inplace case, alloc_tensor may be already exits.
       if (info_->alloc.has_value()) {
         n->alloc_tensors.push_back(info_->alloc.value());
@@ -1096,7 +1090,7 @@ class CacheReadRewriter : public StmtExprMutator {
         ffi::Array<TensorRegion> reads = update_access_regions(stmt->reads);
         ffi::Array<MatchTensorRegion> match_tensors = update_match_tensors(stmt->match_tensors);
         if (!reads.same_as(stmt->reads) || !match_tensors.same_as(stmt->match_tensors)) {
-          ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+          ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
           n->reads = std::move(reads);
           n->match_tensors = std::move(match_tensors);
           stmt = SBlock(n);
@@ -1110,15 +1104,15 @@ class CacheReadRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->begin));
     }
     return ret;
   }
 
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<Expr> Mutate_(const CallObj* op, InplaceMode inplace_mode) override {
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
-      op = ffi::AnyView(result).as<CallNode>();
+      op = ffi::AnyView(result).as<CallObj>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
@@ -1126,15 +1120,15 @@ class CacheReadRewriter : public StmtExprMutator {
     PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
-      const_cast<CallNode*>(op)->ty = std::move(type);
+      const_cast<CallObj*>(op)->ty = std::move(type);
       return result;
     }
-    auto copy = ffi::make_object<CallNode>(*op);
+    auto copy = ffi::make_object<CallObj>(*op);
     copy->ty = std::move(type);
     return Expr(std::move(copy));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* load, InplaceMode inplace_mode) override {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_tensor) &&
         current_block_consumes) {
       ffi::Array<PrimExpr> indices = load->indices;
@@ -1155,7 +1149,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return node;
   }
 
-  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionObj* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1244,7 +1238,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
   }
 
  private:
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* load, InplaceMode inplace_mode) final {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_tensor) &&
         current_block_consumes) {
       TensorLoad node = ffi::GetRef<TensorLoad>(load);
@@ -1297,7 +1291,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
-        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->min - offset[i]->min),
+        ret.push_back(Range::FromMinExtent(ana_->Simplify(region[i]->begin - offset[i]->begin),
                                            region[i]->extent));
       }
       return ret;
@@ -1343,26 +1337,26 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* loop, InplaceMode inplace_mode) final {
     Stmt stmt =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
     if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
-      ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
+      ffi::ObjectPtr<ForObj> n = ffi::make_object<ForObj>(*stmt.as<ForObj>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       stmt = Stmt(n);
     }
     return stmt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* block, InplaceMode inplace_mode) override {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
 
     // Check if this block is one of the specified cache consumers.
     // update the read tensor to the cache.
     for (StmtSRef consumer_sref : info_->consumer_blocks) {
-      const SBlockNode* consumer_node = TVM_SREF_TO_SBLOCK(consumer_sref);
+      const SBlockObj* consumer_node = TVM_SREF_TO_SBLOCK(consumer_sref);
       SBlock consumer_block = ffi::GetRef<SBlock>(consumer_node);
       if (old_stmt.same_as(consumer_block)) {
         ffi::Array<TensorRegion> writes = update_access_regions(block->writes);
@@ -1371,7 +1365,7 @@ class CacheWriteRewriter : public StmtExprMutator {
         if (!writes.same_as(block->writes) || !reads.same_as(block->reads) ||
             !match_tensors.same_as(block->match_tensors)) {
           SBlock new_consumer = old_stmt;
-          SBlockNode* n = new_consumer.CopyOnWrite();
+          SBlockObj* n = new_consumer.CopyOnWrite();
           n->writes = std::move(writes);
           n->reads = std::move(reads);
           n->match_tensors = std::move(match_tensors);
@@ -1392,7 +1386,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     bool under_scope = under_writer_block_ || block == writer_block_sref_->stmt;
     std::swap(under_scope, under_writer_block_);
     // Cache accesses change storage; the original allocation still owns its source.
-    auto input_node = ffi::make_object<SBlockNode>(*block);
+    auto input_node = ffi::make_object<SBlockObj>(*block);
     input_node->alloc_tensors.clear();
     SBlock input(std::move(input_node));
     SBlock stmt = StmtExprMutator::Mutate_(input.get(), InplaceMode::kDisallow)
@@ -1403,13 +1397,13 @@ class CacheWriteRewriter : public StmtExprMutator {
 
     // Find the insertion point
     if (block == info_->loc_sref.value()->stmt) {
-      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       stmt = SBlock(n);
     }
     // Put tensor allocation on the parent scope
     if (block == scope_sref_->stmt) {
-      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
       // In cache_inplace case, alloc_tensor may be already exits.
       if (info_->alloc.has_value()) {
         n->alloc_tensors.push_back(info_->alloc.value());
@@ -1422,7 +1416,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       auto match_tensors = update_match_tensors(block->match_tensors);
       if (!writes.same_as(block->writes) || !reads.same_as(block->reads) ||
           !match_tensors.same_as(block->match_tensors)) {
-        ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+        ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
         n->writes = std::move(writes);
         n->reads = std::move(reads);
         n->match_tensors = std::move(match_tensors);
@@ -1436,12 +1430,12 @@ class CacheWriteRewriter : public StmtExprMutator {
   ffi::Array<PrimExpr> RewriteIndices(const ffi::Array<PrimExpr>& indices) {
     std::vector<PrimExpr> ret;
     for (size_t i = 0; i < indices.size(); ++i) {
-      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->min));
+      ret.push_back(ana_->Simplify(indices[i] - info_->cache_region->region[i]->begin));
     }
     return ret;
   }
 
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* store, InplaceMode inplace_mode) override {
     bool rewrite_tensor = store->dest.as_or_throw<TensorVar>().same_as(info_->write_tensor);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -1452,7 +1446,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       n->indices = std::move(indices).ValueOrUnchanged(store->indices);
     }
     if (rewrite_tensor) {
-      TensorStoreNode* n = stmt.CopyOnWrite();
+      TensorStoreObj* n = stmt.CopyOnWrite();
       n->dest = info_->read_tensor;
       if (!cache_full_region_) {
         n->indices = RewriteIndices(n->indices);
@@ -1463,10 +1457,10 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<Expr> Mutate_(const CallObj* op, InplaceMode inplace_mode) override {
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
-      op = ffi::AnyView(result).as<CallNode>();
+      op = ffi::AnyView(result).as<CallObj>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
@@ -1474,15 +1468,15 @@ class CacheWriteRewriter : public StmtExprMutator {
     PtrType type = op->args[0].as_or_throw<TensorVar>().ty()->DataPtrType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
-      const_cast<CallNode*>(op)->ty = std::move(type);
+      const_cast<CallObj*>(op)->ty = std::move(type);
       return result;
     }
-    auto copy = ffi::make_object<CallNode>(*op);
+    auto copy = ffi::make_object<CallObj>(*op);
     copy->ty = std::move(type);
     return Expr(std::move(copy));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* load, InplaceMode inplace_mode) override {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_tensor)) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
@@ -1502,7 +1496,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     return node;
   }
 
-  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const TensorRegionObj* op, InplaceMode inplace_mode) final {
     if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1598,7 +1592,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* store, InplaceMode inplace_mode) final {
     bool rewrite_tensor = store->dest.as_or_throw<TensorVar>().same_as(info_->write_tensor);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -1609,7 +1603,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       n->indices = std::move(indices).ValueOrUnchanged(store->indices);
     }
     if (rewrite_tensor) {
-      TensorStoreNode* n = stmt.CopyOnWrite();
+      TensorStoreObj* n = stmt.CopyOnWrite();
       n->dest = info_->read_tensor;
       n->indices = new_indices_;
       return stmt;
@@ -1618,7 +1612,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* load, InplaceMode inplace_mode) final {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_tensor)) {
       TensorLoad node = ffi::GetRef<TensorLoad>(load);
       auto* n = node.CopyOnWrite();
@@ -1647,17 +1641,19 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  */
 TensorVar CreateReindexTensor(const TensorVar& tensor, const ffi::Array<IterVar>& block_iters,
                               const std::unordered_set<Var>& covered) {
-  ffi::ObjectPtr<TensorTypeNode> new_tensor = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+  ffi::ObjectPtr<TensorTypeObj> new_tensor = ffi::make_object<TensorTypeObj>(*tensor.ty().get());
   std::vector<PrimExpr> new_shape;
-  std::vector<PrimExpr> new_strides;
   for (const auto& iter : block_iters) {
     if (covered.count(iter->var)) {
-      new_shape.push_back(iter->dom.value()->min + iter->dom.value()->extent);
+      new_shape.push_back(iter->dom.value()->begin + iter->dom.value()->extent);
     }
   }
-  new_strides.clear();
   new_tensor->shape = new_shape;
-  new_tensor->strides = new_strides;
+  if (new_tensor->layout.has_value()) {
+    auto tile = new_tensor->layout.value().as_or_throw<tirx::TileLayout>();
+    new_tensor->layout =
+        tirx::TileLayout(tirx::TileLayout::DefaultLayout(new_shape)->shard, {}, tile->offset);
+  }
   return TensorVar(tensor->name + "_reindex", TensorType(std::move(new_tensor)), tensor->loc);
 }
 
@@ -1741,7 +1737,7 @@ class ReIndexCollector : public StmtExprVisitor {
       : mod_(mod), tensor_(tensor), block_(block) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* load) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadObj* load) final {
     for (const PrimExpr& index : load->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
@@ -1751,12 +1747,12 @@ class ReIndexCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockObj* block) final {
     // no sub-blocks under this block
     throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreObj* store) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
     for (const PrimExpr& index : store->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -1779,7 +1775,7 @@ class ReIndexCollector : public StmtExprVisitor {
     }
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarObj* var) final {
     if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(var);
     if (var == tensor_.get()) {
       throw MakeScheduleError<InvalidTensorAccessError>(
@@ -1820,7 +1816,7 @@ class ReIndexRewriter : public StmtExprMutator {
         new_tensor_(info->alloc.value()) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* block, InplaceMode inplace_mode) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     if (is_scope_) {
       is_scope_ = false;
@@ -1828,7 +1824,7 @@ class ReIndexRewriter : public StmtExprMutator {
                         .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
                         .as_or_throw<SBlock>();
       // Insert cache stage into the loop
-      ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+      ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       n->alloc_tensors.push_back(info_->alloc.value());
       stmt = SBlock(n);
@@ -1858,7 +1854,7 @@ class ReIndexRewriter : public StmtExprMutator {
                               TensorRegion(new_tensor_, region_, TensorRegionType()));
       if (!writes.same_as(block->writes) || !reads.same_as(block->reads) ||
           !match_tensors.same_as(block->match_tensors)) {
-        ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
+        ffi::ObjectPtr<SBlockObj> n = ffi::make_object<SBlockObj>(*stmt.as<SBlockObj>());
         n->writes = std::move(writes);
         n->reads = std::move(reads);
         n->match_tensors = std::move(match_tensors);
@@ -1886,7 +1882,7 @@ class ReIndexRewriter : public StmtExprMutator {
     }
     return node;
   }
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* op, InplaceMode inplace_mode) final {
     auto value = Mutate(op->value);
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorStore tensor_store = ffi::GetRef<TensorStore>(op);
@@ -1898,7 +1894,7 @@ class ReIndexRewriter : public StmtExprMutator {
     return VisitTensorAccess(std::move(tensor_store));
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* op, InplaceMode inplace_mode) final {
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad tensor_load = ffi::GetRef<TensorLoad>(op);
     if (!indices.UnchangedOrSameAs(op->indices)) {
@@ -1944,11 +1940,11 @@ The region cover property require to hold for every of its child blocks
   };
 
   for (const auto& child_block_sref : GetChildBlocks(self, scope_root)) {
-    const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
+    const SBlockObj* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     for (const TensorRegion& region : child_block->reads) {
       if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(read_tensor)) {
         if (!self->block_info.at(child_block_sref).region_cover) {
-          const SBlockNode* block = TVM_SREF_TO_SBLOCK(scope_root);
+          const SBlockObj* block = TVM_SREF_TO_SBLOCK(scope_root);
           throw MakeScheduleError<NotRegionCoverError>(self->mod, ffi::GetRef<SBlock>(block));
         }
       }
@@ -1975,13 +1971,13 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
   CheckStorageScope(self, storage_scope);
 
   // Step 1. Check index, getting the target tensor and the parent scope
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar read_tensor = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), read_tensor_index,
                                              TensorIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   // Check required region cover for cache_read
   CheckRegionCover(self, scope_sref, read_tensor);
-  const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
+  const SBlockObj* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   // Step 2. Create CacheStageInfo
   CacheStageInfo info;
@@ -2001,7 +1997,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
             GetOnlyWriteBlock(self, scope_sref, read_tensor)) {
       // Case 1. The tensor is written inside the block.
       StmtSRef write_block_sref = _write_block_sref.value();
-      const SBlockNode* write_block = TVM_SREF_TO_SBLOCK(write_block_sref);
+      const SBlockObj* write_block = TVM_SREF_TO_SBLOCK(write_block_sref);
       // Find the producing region
       TensorRegion region = GetTensorRegionFromTensor(write_block->writes, read_tensor).value();
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(write_block_sref->parent);
@@ -2039,12 +2035,12 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_tens
 
   // Step 4. Making new cache stage block and rewrite readers.
   bool cache_full_region =
-      info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
+      info.loc_sref.value()->StmtAs<SBlockObj>() == nullptr ||
       !AllConsumersUnderStmt(self, read_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
   info.write_tensor = WithScope(read_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
-    auto write_tensor = ffi::make_object<TensorTypeNode>(*info.write_tensor.ty().get());
+    auto write_tensor = ffi::make_object<TensorTypeObj>(*info.write_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
@@ -2088,7 +2084,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
   CheckStorageScope(self, storage_scope);
 
   // Step 1. Checking index, getting the target tensor and the parent scope
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar write_tensor = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), write_tensor_index,
                                               TensorIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
@@ -2131,12 +2127,12 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
   }
 
   bool cache_full_region =
-      info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
+      info.loc_sref.value()->StmtAs<SBlockObj>() == nullptr ||
       !AllConsumersUnderStmt(self, write_tensor, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
   info.read_tensor = WithScope(write_tensor, runtime::MemoryScope::Get(storage_scope));
   if (!cache_full_region) {
-    auto read_tensor_type = ffi::make_object<TensorTypeNode>(*info.read_tensor.ty().get());
+    auto read_tensor_type = ffi::make_object<TensorTypeObj>(*info.read_tensor.ty().get());
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
@@ -2168,7 +2164,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_te
 ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref,
                                         const ffi::Optional<StmtSRef>& top_sref) {
   std::vector<StmtSRef> result;
-  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
+  for (StmtSRefObj* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForObj>();
        parent = parent->parent) {
     if (top_sref.has_value() && parent == top_sref.value().get()) break;
     result.push_back(ffi::GetRef<StmtSRef>(parent));
@@ -2253,7 +2249,7 @@ void CollectReindexCacheStageInfoAndCreateTensor(
   };
   ffi::Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
-    old_indices.push_back(range->min);
+    old_indices.push_back(range->begin);
   }
   auto old_vars = collect_vars(old_indices);
   auto new_vars = collect_vars(new_indices);
@@ -2274,16 +2270,16 @@ void CollectReindexCacheStageInfoAndCreateTensor(
 
   auto iter_value_vars = collect_vars(info->block_iter_values);
   for (const StmtSRef& loop_sref : GetLoopsUnderScope(block_sref, info->loc_sref)) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    if (iter_value_vars.count(loop->loop_var)) {
-      info->loop_vars.push_back(loop->loop_var);
-      info->loop_ranges.push_back(Range::FromMinExtent(loop->min, loop->extent));
+    const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
+    if (iter_value_vars.count(loop->var)) {
+      info->loop_vars.push_back(loop->var);
+      info->loop_ranges.push_back(Range(loop->begin, loop->end));
     }
   }
 
   // Create new tensor
-  ffi::ObjectPtr<TensorTypeNode> new_tensor =
-      ffi::make_object<TensorTypeNode>(*old_tensor.ty().get());
+  ffi::ObjectPtr<TensorTypeObj> new_tensor =
+      ffi::make_object<TensorTypeObj>(*old_tensor.ty().get());
   new_tensor->scope = runtime::MemoryScope::Get(storage_scope);
   new_tensor->shape = new_shape;
   TensorVar rebuilt = TensorVar(old_tensor->name + "_" + storage_scope,
@@ -2303,7 +2299,8 @@ template <bool is_cache_read>
 void CheckSinglePoint(ScheduleState self, const SBlock& block, const TensorRegion& cache_region) {
   bool single_point = true;
   for (const Range& range : cache_region->region) {
-    const auto* ext_int = range->extent.as<IntImmNode>();
+    PrimExpr ext_int_expr = range->extent;
+    const auto* ext_int = ext_int_expr.as<IntImmObj>();
     if (!ext_int || ext_int->value != 1) {
       single_point = false;
     }
@@ -2482,7 +2479,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   CheckStorageScope(self, storage_scope);
 
   // Check 1. Check index, get the target tensor and the parent scope
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   TensorVar tensor = GetNthAccessTensor(self, ffi::GetRef<SBlock>(block), read_tensor_index,
                                         TensorIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
@@ -2491,7 +2488,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   CheckRegionCover(self, scope_sref, tensor);
 
   // Check 4. Check if target block both read & write target tensor.
-  const SBlockNode* rw_block = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* rw_block = TVM_SREF_TO_SBLOCK(block_sref);
   ffi::Optional<TensorRegion> read_region = GetTensorRegionFromTensor(rw_block->reads, tensor);
   ffi::Optional<TensorRegion> write_region = GetTensorRegionFromTensor(rw_block->writes, tensor);
   if (!read_region.has_value() || !write_region.has_value()) {
@@ -2563,7 +2560,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
 
 StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_index,
                  TensorIndexType tensor_index_type) {
-  const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
+  const SBlockObj* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
   SBlock block = ffi::GetRef<SBlock>(block_ptr);
   TensorVar tensor = GetNthAccessTensor(self, block, tensor_index, tensor_index_type);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
@@ -2574,7 +2571,11 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_inde
   ffi::Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, tensor, block);
   // Simplify the indices if possible
   for (const IterVar& iter : block->iter_vars) {
-    analyzer->Bind(iter->var, iter->dom.value());
+    {
+      auto context = analyzer->GetConstraintContext();
+      context->Append(sym::RangeConstraint(iter->var, iter->dom.value()));
+      analyzer->SyncConstraintContext(context);
+    }
   }
   original_indices.MutateByApply(
       [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, analyzer.get()); });
@@ -2606,8 +2607,8 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int tensor_inde
   //         and get the insert location
   const StmtSRefObj* loop;
   for (loop = block_sref->parent; loop->parent != scope_sref.get();) {
-    const ForNode* outer = loop->parent->StmtAs<ForNode>();
-    const ForNode* inner = loop->StmtAs<ForNode>();
+    const ForObj* outer = loop->parent->StmtAs<ForObj>();
+    const ForObj* inner = loop->StmtAs<ForObj>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
     TVM_FFI_ICHECK(outer->body->size() == 1 && outer->body->seq[0].get() == inner);
     loop = loop->parent;

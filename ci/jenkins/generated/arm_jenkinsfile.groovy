@@ -16,15 +16,31 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'arm/pr-head will fail for these changes; check arm/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('ARM-GRAVITON3', 'BUILD: arm', 'tvm/build-arm', images.ci_arm, 'arm') {
-  sh(
-    script: "${docker_run} ${images.ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-    label: 'Create ARM CMake config',
-  )
-  ci.cmake_build(images.ci_arm, 'build')
-  ci.make_cpp_tests(images.ci_arm, 'build')
-  ci.upload('arm', '--bundle tvm_lib --bundle cpptest')
+stage('Build') {
+  ci.with_node(instance: 'ARM-GRAVITON3-SPOT', retry_instance: 'ARM-GRAVITON3',
+    name: 'BUILD: arm', folder: 'tvm/build-arm', variables: ['PLATFORM=arm']) {
+    ci.docker_init(images.ci_arm)
+    withEnv(ci.build_environment()) {
+      sh(
+        script: """${docker_run} ${images.ci_arm} bash -euo pipefail -c '
+          source ./tests/scripts/task_install_build_dependencies.sh
+          ./tests/scripts/task_build_arm.sh
+        '""",
+        label: 'Build arm wheels and C++ tests',
+      )
+    }
+    ci.upload_artifacts('arm', '--path "dist/*.whl"')
+
+  }
 }

@@ -27,6 +27,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/extra_base.h>
 
 #include <vector>
 

@@ -20,12 +20,12 @@
 from collections import namedtuple
 from enum import IntEnum
 
+import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import For, IRModule
-from tvm.runtime import Object
 from tvm.s_tir import SBlock, SBlockRealize
-from tvm.tirx import Function
+from tvm_tirx.ir import For, IRModule
+from tvm_tirx.tirx import Function
 
 from ..sblock_scope import SBlockScope, StmtSRef
 from . import _ffi_api
@@ -80,7 +80,7 @@ def _parse_enable_checks(enable_checks: bool) -> bool:
 
 
 @register_object("s_tir.ScheduleState")
-class ScheduleState(Object):
+class ScheduleState(tvm_ffi.Object):
     """The state of scheduling, which exposes a `Replace` method as
     the primary resort for all the scheduling primitives to manipulate the TensorIR.
 

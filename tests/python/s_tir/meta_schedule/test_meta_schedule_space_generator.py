@@ -22,7 +22,9 @@ import math
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.space_generator import (
     PostOrderApply,
     PySpaceGenerator,
@@ -32,13 +34,12 @@ from tvm.s_tir.meta_schedule.space_generator import (
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.schedule import Schedule
 from tvm.s_tir.utils import derived_object
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(
@@ -112,7 +113,7 @@ def test_meta_schedule_design_space_generator_NIE():
 
 @pytest.mark.parametrize("arch", ["sm_75", "sm_80", "sm_100"])
 def test_cuda_default_rules_use_generic_scheduling(arch):
-    target = tvm.target.Target(
+    target = tvm_tirx.target.Target(
         {
             "kind": "cuda",
             "arch": arch,
@@ -131,4 +132,4 @@ def test_cuda_default_rules_use_generic_scheduling(arch):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -48,7 +48,7 @@ The end-to-end flow from model to execution is:
    ExecBuilder (bytecode) + IRModule (TIR only)
         │                        │
         │                        ▼  tirx.compile()
-        │                   runtime.Module (native kernels)
+        │                   tvm_ffi.Module (native kernels)
         │                        │
         ▼  VMLink               ▼
    VMExecutable ◄───────── linked together
@@ -343,7 +343,7 @@ Key methods:
 - ``vm.save_function(func_name, saved_name, *args)`` — pre-bind arguments for repeated calls,
   reducing dictionary lookup overhead during benchmarking.
 - ``vm.time_evaluator(func_name, dev)`` — returns a timing function following the same convention
-  as ``tvm.runtime.Module.time_evaluator``.
+  as ``tvm.runtime.time_evaluator``.
 - ``vm.set_instrument(func)`` — register an instrumentation callback that is invoked before/after
   every ``Call`` instruction. The callback can return ``VMInstrumentReturnKind.SKIP_RUN`` to
   skip the call.

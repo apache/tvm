@@ -20,7 +20,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/script/ir_builder/ir.h>
-#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/type.h>
 
 #include "./utils.h"
 
@@ -33,36 +33,22 @@ using ir::ForFrameObj;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
-FunctionFrame Function(bool is_private, bool persistent) {
+FunctionFrame Function(bool is_private, bool persistent, bool is_declaration) {
   auto n = ffi::make_object<FunctionFrameObj>();
   n->is_private = is_private;
+  n->is_declaration = is_declaration;
   n->persistent = persistent;
   n->attrs = {};
   return FunctionFrame(std::move(n));
 }
 
-FunctionFrame DeclFunction(bool is_private, bool persistent) {
-  FunctionFrame frame = Function(is_private, persistent);
-  frame->is_declaration = true;
-  return frame;
-}
-
 TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
-                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
-                      ffi::Optional<PrimExpr> elem_offset, runtime::MemoryScope storage_scope,
-                      int align, int offset_factor, ffi::Optional<Layout> layout,
-                      ffi::Array<PrimExpr> allocated_addr) {
+                      ffi::Optional<Expr> data, runtime::MemoryScope storage_scope, int align,
+                      ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
   if (data.has_value()) {
     storage_scope = data.value()->ty.as_or_throw<PtrType>()->scope;
   }
-  // Matching/allocation builders retain their binding contract; TensorType itself
-  // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor) {
-    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
-    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
-  }
-  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
-                                             align, offset_factor, layout));
+
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegion::FromTensorLoad(load.value());
@@ -71,6 +57,9 @@ TensorVar MatchTensor(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchTensor";
   }
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, align, layout));
+  TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
+      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   FunctionFrameObj::BindTensorRegion(tensor, std::move(region), std::move(allocated_addr));
   return tensor;
 }
@@ -193,8 +182,7 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
 }
 
 TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
-                            ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                            runtime::MemoryScope storage_scope, int align, int offset_factor,
+                            runtime::MemoryScope storage_scope, int align,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
   static const auto scope_shared = runtime::MemoryScope::Get("shared");
   static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
@@ -207,14 +195,10 @@ TensorVar SBlockAllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  // Matching/allocation builders retain their binding contract; TensorType itself
-  // has a fixed zero offset and never invents a symbolic variable.
-  if (!elem_offset.has_value() && offset_factor) {
-    PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
-    elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
-  }
-  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, strides, elem_offset,
-                                             align, offset_factor, layout));
+
+  TensorVar tensor("", tvm::tirx::TensorType(shape, dtype, storage_scope, align, layout));
+  TVM_FFI_CHECK(tvm::tirx::MatchShapeStridePattern(tensor.ty()).has_value(), ValueError)
+      << "S-TIR tensors require a regular memory layout without swizzles or thread axes";
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
@@ -264,7 +248,7 @@ IterVar PushBlockVar(IterVar iter_var, ffi::Optional<PrimExpr> binding) {
 #define TVM_S_TIR_IR_BUILDER_AXIS(Method, Kind, Name)                                              \
   Var Method(Range dom, ffi::Optional<PrimExpr> binding, PrimType dtype) {                         \
     TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";                           \
-    PrimType min_ty = dom->min.ty();                                                               \
+    PrimType min_ty = dom->begin.ty();                                                             \
     PrimType extent_ty = dom->extent.ty();                                                         \
     int bits = std::max({min_ty.bits(), extent_ty.bits(), dtype.bits()});                          \
     PrimType var_ty = dtype.WithBits(bits);                                                        \
@@ -332,19 +316,19 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
 }  // namespace axis
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::script::ir_builder::details::Namer::vtable().SetDispatch<tvm::s_tir::IterVarNode>(
+  tvm::script::ir_builder::detail::Namer::vtable().SetDispatch<tvm::s_tir::IterVarObj>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
         using namespace tvm::s_tir;
-        IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
-        tvm::script::ir_builder::details::Namer::Name(var->var, name);
+        IterVarObj* var = const_cast<IterVarObj*>(node.as<IterVarObj>());
+        tvm::script::ir_builder::detail::Namer::Name(var->var, name);
       });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("s_tir.MatchShapeStridePattern", tvm::tirx::MatchShapeStridePattern);
   refl::GlobalDef()
       .def("script.ir_builder.s_tir.Function", Function)
-      .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
       .def("script.ir_builder.s_tir.MatchTensor", MatchTensor)
       .def("script.ir_builder.s_tir.Block", Block)
       .def("script.ir_builder.s_tir.Init", Init)

@@ -20,16 +20,17 @@
 import numpy as np
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import EliminateCommonSubexpr
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected, call_only=False):
-    tvm.ir.assert_structural_equal(EliminateCommonSubexpr(call_only)(input), expected)
+    tvm_tirx.ir.assert_structural_equal(EliminateCommonSubexpr(call_only)(input), expected)
 
 
 def test_simple():
@@ -68,8 +69,8 @@ def test_constants():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 # we expect to bind the repeated large constants
                 lv1 = R.add(
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)
@@ -82,8 +83,8 @@ def test_constants():
             with R.dataflow():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
                 lv1 = R.add(
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
-                    R.const(tvm.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm_tirx.runtime.tensor(np.zeros((2, 2), dtype="int32"))),
                 )
                 gv = (lv0, lv1)
                 R.output(gv)
@@ -428,13 +429,13 @@ def test_call_tir_tuple_arg():
     # normalization of those expressions may produce additional
     # variables bindings.  This test case should be agnostic to those
     # additional bindings, so DCE is applied after CSE.
-    After = tvm.ir.transform.Sequential(
+    After = tvm_tirx.ir.transform.Sequential(
         [
             EliminateCommonSubexpr(),
             tvm.relax.transform.DeadCodeElimination(),
         ]
     )(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_do_not_eliminate_dtype():
@@ -665,4 +666,4 @@ def test_keep_alloc_storage():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -21,14 +21,16 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from tvm import s_tir, tirx
-from tvm.ir import Range
+import tvm_tirx
+from tvm import s_tir
 from tvm.s_tir import IterVar
 from tvm.s_tir.schedule.schedule import SBlockRV
-from tvm.script import tirx as T
-from tvm.target import Target
-from tvm.tirx import Expr, Var
-from tvm.tirx.analysis import undefined_vars
+from tvm_tirx import tirx
+from tvm_tirx.ir import Range
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
+from tvm_tirx.tirx import Expr, Var
+from tvm_tirx.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
 from .base import GPUScheduleRule
@@ -139,7 +141,7 @@ class IterTrait:
 
 
 def _is_one(x: Expr) -> bool:
-    return isinstance(x, tirx.IntImm) and x.value == 1
+    return isinstance(x, tvm_tirx.ir.IntImm) and x.value == 1
 
 
 def make_iter_fusion_index_map(
@@ -161,7 +163,7 @@ def make_iter_fusion_index_map(
             fused_iters[trait.kind] = v_i
 
     final_indices: list[tirx.Expr] = [
-        fused_iters.get(kind, tirx.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
+        fused_iters.get(kind, tvm_tirx.ir.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
     ]
 
     return tirx.IndexMap(input_iters, final_indices, None)
@@ -191,7 +193,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
         for r in region:
             if not _is_one(r.extent):
                 raise ValueError("Expect elemwise block access")
-            axes = axes.union(set(undefined_vars(r.min)))
+            axes = axes.union(set(undefined_vars(r.begin)))
         return axes
 
     try:
@@ -549,7 +551,7 @@ class Matmul(GPUScheduleRule):
 
         # Checks if it's a inner reduction by getting the last matrix's inner Index
         def is_inner_reduction(block_stmt, iter_infos):
-            end_it = block_stmt.reads[-1].region[-1].min
+            end_it = block_stmt.reads[-1].region[-1].begin
             return {it.var: it.kind for it in iter_infos}.get(end_it, "O") == "R"
 
         if (
@@ -621,8 +623,8 @@ class Matmul(GPUScheduleRule):
             sch.vectorize(v)
 
         if config.unroll > 0:
-            sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=config.unroll)
-            sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(tx, ann_key="tirx.auto_unroll_max_step", ann_val=config.unroll)
+            sch.annotate(tx, ann_key="tirx.unroll_explicit", ann_val=1)
 
         l2g = sch.cache_write(main_block, 0, "local")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
@@ -683,9 +685,18 @@ class Matmul(GPUScheduleRule):
 
         mb, ms, n, k = reduction_loops
         if not (
-            isinstance(sch.get(n).extent, tirx.IntImm)
-            and isinstance(sch.get(mb).extent, tirx.IntImm)
-            and not isinstance(sch.get(ms).extent, tirx.IntImm)
+            isinstance(
+                Range.get_extent_from_begin_end(sch.get(n).begin, sch.get(n).end),
+                tvm_tirx.ir.IntImm,
+            )
+            and isinstance(
+                Range.get_extent_from_begin_end(sch.get(mb).begin, sch.get(mb).end),
+                tvm_tirx.ir.IntImm,
+            )
+            and not isinstance(
+                Range.get_extent_from_begin_end(sch.get(ms).begin, sch.get(ms).end),
+                tvm_tirx.ir.IntImm,
+            )
         ):
             return None
 
@@ -696,7 +707,13 @@ class Matmul(GPUScheduleRule):
             config.unroll,
         )
 
-        VecSize = min(get_max_factor(sch.get(n).extent // Threads_X, [1, 2, 4, 8]), VecSize)
+        VecSize = min(
+            get_max_factor(
+                Range.get_extent_from_begin_end(sch.get(n).begin, sch.get(n).end) // Threads_X,
+                [1, 2, 4, 8],
+            ),
+            VecSize,
+        )
         dequant_block = None
         matmul_block = reduction_block
         epilogue_block = None

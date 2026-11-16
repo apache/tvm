@@ -325,7 +325,7 @@ To add a pattern:
    and issue-count checks, and GPU results reconstructed independently from
    the documented hardware mapping.
 
-The common IR is ``Call(opcode, operands, parameters)`` with only execution scope in
+The common IR is ``Call(opcode, operands, parameters, ty=ty)`` with only execution scope in
 ``ScopeAttrs``. Runtime and static descriptor parameters both live in ordinary
 arguments. ``ewise`` stores its typed scalar body as ``LambdaExpr``. No process-local
 Python callable survives serialization.

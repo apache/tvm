@@ -20,12 +20,12 @@ import enum
 
 import pytest
 
-import tvm
-import tvm.script
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
 from tvm import relax
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 class OpPatternKind(enum.IntEnum):
@@ -43,7 +43,7 @@ def test_annotate_opkind_outewisefusable():
     n = T.dynamic("n", "int32")
     k = T.dynamic("k", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def tir_matmul(
@@ -68,9 +68,9 @@ def test_annotate_opkind_outewisefusable():
 @pytest.mark.parametrize(
     "cast_pattern",
     [
-        lambda a, b: T.Cast(a * b, "float32"),
-        lambda a, b: T.Cast(a, "float32") * T.Cast(b, "float32"),
-        lambda a, b: T.Cast(T.Cast(a * b, "float16"), "float32"),
+        lambda a, b: T.Cast("float32", a * b),
+        lambda a, b: T.Cast("float32", a) * T.Cast("float32", b),
+        lambda a, b: T.Cast("float32", T.Cast("float16", a * b)),
     ],
 )
 def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
@@ -78,7 +78,7 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
     n = T.dynamic("n", "int32")
     k = T.dynamic("k", "int32")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def tir_matmul(
@@ -101,7 +101,7 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
 
 
 def test_annotate_opkind_outewisefusable_int_var_signature():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def tir_matmul(
@@ -127,7 +127,7 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
 
 
 def test_annotate_opkind_reduce():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def sum(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16,), "float32")) -> None:
@@ -146,7 +146,7 @@ def test_annotate_opkind_reduce():
 
 
 def test_annotate_opkind_ewise():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def elemwise(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
@@ -163,7 +163,7 @@ def test_annotate_opkind_ewise():
 
 
 def test_annotate_opkind_broadcast():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def broadcast(
@@ -182,7 +182,7 @@ def test_annotate_opkind_broadcast():
 
 
 def test_annotate_opkind_injective():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def injective(
@@ -201,7 +201,7 @@ def test_annotate_opkind_injective():
 
 
 def test_annotate_opkind_bias_add():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def tir_bias_add(
@@ -226,7 +226,7 @@ def test_annotate_opkind_bias_add():
 
 
 def test_annotate_opkind_add_broadcast_with_unit_shape():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def add_with_unit_dim_len_broadcast(
@@ -248,7 +248,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
 
 
 def test_annotate_opkind_add_zero_dim_element_wise():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def add_zero_dim(
@@ -270,7 +270,7 @@ def test_annotate_opkind_add_zero_dim_element_wise():
 
 
 def test_annotate_opkind_pooling():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def max_pool2d(
@@ -313,7 +313,7 @@ def test_annotate_opkind_pooling():
 
 
 def test_annotate_opkind_softmax():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
         @Ts.function
         def softmax(
@@ -371,12 +371,16 @@ def test_annotate_opkind_softmax():
 
 
 def test_multiple_bufer_stores_fallback():
-    @tvm.script.ir_module
+    cumsummodule_rxplaceholder_offset = T.dynamic("cumsummodule_rxplaceholder_offset", "int32")
+
+    @tvm_tirx.script.ir_module
     class CumsumModule:
         @Ts.function
         def cumsum(
             rxplaceholder: T.Tensor(
-                [10, 16], dtype="float32", offset_factor=1, elem_offset=T.int32()
+                [10, 16],
+                dtype="float32",
+                layout=T.TileLayout(T.S[[10, 16]] + (cumsummodule_rxplaceholder_offset)),
             ),
             out_buf: T.Tensor(160, "float32"),
         ):
@@ -400,7 +404,7 @@ def test_multiple_bufer_stores_fallback():
 
 
 def test_sum_sqsum():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def sum_sqsum(
@@ -427,7 +431,7 @@ def test_sum_sqsum():
 
 
 def test_no_tensor_stores():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Module:
         @Ts.function
         def no_tensor_stores(A: T.Tensor((32, 64), "float32"), vsum: T.Tensor((32,), "float32")):
@@ -446,4 +450,4 @@ def test_no_tensor_stores():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

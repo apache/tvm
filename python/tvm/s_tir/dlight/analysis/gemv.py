@@ -18,8 +18,9 @@
 
 import tvm_ffi
 
-import tvm
-from tvm import s_tir, sym, tirx
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx import sym, tirx
 
 from .common_analysis import (
     SBlockInfo,
@@ -49,13 +50,13 @@ def get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     if len(block.body) != 1:
         return None
     tensor_store = block.body[0]
-    if not isinstance(tensor_store, tvm.ir.TensorStore):
+    if not isinstance(tensor_store, tvm_tirx.ir.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
         tensor_store.value.a,
-        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
+        tvm_tirx.ir.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None
@@ -157,8 +158,10 @@ def normalize(
         else:
             s_loops.append(loop)
 
-    assert s_loops
-    assert r_loops
+    # Broadcast operands can make a general reduction look like GEMV.
+    # GEMV needs a non-batch spatial axis as well as a reduction axis.
+    if not s_loops or not r_loops:
+        return None
     if not c_loops:
         c_loops = [sch.add_unit_loop(block_info.block_rv)]
     if not batch_loops:

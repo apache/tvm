@@ -17,14 +17,14 @@
 
 import pytest
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
-@pytest.mark.parametrize("key_type", [tvm.ir.GlobalVar, str])
+@pytest.mark.parametrize("key_type", [tvm_tirx.ir.GlobalVar, str])
 def test_inline_simple(key_type):
     """Simple case of inlining
 
@@ -54,7 +54,7 @@ def test_inline_simple(key_type):
         return D
 
     gvar = Before.get_global_var("subroutine")
-    if key_type is tvm.ir.GlobalVar:
+    if key_type is tvm_tirx.ir.GlobalVar:
         key = gvar
     elif key_type is str:
         key = gvar.name_hint
@@ -63,7 +63,7 @@ def test_inline_simple(key_type):
 
     after = Before["main"].inline_functions({key: Before[gvar]})
 
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_ambiguous_function_name():
@@ -78,7 +78,7 @@ def test_ambiguous_function_name():
     def func():
         return ()
 
-    gvar = tvm.ir.GlobalVar("name")
+    gvar = tvm_tirx.ir.GlobalVar("name")
 
     with pytest.raises(ValueError):
         func.inline_functions({gvar: func, "name": func})
@@ -115,7 +115,7 @@ def test_inline_dataflow_block():
         return D
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_inline_non_dataflow_block_into_dataflow_block():
@@ -163,7 +163,7 @@ def test_inline_non_dataflow_block_into_dataflow_block():
         return D
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_subroutine_with_symbolic_vars():
@@ -203,7 +203,7 @@ def test_subroutine_with_symbolic_vars():
         return D
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_subroutine_with_symbolic_vars_and_static_argument():
@@ -238,7 +238,7 @@ def test_subroutine_with_symbolic_vars_and_static_argument():
         return D
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_inline_multiple_instances():
@@ -272,7 +272,7 @@ def test_inline_multiple_instances():
         return E
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_inline_multiple_instances_with_distinct_static_shapes():
@@ -305,7 +305,7 @@ def test_inline_multiple_instances_with_distinct_static_shapes():
         return (A_out, B_out)
 
     after = Before["main"].inline_functions({"subroutine": Before["subroutine"]})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_inline_nested_subroutine_calls():
@@ -345,7 +345,7 @@ def test_inline_nested_subroutine_calls():
             "subsubroutine": Before["subsubroutine"],
         }
     )
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_error_when_inlining_recursive_function():
@@ -415,4 +415,4 @@ def test_error_when_inlining_mutually_recursive_functions():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

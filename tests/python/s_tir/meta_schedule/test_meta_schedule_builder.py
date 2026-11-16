@@ -22,20 +22,21 @@ import sys
 import time
 
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
-import tvm.testing
-from tvm import script
-from tvm.runtime import Module
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
     LocalBuilder,
     PyBuilder,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx import script
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
@@ -169,7 +170,7 @@ def test_meta_schedule_error_handle_build_func():
 
     def initializer():
         @register_global_func("meta_schedule.builder.test_build")
-        def test_build(mod: Module, target: Target, _) -> None:  # pylint: disable=unused-variable
+        def test_build(mod: tvm_ffi.Module, target: Target, _) -> None:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (build func).")
 
     builder = LocalBuilder(f_build="meta_schedule.builder.test_build", initializer=initializer)
@@ -189,7 +190,7 @@ def test_meta_schedule_error_handle_export_func():
 
     def initializer():
         @register_global_func("meta_schedule.builder.test_export")
-        def test_build(mod: Module) -> str:  # pylint: disable=unused-variable
+        def test_build(mod: tvm_ffi.Module) -> str:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (export func).")
 
     builder = LocalBuilder(f_export="meta_schedule.builder.test_export", initializer=initializer)
@@ -234,4 +235,4 @@ def test_meta_schedule_missing_build_func():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -21,21 +21,22 @@ import threading
 from numbers import Integral
 from typing import Any
 
-from tvm import ir
-from tvm import tirx as tir
-from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.type import _normalize_type
-from tvm.runtime import MemoryScope
+import tvm_tirx
 from tvm.s_tir.iter_var import IterVar
 from tvm.s_tir.op import comm_reducer
-from tvm.script.ir_builder.base import MISSING, auto_emit_void_call
-from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.te import CommReducer, Reduce
-from tvm.tirx import Expr, IntImm, Var
-from tvm.tirx.layout import Layout
-from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
-from tvm.tirx.script.ir_builder.parser_protocol import region
+from tvm_tirx import ir
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import IntImm, TensorLoad, TensorRegion, is_prim_expr
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.type import _normalize_type
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script.ir_builder.base import MISSING, auto_emit_void_call
+from tvm_tirx.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
+from tvm_tirx.tirx import Expr, Var
+from tvm_tirx.tirx.layout import Layout
+from tvm_tirx.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
+from tvm_tirx.tirx.script.ir_builder.parser_protocol import region
 
 from . import _ffi_api
 
@@ -74,13 +75,13 @@ def async_copy_scope():
 @auto_emit_void_call
 def async_commit(queue_id, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Commit the preceding asynchronous copies to a queue."""
-    return ir.Call("s_tir.async_commit", [queue_id], ty=ty, loc=loc)
+    return ir.Call("s_tir.async_commit", [queue_id], loc=loc, ty=ty)
 
 
 @auto_emit_void_call
 def async_wait(queue_id, inflight_count, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Wait until at most inflight_count committed groups remain in flight."""
-    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, loc=loc)
+    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], loc=loc, ty=ty)
 
 
 def manual_sync():
@@ -94,11 +95,8 @@ def match_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
-    offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
 ) -> Var:
@@ -118,8 +116,6 @@ def match_tensor(
         else:
             raise ValueError("Shape must be specified when binding a scalar tensor access")
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is None:
-        strides = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -129,11 +125,8 @@ def match_tensor(
         shape,
         _normalize_type(dtype),
         data,
-        strides,
-        elem_offset,
         scope,
         align,
-        offset_factor,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -242,11 +235,8 @@ def sblock_alloc_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
     scope: str | MemoryScope = MemoryScope("global"),
     align: int = -1,
-    offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Var:
@@ -260,16 +250,10 @@ def sblock_alloc_tensor(
         The data type in the content of the tensor.
     data : Var
         The pointer to the head of the data.
-    strides : List[Expr]
-        The strides of each dimension.
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
     scope : str
         The optional storage scope of tensor data pointer.
     align : int
         The alignment requirement of data pointer in bytes.
-    offset_factor : int
-        The factor of elem_offset field.
     layout: Optional[Union[str, Layout]]
         The layout of the tensor.
 
@@ -285,8 +269,6 @@ def sblock_alloc_tensor(
         The allocated tensor.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    if strides is None:
-        strides = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -295,11 +277,8 @@ def sblock_alloc_tensor(
         shape,
         _normalize_type(dtype),
         data,
-        strides,
-        elem_offset,
         scope,
         align,
-        offset_factor,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -323,10 +302,10 @@ def _as_range(dom: ir.Range | list[Expr]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, list | tuple):
-        from tvm.sym import Analyzer  # pylint: disable=import-outside-toplevel
+        from tvm_tirx.sym import Analyzer  # pylint: disable=import-outside-toplevel
 
         extent = Analyzer().simplify(dom[1] - dom[0])
-        if isinstance(extent, tir.IntImm):
+        if isinstance(extent, tvm_tirx.ir.IntImm):
             return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if is_prim_expr(dom):

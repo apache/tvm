@@ -20,14 +20,13 @@ from typing import Optional
 
 import tvm_ffi
 
-from tvm.runtime import Object
-from tvm.tirx.function import Function
+from tvm_tirx.tirx.function import Function
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("s_tir.TensorIntrin")
-class TensorIntrin(Object):
+class TensorIntrin(tvm_ffi.Object):
     """A tensor intrinsic.
 
     Parameters

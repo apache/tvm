@@ -22,7 +22,6 @@ Python API
     :maxdepth: 1
     :caption: tvm
 
-    error
     ir
     sym
     instrument

@@ -101,7 +101,7 @@ ENV/
 *.pyc
 *~
 config.mk
-config.cmake
+CMakeUserPresets.json
 Win32
 *.dir
 perf
@@ -258,7 +258,6 @@ conda/pkg
 _docs/
 jvm/target
 .config/configstore/
-.ci-py-scripts/
 
 
 # Local tvm-site checkout

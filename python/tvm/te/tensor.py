@@ -19,10 +19,9 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
-from tvm.ir import Expr, OpaqueExpr, SeqStmt, const, is_prim_expr
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import Object
-from tvm.tirx import expr as _expr
+from tvm_tirx.ir import Expr, OpaqueExpr, SeqStmt, const, is_prim_expr
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.tirx import expr as _expr
 
 from . import _ffi_api, _te_tensor_overload
 
@@ -306,7 +305,7 @@ class Tensor(OpaqueExpr, TensorOpBase):
 
 
 @tvm_ffi.register_object("te.Operation")
-class Operation(Object):
+class Operation(tvm_ffi.Object):
     """Represent an operation that generates a tensor"""
 
     def output(self, index):

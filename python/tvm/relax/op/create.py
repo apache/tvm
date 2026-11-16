@@ -18,11 +18,11 @@
 
 import tvm_ffi
 
-from tvm import DataType, DataTypeCode
-from tvm.ir import Attrs, PrimType, is_prim_expr
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx import DataTypeCode
+from tvm_tirx.ir import Attrs, PrimType, is_prim_expr
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr, ShapeExpr, prim_value
 
@@ -49,7 +49,7 @@ class InitAttrs(Attrs):
 def full(
     shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -64,7 +64,7 @@ def full(
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of fill_value.
 
@@ -78,15 +78,15 @@ def full(
         "relax.full",
         [shape, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def full_like(
     x: Expr,
     fill_value: Expr,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -104,7 +104,7 @@ def full_like(
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -117,14 +117,14 @@ def full_like(
         "relax.full_like",
         [x, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def ones(
     shape: tuple[PrimExprLike] | Expr,
-    dtype: str | DataType,
+    dtype: str | tvm_ffi.dtype,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -136,7 +136,7 @@ def ones(
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -149,13 +149,13 @@ def ones(
         "relax.ones",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def ones_like(
-    x: Expr, dtype: str | DataType | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
+    x: Expr, dtype: str | tvm_ffi.dtype | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
@@ -165,7 +165,7 @@ def ones_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -178,14 +178,14 @@ def ones_like(
         "relax.ones_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def zeros(
     shape: tuple[PrimExprLike] | Expr,
-    dtype: str | DataType,
+    dtype: str | tvm_ffi.dtype,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -197,7 +197,7 @@ def zeros(
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -210,13 +210,13 @@ def zeros(
         "relax.zeros",
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def zeros_like(
-    x: Expr, dtype: str | DataType | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
+    x: Expr, dtype: str | tvm_ffi.dtype | None = None, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
@@ -226,7 +226,7 @@ def zeros_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -239,8 +239,8 @@ def zeros_like(
         "relax.zeros_like",
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -248,7 +248,7 @@ def eye(
     n: PrimExprLike,
     m: PrimExprLike | None = None,
     k: PrimExprLike = 0,
-    dtype: str | DataType = "float32",
+    dtype: str | tvm_ffi.dtype = "float32",
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -268,7 +268,7 @@ def eye(
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : str | DataType
+    dtype : str | tvm_ffi.dtype
         The data type of the created tensor.
 
     Returns
@@ -284,15 +284,15 @@ def eye(
         "relax.eye",
         [n, m, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
 def eye_like(
     x: Expr,
     k: PrimExprLike = 0,
-    dtype: str | DataType | None = None,
+    dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -311,7 +311,7 @@ def eye_like(
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | tvm_ffi.dtype]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -325,8 +325,8 @@ def eye_like(
         "relax.eye_like",
         [x, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -334,7 +334,7 @@ def arange(
     start: PrimExprLike,
     end: PrimExprLike | None = None,
     step: PrimExprLike = 1,
-    dtype: str | DataType | PrimType | None = None,
+    dtype: str | tvm_ffi.dtype | PrimType | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -353,7 +353,7 @@ def arange(
     step : PrimExprLike
         The step size.
 
-    dtype : Optional[str | DataType | PrimType]
+    dtype : Optional[str | tvm_ffi.dtype | PrimType]
         The data type of the created tensor.
 
     Returns
@@ -384,8 +384,8 @@ def arange(
         "relax.arange",
         [start, end, step],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -427,8 +427,8 @@ def hamming_window(
         "relax.hamming_window",
         [window_size, periodic, alpha, beta],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=dtype),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -460,7 +460,7 @@ def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.tril", [x, k], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.tril", [x, k], loc=loc, ty=ty)  # type: ignore
 
 
 def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -486,4 +486,4 @@ def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc: Location = UNKNOWN_LOC) ->
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.triu", [x, k], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.triu", [x, k], loc=loc, ty=ty)  # type: ignore

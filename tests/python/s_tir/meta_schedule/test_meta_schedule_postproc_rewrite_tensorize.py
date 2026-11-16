@@ -17,13 +17,14 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: F401, F841
 import tvm
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.tensor_intrin import dot_product_common, x86
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcVNNIModuleTiled:
     @Ts.function
     def main(
@@ -134,16 +135,27 @@ class Conv2dNCHWcVNNIModuleTiled:
                             n, oc_chunk, oh, ow, oc_block
                         ] + T.cast(
                             placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
-                            "int32",
+                            ty="int32",
                         ) * T.cast(
                             placeholder_1[
                                 oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner
                             ],
-                            "int32",
+                            ty="int32",
                         )
 
 
-@tvm.script.ir_module
+conv2dnchwcvnnimoduletensorized_a_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_a_offset", "int32"
+)
+conv2dnchwcvnnimoduletensorized_b_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_b_offset", "int32"
+)
+conv2dnchwcvnnimoduletensorized_c_offset = T.dynamic(
+    "conv2dnchwcvnnimoduletensorized_c_offset", "int32"
+)
+
+
+@tvm_tirx.script.ir_module
 class Conv2dNCHWcVNNIModuleTensorized:
     @Ts.function
     def main(
@@ -217,39 +229,31 @@ class Conv2dNCHWcVNNIModuleTensorized:
                         ],
                         [4],
                         dtype="uint8",
-                        offset_factor=1,
+                        layout=T.TileLayout(T.S[[4]] + (conv2dnchwcvnnimoduletensorized_a_offset)),
                     )
                     B = Ts.match_tensor(
                         placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4],
                         [16, 4],
                         dtype="int8",
-                        offset_factor=1,
+                        layout=T.TileLayout(
+                            T.S[[16, 4]] + (conv2dnchwcvnnimoduletensorized_b_offset)
+                        ),
                     )
                     C = Ts.match_tensor(
                         conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16],
                         [16],
                         dtype="int32",
-                        offset_factor=1,
+                        layout=T.TileLayout(T.S[[16]] + (conv2dnchwcvnnimoduletensorized_c_offset)),
                     )
-                    A_u8x4 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.uint8x4, scope="local", elem_offset=T.int32(0))]
-                    )
+                    A_u8x4 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.uint8x4, scope="local")])
                     A_u8x4[0] = A[T.Ramp(0, 1, 4)]
-                    A_i32 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32, scope="local", elem_offset=T.int32(0))]
-                    )
+                    A_i32 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32, scope="local")])
                     A_i32[0] = T.reinterpret(A_u8x4[0], ty="int32")
-                    B_i8x64 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int8x64, scope="local", elem_offset=T.int32(0))]
-                    )
+                    B_i8x64 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int8x64, scope="local")])
                     B_i8x64[0] = B[0, T.Ramp(0, 1, 64)]
-                    B_i32x16 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))]
-                    )
+                    B_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local")])
                     B_i32x16[0] = T.reinterpret(B_i8x64[0], ty="int32x16")
-                    C_i32x16 = T.alloc_tensor(
-                        ty_args=[T.Tensor((1,), T.int32x16, scope="local", elem_offset=T.int32(0))]
-                    )
+                    C_i32x16 = T.alloc_tensor(ty_args=[T.Tensor((1,), T.int32x16, scope="local")])
                     C_i32x16[0] = C[T.Ramp(0, 1, 16)]
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
@@ -260,7 +264,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     )
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DenseDP4ATiled:
     @Ts.function
     def main(
@@ -333,8 +337,8 @@ class DenseDP4ATiled:
                                             {"meta_schedule.tiling_structure": "SSSRRSRS"}
                                         )
                                         compute_local[i, j] = compute_local[i, j] + T.cast(
-                                            X_shared[i, k_o * 4 + k], "int32"
-                                        ) * T.cast(W_shared[j, k_o * 4 + k], "int32")
+                                            X_shared[i, k_o * 4 + k], ty="int32"
+                                        ) * T.cast(W_shared[j, k_o * 4 + k], ty="int32")
                     for ax0, ax1 in T.grid(16, 16):
                         with Ts.sblock("compute_local"):
                             v0 = Ts.axis.spatial(128, i0_0_i1_0_fused // 2 * 16 + ax0)
@@ -350,7 +354,12 @@ class DenseDP4ATiled:
                             compute[v0, v1] = compute_local[v0, v1]
 
 
-@tvm.script.ir_module
+densedp4atensorized_a_offset = T.dynamic("densedp4atensorized_a_offset", "int32")
+densedp4atensorized_b_offset = T.dynamic("densedp4atensorized_b_offset", "int32")
+densedp4atensorized_c_offset = T.dynamic("densedp4atensorized_c_offset", "int32")
+
+
+@tvm_tirx.script.ir_module
 class DenseDP4ATensorized:
     @Ts.function
     def main(
@@ -433,7 +442,7 @@ class DenseDP4ATensorized:
                                     dtype="int8",
                                     scope="shared",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[4]] + (densedp4atensorized_a_offset)),
                                 )
                                 B = Ts.match_tensor(
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
@@ -441,7 +450,7 @@ class DenseDP4ATensorized:
                                     dtype="int8",
                                     scope="shared",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[4]] + (densedp4atensorized_b_offset)),
                                 )
                                 C = Ts.match_tensor(
                                     compute_local[i, j],
@@ -449,14 +458,10 @@ class DenseDP4ATensorized:
                                     dtype="int32",
                                     scope="local",
                                     align=4,
-                                    offset_factor=1,
+                                    layout=T.TileLayout(T.S[[1]] + (densedp4atensorized_c_offset)),
                                 )
                                 C[0] = C[0] + T.call_pure_extern(
-                                    "__dp4a",
-                                    A[T.ramp(0, 1, 4)],
-                                    B[T.ramp(0, 1, 4)],
-                                    0,
-                                    ty="int32",
+                                    "__dp4a", A[T.ramp(0, 1, 4)], B[T.ramp(0, 1, 4)], 0, ty="int32"
                                 )
                     for ax0, ax1 in T.grid(16, 16):
                         with Ts.sblock("compute_local"):
@@ -489,7 +494,7 @@ def _create_context(mod, target, postprocs) -> ms.TuneContext:
 
 def test_rewrite_tensorize_conv2d_nchwc_vnni():
     mod = Conv2dNCHWcVNNIModuleTiled
-    target = tvm.target.Target({"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4})
+    target = tvm_tirx.target.Target({"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4})
     ctx = _create_context(
         mod,
         target,
@@ -504,12 +509,12 @@ def test_rewrite_tensorize_conv2d_nchwc_vnni():
     for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
-    tvm.ir.assert_structural_equal(sch.mod, Conv2dNCHWcVNNIModuleTensorized)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, Conv2dNCHWcVNNIModuleTensorized)
 
 
 def test_rewrite_tensorize_dense_dp4a():
     mod = DenseDP4ATiled
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    target = tvm_tirx.target.Target("nvidia/geforce-rtx-3070")
     ctx = _create_context(
         mod,
         target,
@@ -525,7 +530,7 @@ def test_rewrite_tensorize_dense_dp4a():
     for proc in ctx.space_generator.postprocs:
         proc.apply(sch)
 
-    tvm.ir.assert_structural_equal(sch.mod, DenseDP4ATensorized)
+    tvm_tirx.ir.assert_structural_equal(sch.mod, DenseDP4ATensorized)
 
 
 if __name__ == "__main__":

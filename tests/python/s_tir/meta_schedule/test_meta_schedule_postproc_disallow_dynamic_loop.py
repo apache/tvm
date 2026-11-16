@@ -18,11 +18,12 @@
 # ruff: noqa: F401
 
 import tvm
-from tvm import tirx
+import tvm_tirx
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def _target() -> Target:
@@ -48,7 +49,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
     @Ts.function
     def main(
@@ -65,7 +66,7 @@ class Matmul:
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DynamicLoop:
     @Ts.function
     def main(

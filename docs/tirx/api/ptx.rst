@@ -22,11 +22,11 @@ The CUDA backend makes a table-driven PTX instruction namespace available
 when authoring TIRx with TVMScript.  This is an authoring namespace, not a
 separate IR dialect::
 
-   from tvm.script import tirx as Tx
+   from tvm_tirx.script import tirx as Tx
    Tx.ptx.add.rn.f32(dst, lhs, rhs)
 
 Each ``Tx.ptx`` call must match a form registered in
-:mod:`tvm.backend.cuda.ptx.table`.  The table validates the instruction family,
+:mod:`tvm_tirx.backend.cuda.ptx.table`.  The table validates the instruction family,
 modifier combination, operand count, and operand types while constructing one
 ``tirx.ptx.*`` IR call.  A new instruction is added by extending the table and,
 when it needs a new representation, its code-generation support.
@@ -187,11 +187,11 @@ TVM CUDA codegen does not emit these operations; use ``Tx.ptx`` in new kernels.
 
 Namespace API
 -------------
-.. autoclass:: tvm.backend.cuda.ptx.PTXNamespace
+.. autoclass:: tvm_tirx.backend.cuda.ptx.PTXNamespace
    :members:
    :exclude-members: SINK
    :special-members: __getitem__
 
-.. automodule:: tvm.backend.cuda.ptx
+.. automodule:: tvm_tirx.backend.cuda.ptx
    :members:
    :exclude-members: PTXNamespace

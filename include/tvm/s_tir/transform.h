@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_TRANSFORM_H_
 #define TVM_S_TIR_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/memory_scope.h>
@@ -278,7 +279,7 @@ TVM_DLL Pass MergeSharedMemoryAllocations();
  * \brief Set default thread bindings for GPU Functions.
  * \return The pass.
  */
-TVM_DLL Pass DefaultGPUSchedule();
+TVM_DLL Pass DefaultGPUSchedule(ffi::Optional<Target> target = std::nullopt);
 
 /*!
  * \brief Remove weight layout rewrite block before benchmark.

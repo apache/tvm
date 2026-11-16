@@ -20,14 +20,15 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -45,7 +46,9 @@ def matmul_bias_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("add"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -67,7 +70,7 @@ def matmul_bias_expected(
             Ts.writes(D[vi, vj])
             with Ts.init():
                 D[vi, vj] = C[vi, vj]
-            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(B[vj, vk], ty="int32")
 
 
 @Ts.function
@@ -122,7 +125,9 @@ def matmul_bias_multiple_epilogue_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("add"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -149,7 +154,7 @@ def matmul_bias_multiple_epilogue_expected(
             Ts.writes(D[vi, vj])
             with Ts.init():
                 D[vi, vj] = C[vi, vj]
-            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(B[vj, vk], ty="int32")
     for i, j in T.grid(16, 16):
         with Ts.sblock("add2"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -186,23 +191,29 @@ def test_fuse_reduction_epilogue_numerical_correctness():
 
     expected = (A_np.astype("int32") @ B_np.T.astype("int32")) + C_np
 
-    D_original_tvm = tvm.runtime.tensor(np.zeros((16, 16), dtype="int32"))
-    D_fused_tvm = tvm.runtime.tensor(np.zeros((16, 16), dtype="int32"))
+    D_original_tvm = tvm_tirx.runtime.tensor(np.zeros((16, 16), dtype="int32"))
+    D_fused_tvm = tvm_tirx.runtime.tensor(np.zeros((16, 16), dtype="int32"))
 
     mod_original(
-        tvm.runtime.tensor(A_np), tvm.runtime.tensor(B_np), tvm.runtime.tensor(C_np), D_original_tvm
+        tvm_tirx.runtime.tensor(A_np),
+        tvm_tirx.runtime.tensor(B_np),
+        tvm_tirx.runtime.tensor(C_np),
+        D_original_tvm,
     )
 
     mod_fused(
-        tvm.runtime.tensor(A_np), tvm.runtime.tensor(B_np), tvm.runtime.tensor(C_np), D_fused_tvm
+        tvm_tirx.runtime.tensor(A_np),
+        tvm_tirx.runtime.tensor(B_np),
+        tvm_tirx.runtime.tensor(C_np),
+        D_fused_tvm,
     )
 
     D_original = D_original_tvm.numpy()
     D_fused = D_fused_tvm.numpy()
 
-    tvm.testing.assert_allclose(D_original, expected, rtol=1e-5)
-    tvm.testing.assert_allclose(D_fused, expected, rtol=1e-5)
-    tvm.testing.assert_allclose(D_fused, D_original, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(D_original, expected, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(D_fused, expected, rtol=1e-5)
+    tvm_tirx.testing.assert_allclose(D_fused, D_original, rtol=1e-5)
 
 
 def test_fuse_reduction_epilogue_multiple_epilogue():
@@ -232,7 +243,9 @@ def matmul_bias_invalid_multiple_use_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("bad_epilogue"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -261,7 +274,9 @@ def matmul_bias_invalid_scaling_before(
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
             with Ts.init():
                 temp[vi, vj] = T.int32(0)
-            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
+            temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], ty="int32") * T.cast(
+                B[vj, vk], ty="int32"
+            )
     for i, j in T.grid(16, 16):
         with Ts.sblock("scaled_epilogue"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -277,4 +292,4 @@ def test_fuse_reduction_epilogue_reject_scaling():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

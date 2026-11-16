@@ -32,12 +32,12 @@ scope uses a reflected attribute. See :doc:`../cuda_tile_patterns` for the
 CUDA pattern extension workflow.
 
 Lowerers receive a semantic view and ``DispatchContext`` and return a
-``tvm.tirx.Function`` body. They can prepare pointers/descriptors and expand
+``tvm.ir.Stmt`` directly. They can prepare pointers/descriptors and expand
 layouts for the selected core instruction. They must report unsupported
 contracts rather than select a different instruction family.
 
 ``FTileOpDispatch`` has the signature
-``(tvm.ir.Call, DispatchContext) -> tvm.tirx.Function``. Its presence identifies
+``(tvm.ir.Call, DispatchContext) -> tvm.ir.Stmt``. Its presence identifies
 a tile Op; no separate category registration is required. ``Instruction``
 registers an adapter that decodes the semantic view and invokes its lowerer.
 Custom implementations can register the callback directly using

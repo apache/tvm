@@ -27,7 +27,7 @@ serialization format standard and implementation details.
 Serialization
 *************
 
-The entrance API is ``export_library`` of ``tvm.runtime.Module``.
+The entrance API is ``export_library`` of ``tvm_tirx.codegen.Executable``.
 Inside this function, we will do the following steps:
 
 1. Collect all DSO modules (LLVM modules and C modules)

@@ -21,13 +21,14 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax, te
-from tvm.runtime import Executable
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.codegen import Executable
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_compile_tir():
@@ -43,22 +44,22 @@ def test_compile_tir():
     assert isinstance(exec_prim, Executable)
 
     # Test compile with IRModule containing Function
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     exec_mod = tvm.compile(mod)
     assert isinstance(exec_mod, Executable)
 
     # Verify the compiled module works
-    dev = tvm.cpu(0)
+    dev = tvm_tirx.cpu(0)
     a_np = np.random.uniform(size=10).astype(np.float32)
     b_np = np.random.uniform(size=10).astype(np.float32)
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    c = tvm.runtime.tensor(np.zeros(10, dtype=np.float32), dev)
+    a = tvm_tirx.runtime.tensor(a_np, dev)
+    b = tvm_tirx.runtime.tensor(b_np, dev)
+    c = tvm_tirx.runtime.tensor(np.zeros(10, dtype=np.float32), dev)
 
     exec_prim(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a_np + b_np)
+    tvm_tirx.testing.assert_allclose(c.numpy(), a_np + b_np)
     exec_mod(a, b, c)
-    tvm.testing.assert_allclose(c.numpy(), a_np + b_np)
+    tvm_tirx.testing.assert_allclose(c.numpy(), a_np + b_np)
 
 
 def test_compile_relax():
@@ -73,25 +74,25 @@ def test_compile_relax():
             return z
 
     # Test compile with Relax module
-    target = tvm.target.Target("llvm")
+    target = tvm_tirx.target.Target("llvm")
     exec_relax = tvm.compile(MyModule, target)
     assert isinstance(exec_relax, Executable)
 
     # Verify the compiled module works
-    dev = tvm.cpu(0)
+    dev = tvm_tirx.cpu(0)
     x_np = np.random.uniform(size=(3, 4)).astype(np.float32)
     y_np = np.random.uniform(size=(3, 4)).astype(np.float32)
-    x = tvm.runtime.tensor(x_np, dev)
-    y = tvm.runtime.tensor(y_np, dev)
+    x = tvm_tirx.runtime.tensor(x_np, dev)
+    y = tvm_tirx.runtime.tensor(y_np, dev)
 
     vm = relax.VirtualMachine(exec_relax, dev)
     z = vm["main"](x, y)
-    tvm.testing.assert_allclose(z.numpy(), x_np + y_np)
+    tvm_tirx.testing.assert_allclose(z.numpy(), x_np + y_np)
 
 
 @pytest.mark.skipif("32bit" in platform.architecture()[0], reason="skipping test for i386.")
 def test_compile_mixed_module():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MyModule:
         @Ts.function
         def add_one(X: T.Tensor((4,), "float32"), Y: T.Tensor((4,), "float32")):
@@ -106,21 +107,21 @@ def test_compile_mixed_module():
                 return y
 
     # Test with custom pipeline
-    target = tvm.target.Target("c")
+    target = tvm_tirx.target.Target("c")
     ex = tvm.compile(MyModule, target)
     assert isinstance(ex, Executable)
 
-    dev = tvm.cpu(0)
-    x = tvm.runtime.tensor(np.array([1, 2, 3, 4], dtype=np.float32), dev)
-    y = tvm.runtime.tensor(np.zeros(4, dtype=np.float32), dev)
+    dev = tvm_tirx.cpu(0)
+    x = tvm_tirx.runtime.tensor(np.array([1, 2, 3, 4], dtype=np.float32), dev)
+    y = tvm_tirx.runtime.tensor(np.zeros(4, dtype=np.float32), dev)
     # For tirx function, we can directly call the function
     ex["add_one"](x, y)
-    tvm.testing.assert_allclose(y.numpy(), x.numpy() + 1)
+    tvm_tirx.testing.assert_allclose(y.numpy(), x.numpy() + 1)
     # For relax function, we need to use the vm to call the function
     vm = relax.VirtualMachine(ex, dev)
     z = vm["main"](x)
-    tvm.testing.assert_allclose(z.numpy(), x.numpy() + 1)
+    tvm_tirx.testing.assert_allclose(z.numpy(), x.numpy() + 1)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

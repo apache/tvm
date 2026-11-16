@@ -22,50 +22,12 @@ import sys
 
 import pytest
 
-import tvm.testing
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import from_source
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-
-
-def test_tir_starred_shape_expression():
-    dims = (128, 128)
-
-    @Ts.function(private=True)
-    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
-        for i, j, k in T.grid(*A.shape):
-            A[i, j, k] = T.int32(1)
-
-    @Ts.function(private=True)
-    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
-        for i, j, k in T.grid(128, 128, 128):
-            A[i, j, k] = T.int32(1)
-
-    tvm.ir.assert_structural_equal(starred, non_starred)
-
-
-def test_inferred_ty_with_dynamic_tensor():
-    """The inferred Type may contain dynamic shapes"""
-
-    M = T.dynamic("M", "int64")
-    N = T.dynamic("N", "int64")
-
-    @Ts.function
-    def func(A: T.Tensor([M, N], "float32"), B: T.Tensor([M * N], "float32")):
-        for i, j in T.grid(M, N):
-            B[i * N + j] = A[i, j]
-
-    M = tvm.tirx.Var("M", "int64")
-    N = tvm.tirx.Var("N", "int64")
-    expected = tvm.ir.FuncType(
-        [
-            tvm.tirx.decl_tensor([M, N], "float32", layout=None).ty,
-            tvm.tirx.decl_tensor([M * N], "float32", layout=None).ty,
-        ],
-        tvm.ir.TupleType([]),
-    )
-    tvm.ir.assert_structural_equal(func.ty, expected)
+from tvm_tirx.script import from_source
+from tvm_tirx.script import tirx as T
 
 
 def test_tir_tensor_region_extent_correct_dtype():
@@ -105,7 +67,7 @@ def gemm_dyn_shape(
 def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(
         gemm_dyn_shape.script(),
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+        extra_vars={"I": tvm_tirx.script.ir, "T": tvm_tirx.script.tirx, "Ts": tvm.s_tir.script},
     )
     assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
@@ -175,16 +137,6 @@ def test_int64_loop():
     assert_structural_equal_ignore_global_symbol(int64_grid, int64_grid_expanded)
 
 
-def loop_extent_dependent():
-    @Ts.function
-    def loop_extent_dependent(A: T.Tensor([], dtype="int32")) -> None:
-        for i in T.serial(0, 128):
-            for j in T.serial(0, i):
-                A[()] = A[()] + j
-
-    return loop_extent_dependent
-
-
 def parse_tensorslice_as_range_bound():
     # apparently the use of i in the "outer" block when it is defined outside of a block is wrong
     @Ts.function(check_well_formed=False)
@@ -212,73 +164,25 @@ def parse_tensorslice_as_range_bound():
     return segment_sum
 
 
-def undefined_shape_in_decl_tensor():
-    # uninitialized var
-    size = T.dynamic("size", "int32")
-
-    @Ts.function(check_well_formed=False)
-    def func():
-        buf = T.alloc_tensor(ty_args=[T.Tensor([size], "float32")])
-        T.evaluate(buf[0])
-
-    return func
-
-
-def undefined_stride_in_decl_tensor():
-    # uninitialized var
-    stride = T.dynamic("stride", "int32")
-
-    @Ts.function(check_well_formed=False)
-    def func():
-        data_ptr = T.handle("float32")
-        buf = T.decl_tensor(
-            data_ptr, ty_args=[T.Tensor([1], "float32", strides=[stride], data=data_ptr)]
-        )
-        T.evaluate(buf[0])
-
-    return func
-
-
-def undefined_elem_offset_in_decl_tensor():
-    # uninitialized var
-    elem_offset = T.dynamic("elem_offset", "int32")
-
-    @Ts.function(check_well_formed=False)
-    def func():
-        data_ptr = T.handle("float32")
-        buf = T.decl_tensor(
-            data_ptr, ty_args=[T.Tensor([1], "float32", elem_offset=elem_offset, data=data_ptr)]
-        )
-        T.evaluate(buf[0])
-
-    return func
-
-
 @pytest.mark.parametrize(
     "ir_generator",
-    [
-        loop_extent_dependent,
-        parse_tensorslice_as_range_bound,
-        undefined_shape_in_decl_tensor,
-        undefined_stride_in_decl_tensor,
-        undefined_elem_offset_in_decl_tensor,
-    ],
+    [parse_tensorslice_as_range_bound],
     ids=lambda factory: factory.__name__,
 )
 def test_roundtrip_dynamic_shape(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

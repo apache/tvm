@@ -25,14 +25,17 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/type.h>
 
 #include "../transform/ir_utils.h"
 
@@ -56,7 +59,7 @@ class MatchTensorLower : public StmtExprMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* op, InplaceMode inplace_mode) final {
     for (const MatchTensorRegion& match_tensor : op->match_tensors) {
       CheckAndUpdateVarMap(match_tensor);
     }
@@ -77,7 +80,7 @@ class MatchTensorLower : public StmtExprMutator {
         }
       }
     }
-    op = stmt.as<SBlockNode>();
+    op = stmt.as<SBlockObj>();
     TVM_FFI_ICHECK(op != nullptr);
     ffi::Array<TensorRegion> reads =
         op->reads.Map(std::bind(&MatchTensorLower::VisitTensorRegion, this, std::placeholders::_1));
@@ -90,7 +93,7 @@ class MatchTensorLower : public StmtExprMutator {
       auto* n = stmt.CopyOnWrite();
       // Match tensors are aliases of their source region. Their placement belongs
       // to that alias definition, which disappears along with the match tensor.
-      if (auto value = n->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+      if (auto value = n->annotations.Get(s_tir::attr::kTensorAllocatedAddr.name)) {
         TensorAllocatedAddresses addresses;
         for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
           bool is_alias = false;
@@ -100,9 +103,9 @@ class MatchTensorLower : public StmtExprMutator {
           if (!is_alias) addresses.push_back(entry);
         }
         if (addresses.empty()) {
-          n->annotations.erase(s_tir::attr::kTensorAllocatedAddr);
+          n->annotations.erase(s_tir::attr::kTensorAllocatedAddr.name);
         } else {
-          n->annotations.Set(s_tir::attr::kTensorAllocatedAddr, addresses);
+          n->annotations.Set(s_tir::attr::kTensorAllocatedAddr.name, addresses);
         }
       }
       n->match_tensors = {};
@@ -112,15 +115,19 @@ class MatchTensorLower : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+  UnchangedOr<Stmt> Mutate_(const ForObj* op, InplaceMode inplace_mode) final {
+    {
+      auto context = analyzer_->GetConstraintContext();
+      context->Append(sym::RangeConstraint(op->var, Range(op->begin, op->end)));
+      analyzer_->SyncConstraintContext(context);
+    }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const CallObj* op, InplaceMode inplace_mode) final {
     if ((op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) &&
         !op->args.empty()) {
-      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
+      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<TensorTypeObj>()) {
         TensorVar tensor = var.value().as_or_throw<TensorVar>();
         TVM_FFI_ICHECK(!match_tensors_.count(tensor))
             << "Predicated tensor access is not currently supported in lower match tensor pass.";
@@ -128,7 +135,7 @@ class MatchTensorLower : public StmtExprMutator {
     }
     if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
-          var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
+          var.has_value() && var.value()->ty.as<TensorTypeObj>()) {
         auto it = match_tensors_.find(var.value().as_or_throw<TensorVar>());
         if (it != match_tensors_.end()) {
           return (*it).second->source.as_or_throw<tvm::tirx::TensorVar>().data();
@@ -138,13 +145,13 @@ class MatchTensorLower : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreObj* op, InplaceMode inplace_mode) final {
     // Save the original tensor before base class mutation may remap it
     TensorVar orig_tensor = op->dest.as_or_throw<TensorVar>();
     TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
-    op = stmt.as<TensorStoreNode>();
+    op = stmt.as<TensorStoreObj>();
     TVM_FFI_ICHECK(op != nullptr);
 
     // Look up using original tensor (before the inherited Var environment may have remapped it)
@@ -162,12 +169,12 @@ class MatchTensorLower : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadObj* op, InplaceMode inplace_mode) final {
     // Save the original tensor before base class mutation may remap it
     TensorVar orig_tensor = op->source.as_or_throw<tvm::tirx::TensorVar>();
     PrimExpr expr =
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
-    op = expr.as<TensorLoadNode>();
+    op = expr.as<TensorLoadObj>();
     TVM_FFI_ICHECK(op != nullptr);
 
     auto it = match_tensors_.find(orig_tensor);
@@ -201,6 +208,13 @@ class MatchTensorLower : public StmtExprMutator {
     const TensorRegion& source = VisitTensorRegion(match_tensor->source);
     const TensorVar& source_tensor = source->source.as_or_throw<tvm::tirx::TensorVar>();
 
+    PrimExpr target_origin = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<2>();
+    PrimExpr source_origin =
+        tvm::tirx::MatchShapeStridePattern(source_tensor.ty()).value().get<2>();
+    auto bind_origin = [&](PrimExpr value) {
+      Bind(target_origin, value, tensor->name + ".elem_offset");
+    };
+
     // Step.1.1. Check scope & dtype
     TVM_FFI_ICHECK_EQ(tensor.scope(), source_tensor.scope())
         << "MatchTensor " << tensor << " scope mismatch:" << tensor.scope() << "vs."
@@ -215,11 +229,11 @@ class MatchTensorLower : public StmtExprMutator {
                    << " required alignment=" << tensor.ty()->data_alignment
                    << ", provided alignment=" << source_tensor.ty()->data_alignment;
     }
-    if (IsZero(tensor.elem_offset())) {
-      TVM_FFI_ICHECK(IsZero(source_tensor.elem_offset()))
+    if (IsZero(target_origin)) {
+      TVM_FFI_ICHECK(IsZero(source_origin))
           << "Trying to bind a TensorVar with offset into one without offset "
-          << " required elem_offset=" << tensor.elem_offset()
-          << ", provided elem_offset=" << source_tensor.elem_offset();
+          << " required elem_offset=" << target_origin
+          << ", provided elem_offset=" << source_origin;
     }
 
     // Step.2. Update
@@ -230,43 +244,32 @@ class MatchTensorLower : public StmtExprMutator {
       ffi::Array<PrimExpr> indices;
       indices.reserve(source->region.size());
       for (const Range& range : source->region) {
-        indices.push_back(range->min);
+        indices.push_back(range->begin);
       }
 
       ffi::Array<PrimExpr> tensor_start_indices = source_tensor.ty()->ElemOffset(indices);
       if (tensor_start_indices.size() == 1) {
-        Bind(tensor.elem_offset(), tensor_start_indices[0], tensor->name + ".elem_offset");
-        TVM_FFI_ICHECK(
-            analyzer_->CanProve(truncmod(tensor.elem_offset(), tensor.ty()->offset_factor) == 0))
-            << "The source elem_offset " << tensor_start_indices[0]
-            << " does not satisfy the offset_factor " << tensor.ty()->offset_factor << ".";
+        bind_origin(tensor_start_indices[0]);
+
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(tensor.elem_offset(), IntImm(tensor.elem_offset().ty(), 0));
+        bind_origin(IntImm(target_origin.ty(), 0));
       }
     }
 
-    // Step 2.3. Check and update strides
-    // Check if target tensor strides are defined
+    // Step 2.3. Check and update the alias's physical strides.
     TVM_FFI_ICHECK(source->region.size() >= tensor.shape().size());
     int offset = source->region.size() - tensor.shape().size();
-    if (!tensor.strides().empty()) {
-      TVM_FFI_ICHECK_EQ(tensor.strides().size(), tensor.shape().size());
-      if (source_tensor.strides().empty()) {
-        PrimExpr stride = prim::MakeConst(tensor.strides().back().ty(), 1);
-        for (size_t i = tensor.shape().size(); i > 0; --i) {
-          const PrimExpr& shape = source_tensor.shape()[i - 1 + offset];
-          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
-          stride *= shape;
-        }
-      } else {
-        TVM_FFI_ICHECK_EQ(tensor.shape().size() + offset, source_tensor.strides().size());
-        for (size_t i = tensor.shape().size(); i > 0; --i) {
-          const PrimExpr& stride = source_tensor.strides()[i - 1 + offset];
-          Bind(tensor.strides()[i - 1], stride, tensor->name + ".strides_" + std::to_string(i - 1));
-        }
+    // An unspecified alias layout inherits the source region's physical strides.
+    // Explicit layouts instead constrain (or bind) those strides.
+    if (tensor.ty()->layout.has_value()) {
+      auto target_strides = tvm::tirx::MatchShapeStridePattern(tensor.ty()).value().get<1>();
+      auto source_strides = tvm::tirx::MatchShapeStridePattern(source_tensor.ty()).value().get<1>();
+      for (size_t i = 0; i < tensor.shape().size(); ++i) {
+        Bind(target_strides[i], source_strides[i + offset],
+             tensor->name + ".strides_" + std::to_string(i));
       }
     }
 
@@ -299,18 +302,37 @@ class MatchTensorLower : public StmtExprMutator {
     };
     value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(value), f_substitute)
                 .as_or_throw<PrimExpr>();
-    if (arg->IsInstance<VarNode>()) {
+    if (arg->IsInstance<VarObj>()) {
       Var v = arg.as_or_throw<Var>();
       auto replacement = VarRemapGet(v);
       if (replacement == nullptr) {
         VarRemapSet(v, value);
         if (auto prim_value = value.as<PrimExpr>()) {
-          analyzer_->Bind(v, prim_value.value());
+          {
+            auto context = analyzer_->GetConstraintContext();
+            context->Append(sym::BindingConstraint(v, prim_value.value()));
+            analyzer_->SyncConstraintContext(context);
+          }
         }
       } else {
         AssertBinding(replacement.as_or_throw<Expr>(), value, arg_name);
       }
     } else {
+      // Match a divisible linear offset through the same equation it declares.
+      ffi::Array<PrimVar> unknown;
+      for (const auto& var : UndefinedVars(arg)) {
+        if (VarRemapGet(var) == nullptr) unknown.push_back(var.as_or_throw<PrimVar>());
+      }
+      if (unknown.size() == 1 && arg_prim) {
+        auto coefficients = tirx::DetectLinearEquation(arg_prim.value(), unknown);
+        if (coefficients.size() == 2 && coefficients[0].as<IntImmObj>() &&
+            !IsZero(coefficients[0])) {
+          PrimExpr delta = analyzer_->Simplify(value.as_or_throw<PrimExpr>() - coefficients[1]);
+          TVM_FFI_ICHECK(analyzer_->CanProve(truncmod(delta, coefficients[0]) == 0))
+              << "The tensor match offset must be divisible by " << coefficients[0];
+          Bind(unknown[0], analyzer_->Simplify(truncdiv(delta, coefficients[0])), arg_name);
+        }
+      }
       AssertBinding(arg, value, arg_name);
     }
   }

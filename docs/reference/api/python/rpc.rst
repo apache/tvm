@@ -37,7 +37,7 @@ backing storage, and returned tensors retain the remote tensor object.
 
 For a remote VM, use ``tvm.rpc.virtual_machine(module, device)``. This helper
 validates session ownership and passes ordinary endpoint device descriptors
-to VM initialization. A module's ``time_evaluator`` similarly validates the
+to VM initialization. ``tvm.runtime.time_evaluator`` similarly validates the
 remote device through its RPC wrapper.
 
 Streams remain owned by the session until ``device.free_stream(stream)`` or

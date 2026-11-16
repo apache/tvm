@@ -20,13 +20,14 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.runtime import MemoryScope
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @I.ir_module
@@ -64,16 +65,16 @@ def test_alloc_storage_with_scope_global():
     output_ref = arg0 + arg0
     mod = Module
     target = "llvm"
-    with tvm.ir.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         lib = tvm.relax.build(mod, target=target)
 
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
     vm_rt = relax.VirtualMachine(lib, dev)
-    x = tvm.runtime.tensor(arg0, dev)
+    x = tvm_tirx.runtime.tensor(arg0, dev)
     vm_rt.set_input("main", x)
     vm_rt.invoke_stateful("main")
     output = vm_rt.get_outputs("main").numpy()
-    tvm.testing.assert_allclose(output_ref, output)
+    tvm_tirx.testing.assert_allclose(output_ref, output)
 
 
 def test_relax_allocation_scope_operands():
@@ -83,7 +84,7 @@ def test_relax_allocation_scope_operands():
         lambda value: tvm.relax.op.memory.alloc_storage((16,), 0, value, "float32"),
         lambda value: tvm.relax.op.vm.alloc_storage((16,), 0, "float32", value),
     ):
-        tvm.ir.assert_structural_equal(make_call(scope), make_call(scope.name))
+        tvm_tirx.ir.assert_structural_equal(make_call(scope), make_call(scope.name))
 
 
 def test_vdevice_memory_scope():
@@ -95,4 +96,4 @@ def test_vdevice_memory_scope():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

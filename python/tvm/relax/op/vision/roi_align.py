@@ -18,11 +18,11 @@
 
 import tvm_ffi
 
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
-from tvm.ir.location import Location as _Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
+from tvm_tirx.ir.location import Location as _Location
 
 from ..base import Expr
 
@@ -93,6 +93,6 @@ def roi_align(
             layout=layout,
             mode=mode,
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )

@@ -20,6 +20,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_H_
 #define TVM_S_TIR_META_SCHEDULE_SCHEDULE_RULE_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
@@ -281,7 +282,7 @@ class ScheduleRule : public ffi::ObjectRef {
   /*! \brief Create default schedule rules for ARM CPU (NEON and DOTPROD) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultARM(const ffi::String& type);
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
-  TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
+  TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(Target target, int vlen);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleObj);
 };

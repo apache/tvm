@@ -34,12 +34,12 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::vector<int> GetReadTensorNDims(const StmtSRef& block_sref) {
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const VarNode* write_tensor = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const VarObj* write_tensor = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const VarNode* read_tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
+    const VarObj* read_tensor = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
     if (read_tensor != write_tensor) {
       results[i] = ffi::GetRef<Var>(read_tensor).as_or_throw<TensorVar>().shape().size();
     }
@@ -112,7 +112,7 @@ void MultiLevelTilingObj::InitializeWithTuneContext(const TuneContext& context) 
 ffi::Array<Schedule> MultiLevelTilingObj::Apply(const Schedule& sch, const SBlockRV& block_rv) {
   if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv)).cast<bool>()) ||
       NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
-    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleTilingStructure, structure);
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleTilingStructure.name, structure);
 
     ffi::Array<Schedule> results;
     for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
@@ -145,8 +145,9 @@ std::vector<State> MultiLevelTilingObj::AddWriteReuse(State state) const {
   }
   std::vector<int> levels = config.levels;
   ReuseType req = config.req;
-  if (ffi::Optional<ffi::Array<int64_t>> ann = s_tir::GetAnn<ffi::Array<int64_t>>(
-          state->sch->GetSRef(state->block_rv), tvm::s_tir::attr::kMetaScheduleWriteCacheLevel)) {
+  if (ffi::Optional<ffi::Array<int64_t>> ann =
+          s_tir::GetAnn<ffi::Array<int64_t>>(state->sch->GetSRef(state->block_rv),
+                                             tvm::s_tir::attr::kMetaScheduleWriteCacheLevel.name)) {
     req = ReuseType::kMustReuse;
     levels.clear();
     std::transform(ann.value().begin(), ann.value().end(), std::back_inserter(levels),
@@ -235,7 +236,9 @@ std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        PrimExpr extent_imm_expr =
+            Range::GetExtentFromBeginEnd(sch->Get(loop)->begin, sch->Get(loop)->end);
+        const auto* extent_imm = extent_imm_expr.as<IntImmObj>();
         if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
             extent.has_value()) {
           spatial_loop_product *= *extent;
@@ -285,8 +288,9 @@ std::vector<State> MultiLevelTilingObj::TileLoopNest(State state,
     if (spatial_loop_product > 2 * this->thread_warp_size_) {
       low_inclusive = this->thread_warp_size_;
     }
-    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive, low_inclusive);
-    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive,
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive.name,
+                  low_inclusive);
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive.name,
                   high_inclusive);
   }
   return {state};
@@ -338,13 +342,13 @@ std::vector<State> MultiLevelTilingObj::AddAsyncPipeline(State state) const {
   // check the reduce loop contains exactly 3 for loops
   // therefore it matches the notation array size in the following code
   tirx::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
-  const ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
+  const ForObj* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
   ffi::Array<Stmt> seq = r_for_loop->body->seq;
   if (seq.size() != 3) {
     return {state};
   }
   for (auto& stmt : seq) {
-    if (!stmt.as<ForNode>()) {
+    if (!stmt.as<ForObj>()) {
       return {state};
     }
   }
@@ -354,11 +358,11 @@ std::vector<State> MultiLevelTilingObj::AddAsyncPipeline(State state) const {
   for (int stage : this->stages) {
     State new_state = state->Copy();
     LoopRV r_loop_fused = new_state->sch->Fuse(new_state->tiles[r_indices_[0]]);
-    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineStage,
+    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineStage.name,
                              ffi::Array<int64_t>{0, 0, stage - 2});
-    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineOrder,
+    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineOrder.name,
                              ffi::Array<int64_t>{0, 1, 2});
-    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineAsyncStages,
+    new_state->sch->Annotate(r_loop_fused, tvm::s_tir::attr::kSoftwarePipelineAsyncStages.name,
                              ffi::Array<int64_t>{0});
     ret.push_back(std::move(new_state));
   }
@@ -368,7 +372,7 @@ std::vector<State> MultiLevelTilingObj::AddAsyncPipeline(State state) const {
 void MultiLevelTilingObj::AnnotateCooperativeFetching(Schedule* sch,
                                                       const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
-  const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
+  const s_tir::SBlockObj* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockObj>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
   const DLDataType dtype =
       block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().dtype()->dtype;
@@ -399,7 +403,7 @@ void MultiLevelTilingObj::AnnotateCooperativeFetching(Schedule* sch,
     for (int v : valid_vector_lens) valid_vector_lens_arr.push_back(static_cast<int64_t>(v));
     s_tir::ExprRV vector_load_len = (*sch)->SampleCategorical(
         valid_vector_lens_arr, ffi::Array<FloatImm>(n, FloatImm(PrimType::Float(32), prob)));
-    (*sch)->Annotate(block, tvm::s_tir::attr::kMetaScheduleCooperativeFetch, vector_load_len);
+    (*sch)->Annotate(block, tvm::s_tir::attr::kMetaScheduleCooperativeFetch.name, vector_load_len);
   }
 }
 

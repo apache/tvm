@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
+from tvm.relax import script as R
 from tvm.relax.analysis import detect_recursion
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 
 def assert_groups(groups: list[list[rx.GlobalVar]], expected: list[list[str]]) -> None:
@@ -36,7 +36,7 @@ def assert_groups(groups: list[list[rx.GlobalVar]], expected: list[list[str]]) -
 
 
 def test_no_recursion():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NoRecursion:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -51,7 +51,7 @@ def test_no_recursion():
 
 
 def test_simple_recursion():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class SimpleRecursion:
         @R.function
         def c(x: R.Any) -> R.Any:
@@ -63,7 +63,7 @@ def test_simple_recursion():
 
 def test_tree():
     # no cycle!
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Tree:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -91,7 +91,7 @@ def test_tree():
 
 
 def test_two_function_case():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TwoFunctionCase:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -111,7 +111,7 @@ def test_two_function_case():
 
 
 def test_two_groups_of_two():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TwoGroupsOfTwo:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -139,7 +139,7 @@ def test_two_groups_of_two():
 
 
 def test_mutual_recursion_and_simple_recursion():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MutualAndSimple:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -161,7 +161,7 @@ def test_mutual_recursion_and_simple_recursion():
 def test_simultaneous_mutual_and_simple_recursion():
     # even though both call themselves and each other,
     # it should still form only one group
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class SimultaneousMutualAndSimple:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -178,7 +178,7 @@ def test_simultaneous_mutual_and_simple_recursion():
 
 
 def test_three_function_case():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ThreeFunctionCase:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -197,7 +197,7 @@ def test_three_function_case():
 
 
 def test_call_from_outside_of_group():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CallFromOutOfGroup:
         # A calls into a group of mutually recursive functions,
         # but is not part of the cycle
@@ -227,7 +227,7 @@ def test_call_from_outside_of_group():
 
 
 def test_call_from_group_to_outside():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CallFromGroupToOutside:
         # A calls into a group of mutually recursive functions,
         # but is not part of the cycle
@@ -265,7 +265,7 @@ def test_group_with_two_cycles():
     B -> C -> D -> A -> B -> C -> E -> F -> B
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroupWithTwoCycles:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -308,7 +308,7 @@ def test_multicycle_example():
     E <-> F <-> G
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MulticycleExample:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -357,7 +357,7 @@ def test_multicycle_example():
 
 
 def test_control_flow():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ControlFlowExample:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -384,7 +384,7 @@ def test_control_flow():
 
 
 def test_returning_self():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ReturnsSelf:
         @R.function
         def a() -> R.Any:
@@ -396,7 +396,7 @@ def test_returning_self():
 
 
 def test_mutual_recursion_via_references():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GatherReferences:
         @R.function
         def a(x: R.Any) -> R.Any:
@@ -418,7 +418,7 @@ def test_mutual_recursion_via_references():
 
 
 def test_disregard_functions():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class CallFunction:
         # copied from test_analysis.py
         @Ts.function
@@ -451,4 +451,4 @@ def test_disregard_functions():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

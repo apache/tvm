@@ -25,14 +25,16 @@ import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
+import tvm_ffi
 
 import tvm
+import tvm_tirx
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 n_symbolic_add = T.dynamic("n", "int64")
 batch_symbolic_matmul = T.dynamic("batch", "int64")
@@ -212,7 +214,7 @@ def create_mock_packed_function():
         return x
 
     # Register the function globally
-    tvm.register_global_func("my_softmax", mock_softmax)
+    tvm_ffi.register_global_func("my_softmax", mock_softmax)
 
 
 class TestRelaxToPyFuncConverter:
@@ -932,7 +934,7 @@ class TestDLPackAndTupleSupport:
             assert torch.allclose(r, e), "Split tensor values should match"
 
     def test_tvm_runtime_api_compatibility(self):
-        """Test compatibility with tvm.runtime API instead of deprecated tvm.nd."""
+        """Test compatibility with tvm_tirx.runtime API instead of deprecated tvm.nd."""
 
         @I.ir_module
         class RuntimeAPITestModule:
@@ -971,7 +973,7 @@ class TestDLPackAndTupleSupport:
         def test_packed_func(x, axis):
             return x  # Simple identity function
 
-        tvm.register_global_func("test_packed_func", test_packed_func)
+        tvm_ffi.register_global_func("test_packed_func", test_packed_func)
 
         @I.ir_module
         class PackedFuncTestModule:
@@ -1057,4 +1059,4 @@ class TestDLPackAndTupleSupport:
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

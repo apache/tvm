@@ -26,11 +26,11 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/vm.h>
-#include <tvm/support/cuda/nvtx.h>
 
 #include <thread>
 
 #include "./module_utils.h"
+#include "nvtx.h"
 
 namespace tvm {
 namespace runtime {

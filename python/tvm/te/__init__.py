@@ -19,13 +19,13 @@
 """Namespace for Tensor Expression Language"""
 
 # expose all operators in tvm tirx.op
-from tvm.tirx import any, all, min_value, max_value
-from tvm.tirx import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
-from tvm.tirx import sinh, cosh, log2, log10
-from tvm.tirx import asin, asinh, acos, acosh, atan, atanh
-from tvm.tirx import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
-from tvm.tirx import isnan, isfinite, isinf
-from tvm.tirx import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
+from tvm_tirx.tirx import any, all, min_value, max_value
+from tvm_tirx.tirx import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
+from tvm_tirx.tirx import sinh, cosh, log2, log10
+from tvm_tirx.tirx import asin, asinh, acos, acosh, atan, atanh
+from tvm_tirx.tirx import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
+from tvm_tirx.tirx import isnan, isfinite, isinf
+from tvm_tirx.tirx import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
 from .reduction import comm_reducer, min, max, sum, CommReducer, Reduce
 from .tensor import TensorSlice, Tensor
 from .tag import tag_scope

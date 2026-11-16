@@ -35,6 +35,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/type.h>
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
@@ -58,7 +59,7 @@ namespace {
 class OpaqueArtifactVerifier : public ObjectVisitor {
  public:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
-    if (const auto* block = value.as<s_tir::SBlockNode>()) {
+    if (const auto* block = value.as<s_tir::SBlockObj>()) {
       for (const auto& axis : block->iter_vars) {
         Visit(axis->dom);
         Visit(axis->var);
@@ -75,11 +76,11 @@ class OpaqueArtifactVerifier : public ObjectVisitor {
       Visit(block->loc);
       return std::nullopt;
     }
-    if (const auto* expr = value.as<OpaqueExprNode>()) {
+    if (const auto* expr = value.as<OpaqueExprObj>()) {
       TVM_FFI_THROW(InternalError)
           << "CreateFunction produced construction-only opaque artifact " << expr->GetTypeKey();
     }
-    if (value.as<OpaqueTypeNode>()) {
+    if (value.as<OpaqueTypeObj>()) {
       TVM_FFI_THROW(InternalError)
           << "CreateFunction produced construction-only opaque artifact ir.OpaqueType";
     }
@@ -112,20 +113,20 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
     if (!axis->dom.has_value()) return axis;
     auto domain = Mutate(axis->dom).ValueOrUnchanged(axis->dom).cast<Range>();
     if (axis->dom.same_as(domain)) return axis;
-    auto copy = ffi::make_object<s_tir::IterVarNode>(*axis.get());
+    auto copy = ffi::make_object<s_tir::IterVarObj>(*axis.get());
     copy->dom = std::move(domain);
     return s_tir::IterVar(std::move(copy));
   }
 
-  UnchangedOr<Expr> Mutate_(const s_tir::IterVarNode* op, InplaceMode) { return op->var; }
+  UnchangedOr<Expr> Mutate_(const s_tir::IterVarObj* op, InplaceMode) { return op->var; }
 
-  UnchangedOr<Expr> Mutate_(const te::ReduceNode* op, InplaceMode inplace_mode) {
-    return Mutate_(static_cast<const OpaqueExprNode*>(op), inplace_mode);
+  UnchangedOr<Expr> Mutate_(const te::ReduceObj* op, InplaceMode inplace_mode) {
+    return Mutate_(static_cast<const OpaqueExprObj*>(op), inplace_mode);
   }
 
-  UnchangedOr<Expr> Mutate_(const OpaqueExprNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const OpaqueExprObj* op, InplaceMode inplace_mode) final {
     const auto* reduce =
-        op->IsInstance<te::ReduceNode>() ? static_cast<const te::ReduceNode*>(op) : nullptr;
+        op->IsInstance<te::ReduceObj>() ? static_cast<const te::ReduceObj*>(op) : nullptr;
     if (reduce == nullptr) {
       return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -153,7 +154,7 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
                       reduce->loc);
   }
 
-  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Expr> Mutate_(const CallObj* op, InplaceMode inplace_mode) final {
     Call call = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                     .as_or_throw<Call>();
@@ -172,8 +173,8 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
     static const VTable table = [] {
       VTable table;
       s_tir::StmtExprMutator::InitVTable(&table);
-      SetDispatch<TensorLoadToTensorTransformer, s_tir::IterVarNode>(&table);
-      SetDispatch<TensorLoadToTensorTransformer, te::ReduceNode>(&table);
+      SetDispatch<TensorLoadToTensorTransformer, s_tir::IterVarObj>(&table);
+      SetDispatch<TensorLoadToTensorTransformer, te::ReduceObj>(&table);
       table.Finalize();
       return table;
     }();
@@ -186,8 +187,8 @@ class TensorLoadToTensorTransformer : public s_tir::StmtExprMutator {
 /*! \brief The helper mutator to rewrite tensor and tensor var accessed by block body */
 class TensorSubstituter : public s_tir::StmtExprMutator {
  public:
-  explicit TensorSubstituter(const std::unordered_map<const VarNode*, Expr>& var_map,
-                             const std::unordered_map<const VarNode*, TensorVar>& tensor_map) {
+  explicit TensorSubstituter(const std::unordered_map<const VarObj*, Expr>& var_map,
+                             const std::unordered_map<const VarObj*, TensorVar>& tensor_map) {
     for (const auto& [source, target] : tensor_map) {
       VarRemapSet(ffi::AnyView(source), target);
     }
@@ -226,7 +227,7 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
  public:
   using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
-    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<ExprObj>()) return ffi::Unchanged();
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
@@ -236,7 +237,7 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
         tensor2index_[tensor.value()] = i;
       }
     }
-    FunctionNode* f = func.CopyOnWrite();
+    FunctionObj* f = func.CopyOnWrite();
     f->body = Mutate(f->body, InplaceMode::kDisallow).ValueOrUnchanged(f->body);
     if (this->layout_free_tensor_indices_.empty()) {
       return func;
@@ -246,14 +247,14 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
     for (int i : this->layout_free_tensor_indices_) {
       indices.push_back(i);
     }
-    return WithAttr(std::move(func), tvm::s_tir::attr::kLayoutFreeTensors, indices);
+    return WithAttr(std::move(func), tvm::s_tir::attr::kLayoutFreeTensors.name, indices);
   }
 
-  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* _block, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockObj* _block, InplaceMode inplace_mode) final {
     s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(_block, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(_block))
                               .as_or_throw<s_tir::SBlock>();
-    s_tir::SBlockNode* n = block.CopyOnWrite();
+    s_tir::SBlockObj* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
       ffi::Array<TensorVar> new_tensors;
       for (TensorVar tensor : opt_ann.value().as_or_throw<ffi::Array<TensorVar>>()) {
@@ -309,7 +310,7 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes
       return depth_it->second;
     }
     std::vector<Var> dep_vars;
-    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->min))) {
+    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->begin))) {
       dep_vars.push_back(v);
     }
     for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->extent))) {
@@ -351,8 +352,8 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes
 ffi::Array<TensorVar> GenerateOutputTensors(const te::ComputeOp& compute_op, CreateFuncInfo* info) {
   // Step 1. Collect output tensors in TE operation.
   ffi::Array<te::Tensor> tensors;
-  if (compute_op->body[0]->IsInstance<te::ReduceNode>()) {
-    auto f_reducer_equal = [](const te::ReduceNode* a, const te::ReduceNode* b) -> bool {
+  if (compute_op->body[0]->IsInstance<te::ReduceObj>()) {
+    auto f_reducer_equal = [](const te::ReduceObj* a, const te::ReduceObj* b) -> bool {
       ffi::StructuralEqual eq;
       return eq(a->combiner, b->combiner) &&    //
              eq(a->source, b->source) &&        //
@@ -362,10 +363,10 @@ ffi::Array<TensorVar> GenerateOutputTensors(const te::ComputeOp& compute_op, Cre
     };
     PrimExpr expr_body = compute_op->body[0];
     tensors.push_back(compute_op.output(0));
-    const te::ReduceNode* reduce = expr_body.as<te::ReduceNode>();
+    const te::ReduceObj* reduce = expr_body.as<te::ReduceObj>();
     // specially handle reduction inline for multiplre reductions.
     for (size_t k = 1; k < compute_op->body.size(); ++k) {
-      const te::ReduceNode* reduce_ = compute_op->body[k].as<te::ReduceNode>();
+      const te::ReduceObj* reduce_ = compute_op->body[k].as<te::ReduceObj>();
       TVM_FFI_ICHECK(reduce_);
       TVM_FFI_ICHECK(f_reducer_equal(reduce_, reduce))
           << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
@@ -426,7 +427,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, 3);
+  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess.name, 3);
   return annotations;
 }
 
@@ -440,7 +441,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
  * \returns Init stmt.
  **/
 SeqStmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<TensorVar>& tensors,
-                         const te::ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
+                         const te::ReduceObj* reduce, const ffi::Map<Var, PrimExpr>& var_map,
                          CreateFuncInfo* info) {
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
@@ -486,7 +487,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
                info->transformer->Mutate(e).ValueOrUnchanged(e), f_substitute)
         .as_or_throw<PrimExpr>();
   };
-  if (const auto* reduce = expr_body.as<te::ReduceNode>()) {
+  if (const auto* reduce = expr_body.as<te::ReduceObj>()) {
     // Case 1. Reduce compute
     int n_tensors = tensors.size();
 
@@ -577,7 +578,7 @@ struct NestedScopeInfo {
   // helper to renew leaf block var defs to ensure SSA.
   void Renew(const ffi::Array<s_tir::IterVar>& origin_axes) {
     block_iters.MutateByApply([](const s_tir::IterVar& itervar) {
-      auto n = ffi::make_object<s_tir::IterVarNode>(*itervar.get());
+      auto n = ffi::make_object<s_tir::IterVarObj>(*itervar.get());
       n->var = n->var.CopyWithSuffix("");
       return s_tir::IterVar(n);
     });
@@ -614,7 +615,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     for (size_t j = 0; j < axes.size(); ++j) {
       const s_tir::IterVar& axis = axes[j];
       PrimType index_type = PrimType::Int(
-          std::max(axis->dom.value()->min.ty().bits(), axis->dom.value()->extent.ty().bits()));
+          std::max(axis->dom.value()->begin.ty().bits(), axis->dom.value()->extent.ty().bits()));
       bool first_times_define =
           std::any_of(axes_levels[i].begin(), axes_levels[i].end(),
                       [&](const s_tir::IterVar& candidate) { return candidate.same_as(axis); });
@@ -624,7 +625,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         }
         Var loop_var = Var(axis->var->name, index_type);
         Var block_var("v_" + axis->var->name, index_type);
-        PrimExpr min = axis->dom.value()->min;
+        PrimExpr min = axis->dom.value()->begin;
         PrimExpr extent = axis->dom.value()->extent;
         if (i > 0) {
           const auto& scope_repl = scopes[i - 1].axes_remap;
@@ -671,7 +672,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   ffi::Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
   ffi::Map<ffi::String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
-  const te::ReduceNode* reduce = compute_op->body[0].as<te::ReduceNode>();
+  const te::ReduceObj* reduce = compute_op->body[0].as<te::ReduceObj>();
 
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
@@ -749,16 +750,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var.as_or_throw<PrimVar>(), dom->min, dom->extent, ForKind::kDefault, body);
+      body = For(loop_var.as_or_throw<PrimVar>(), dom->begin, dom->begin + dom->extent,
+                 IntImm(loop_var.as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault, body);
     }
   }
   return body;
 }
 
-Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
+Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info,
+                              sym::AnalyzerObj* analyzer) {
   // Step 1. Check all inputs are visited before and update var_map.
-  std::unordered_map<const VarNode*, Expr> var_map;
-  std::unordered_map<const VarNode*, TensorVar> input_tensor_map;
+  std::unordered_map<const VarObj*, Expr> var_map;
+  std::unordered_map<const VarObj*, TensorVar> input_tensor_map;
   TVM_FFI_ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
   for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
     const TensorVar& placeholder = extern_op->input_placeholders[i];
@@ -776,13 +779,18 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& output_tensor = extern_op.output(i);
     TensorVar output_tir_tensor = info->transformer->NormalizeTensorType(placeholder);
     if (!info->IsArg(output_tensor)) {
-      PrimExpr zero_offset = IntImm(placeholder.elem_offset().ty(), 0);
-      if (auto offset_var = placeholder.elem_offset().as<PrimVar>()) {
-        var_map.insert_or_assign(offset_var.value().get(), zero_offset);
+      if (auto offset_var =
+              tvm::tirx::MatchShapeStridePattern(placeholder.ty()).value().get<2>().as<PrimVar>()) {
+        var_map.insert_or_assign(offset_var.value().get(), IntImm(offset_var.value().ty(), 0));
       }
-      ffi::ObjectPtr<TensorTypeNode> type =
-          ffi::make_object<TensorTypeNode>(*output_tir_tensor.ty().get());
-      type->elem_offset = zero_offset;
+      ffi::ObjectPtr<TensorTypeObj> type =
+          ffi::make_object<TensorTypeObj>(*output_tir_tensor.ty().get());
+      if (type->layout.has_value()) {
+        auto tile = type->layout.value().as_or_throw<tirx::TileLayout>();
+        type->layout = tirx::TileLayout(tile->shard, tile->replica, {});
+        if (type->HasDefaultLayout(ffi::GetRef<sym::Analyzer>(analyzer)))
+          type->layout = std::nullopt;
+      }
       output_tir_tensor =
           TensorVar(output_tir_tensor->name, TensorType(std::move(type)), output_tir_tensor->loc);
       info->root_alloc.push_back(output_tir_tensor);
@@ -835,8 +843,8 @@ ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_li
   ffi::Array<te::Operation> order = te::PostDFSOrder(arg_ops, g);
 
   for (const te::Operation& op : order) {
-    if (!(op->IsInstance<te::PlaceholderOpNode>() || op->IsInstance<te::ComputeOpNode>() ||
-          op->IsInstance<te::ExternOpNode>()))
+    if (!(op->IsInstance<te::PlaceholderOpObj>() || op->IsInstance<te::ComputeOpObj>() ||
+          op->IsInstance<te::ExternOpObj>()))
       TVM_FFI_THROW(InternalError)
           << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
           << "Only te.placeholder and te.compute are allowed for now.";
@@ -848,7 +856,7 @@ void InitializeTensorBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
   // Process any TE operations which contain user defined tensors
   for (const auto& op : ordered_ops) {
     // Initialize the tensor2tensor binds map with tensors defined by the te.extern
-    if (const auto* extern_op = op.as<te::ExternOpNode>()) {
+    if (const auto* extern_op = op.as<te::ExternOpObj>()) {
       TVM_FFI_ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
       for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
         const te::Tensor& input = extern_op->inputs[i];
@@ -862,7 +870,7 @@ void InitializeTensorBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
 
 void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
                          ffi::Array<Stmt>* root_stmts, sym::AnalyzerObj* analyzer) {
-  if (const auto* placeholder = op.as<te::PlaceholderOpNode>()) {
+  if (const auto* placeholder = op.as<te::PlaceholderOpObj>()) {
     // Case 1. PlaceholderOp (te.placeholder)
     TVM_FFI_ICHECK_EQ(op->num_outputs(), 1);
     const te::Tensor& tensor = op.output(0);
@@ -886,7 +894,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     root_stmts->push_back(GenerateStmtFromCompute(compute_op.value(), info, analyzer));
   } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
-    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
+    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info, analyzer));
   } else {
     TVM_FFI_ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                           << "Only te.placeholder and te.compute are allowed for now.";
@@ -906,9 +914,9 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
   Function func = WithAttrs(Function(/*params=*/std::move(parameters),
                                      /*body=*/std::move(body),
                                      /*ret_type=*/VoidType()),
-                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
-                             {tvm::tirx::attr::kNoAlias, true},
-                             {tvm::attr::kSTir, true}});
+                            {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias.name, true},
+                             {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
@@ -978,9 +986,9 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
   Function func = WithAttrs(Function(/*params=*/std::move(parameters),
                                      /*body=*/std::move(body),
                                      /*ret_type=*/VoidType()),
-                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
-                             {tvm::tirx::attr::kNoAlias, true},
-                             {tvm::attr::kSTir, true}});
+                            {{tvm::attr::kGlobalSymbol.name, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias.name, true},
+                             {tvm::attr::kScriptNamespace.name, ffi::String("s_tir")}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
@@ -991,7 +999,7 @@ Function CreateFunction(const ffi::Array<ffi::ObjectRef>& arg_list,
                         std::optional<PrimType> index_dtype_override) {
   ffi::Array<te::Tensor> tensor_arg_list;
   for (const ffi::ObjectRef& x : arg_list) {
-    if (auto tensor_node = x.as<te::TensorNode>()) {
+    if (auto tensor_node = x.as<te::TensorObj>()) {
       te::Tensor tensor = ffi::GetRef<te::Tensor>(tensor_node);
       tensor_arg_list.push_back(tensor);
     }

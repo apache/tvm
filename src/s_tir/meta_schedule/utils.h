@@ -41,7 +41,6 @@
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/support/base64.h>
 #include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
@@ -174,34 +173,6 @@ inline void clear_logging(const char* file, int lineno, ffi::Function logging_fu
 using TRandState = LinearCongruentialEngine::TRandState;
 
 /*!
- * \brief Get the base64 encoded result of a string.
- * \param str The string to encode.
- * \return The base64 encoded string.
- */
-inline std::string Base64Encode(std::string str) {
-  std::string m_tensor;
-  support::BytesOutStream m_stream(&m_tensor);
-  support::Base64OutStream b64stream(&m_stream);
-  static_cast<support::Stream*>(&b64stream)->Write(str);
-  b64stream.Finish();
-  return m_tensor;
-}
-
-/*!
- * \brief Get the base64 decoded result of a string.
- * \param str The string to decode.
- * \return The base64 decoded string.
- */
-inline std::string Base64Decode(std::string str) {
-  std::string result;
-  support::BytesInStream m_stream(str);
-  support::Base64InStream b64stream(&m_stream);
-  b64stream.InitPosition();
-  static_cast<support::Stream*>(&b64stream)->Read(&result);
-  return result;
-}
-
-/*!
  * \brief Parses a json string into a json object.
  * \param json_str The json string.
  * \return The json object
@@ -301,7 +272,7 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
  */
 inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref,
                                      const ffi::String& global_var_name) {
-  const s_tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const s_tir::SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
   return sch->GetSBlock(block->name_hint, global_var_name);
 }
 
@@ -617,7 +588,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
   using s_tir::StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
+    if (value.as<ExprObj>()) return std::nullopt;
     return s_tir::StmtExprVisitor::Visit(value);
   }
 
@@ -648,7 +619,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
         // `base_func` can be Function or relax::Function
-        if (const auto* func = base_func.as<tirx::FunctionNode>()) {
+        if (const auto* func = base_func.as<tirx::FunctionObj>()) {
           f_collect(ffi::GetRef<tirx::Function>(func), gv->name_hint);
         }
       }
@@ -662,7 +633,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
 
  private:
   /*! \brief Override the Stmt visiting behaviour */
-  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockObj* block) override {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(block));
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_

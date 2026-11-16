@@ -75,6 +75,7 @@
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <mutex>

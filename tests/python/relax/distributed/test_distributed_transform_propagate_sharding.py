@@ -20,15 +20,15 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.ir import assert_structural_equal
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_mlp():
@@ -398,23 +398,23 @@ def test_decoder_layer():
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
-                        A[v_bsz, v_i, v_k], "float32"
-                    ) * T.Cast(A[v_bsz, v_i, v_k], "float32")
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast(
-                        T.Cast(B[v_k], "float32")
+                        "float16",
+                        T.Cast("float32", B[v_k])
                         * (
-                            T.Cast(A[v_bsz, v_i, v_k], "float32")
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
                             / T.sqrt(
                                 Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
-                        "float16",
                     )
 
         @Ts.function
@@ -594,23 +594,23 @@ def test_decoder_layer():
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
-                        A[v_bsz, v_i, v_k], "float32"
-                    ) * T.Cast(A[v_bsz, v_i, v_k], "float32")
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast(
-                        T.Cast(B[v_k], "float32")
+                        "float16",
+                        T.Cast("float32", B[v_k])
                         * (
-                            T.Cast(A[v_bsz, v_i, v_k], "float32")
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
                             / T.sqrt(
                                 Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
-                        "float16",
                     )
 
         @Ts.function
@@ -1002,8 +1002,8 @@ def test_decoder_layer_tir():
                     with Ts.init():
                         Ared_temp[T.int64(0), v_i] = T.float32(0)
                     Ared_temp[T.int64(0), v_i] = Ared_temp[T.int64(0), v_i] + T.Cast(
-                        A[T.int64(0), v_i, v_k], "float32"
-                    ) * T.Cast(A[T.int64(0), v_i, v_k], "float32")
+                        "float32", A[T.int64(0), v_i, v_k]
+                    ) * T.Cast("float32", A[T.int64(0), v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz = Ts.axis.spatial(T.int64(1), T.int64(0))
@@ -1011,15 +1011,15 @@ def test_decoder_layer_tir():
                     Ts.reads(B[v_k], A[T.int64(0), v_i, v_k], Ared_temp[T.int64(0), v_i])
                     Ts.writes(rms_norm_1[T.int64(0), v_i, v_k])
                     rms_norm_1[T.int64(0), v_i, v_k] = T.Cast(
-                        T.Cast(B[v_k], "float32")
+                        "float16",
+                        T.Cast("float32", B[v_k])
                         * (
-                            T.Cast(A[T.int64(0), v_i, v_k], "float32")
+                            T.Cast("float32", A[T.int64(0), v_i, v_k])
                             / T.sqrt(
                                 Ared_temp[T.int64(0), v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
-                        "float16",
                     )
 
         @Ts.function
@@ -1590,23 +1590,23 @@ def test_decoder_layer_dynamic_shape():
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
-                        A[v_bsz, v_i, v_k], "float32"
-                    ) * T.Cast(A[v_bsz, v_i, v_k], "float32")
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast(
-                        T.Cast(B[v_k], "float32")
+                        "float16",
+                        T.Cast("float32", B[v_k])
                         * (
-                            T.Cast(A[v_bsz, v_i, v_k], "float32")
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
                             / T.sqrt(
                                 Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
-                        "float16",
                     )
 
         @Ts.function
@@ -1797,23 +1797,23 @@ def test_decoder_layer_dynamic_shape():
                     with Ts.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
                     Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
-                        A[v_bsz, v_i, v_k], "float32"
-                    ) * T.Cast(A[v_bsz, v_i, v_k], "float32")
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), rms_norm_n, T.int64(4096)):
                 with Ts.sblock("rms_norm"):
                     v_bsz, v_i, v_k = Ts.axis.remap("SSS", [bsz, i, k])
                     Ts.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     Ts.writes(rms_norm_1[v_bsz, v_i, v_k])
                     rms_norm_1[v_bsz, v_i, v_k] = T.Cast(
-                        T.Cast(B[v_k], "float32")
+                        "float16",
+                        T.Cast("float32", B[v_k])
                         * (
-                            T.Cast(A[v_bsz, v_i, v_k], "float32")
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
                             / T.sqrt(
                                 Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
                                 + T.float32(9.9999999999999995e-07)
                             )
                         ),
-                        "float16",
                     )
 
         @Ts.function
@@ -1979,4 +1979,4 @@ def test_decoder_layer_dynamic_shape():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

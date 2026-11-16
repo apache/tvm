@@ -33,23 +33,24 @@ using namespace tvm::tirx;
  * \return the fused loop
  */
 Stmt FuseNestLoops(Stmt body) {
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   std::string suffix;
   int n = loops.size();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name;
+    suffix += "_" + loops[i]->var->name;
   }
   suffix += "_fused";
-  PrimVar fused_var = loops[0]->loop_var.CopyWithSuffix(suffix);
+  PrimVar fused_var = loops[0]->var.CopyWithSuffix(suffix);
   ffi::Map<Var, PrimExpr> subst_map;
   PrimExpr tot = fused_var;
   for (int i = n - 1; i >= 0; i--) {
-    subst_map.Set(loops[i]->loop_var, floormod(tot, loops[i]->extent));
-    tot = floordiv(tot, loops[i]->extent);
+    subst_map.Set(loops[i]->var,
+                  floormod(tot, Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end)));
+    tot = floordiv(tot, Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end));
   }
   auto f_substitute = [&](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = subst_map.Get(v)) return ffi::Any(*std::move(repl));
@@ -57,11 +58,12 @@ Stmt FuseNestLoops(Stmt body) {
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
-    fused_extent *= loops[i]->extent;
+    fused_extent *= Range::GetExtentFromBeginEnd(loops[i]->begin, loops[i]->end);
   }
   body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
              .as_or_throw<Stmt>();
-  return For(fused_var, 0, fused_extent, ForKind::kDefault, std::move(body));
+  return For(fused_var, 0, fused_extent, IntImm(fused_var.ty(), 1), ForKind::kDefault,
+             std::move(body));
 }
 
 /*!
@@ -72,8 +74,11 @@ Stmt FuseNestLoops(Stmt body) {
  * \return The stmt after transformation
  */
 Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
-  const ForNode* loop = TVM_TYPE_AS(stmt, ForNode);
-  int loop_extent = loop->extent.as_or_throw<IntImm>()->value.as<int>().value();
+  const ForObj* loop = TVM_TYPE_AS(stmt, ForObj);
+  int loop_extent = Range::GetExtentFromBeginEnd(loop->begin, loop->end)
+                        .as_or_throw<IntImm>()
+                        ->value.as<int>()
+                        .value();
   int vector_bytes = constraints.vector_bytes;
   int data_bits = constraints.data_bits;
   int vector_len = std::max(1, vector_bytes * 8 / data_bits);
@@ -110,8 +115,12 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   sym::Analyzer analyzer;
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    PrimVar var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i));
-    analyzer->Bind(var, Range::FromMinExtent(0, factor));
+    PrimVar var = loop->var.CopyWithSuffix("_" + std::to_string(i));
+    {
+      auto context = analyzer->GetConstraintContext();
+      context->Append(sym::RangeConstraint(var, Range::FromMinExtent(0, factor)));
+      analyzer->SyncConstraintContext(context);
+    }
     new_loop_vars.push_back(var);
   }
   // substitute fused loop var with new loop vars
@@ -123,23 +132,26 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   // Construct the new loop nest
   auto f_substitute =
       [&loop, &substitute_value](const Var& v) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (v.same_as(loop->loop_var)) return ffi::Any(substitute_value);
+    if (v.same_as(loop->var)) return ffi::Any(substitute_value);
     return ffi::Unchanged();
   };
   Stmt body =
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
-  PrimExpr predicate = substitute_value < loop->extent;
+  PrimExpr predicate = substitute_value < Range::GetExtentFromBeginEnd(loop->begin, loop->end);
   if (!analyzer->CanProve(predicate)) {
     body = If(predicate, body);
   }
-  body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len, ForKind::kVectorized,
+  body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len,
+             IntImm(new_loop_vars.back().as_or_throw<PrimVar>().ty(), 1), ForKind::kVectorized,
              std::move(body));
   for (int i = n - 2; i >= 1; i--) {
-    body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kParallel,
+    body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i],
+               IntImm(new_loop_vars[i].as_or_throw<PrimVar>().ty(), 1), ForKind::kParallel,
                std::move(body),
-               {{tvm::s_tir::attr::kThreadBinding, ffi::String(thread_axis[i - 1])}}, std::nullopt);
+               {{tvm::s_tir::attr::kThreadBinding.name, ffi::String(thread_axis[i - 1])}});
   }
-  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kDefault,
+  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0],
+             IntImm(new_loop_vars[0].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
              std::move(body));
 }
 
@@ -164,10 +176,10 @@ Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints
  */
 ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
   Stmt body = stmt;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  while (const ForObj* loop = body.as<ForObj>()) {
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
-  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
+  const TensorStoreObj* tensor_store = TVM_TYPE_AS(body, TensorStoreObj);
   TensorRegion write_region = constraints.write_region;
   const ffi::Array<PrimExpr>& write_index = tensor_store->indices;
   TVM_FFI_ICHECK(write_region->region.size() == write_index.size() &&
@@ -176,7 +188,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   ffi::Array<PrimExpr> result;
   sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
-    PrimExpr pattern = analyzer->Simplify(write_index[i] - write_region->region[i]->min);
+    PrimExpr pattern = analyzer->Simplify(write_index[i] - write_region->region[i]->begin);
     if (!IsZero(pattern)) {
       result.push_back(pattern);
     }
@@ -191,9 +203,9 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Array<PrimExpr> loop_vars;
   // Step 1. Get index mapping
   ffi::Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);
-  while (const ForNode* loop = body.as<ForNode>()) {
-    var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    loop_vars.push_back(loop->loop_var);
+  while (const ForObj* loop = body.as<ForObj>()) {
+    var_range.Set(loop->var, Range(loop->begin, loop->end));
+    loop_vars.push_back(loop->var);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   // Step 2. Get Inverse mapping
@@ -212,12 +224,12 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 3.1 construct target tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
     if (IsOne(write_region->region[i]->extent)) {
-      write_index.push_back(write_region->region[i]->min);
+      write_index.push_back(write_region->region[i]->begin);
     } else {
       PrimVar var = loop_vars[j].as_or_throw<PrimVar>().CopyWithSuffix("_inverse");
       new_loop_vars.push_back(var);
       substitute_map.Set(loop_vars[j++].as_or_throw<Var>(), var);
-      write_index.push_back(write_region->region[i]->min + var);
+      write_index.push_back(write_region->region[i]->begin + var);
     }
   }
   auto f_substitute =
@@ -228,12 +240,12 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 3.2 construct source tensor indices
   for (int i = 0, j = 0; i < static_cast<int>(read_region->region.size()); i++) {
     if (IsOne(read_region->region[i]->extent)) {
-      read_index.push_back(read_region->region[i]->min);
+      read_index.push_back(read_region->region[i]->begin);
     } else {
       PrimExpr inverse = inverse_mapping[loop_vars[j++].as_or_throw<Var>()];
       inverse = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(inverse, f_substitute)
                     .as_or_throw<PrimExpr>();
-      read_index.push_back(read_region->region[i]->min + inverse);
+      read_index.push_back(read_region->region[i]->begin + inverse);
     }
   }
   TensorLoad new_tensor_load =
@@ -244,7 +256,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {
     PrimExpr extent = write_region->region[i]->extent;
-    ret = For(new_loop_vars[i], 0, extent, ForKind::kDefault, std::move(ret));
+    ret = For(new_loop_vars[i], 0, extent, IntImm(new_loop_vars[i].ty(), 1), ForKind::kDefault,
+              std::move(ret));
   }
   return ret;
 }

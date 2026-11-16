@@ -31,9 +31,9 @@ Contents:
 import math
 from typing import Any
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 from ._kernel_common import (
     _get_kv_chunk_len,
@@ -69,11 +69,11 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
         pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
-        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', layout=T.TileLayout(T.S[(B + 1,)] + (page_indptr_elem_offset))),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (k_rope_pos_offset_elem_offset))),
+        q_rope_position: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (q_rope_position_elem_offset))),
         output: T.Tensor((B, H_qo, D), qkv_dtype),
         lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
@@ -215,12 +215,12 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     @Ts.function
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
-        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
-        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, layout=T.TileLayout(T.S[(max_num_pages, 2, H_kv, page_size, D)] + (pages_elem_offset))),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', layout=T.TileLayout(T.S[(B + 1,)] + (page_indptr_elem_offset))),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', layout=T.TileLayout(T.S[(nnz_pages,)] + (page_values_elem_offset))),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (k_rope_pos_offset_elem_offset))),
+        q_rope_position: T.Tensor((B,), 'int32', layout=T.TileLayout(T.S[(B,)] + (q_rope_position_elem_offset))),
         output: T.Tensor((B, H_qo, D), qkv_dtype),
         lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
@@ -316,7 +316,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                     for j in T.serial(bdy * tile_size_per_bdx):
                                         # compute S = Q * K * sm_scale
                                         for vec in T.vectorized(VEC_SIZE):
-                                            QK_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * sm_scale * math.log2(math.exp(1))
+                                            QK_local[vec] = T.cast(Q_local[vec], ty="float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], ty="float32") * sm_scale * math.log2(math.exp(1))
                                         S_reduce_local[0] = 0
                                         for vec in T.unroll(VEC_SIZE):
                                             S_reduce_local[0] += QK_local[vec]
@@ -347,7 +347,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         for vec in T.vectorized(VEC_SIZE):
                                             V_local[vec] = V_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec]
                                         for vec in T.vectorized(VEC_SIZE):
-                                            O_local[vec] += T.cast(V_local[vec], "float32") * S_local[j]
+                                            O_local[vec] += T.cast(V_local[vec], ty="float32") * S_local[j]
 
                                 if bdz > 1:
                                     # allreduce over bdz

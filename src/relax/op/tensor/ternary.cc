@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 namespace tvm {
 namespace relax {
@@ -83,9 +83,9 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  auto* s1 = t1->shape.as<ShapeExprNode>();
-  auto* s2 = t2->shape.as<ShapeExprNode>();
-  auto* s3 = t3->shape.as<ShapeExprNode>();
+  auto* s1 = t1->shape.as<ShapeExprObj>();
+  auto* s2 = t2->shape.as<ShapeExprObj>();
+  auto* s3 = t3->shape.as<ShapeExprObj>();
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   if (s1 && s2 && s3) {
     ffi::Array<PrimExpr> output_shape;

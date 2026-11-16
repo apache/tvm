@@ -17,10 +17,10 @@
 
 import pytest
 
-import tvm.testing
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.analysis import assert_pure_function, is_pure_function
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.script import tirx as T
 
 
 class CheckPureFunction:
@@ -101,4 +101,4 @@ class TestCallImpureExtern(CheckImpureFunction):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

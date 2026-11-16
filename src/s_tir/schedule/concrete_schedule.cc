@@ -162,11 +162,11 @@ class ScheduleCopier {
   }
 
   /*! \brief Copy the stmt2ref */
-  UMap<const StmtNode*, StmtSRef> Copy(const UMap<const StmtNode*, StmtSRef>& stmt2ref) {
-    UMap<const StmtNode*, StmtSRef> result;
+  UMap<const StmtObj*, StmtSRef> Copy(const UMap<const StmtObj*, StmtSRef>& stmt2ref) {
+    UMap<const StmtObj*, StmtSRef> result;
     result.reserve(stmt2ref.size());
     for (const auto& kv : stmt2ref) {
-      const StmtNode* stmt = kv.first;
+      const StmtObj* stmt = kv.first;
       const StmtSRef& sref = kv.second;
       result.emplace(stmt, Copy(sref));
     }
@@ -213,7 +213,7 @@ Schedule ConcreteScheduleObj::Copy() {
 #define TVM_TIR_SCHEDULE_BEGIN() try {
 /*! \brief Keep the payload on rendered errors for outer scheduling error handlers. */
 #define TVM_TIR_SCHEDULE_THROW(error)                                            \
-  ffi::details::ErrorBuilder(                                                    \
+  ffi::detail::ErrorBuilder(                                                     \
       "ScheduleError", TVMFFIBacktrace(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0), \
       TVM_FFI_ALWAYS_LOG_BEFORE_THROW, std::nullopt, (error).extra_context())    \
       .stream()
@@ -298,7 +298,7 @@ SBlockRV ConcreteScheduleObj::GetSBlock(const ffi::String& name,
         : name_(name), mod_(mod), blocks_{} {
       blocks_.reserve(blocks.size());
       for (const StmtSRef& block_sref : blocks) {
-        const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+        const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
         blocks_.push_back(ffi::GetRef<SBlock>(block));
       }
     }
@@ -490,7 +490,7 @@ ffi::Array<LoopRV> ConcreteScheduleObj::Split(const LoopRV& loop_rv,
                                               bool preserve_unit_iters, bool disable_predication) {
   // Prepare for the splitting
   StmtSRef loop_sref = this->GetSRef(loop_rv);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
   ffi::Array<PrimExpr> factors;
   factors.reserve(factor_rvs.size());
   int infer_index = -1;
@@ -508,20 +508,23 @@ ffi::Array<LoopRV> ConcreteScheduleObj::Split(const LoopRV& loop_rv,
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (IsConstInt(factor) && !IsPositiveConst(factor)) {
-        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmObj>()->value,
                                                         i);
       }
-      if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(factor, loop->extent.ty());
+      if (factor.ty().bits() > Range::GetExtentFromBeginEnd(loop->begin, loop->end).ty().bits()) {
+        factor = cast(factor, Range::GetExtentFromBeginEnd(loop->begin, loop->end).ty());
       }
       factors.push_back(factor);
       tot_length *= factor;
     }
   }
   if (infer_index != -1) {
-    factors.Set(infer_index,
-                this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
-  } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
+    factors.Set(
+        infer_index,
+        this->analyzer_->Simplify(floordiv(
+            Range::GetExtentFromBeginEnd(loop->begin, loop->end) + tot_length - 1, tot_length)));
+  } else if (!this->analyzer_->CanProve(tot_length >=
+                                        Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
     throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), true);
   }
   results = s_tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
@@ -555,14 +558,15 @@ ffi::Array<LoopRV> ConcreteScheduleObj::LoopPartition(
 
   // Prepare for the loop_partitioning
   StmtSRef loop_sref = this->GetSRef(loop_rv);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
   ffi::Array<PrimExpr> factors;
   factors.reserve(factor_rvs.size());
   int infer_index = -1;
   PrimExpr tot_length = 0;
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
-  if (!IsConstNumber(loop->min) || !IsConstNumber(loop->extent)) {
+  if (!IsConstNumber(loop->begin) ||
+      !IsConstNumber(Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
     throw MakeScheduleError<SymbolicShapeError>(state_->mod, ffi::GetRef<For>(loop));
   }
   // infer factor if needed and check validity of factors
@@ -576,29 +580,30 @@ ffi::Array<LoopRV> ConcreteScheduleObj::LoopPartition(
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (IsConstInt(factor) && !IsPositiveConst(factor)) {
-        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
+        throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmObj>()->value,
                                                         i);
       }
-      if (factor.ty().bits() > loop->extent.ty().bits()) {
-        factor = cast(factor, loop->extent.ty());
+      if (factor.ty().bits() > Range::GetExtentFromBeginEnd(loop->begin, loop->end).ty().bits()) {
+        factor = cast(factor, Range::GetExtentFromBeginEnd(loop->begin, loop->end).ty());
       }
       factors.push_back(factor);
       tot_length += factor;
     }
   }
-  if (this->analyzer_->CanProve(tot_length >= loop->extent)) {
+  if (this->analyzer_->CanProve(tot_length >=
+                                Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
     throw MakeScheduleError<WrongFactorError>(state_->mod, ffi::GetRef<For>(loop), false);
   }
   if (infer_index != -1) {
     // if there is a 'None' in the factor list, 'None' becomes the difference between the extent and
     // the sum of the factors excluding 'None' specified in the partition directive.
-    factors.Set(infer_index, loop->extent - tot_length);
+    factors.Set(infer_index, Range::GetExtentFromBeginEnd(loop->begin, loop->end) - tot_length);
   }
   for (size_t i = 1; i < factor_rvs.size(); i++) {
     factors.Set(i, factors[i] + factors[i - 1]);
   }
   if (infer_index == -1) {
-    factors.push_back(loop->extent);
+    factors.push_back(Range::GetExtentFromBeginEnd(loop->begin, loop->end));
   }
   results = s_tir::LoopPartition(state_, loop_sref, factors, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("loop_partition", this->error_render_level_);
@@ -961,7 +966,7 @@ Any ConcreteScheduleObj::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   }
 
   if (auto expr = ann_val.as<PrimExpr>()) {
-    TVM_FFI_CHECK(!expr.value().as<StringImmNode>(), TypeError)
+    TVM_FFI_CHECK(!expr.value().as<StringImmObj>(), TypeError)
         << "ffi::String is expected, but gets StringImm";
     auto res_expr = this->Get(expr.value());
     // prefer to return int/float literals for annotations
@@ -986,7 +991,7 @@ Any ConcreteScheduleObj::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     for (auto it = dict->begin(); it != dict->end(); ++it) {
       const auto& key = it->first;
       auto value = CheckAndGetAnnotationValue(it->second);
-      if (const StringImmNode* imm = key.as<StringImmNode>()) {
+      if (const StringImmObj* imm = key.as<StringImmObj>()) {
         result.Set(imm->value, value);
       } else if (auto opt_str = key.try_cast<ffi::String>()) {
         result.Set(opt_str.value(), value);

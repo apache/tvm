@@ -16,25 +16,49 @@
 // under the License.
 
 // Reject untrusted helper edits before allocating nodes or running pipeline steps.
-ci = evaluate(readTrusted('ci/jenkins/generated/common.groovy'))
+def helper_source
+try {
+  helper_source = readTrusted('ci/jenkins/generated/common.groovy')
+} catch (Throwable ex) {
+  echo 'Jenkinsfile changes must be pushed to an upstream branch. ' +
+    'cpu/pr-head will fail for these changes; check cpu/branch status instead.'
+  throw ex
+}
+ci = evaluate(helper_source)
 ci.start()
 
-ci.build('CPU', 'BUILD: CPU', 'tvm/build-cpu', images.ci_cpu, 'cpu') {
-  sh(
-    script: "${docker_run} ${images.ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
-    label: 'Create CPU CMake config',
-  )
-  ci.cmake_build(images.ci_cpu, 'build')
-  ci.make_cpp_tests(images.ci_cpu, 'build')
-  ci.upload('cpu', '--bundle tvm_lib --bundle cpptest')
+stage('Build') {
+  ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+    name: 'BUILD: CPU', folder: 'tvm/build-cpu', variables: ['PLATFORM=cpu']) {
+    ci.docker_init(images.ci_cpu)
+    withEnv(ci.build_environment()) {
+      sh(
+        script: """${docker_run} ${images.ci_cpu} bash -euo pipefail -c '
+          source ./tests/scripts/task_install_build_dependencies.sh
+          ./tests/scripts/task_build_cpu.sh
+        '""",
+        label: 'Build cpu wheels and C++ tests',
+      )
+    }
+    ci.upload_artifacts('cpu', '--path "dist/*.whl"')
+
+  }
 }
 
 stage('Test') {
   parallel('unittest: CPU': {
-    ci.test('CPU-SMALL', 'unittest: CPU', 'tvm/ut-python-cpu', images.ci_cpu, 'cpu') {
-      ci.download('cpu')
-      ci.cpp_unittest(images.ci_cpu)
-      ci.python_unittest(images.ci_cpu)
+    ci.with_node(instance: 'CPU-SPOT', retry_instance: 'CPU',
+      name: 'unittest: CPU', folder: 'tvm/ut-python-cpu',
+      variables: ['PLATFORM=cpu', 'TEST_STEP_NAME=unittest: CPU']) {
+      ci.docker_init(images.ci_cpu)
+      ci.download_artifacts('cpu')
+      sh (
+        script: """${docker_run} ${images.ci_cpu} bash -euo pipefail -c '
+            source ./tests/scripts/test_task_install_dist_wheels.sh
+            ./tests/scripts/task_python_unittest.sh
+          '""",
+        label: 'Run Python unit tests',
+      )
     }
   })
 }

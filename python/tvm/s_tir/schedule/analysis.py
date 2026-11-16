@@ -18,10 +18,10 @@
 
 import tvm_ffi
 
-from tvm.ir import For, Var
-from tvm.runtime import Object
-from tvm.tirx.expr import Expr
-from tvm.tirx.function import Function, IndexMap
+from tvm_tirx.ir import For, Var
+from tvm_tirx.tirx.expr import Expr
+from tvm_tirx.tirx.function import Function
+from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
 from .schedule import SBlockRV, Schedule
@@ -61,7 +61,7 @@ def suggest_index_map(
 
 
 @tvm_ffi.register_object("s_tir.schedule.TensorizeInfo")
-class TensorizeInfo(Object):
+class TensorizeInfo(tvm_ffi.Object):
     """Necessary information used for tensorization."""
 
 
@@ -89,7 +89,7 @@ def get_tensorize_loop_mapping(
 
 
 @tvm_ffi.register_object("s_tir.schedule.AutoTensorizeMappingInfo")
-class AutoTensorizeMappingInfo(Object):
+class AutoTensorizeMappingInfo(tvm_ffi.Object):
     """Necessary information used to perform transformations for tensorization."""
 
 

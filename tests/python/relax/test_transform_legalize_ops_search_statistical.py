@@ -16,28 +16,28 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
-from tvm.ir import TupleType as _TupleType
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 ##################### Search #####################
 
 
 def test_where():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Where:
         @R.function
         def main(condition: R.Tensor((3, 2, 1), "bool"), x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor((3, 2, 3), "float32"):
             gv: R.Tensor((3, 2, 3), "float32") = R.where(condition, x, y)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(condition: R.Tensor((3, 2, 1), "bool"), x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor((3, 2, 3), "float32"):
@@ -52,11 +52,11 @@ def test_where():
                     ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[ax0, ax1, T.int64(0)], rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
                     Ts.writes(T_where[ax0, ax1, ax2])
-                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast(rxplaceholder[ax0, ax1, T.int64(0)], "int64"), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
+                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast("int64", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
     # fmt: on
 
     mod = LegalizeOps()(Where)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_where_symbolic():
@@ -65,7 +65,7 @@ def test_where_symbolic():
     b = T.dynamic("b", "int64")
     c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Where:
         @R.function
         def main(condition: R.Tensor((a, b, 1), "bool"), x: R.Tensor((b, c), "float32"), y: R.Tensor((b, 1), "float32")) -> R.Tensor((a, b, c), "float32"):
@@ -79,7 +79,7 @@ def test_where_symbolic():
     b_where = T.dynamic("b", "int64")
     c_where = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(condition: R.Tensor((a_main, b_main, 1), "bool"), x: R.Tensor((b_main, c_main), "float32"), y: R.Tensor((b_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main), "float32"):
@@ -95,23 +95,23 @@ def test_where_symbolic():
                     ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
                     Ts.reads(rxplaceholder[ax0, ax1, T.int64(0)], rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
                     Ts.writes(T_where[ax0, ax1, ax2])
-                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast(rxplaceholder[ax0, ax1, T.int64(0)], "int64"), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
+                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast("int64", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
     # fmt: on
 
     mod = LegalizeOps()(Where)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_argmax():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Argmax:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 4, 5), "int64"):
             gv: R.Tensor((2, 4, 5), "int64") = R.argmax(x, axis=1)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 4, 5), dtype="int64"):
@@ -130,7 +130,7 @@ def test_argmax():
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2])
                     with Ts.init():
                         rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.int64(-1)
-                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.min_value("float32")
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.min_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] == rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] < v_k1), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2], v_k1)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2] > rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, v_k1, v_ax1, v_ax2])
                     rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_rxplaceholder_red_temp_v0
@@ -144,7 +144,7 @@ def test_argmax():
     # fmt: on
 
     mod = LegalizeOps()(Argmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_argmax_symbolic():
@@ -154,7 +154,7 @@ def test_argmax_symbolic():
     d = T.dynamic("d", "int64")
     b = T.dynamic("b", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Argmax:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((a, 1, c, d), "int64"):
@@ -170,7 +170,7 @@ def test_argmax_symbolic():
     c_argmax = T.dynamic("c", "int64")
     d_argmax = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")) -> R.Tensor((a_main, 1, c_main, d_main), dtype="int64"):
@@ -191,7 +191,7 @@ def test_argmax_symbolic():
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
                         rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
-                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.min_value("float32")
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.min_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < v_k1), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], v_k1)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] > rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_ax0, v_k1, v_ax2, v_ax3])
                     rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v0
@@ -205,19 +205,19 @@ def test_argmax_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Argmax)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_argmin():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Argmin:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((), "int64"):
             gv: R.Tensor((), "int64") = R.argmin(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def argmin(rxplaceholder: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Tensor((), "int64")):
@@ -231,7 +231,7 @@ def test_argmin():
                     Ts.writes(rxplaceholder_red_temp_v0[()], rxplaceholder_red_temp_v1[()])
                     with Ts.init():
                         rxplaceholder_red_temp_v0[()] = T.int64(-1)
-                        rxplaceholder_red_temp_v1[()] = T.max_value("float32")
+                        rxplaceholder_red_temp_v1[()] = T.max_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or (rxplaceholder_red_temp_v1[()] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[()] < v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3), rxplaceholder_red_temp_v0[()], v_k0 * T.int64(60) + v_k1 * T.int64(20) + v_k2 * T.int64(5) + v_k3)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[()] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[()], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
                     rxplaceholder_red_temp_v0[()] = v_rxplaceholder_red_temp_v0
@@ -249,7 +249,7 @@ def test_argmin():
     # fmt: on
 
     mod = LegalizeOps()(Argmin)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_argmin_symbolic():
@@ -259,7 +259,7 @@ def test_argmin_symbolic():
     c = T.dynamic("c", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Argmin:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((1, 1, 1, 1), "int64"):
@@ -275,7 +275,7 @@ def test_argmin_symbolic():
     c_main = T.dynamic("c", "int64")
     d_main = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @Ts.function(private=True)
         def argmin(rxplaceholder: T.Tensor((a_argmin, b_argmin, c_argmin, d_argmin), "float32"), rxplaceholder_red: T.Tensor((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
@@ -290,7 +290,7 @@ def test_argmin_symbolic():
                     Ts.writes(rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3])
                     with Ts.init():
                         rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = T.int64(-1)
-                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value("float32")
+                        rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] = T.max_value(ty="float32")
                     v_rxplaceholder_red_temp_v0: T.let[T.int64] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3] or (rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] == rxplaceholder[v_k0, v_k1, v_k2, v_k3] and rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] < ((v_k0 * b_argmin + v_k1) * c_argmin + v_k2) * d_argmin + v_k3), rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3], ((v_k0 * b_argmin + v_k1) * c_argmin + v_k2) * d_argmin + v_k3)
                     v_rxplaceholder_red_temp_v1: T.let[T.float32] = T.Select(rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3] < rxplaceholder[v_k0, v_k1, v_k2, v_k3], rxplaceholder_red_temp_v1[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder[v_k0, v_k1, v_k2, v_k3])
                     rxplaceholder_red_temp_v0[v_ax0, v_ax1, v_ax2, v_ax3] = v_rxplaceholder_red_temp_v0
@@ -309,7 +309,7 @@ def test_argmin_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Argmin)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 ##################### Statistical #####################
@@ -317,14 +317,14 @@ def test_argmin_symbolic():
 
 def test_max():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Max:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 5), "float32"):
             gv: R.Tensor((2, 5), "float32") = R.max(x, axis=[1, 2])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 5), "float32"):
@@ -340,12 +340,12 @@ def test_max():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax1])
                     Ts.writes(rxplaceholder_red[ax0, ax1])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1] = T.min_value("float32")
+                        rxplaceholder_red[ax0, ax1] = T.min_value(ty="float32")
                     rxplaceholder_red[ax0, ax1] = T.max(rxplaceholder_red[ax0, ax1], rxplaceholder[ax0, k1, k2, ax1])
     # fmt: on
 
     mod = LegalizeOps()(Max)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_symbolic():
@@ -355,7 +355,7 @@ def test_max_symbolic():
     b = T.dynamic("b", "int64")
     c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Max:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((a, d), "float32"):
@@ -371,7 +371,7 @@ def test_max_symbolic():
     c_max = T.dynamic("c", "int64")
     d_max = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), "float32")) -> R.Tensor((a_main, d_main), "float32"):
@@ -388,24 +388,24 @@ def test_max_symbolic():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax1])
                     Ts.writes(rxplaceholder_red[ax0, ax1])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1] = T.min_value("float32")
+                        rxplaceholder_red[ax0, ax1] = T.min_value(ty="float32")
                     rxplaceholder_red[ax0, ax1] = T.max(rxplaceholder_red[ax0, ax1], rxplaceholder[ax0, k1, k2, ax1])
     # fmt: on
 
     mod = LegalizeOps()(Max)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_min():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Min:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 1, 1, 5), "float32"):
             gv: R.Tensor((2, 1, 1, 5), "float32") = R.min(x, axis=[1, 2], keepdims=True)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((2, 1, 1, 5), "float32"):
@@ -421,12 +421,12 @@ def test_min():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax3])
                     Ts.writes(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value("float32")
+                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value(ty="float32")
                     rxplaceholder_red[ax0, ax1, ax2, ax3] = T.min(rxplaceholder_red[ax0, ax1, ax2, ax3], rxplaceholder[ax0, k1, k2, ax3])
     # fmt: on
 
     mod = LegalizeOps()(Min)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_min_symbolic():
@@ -436,7 +436,7 @@ def test_min_symbolic():
     b = T.dynamic("b", "int64")
     c = T.dynamic("c", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Min:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((a, 1, 1, d), "float32"):
@@ -452,7 +452,7 @@ def test_min_symbolic():
     c_min = T.dynamic("c", "int64")
     d_min = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), "float32")) -> R.Tensor((a_main, 1, 1, d_main), "float32"):
@@ -469,24 +469,24 @@ def test_min_symbolic():
                     Ts.reads(rxplaceholder[ax0, k1, k2, ax3])
                     Ts.writes(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     with Ts.init():
-                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value("float32")
+                        rxplaceholder_red[ax0, ax1, ax2, ax3] = T.max_value(ty="float32")
                     rxplaceholder_red[ax0, ax1, ax2, ax3] = T.min(rxplaceholder_red[ax0, ax1, ax2, ax3], rxplaceholder[ax0, k1, k2, ax3])
     # fmt: on
 
     mod = LegalizeOps()(Min)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_sum():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Sum:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((), "float32"):
             gv: R.Tensor((), "float32") = R.sum(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((), "float32"):
@@ -507,7 +507,7 @@ def test_sum():
     # fmt: on
 
     mod = LegalizeOps()(Sum)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_sum_symbolic():
@@ -517,7 +517,7 @@ def test_sum_symbolic():
     c = T.dynamic("c", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Sum:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((), "float32"):
@@ -533,7 +533,7 @@ def test_sum_symbolic():
     c_sum = T.dynamic("c", "int64")
     d_sum = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), "float32")) -> R.Tensor((), "float32"):
@@ -555,19 +555,19 @@ def test_sum_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Sum)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_prod():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Prod:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((1, 1, 1, 1), "float32"):
             gv: R.Tensor((1, 1, 1, 1), "float32") = R.prod(x, keepdims=True)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((1, 1, 1, 1), "float32"):
@@ -588,19 +588,19 @@ def test_prod():
     # fmt: on
 
     mod = LegalizeOps()(Prod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_prod_bool():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Prod:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "bool")) -> R.Tensor((1, 1, 1, 1), "bool"):
             gv: R.Tensor((1, 1, 1, 1), "bool") = R.prod(x, keepdims=True)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "bool")) -> R.Tensor((1, 1, 1, 1), "bool"):
@@ -621,7 +621,7 @@ def test_prod_bool():
     # fmt: on
 
     mod = LegalizeOps()(Prod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_prod_symbolic():
@@ -631,7 +631,7 @@ def test_prod_symbolic():
     c = T.dynamic("c", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Prod:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((1, 1, 1, 1), "float32"):
@@ -647,7 +647,7 @@ def test_prod_symbolic():
     c_prod = T.dynamic("c", "int64")
     d_prod = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), "float32")) -> R.Tensor((1, 1, 1, 1), "float32"):
@@ -669,12 +669,12 @@ def test_prod_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Prod)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_sum_zero_dim_axis_identity():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Sum:
         @R.function
         def main(x: R.Tensor((2, 0, 4), "float32")) -> R.Tensor((2, 4), "float32"):
@@ -690,7 +690,7 @@ def test_sum_zero_dim_axis_identity():
 
 def test_sum_zero_dim_negative_axis_identity():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Sum:
         @R.function
         def main(x: R.Tensor((2, 3, 0), "float32")) -> R.Tensor((2, 3), "float32"):
@@ -706,7 +706,7 @@ def test_sum_zero_dim_negative_axis_identity():
 
 def test_prod_zero_dim_axis_identity():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Prod:
         @R.function
         def main(x: R.Tensor((2, 0, 4), "float32")) -> R.Tensor((2, 4), "float32"):
@@ -722,7 +722,7 @@ def test_prod_zero_dim_axis_identity():
 
 def test_prod_bool_zero_dim_axis_identity():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Prod:
         @R.function
         def main(x: R.Tensor((2, 0, 4), "bool")) -> R.Tensor((2, 4), "bool"):
@@ -738,14 +738,14 @@ def test_prod_bool_zero_dim_axis_identity():
 
 def test_mean():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Mean:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((3, 4), "float32"):
             gv: R.Tensor((3, 4), "float32") = R.mean(x, [0, 3])
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((3, 4), "float32"):
@@ -773,7 +773,7 @@ def test_mean():
     # fmt: on
 
     mod = LegalizeOps()(Mean)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_mean_symbolic():
@@ -783,7 +783,7 @@ def test_mean_symbolic():
     a = T.dynamic("a", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Mean:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((b, c), "float32"):
@@ -799,7 +799,7 @@ def test_mean_symbolic():
     c_mean = T.dynamic("c", "int64")
     d_mean = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")) -> R.Tensor((b_main, c_main), dtype="float32"):
@@ -824,23 +824,23 @@ def test_mean_symbolic():
                     ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                     Ts.reads(rxplaceholder_red[ax0, ax1])
                     Ts.writes(T_divide[ax0, ax1])
-                    T_divide[ax0, ax1] = rxplaceholder_red[ax0, ax1] / T.Cast(a_mean * d_mean, "float32")
+                    T_divide[ax0, ax1] = rxplaceholder_red[ax0, ax1] / T.Cast("float32", a_mean * d_mean)
     # fmt: on
 
     mod = LegalizeOps()(Mean)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_median():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Median:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tuple(R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")):
             gv: R.Tuple(R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")) = R.median(x, axis=[0], keepdims=False)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tuple(R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")):
@@ -906,12 +906,12 @@ def test_median():
     # fmt: on
 
     mod = LegalizeOps()(Median)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_std():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Std:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((), "float32"):
@@ -983,7 +983,7 @@ def test_std():
     # fmt: on
 
     mod = LegalizeOps()(Std)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_std_symbolic():
@@ -993,7 +993,7 @@ def test_std_symbolic():
     c = T.dynamic("c", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Std:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((), "float32"):
@@ -1035,7 +1035,7 @@ def test_std_symbolic():
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     Ts.reads(rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3])
                     Ts.writes(T_divide[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_divide[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast(a_std * b_std * c_std * d_std, "float32")
+                    T_divide[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_red[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", a_std * b_std * c_std * d_std)
             for ax0, ax1, ax2, ax3 in T.grid(a_std, b_std, c_std, d_std):
                 with Ts.sblock("T_subtract"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1060,7 +1060,7 @@ def test_std_symbolic():
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(T_multiply_red[()])
                 Ts.writes(T_divide_1[()])
-                T_divide_1[()] = T_multiply_red[()] / T.Cast(a_std * b_std * c_std * d_std, "float32")
+                T_divide_1[()] = T_multiply_red[()] / T.Cast("float32", a_std * b_std * c_std * d_std)
             with Ts.sblock("compute"):
                 vi = Ts.axis.spatial(T.int64(1), T.int64(0))
                 Ts.reads(T_divide_1[()])
@@ -1075,19 +1075,19 @@ def test_std_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Std)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_variance():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Variance:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((1, 3, 4, 1), "float32"):
             gv: R.Tensor((1, 3, 4, 1), "float32") = R.variance(x, [0, 3], keepdims=True)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((1, 3, 4, 1), dtype="float32"):
@@ -1145,7 +1145,7 @@ def test_variance():
     # fmt: on
 
     mod = LegalizeOps()(Variance)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_variance_symbolic():
@@ -1155,7 +1155,7 @@ def test_variance_symbolic():
     a = T.dynamic("a", "int64")
     d = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Variance:
         @R.function
         def main(x: R.Tensor((a, b, c, d), "float32")) -> R.Tensor((1, b, c, 1), "float32"):
@@ -1171,7 +1171,7 @@ def test_variance_symbolic():
     c_variance = T.dynamic("c", "int64")
     d_variance = T.dynamic("d", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((a_main, b_main, c_main, d_main), "float32")) -> R.Tensor((1, b_main, c_main, 1), "float32"):
@@ -1200,7 +1200,7 @@ def test_variance_symbolic():
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(rxplaceholder_red[ax0, ax1, ax2, ax3])
                     Ts.writes(T_divide_1[ax0, ax1, ax2, ax3])
-                    T_divide_1[ax0, ax1, ax2, ax3] = rxplaceholder_red[ax0, ax1, ax2, ax3] / T.Cast(a_variance * d_variance, "float32")
+                    T_divide_1[ax0, ax1, ax2, ax3] = rxplaceholder_red[ax0, ax1, ax2, ax3] / T.Cast("float32", a_variance * d_variance)
             for i0, i1, i2, i3 in T.grid(a_variance, b_variance, c_variance, d_variance):
                 with Ts.sblock("T_subtract"):
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1226,16 +1226,16 @@ def test_variance_symbolic():
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(T_multiply_red[ax0, ax1, ax2, ax3])
                     Ts.writes(T_divide[ax0, ax1, ax2, ax3])
-                    T_divide[ax0, ax1, ax2, ax3] = T_multiply_red[ax0, ax1, ax2, ax3] / T.Cast(a_variance * d_variance, "float32")
+                    T_divide[ax0, ax1, ax2, ax3] = T_multiply_red[ax0, ax1, ax2, ax3] / T.Cast("float32", a_variance * d_variance)
     # fmt: on
 
     mod = LegalizeOps()(Variance)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_variance_no_keepdims():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Variance:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((3, 4), "float32"):
@@ -1302,21 +1302,21 @@ def test_variance_no_keepdims():
     # fmt: on
 
     mod = LegalizeOps()(Variance)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_zero_dim():
     # Reducing a 0-D (scalar) tensor is the identity; it must legalize, not crash.
     # Regression test for https://github.com/apache/tvm/issues/19676
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Max:
         @R.function
         def main(x: R.Tensor((), "float32")) -> R.Tensor((), "float32"):
             gv: R.Tensor((), "float32") = R.max(x)
             return gv
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -1334,8 +1334,8 @@ def test_max_zero_dim():
     # fmt: on
 
     mod = LegalizeOps()(Max)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

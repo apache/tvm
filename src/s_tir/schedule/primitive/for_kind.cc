@@ -140,7 +140,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
     if (!self->stmt2ref.count(realize->block.get())) {
       return ffi::WalkResult::Skip();
     }
-    CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, realize, thread_scope);
+    CheckLoopParallelizableInBlock(self, for_kind, loop->var, realize, thread_scope);
     return ffi::WalkResult::Advance();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(loop, walk_fn);
@@ -157,7 +157,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
  */
 void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref, ForKind for_kind,
                             ffi::Optional<ffi::String> thread_axis) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
 
   /*
    * Check:
@@ -180,12 +180,12 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
                                                  : support::GPUThreadTag{-1, -1});
 
   // Step 3. Loop update and IR replacement
-  ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+  ffi::ObjectPtr<ForObj> new_loop = ffi::make_object<ForObj>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->annotations.Set(tvm::s_tir::attr::kThreadBinding, thread_axis.value());
+    new_loop->annotations.Set(tvm::s_tir::attr::kThreadBinding.name, thread_axis.value());
   } else {
-    new_loop->annotations.erase(tvm::s_tir::attr::kThreadBinding);
+    new_loop->annotations.erase(tvm::s_tir::attr::kThreadBinding.name);
   }
   self->Replace(loop_sref, For(new_loop), {});
 }
@@ -203,10 +203,10 @@ void Bind(ScheduleState self, const StmtSRef& loop_sref, const ffi::String& thre
 }
 
 void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+  const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
+  ffi::ObjectPtr<ForObj> new_loop = ffi::make_object<ForObj>(*loop);
   new_loop->kind = ForKind::kUnrolled;
-  new_loop->annotations.erase(tvm::s_tir::attr::kThreadBinding);
+  new_loop->annotations.erase(tvm::s_tir::attr::kThreadBinding.name);
   self->Replace(loop_sref, For(new_loop), {});
 }
 

@@ -24,11 +24,13 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
 namespace relax {
@@ -64,6 +66,9 @@ namespace relax {
  */
 class BlockBuilderObj : public ffi::Object {
  public:
+  /*! \brief Explicit target for the operation being legalized, if one was supplied. */
+  ffi::Optional<Target> target;
+
   //-------------------------------
   // Global Context management
   //-------------------------------

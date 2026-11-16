@@ -18,9 +18,9 @@
 Thread Scope Enum Tags
 ======================
 
-tvm.tirx.thread_scope
----------------------
-.. automodule:: tvm.tirx.thread_scope
+tvm_tirx.tirx.thread_scope
+--------------------------
+.. automodule:: tvm_tirx.tirx.thread_scope
    :members:
    :no-index:
 
@@ -43,7 +43,7 @@ Same-backend hierarchy comparisons use explicit ranks; cross-backend comparisons
 are rejected.
 For example, CUDA TMA instructions accept ``thread`` and ``tcgen05.ld/st`` accept
 ``warpgroup``. CUDA index bindings and predicate analysis live in
-``tvm.backend.cuda.tile.exec_context``.
+``tvm_tirx.backend.cuda.tile.exec_context``.
 
 Instruction APIs continue accepting ``scope="warp"`` and also accept qualified
 names or ``ThreadScope`` values. Construction resolves the value before
@@ -52,10 +52,10 @@ Omitting scope uses the instruction backend's ``thread`` tag. Direct attribute
 construction must provide the tag or its qualified name; shared attribute
 schemas have no backend-independent default.
 
-.. automodule:: tvm.backend.cuda.thread_scope
+.. automodule:: tvm_tirx.backend.cuda.thread_scope
    :members:
    :no-index:
 
-.. automodule:: tvm.backend.trn.thread_scope
+.. automodule:: tvm_tirx.backend.trn.thread_scope
    :members:
    :no-index:

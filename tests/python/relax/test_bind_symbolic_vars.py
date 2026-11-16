@@ -16,15 +16,22 @@
 # under the License.
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx.script import tirx as T
 
-replace_by_tir_var = tvm.testing.parameter(
-    by_dict={"replace-by-string": False, "replace-by-tirx-var": True}
+
+@pytest.fixture(
+    params=[
+        pytest.param(False, id="replace-by-string"),
+        pytest.param(True, id="replace-by-tirx-var"),
+    ],
+    scope="session",
 )
+def replace_by_tir_var(request):
+    return request.param
 
 
 def test_bind_static_value(replace_by_tir_var):
@@ -53,7 +60,7 @@ def test_bind_static_value(replace_by_tir_var):
         symbolic_var_map = {"M": 128, "K": 64, "N": 32}
 
     after = before.bind_symbolic_vars(symbolic_var_map)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_error_with_duplicate_var_names():
@@ -99,7 +106,7 @@ def test_string_var_when_other_var_has_duplicate_var_names():
         return out
 
     after = before.bind_symbolic_vars({"BatchSize": 16})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_error_with_nonexisting_var_name():
@@ -127,7 +134,7 @@ def test_error_with_nonexisting_tir_var():
         return A
 
     with pytest.raises(RuntimeError):
-        func.bind_symbolic_vars({tvm.tirx.Var("M", "int64"): 64})
+        func.bind_symbolic_vars({tvm_tirx.tirx.Var("M", "int64"): 64})
 
 
 def test_error_with_multiple_definitions():
@@ -182,7 +189,7 @@ def test_replacements_may_produce_new_symbolic_vars():
     outside_var = T.dynamic("outside_var", "int64")
 
     after = before.bind_symbolic_vars({"M": outside_var * 2, "N": outside_var})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_symbolic_vars_in_tensor_shape():
@@ -204,7 +211,7 @@ def test_bind_symbolic_vars_in_tensor_shape():
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_symbolic_vars_in_shape_expr():
@@ -226,7 +233,7 @@ def test_bind_symbolic_vars_in_shape_expr():
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_strided_slice():
@@ -250,7 +257,7 @@ def test_bind_strided_slice():
         return B
 
     after = before.bind_symbolic_vars({"N": 32})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_inside_match_cast():
@@ -274,8 +281,8 @@ def test_bind_inside_match_cast():
         return D
 
     after = before.bind_symbolic_vars({"N": 32})
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

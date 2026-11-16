@@ -17,15 +17,16 @@
 # ruff: noqa: F401, F841
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.runtime import MemoryScope
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 @visitor
@@ -81,39 +82,38 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
 
 
 def verify(mod, expected):
-    tgt = tvm.target.Target({"kind": "opencl", "device": "adreno"}, host="llvm")
+    tgt = tvm_tirx.target.Target({"kind": "opencl", "device": "adreno"}, host="llvm")
     skip_ops = [
         "relax.nn.conv2d",
         "relax.nn.max_pool2d",
         "relax.nn.adaptive_avg_pool2d",
         # "relax.nn.layer_norm",
     ]
-    with tgt:
-        mod = tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
-        mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
-        mod = tvm.relax.transform.ConvertLayout(desired_layouts)(mod)
-        mod = tvm.relax.transform.Normalize()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops)(mod)
-        mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-        mod = tvm.relax.backend.adreno.transform.AnnotateCustomMemoryScope(tgt)(mod)
-        # There is a possibility of some skipped ops above might not use 5D layouts.
-        mod = tvm.relax.transform.LegalizeOps()(mod)
-        mod = tvm.relax.transform.LegalizeOps(
-            {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo},
-        )(mod)
-        # Lets get pattern info for newly legalized ops
-        mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.FuseOps()(mod)
-        mod = tvm.relax.transform.FuseTIR()(mod)
-        mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
-        mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.SpecializeFunctionBasedOnCallSite()(mod)
-        mod = tvm.relax.transform.Normalize()(mod)
+    mod = tvm_tirx.tirx.transform.BindTarget(tgt)(mod)
+    mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
+    mod = tvm.relax.transform.FoldConstant()(mod)
+    desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
+    mod = tvm.relax.transform.ConvertLayout(desired_layouts)(mod)
+    mod = tvm.relax.transform.Normalize()(mod)
+    mod = tvm.relax.transform.FoldConstant()(mod)
+    mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops, target=tgt)(mod)
+    mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
+    mod = tvm.relax.backend.adreno.transform.AnnotateCustomMemoryScope(tgt)(mod)
+    # There is a possibility of some skipped ops above might not use 5D layouts.
+    mod = tvm.relax.transform.LegalizeOps(target=tgt)(mod)
+    mod = tvm.relax.transform.LegalizeOps(
+        {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo}, target=tgt
+    )(mod)
+    # Lets get pattern info for newly legalized ops
+    mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
+    mod = tvm.relax.transform.FoldConstant()(mod)
+    mod = tvm.relax.transform.FuseOps()(mod)
+    mod = tvm.relax.transform.FuseTIR()(mod)
+    mod = tvm.relax.transform.DeadCodeElimination()(mod)
+    mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
+    mod = tvm.relax.transform.DeadCodeElimination()(mod)
+    mod = tvm.relax.transform.SpecializeFunctionBasedOnCallSite()(mod)
+    mod = tvm.relax.transform.Normalize()(mod)
 
     ValidateScope(expected).visit(mod)
 
@@ -1220,4 +1220,4 @@ def test_injective_nwo_inputs2():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

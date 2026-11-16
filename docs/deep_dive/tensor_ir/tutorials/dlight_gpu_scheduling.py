@@ -46,10 +46,11 @@ quality, and how to write custom rules.
 # rules: ``Linear`` layers produce GEMM (matrix multiplication) kernels, ``LayerNorm``
 # produces a general-reduction kernel, and ``ReLU`` is a simple elementwise op.
 
-import tvm
-from tvm import relax, tirx
+import tvm_tirx
+from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.s_tir import dlight as dl
+from tvm_tirx import tirx
 
 
 class DemoModel(nn.Module):
@@ -70,10 +71,9 @@ mod, params = DemoModel().export_tvm({"forward": {"x": nn.spec.Tensor((1, 768), 
 ######################################################################
 # Legalize Relax operators into TIR functions so that DLight has concrete kernels to schedule.
 
-device = tvm.cuda(0)
-target = tvm.target.Target.from_device(device)
-with target:
-    mod = relax.get_pipeline("zero")(mod)
+device = tvm_tirx.cuda(0)
+target = tvm_tirx.target.Target.from_device(device)
+mod = relax.get_pipeline("zero", target=target)(mod)
 
 ######################################################################
 # At this point every TIR function in ``mod`` is **unscheduled** — it has no thread bindings
@@ -95,14 +95,14 @@ for gv, func in mod.functions_items():
 # Here we use a common subset of rules. The full catalog (including ``LowBatchGEMV``,
 # ``Transpose``, ``RMSNorm``) is listed in the next section.
 
-with target:
-    scheduled_mod = dl.ApplyDefaultSchedule(
-        dl.gpu.Matmul(),  # GEMM: dense matrix multiplication
-        dl.gpu.GEMV(),  # matrix-vector products
-        dl.gpu.Reduction(),  # simple reductions (sum, max, ...)
-        dl.gpu.GeneralReduction(),  # compound reductions (softmax, layer norm, ...)
-        dl.gpu.Fallback(),  # catch-all for anything unmatched above
-    )(mod)
+scheduled_mod = dl.ApplyDefaultSchedule(
+    dl.gpu.Matmul(),  # GEMM: dense matrix multiplication
+    dl.gpu.GEMV(),  # matrix-vector products
+    dl.gpu.Reduction(),  # simple reductions (sum, max, ...)
+    dl.gpu.GeneralReduction(),  # compound reductions (softmax, layer norm, ...)
+    dl.gpu.Fallback(),  # catch-all for anything unmatched above
+    target=target,
+)(mod)
 
 scheduled_mod.show()
 
@@ -184,8 +184,7 @@ rules = OrderedDict(
 
 rule_assignment = {}
 for rule_name, rule in rules.items():
-    with target:
-        test_mod = dl.ApplyDefaultSchedule(rule)(mod)
+    test_mod = dl.ApplyDefaultSchedule(rule, target=target)(mod)
     for gv, func in test_mod.functions_items():
         if isinstance(func, tirx.Function) and gv.name_hint not in rule_assignment:
             if "tirx.is_scheduled" in func.attrs and func.attrs["tirx.is_scheduled"] == 1:
@@ -263,7 +262,7 @@ from tvm.s_tir.dlight.base.schedule_rule import ScheduleRule
 
 
 @ScheduleRule.from_callable("MyTileAndBind")
-def my_tile_and_bind(func: tirx.Function, target: tvm.target.Target, tunable: bool):
+def my_tile_and_bind(func: tirx.Function, target: tvm_tirx.target.Target, tunable: bool):
     """A minimal rule: for single-block injective functions, tile and bind to GPU threads."""
     if not isinstance(func, tirx.Function):
         return None
@@ -290,13 +289,13 @@ def my_tile_and_bind(func: tirx.Function, target: tvm.target.Target, tunable: bo
 # Insert the custom rule into the rule chain. Note that ``from_callable`` returns an
 # **instance**, so pass it directly — do not call ``my_tile_and_bind()`` again.
 
-with target:
-    custom_mod = dl.ApplyDefaultSchedule(
-        dl.gpu.Matmul(),
-        dl.gpu.GeneralReduction(),
-        my_tile_and_bind,  # our custom rule, tried before Fallback
-        dl.gpu.Fallback(),
-    )(mod)
+custom_mod = dl.ApplyDefaultSchedule(
+    dl.gpu.Matmul(),
+    dl.gpu.GeneralReduction(),
+    my_tile_and_bind,  # our custom rule, tried before Fallback
+    dl.gpu.Fallback(),
+    target=target,
+)(mod)
 
 custom_mod.show()
 

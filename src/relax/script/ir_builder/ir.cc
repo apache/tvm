@@ -70,20 +70,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ///////////////////////////////// Vars //////////////////////////////////
 
-using tvm::script::ir_builder::details::Namer;
+using tvm::script::ir_builder::detail::Namer;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  Namer::vtable().SetDispatch<tvm::relax::DataflowVarNode>(
+  Namer::vtable().SetDispatch<tvm::relax::DataflowVarObj>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
-        using tvm::relax::DataflowVarNode;
-        DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
+        using tvm::relax::DataflowVarObj;
+        DataflowVarObj* var = const_cast<DataflowVarObj*>(node.as<DataflowVarObj>());
         var->name = name;
       });
 }
 
 /////////////////////////////// Function ////////////////////////////////
 
-FunctionFrame Function(bool is_pure, bool is_private) {
+FunctionFrame Function(bool is_pure, bool is_private, bool is_declaration, bool local) {
   const IRBuilder& ir_builder = IRBuilder::Current();
   ffi::Optional<tvm::IRModule> mod = std::nullopt;
   if (const ffi::Optional<ir::IRModuleFrame> mod_frame =
@@ -93,15 +93,10 @@ FunctionFrame Function(bool is_pure, bool is_private) {
   auto n = ffi::make_object<FunctionFrameObj>(tvm::relax::BlockBuilder::Create(
       /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript()));
   n->is_pure = is_pure;
-  n->is_private = is_private;
+  n->is_private = is_private || local;
+  n->declaration = is_declaration;
+  n->local = local;
   return FunctionFrame(n);
-}
-
-FunctionFrame DeclFunction(bool is_pure, bool is_private, bool local) {
-  FunctionFrame frame = Function(is_pure, is_private || local);
-  frame->declaration = true;
-  frame->local = local;
-  return frame;
 }
 
 FunctionFrame LocalFunction(bool is_pure, const tvm::Var& reference) {
@@ -144,9 +139,9 @@ void FuncName(const ffi::String& name) {
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
   for (const auto& [key, value] : attrs) {
-    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(false)) {
+    if (key == tvm::attr::kGlobalSymbol.name && frame->is_private.value_or(false)) {
       TVM_FFI_THROW(ValueError) << "A private function may not have the kGlobalSymbol (\""
-                                << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                                << tvm::attr::kGlobalSymbol.name << "\") attribute.  "
                                 << "However, a private function specified the global symbol as "
                                 << value;
     }
@@ -183,7 +178,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   if (auto opt = ir_builder->GetLastFrame<BindingBlockFrame>()) {
     auto block_frame = opt.value();
     for (const auto& var : tvm::relax::FreeVars(normalized_value)) {
-      if (var->IsInstance<tvm::relax::DataflowVarNode>()) {
+      if (var->IsInstance<tvm::relax::DataflowVarObj>()) {
         block_frame->output_vars.push_back(var);
       }
     }
@@ -204,7 +199,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.relax.Function", Function)
-      .def("script.ir_builder.relax.DeclFunction", DeclFunction)
       .def("script.ir_builder.relax.LocalFunction", LocalFunction)
       .def("script.ir_builder.relax.ArgVar", ArgVar)
       .def("script.ir_builder.relax.Arg", Arg)
@@ -308,10 +302,10 @@ namespace {
 
 tvm::Var RecordBindingLoc(tvm::Var var, const Location& name_loc, const Location& statement_loc) {
   Location loc = IRBuilder::Current()->ResolveLoc(statement_loc);
-  if (!loc.as<UnknownLocNode>()) {
+  if (!loc.as<UnknownLocObj>()) {
     CheckBindingBlockFrameExistAndUnended()->binding_locs.Set(var, loc);
   }
-  var->loc = name_loc.as<UnknownLocNode>() ? loc : name_loc;
+  var->loc = name_loc.as<UnknownLocObj>() ? loc : name_loc;
   return var;
 }
 

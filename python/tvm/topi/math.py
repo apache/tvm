@@ -18,8 +18,10 @@
 
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
-from tvm import DataTypeCode, te
-from tvm.ir.location import UNKNOWN_LOC, Location
+import tvm_tirx
+from tvm import te
+from tvm_tirx import DataTypeCode
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from . import cpp, tag
 
@@ -624,9 +626,9 @@ def clip(x, a_min, a_max):
     ----------
     x : tvm.te.Tensor
         Input argument.
-    a_min : tvm.tirx.Expr
+    a_min : tvm_tirx.tirx.Expr
         Minimum value.
-    a_max : tvm.tirx.Expr
+    a_max : tvm_tirx.tirx.Expr
         Maximum value.
 
     Returns
@@ -638,14 +640,14 @@ def clip(x, a_min, a_max):
     def _compute(*indices):
         value = x(*indices)
         const_min = (
-            tvm.tirx.Cast(a_min, value.ty)
-            if tvm.ir.is_prim_expr(a_min)
-            else tvm.tirx.const(a_min, value.ty)
+            tvm_tirx.tirx.Cast(value.ty, a_min)
+            if tvm_tirx.ir.is_prim_expr(a_min)
+            else tvm_tirx.tirx.const(a_min, value.ty)
         )
         const_max = (
-            tvm.tirx.Cast(a_max, value.ty)
-            if tvm.ir.is_prim_expr(a_max)
-            else tvm.tirx.const(a_max, value.ty)
+            tvm_tirx.tirx.Cast(value.ty, a_max)
+            if tvm_tirx.ir.is_prim_expr(a_max)
+            else tvm_tirx.tirx.const(a_max, value.ty)
         )
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
 
@@ -674,7 +676,7 @@ def cast(x, dtype, loc: Location = UNKNOWN_LOC):
     if isinstance(x, te.tensor.Tensor):
         return te.compute(x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     # pylint: disable=import-outside-toplevel
-    from tvm.ir.prim import _ffi_api
+    from tvm_tirx.ir.prim import _ffi_api
 
     return _ffi_api._cast(x, dtype, loc)
 
@@ -750,7 +752,7 @@ def fast_erf(x):
     return cpp.fast_erf(x, x.dtype, tag.ELEMWISE)
 
 
-def ceil_log2(x):
+def ceil_log2(x, *, target=None):
     """Compute integer ceil log2 with a special code path for vulkan
     SPIR-V does not support log2 on fp64. Instead, we compute integer ceil_log2 via clz
     intrinsic when the target is vulkan.
@@ -765,20 +767,18 @@ def ceil_log2(x):
     y : tvm.te.Tensor
         The result.
     """
-    if not tvm.ir.is_prim_expr(x):
-        x = tvm.tirx.const(x)
+    if not tvm_tirx.ir.is_prim_expr(x):
+        x = tvm_tirx.ir.const(x)
 
     if x.ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
-        return tvm.tirx.ceil(tvm.tirx.log2(x))
-
-    target = tvm.target.Target.current()
+        return tvm_tirx.tirx.ceil(tvm_tirx.tirx.log2(x))
 
     if target is not None:
         target_name = target.kind.name
         if "vulkan" in target_name:
-            clz = tvm.ir.prim.clz(x)
+            clz = tvm_tirx.ir.prim.clz(x)
             bits = x.ty.dtype.bits
-            res = tvm.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
+            res = tvm_tirx.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
             if res.ty != x.ty:
                 return cast(res, x.ty)
             return res
@@ -788,6 +788,6 @@ def ceil_log2(x):
             "rocm",
             "webgpu",
         ]:
-            return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float32"))), x.ty)
+            return cast(tvm_tirx.tirx.ceil(tvm_tirx.tirx.log2(cast(x, "float32"))), x.ty)
 
-    return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float64"))), x.ty)
+    return cast(tvm_tirx.tirx.ceil(tvm_tirx.tirx.log2(cast(x, "float64"))), x.ty)

@@ -54,9 +54,9 @@ The ``DeviceAPI`` represents a handle to a specific hardware device
 API.  (e.g. ``CUDADeviceAPI`` handles all interactions through the
 CUDA framework.)  Most ``DeviceAPI`` methods accept a ``device_id``
 parameter to specify which device should be accessed.  In Python,
-these are typically accessed using the :py:func:`tvm.runtime.device`
+these are typically accessed using the :py:func:`tvm_ffi.device`
 function, which returns a handle to a specific device, accessed
-through a specific API.  (e.g. ``tvm.runtime.device('cuda',0)`` gives
+through a specific API.  (e.g. ``tvm_ffi.device('cuda',0)`` gives
 access to physical device ``0``, accessed through the CUDA API.)
 
 .. _device_api.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/device_api.h

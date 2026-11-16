@@ -25,12 +25,13 @@ from collections.abc import Callable
 from enum import IntEnum
 
 import tvm
-from tvm import IRModule, tirx
-from tvm.ir import Call, Type
+import tvm_tirx
 from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar
 from tvm.relax.type import FuncType
 from tvm.s_tir import SBlock
-from tvm.tirx import IndexMap, Var
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Call, Type
+from tvm_tirx.tirx import IndexMap, Var
 
 from . import _ffi_api
 
@@ -480,21 +481,25 @@ def remove_all_unused(func: Function) -> Function:
     return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
-def well_formed(obj: IRModule | Function, check_ty: bool = True) -> None:
+def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> None:
     """Check if the IRModule is well formed, raising on the first violation.
 
     Raises an error (seeded with the offending node so a pass runner can report a
-    precise access path) on the first well-formedness violation.  Use
-    :func:`check_well_formed` for a boolean answer.
+    precise access path) on the first well-formedness violation.
 
     Parameters
     ----------
-    obj : Union[tvm.IRModule, Function]
+    obj : Union[tvm_tirx.IRModule, Function]
         The input IRModule or relax.Function.
 
     check_ty : bool
         A boolean flag indicating if the property "every Expr must
         have defined type information" will be checked.
+
+    Raises
+    ------
+    ValueError, TypeError
+        If the function or module is not well formed.
 
     Note
     ----
@@ -502,29 +507,7 @@ def well_formed(obj: IRModule | Function, check_ty: bool = True) -> None:
     where `check_ty` might be false, so that other well-formed requirements
     will be well tested and will not be blocked by not having type information.
     """
-    _ffi_api.well_formed(obj, check_ty)  # type: ignore
-
-
-def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
-    """Return whether the IRModule or Function is well formed.
-
-    Wraps :func:`well_formed`, returning False instead of raising on the first violation.
-
-    Parameters
-    ----------
-    obj : Union[tvm.IRModule, Function]
-        The input IRModule or relax.Function.
-
-    check_ty : bool
-        A boolean flag indicating if the property "every Expr must
-        have defined type information" will be checked.
-
-    Returns
-    -------
-    ret: bool
-        True if the IRModule is well formed, False if not.
-    """
-    return _ffi_api.check_well_formed(obj, check_ty)  # type: ignore
+    _ffi_api.check_well_formed(obj, check_ty)  # type: ignore
 
 
 def _get_function_default_dtype(func: tirx.Function):
@@ -566,7 +549,7 @@ def suggest_layout_transforms(
     return _ffi_api.suggest_layout_transforms(func, write_tensor_index_maps)  # type: ignore
 
 
-def detect_recursion(mod: tvm.IRModule) -> list[list[GlobalVar]]:
+def detect_recursion(mod: tvm_tirx.IRModule) -> list[list[GlobalVar]]:
     """
     Find all sets of recursive or mutually recursive functions in the module.
 

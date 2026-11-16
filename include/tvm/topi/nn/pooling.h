@@ -101,10 +101,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const auto* padding_h0 = pad_top.as<IntImmNode>();
-  const auto* padding_w0 = pad_left.as<IntImmNode>();
-  const auto* padding_h1 = pad_bottom.as<IntImmNode>();
-  const auto* padding_w1 = pad_right.as<IntImmNode>();
+  const auto* padding_h0 = pad_top.as<IntImmObj>();
+  const auto* padding_w0 = pad_left.as<IntImmObj>();
+  const auto* padding_h1 = pad_bottom.as<IntImmObj>();
+  const auto* padding_w1 = pad_right.as<IntImmObj>();
   const bool do_pad =
       ((padding_h0 && padding_h0->value != 0) || (padding_w0 && padding_w0->value != 0)) ||
       ((padding_h1 && padding_h1->value != 0) || (padding_w1 && padding_w1->value != 0));
@@ -362,7 +362,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
 
   ffi::Map<ffi::String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.adaptive_pool_max"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name,
+              tvm::ffi::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -373,7 +374,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
         },
         "adaptive_pool_max", "adaptive_pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.adaptive_pool_avg"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name,
+              tvm::ffi::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -557,8 +559,8 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
       pad_tail[i] += offset[i];
     }
 
-    const auto* padding0 = pad_head[i].as<IntImmNode>();
-    const auto* padding1 = pad_tail[i].as<IntImmNode>();
+    const auto* padding0 = pad_head[i].as<IntImmObj>();
+    const auto* padding1 = pad_tail[i].as<IntImmObj>();
     do_pad = do_pad || (padding0 && padding0->value != 0) || (padding1 && padding1->value != 0);
 
     daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
@@ -589,7 +591,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     auto temp =
         do_pad ? pad(x, pad_before, pad_after, tvm::prim::min_value(PrimType(x->dtype)), "pad_temp")
                : x;
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.pool_max"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name, tvm::ffi::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
@@ -604,7 +606,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
         },
         "pool_max", "pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set(tvm::s_tir::attr::kScheduleRule, tvm::ffi::String("meta_schedule.pool_avg"));
+    attrs.Set(tvm::s_tir::attr::kScheduleRule.name, tvm::ffi::String("meta_schedule.pool_avg"));
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 

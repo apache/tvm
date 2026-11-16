@@ -753,12 +753,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
     TVM_FFI_THROW(InternalError) << "TensorRT runtime is not enabled. "
-                                 << "Please build with USE_TENSORRT_RUNTIME.";
+                                 << "Please build with TVM_USE_TENSORRT_RUNTIME.";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "TensorRT runtime is not enabled. "
-                 << "Please build with USE_TENSORRT_RUNTIME.";
+                 << "Please build with TVM_USE_TENSORRT_RUNTIME.";
   }
 
   void BuildEngineAtCompileTime(const ffi::Array<ffi::Tensor>& consts) {
@@ -766,7 +766,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       TVM_FFI_ICHECK(tensor.defined());
     }
     TVM_FFI_THROW(InternalError)
-        << "TensorRT build_at_compile_time requires TVM to be built with USE_TENSORRT_RUNTIME";
+        << "TensorRT build_at_compile_time requires TVM to be built with TVM_USE_TENSORRT_RUNTIME";
   }
 
   bool GetCachedEnginesFromDisk() { return false; }

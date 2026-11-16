@@ -20,6 +20,8 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+import tvm_ffi
+
 # isort: off
 from typing import Literal
 
@@ -27,7 +29,6 @@ from typing import Literal
 
 from tvm_ffi import register_object
 
-from tvm.runtime import Object
 from tvm.s_tir.schedule import Trace
 
 from .. import _ffi_api
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
 
-class Mutator(Object):
+class Mutator(tvm_ffi.Object):
     """Mutator is designed to mutate the trace to explore the design space."""
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:

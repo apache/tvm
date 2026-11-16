@@ -19,7 +19,7 @@
 
 from tvm_ffi import get_global_func
 
-from .. import Tensor, tensor
+from tvm_tirx.runtime import Tensor, tensor
 
 
 def _to_tensor(params):

@@ -376,7 +376,7 @@ Source Code Map
      - IndexedForwardGraph, DominatorTree, GraphPartitioner (Union-Find)
    * - ``src/relax/transform/fuse_tir.cc``
      - FuseTIR implementation, SymbolicMatcher
-   * - ``include/tvm/relax/op_attr_types.h``
+   * - ``include/tvm/relax/op_attr.h``
      - ``OpPatternKind`` enum definition
    * - ``python/tvm/relax/transform/transform.py``
      - Python API: FuseOps, FuseTIR, FuseOpsByPattern, FusionPattern

@@ -20,10 +20,11 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
-from tvm.ir.module import IRModule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script import tirx as T
 
 
 def collect_visit(stmt, f):
@@ -43,11 +44,11 @@ def test_multi_loop():
                     else:
                         T.evaluate(n)
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+    stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 def test_multi_if():
@@ -65,11 +66,11 @@ def test_multi_if():
                     else:
                         T.evaluate(n)
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+    stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 def test_condition():
@@ -79,11 +80,11 @@ def test_condition():
             for j in range(4):
                 T.evaluate(T.Select(T.likely(i * 4 + j < n), m, n))
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+    stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tirx.Select)))
+    assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm_tirx.tirx.Select)))
 
 
 def test_condition_EQ():
@@ -92,14 +93,14 @@ def test_condition_EQ():
         for i in range(10):
             T.evaluate(T.Select(T.likely(i == 5), m, n))
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.ir.transform.PassContext(
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    with tvm_tirx.ir.transform.PassContext(
         config={"s_tir.LoopPartition": {"partition_const_loop": True}}
     ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+        stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tirx.Select)))
+    assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm_tirx.tirx.Select)))
 
 
 def test_everything_during_deduction():
@@ -111,11 +112,11 @@ def test_everything_during_deduction():
                     # this guard will produce everything during deduction
                     T.evaluate(m)
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LoopPartition()(mod)
-    stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+    stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert isinstance(stmt[0].body[0].body[0], tvm.ir.If)
+    assert isinstance(stmt[0].body[0].body[0], tvm_tirx.ir.If)
 
 
 def test_oneD_pool():
@@ -139,15 +140,15 @@ def test_oneD_pool():
                     if T.likely(kw < 2):
                         out_ptr[ow] = T.max(out_ptr[ow], data_ptr[ow + kw - 1])
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={"s_tir.LoopPartition": {"partition_const_loop": True}}
     ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+        stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 def test_cce_loop_1():
@@ -163,14 +164,14 @@ def test_cce_loop_1():
                         B[i * m + j + 1] + B[(i + 1) * m + j + 1] + B[(i + 2) * m + j + 1]
                     )
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.ir.transform.PassContext(
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    with tvm_tirx.ir.transform.PassContext(
         config={"s_tir.LoopPartition": {"partition_const_loop": True}}
     ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+        stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 def test_cce_loop_2():
@@ -186,14 +187,14 @@ def test_cce_loop_2():
             else:
                 T.evaluate(T.call_extern("cce_intrisic", i * tile, i * tile + tile, ty="float32"))
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-    with tvm.ir.transform.PassContext(
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    with tvm_tirx.ir.transform.PassContext(
         config={"s_tir.LoopPartition": {"partition_const_loop": True}}
     ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+        stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 def test_cce_loop_3():
@@ -208,15 +209,15 @@ def test_cce_loop_3():
                 if T.likely(i * loop1 + j < tile):
                     T.evaluate(T.call_extern("cce_intrisic", i, ty="float16"))
 
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
-    with tvm.ir.transform.PassContext(
+    with tvm_tirx.ir.transform.PassContext(
         config={"s_tir.LoopPartition": {"partition_const_loop": True}}
     ):
         mod = tvm.s_tir.transform.LoopPartition()(mod)
-        stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
+        stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm_tirx.ir.If)))
 
 
 @Ts.function
@@ -231,15 +232,15 @@ def partitioned_concat(
 
 
 def partition_from_scheduled_tir(function, pass_cfg, do_flatten=True):
-    with tvm.ir.transform.PassContext(config=pass_cfg):
+    with tvm_tirx.ir.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(function.with_attr("global_symbol", "main"))
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         if do_flatten:
-            mod = tvm.tirx.transform.FlattenTensor()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-        mod = tvm.tirx.transform.RemoveNoOp()(mod)
+            mod = tvm_tirx.tirx.transform.FlattenTensor()(mod)
+        mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+        mod = tvm_tirx.tirx.transform.RemoveNoOp()(mod)
         return mod
 
 
@@ -307,7 +308,7 @@ def test_condition_mutually_exclusive():
     mod = partition_from_scheduled_tir(
         concat_func_3, {"s_tir.LoopPartition": {"partition_const_loop": True}}
     )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         mod["main"], partitioned_concat_3.with_attr("global_symbol", "main")
     )
 
@@ -356,10 +357,12 @@ def test_loop_partition_unroll_hint():
             }
         },
     )
-    mod = tvm.tirx.transform.UnrollLoop()(mod)
-    mod = tvm.tirx.transform.RemoveNoOp()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.tirx.transform.UnrollLoop()(mod)
+    mod = tvm_tirx.tirx.transform.RemoveNoOp()(mod)
+    mod = tvm_tirx.tirx.transform.StmtSimplify()(mod)
+    tvm_tirx.ir.assert_structural_equal(
+        mod["main"], partitioned_main.with_attr("global_symbol", "main")
+    )
 
 
 def test_loop_partition_recursive_unroll_hint():
@@ -424,7 +427,9 @@ def test_loop_partition_recursive_unroll_hint():
             }
         },
     )
-    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(
+        mod["main"], partitioned_main.with_attr("global_symbol", "main")
+    )
 
 
 def test_loop_partition_keep_loop_annotations():
@@ -460,7 +465,7 @@ def test_loop_partition_keep_loop_annotations():
             }
         },
     )
-    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_with_unit_loop_in_condition():
@@ -522,7 +527,7 @@ def test_loop_partition_with_unit_loop_in_condition():
             }
         },
     )
-    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 @Ts.function
@@ -810,7 +815,7 @@ def test_single_point_partition(origin, expected):
             }
         },
     )
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_equation_on_floordiv():
@@ -831,7 +836,7 @@ def test_equation_on_floordiv():
     after = partition_from_scheduled_tir(
         before.with_attr("global_symbol", "main"), {}, do_flatten=False
     )
-    tvm.ir.assert_structural_equal(after["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(after["main"], expected)
 
 
 def test_ignore_loop_partition_hint():
@@ -868,8 +873,8 @@ def test_ignore_loop_partition_hint():
     after = partition_from_scheduled_tir(
         before.with_attr({"global_symbol": "main"}), {}, do_flatten=False
     )
-    tvm.ir.assert_structural_equal(after["main"], expected)
+    tvm_tirx.ir.assert_structural_equal(after["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

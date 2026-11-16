@@ -38,19 +38,20 @@ import tvm_ffi
 
 import tvm
 import tvm.s_tir.meta_schedule as ms
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import transform
-from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import transform
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.ir.transform import PassContext
+from tvm_tirx.script import tirx as T
 
-target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
+target = tvm_tirx.target.Target({"kind": "llvm", "num-cores": 16})
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class InputModule:
     @Ts.function
     def tir_matmul(
@@ -97,23 +98,23 @@ def test_ms_tuning_irmodule():
     with tempfile.TemporaryDirectory() as work_dir:
         """
         # TODO(@sunggg): revisit when ready
-        with target, PassContext(trace=Trace(mod), opt_level=0):
+        with PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
-                params={}, work_dir=work_dir, max_trials_global=4
+                params={}, work_dir=work_dir, max_trials_global=4, target=target
             )
             out_mod = tuning_pass(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
 
-        with target, PassContext(opt_level=0):
+        with PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
-                params={}, work_dir=work_dir, max_trials_global=4
+                params={}, work_dir=work_dir, max_trials_global=4, target=target
             )
             out_mod = tuning_pass(mod)
 
-            application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
+            application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir, target=target)
 
             out_mod = application_pass(mod)
             assert not tvm_ffi.structural_equal(mod, out_mod)
@@ -125,7 +126,7 @@ def test_ms_tuning_function():
     with tempfile.TemporaryDirectory() as work_dir:
         """
         # TODO(@sunggg): revisit when ready
-        with target, PassContext(trace=Trace(mod), opt_level=0):
+        with PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
                 work_dir=work_dir, max_trials_global=4
             )
@@ -133,26 +134,27 @@ def test_ms_tuning_function():
             assert PassContext.current().get_trace_stack_size() == 1
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
             # Currently, we don't track this so the trace size. Revisit this later.
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
-        with target, PassContext(opt_level=0):
+        with PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
-                params={}, work_dir=work_dir, max_trials_global=4
+                params={}, work_dir=work_dir, max_trials_global=4, target=target
             )
             out_mod = tuning_pass(mod)
 
-            application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
+            application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir, target=target)
             out_mod = application_pass(mod)
             assert not tvm_ffi.structural_equal(mod, out_mod)
 
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, PassContext(opt_level=0):
+        with PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
                 params={},
                 work_dir=work_dir,
                 max_trials_global=4,
                 max_trials_per_task=2,
                 op_names=["matmul"],
+                target=target,
             )
             tuning_pass(mod)
 
@@ -166,7 +168,7 @@ def test_ms_tuning_function():
                 assert rec.workload.mod["main"].attrs["global_symbol"] == "tir_matmul"
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class DefaultScheduledModule:
     @Ts.function
     def tir_matmul(
@@ -223,26 +225,26 @@ class DefaultScheduledModule:
 
 def test_ms_database_apply_fallback():
     mod = InputModule
-    target_cuda = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
+    target_cuda = tvm_tirx.target.Target("nvidia/geforce-rtx-3090-ti")
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
         """
-        with target_cuda, PassContext(trace=Trace(mod), opt_level=0):
+        with PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
-                work_dir=work_dir, max_trials_global=0
+                work_dir=work_dir, max_trials_global=0, target=target_cuda
             )
             out_mod = tuning_pass(mod)
-            tvm.ir.assert_structural_equal(mod, out_mod)
+            tvm_tirx.ir.assert_structural_equal(mod, out_mod)
         """
-        with target_cuda, PassContext(opt_level=0):
+        with PassContext(opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
-                work_dir=work_dir, max_trials_global=0
+                work_dir=work_dir, max_trials_global=0, target=target_cuda
             )
             out_mod = tuning_pass(mod)
-            default_pass = tvm.s_tir.transform.DefaultGPUSchedule()
+            default_pass = tvm.s_tir.transform.DefaultGPUSchedule(target=target_cuda)
             out_mod = default_pass(mod)
-            tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
+            tvm_tirx.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

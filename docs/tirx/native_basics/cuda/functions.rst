@@ -177,14 +177,14 @@ trailing ``1, 1`` are the grid/block launch dims):
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
 device checks (e.g. asserting ``B.shape[0] == n``)::
 
-    n = Tx.Cast(Tx.abi_field_get(a_shape, 0, 17, "int64"), "int32")   # = a.shape[0]
+    n = Tx.Cast("int32", Tx.abi_field_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
 ``@Tx.function`` vs ``@Tx.jit``
 --------------------------------
 
 - ``@Tx.function`` parses the function immediately into a ``Function``. Sizes are
   whatever you wrote — concrete ints, or runtime-symbolic vars (above).
-- ``@Tx.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
+- ``@Tx.jit`` returns a ``JITFunction`` and **defers** parsing until you call ``.specialize(**constexpr)``:
   parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
   the result is an ordinary ``Function``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
@@ -216,6 +216,17 @@ So: a **symbolic shape** is one kernel whose size is resolved at run time; a
 **constexpr + jit** produces a specialized kernel per value, resolved at compile
 time.
 
+Optional annotations may use ``Tx.Tensor((N,), "float32") | None`` or
+``typing.Optional[Tx.Tensor((N,), "float32")]`` (including an imported
+``Optional``). The existing ``Tx.Optional(...)`` spelling remains supported.
+Use ``from __future__ import annotations`` for these deferred tensor annotations;
+they are interpreted as script syntax rather than evaluated as Python unions.
+Calling ``kernel.specialize(optional=None)`` skips that parameter's original
+annotation and binds Python ``None`` in compile-time guards. The resulting
+``Function`` retains the parameter in its original position with ``ir.NoneType``;
+the compiled function requires ``None`` in that argument slot. Omitting the
+specialization keyword keeps the parameter's ordinary runtime type.
+
 Launch parameters
 -----------------
 
@@ -226,7 +237,7 @@ Launch parameters
 shape reads precede it, while the kernel body follows it. A flat call scopes the
 remaining statements in the enclosing body; ``with Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,))):`` gives
 an explicit boundary. Both forms create a ``RegionStmt`` with the
-``tirx.device_entry`` op. ``LowerTIRx`` removes this region, resolves scope ids,
+``tirx.device_entry`` op. ``TileDispatch`` lowers this region, resolves scope ids,
 and retains its launch operands on a ``device_scope`` region.
 ``SplitHostDevice`` separates the host configuration from the device body.
 

@@ -26,6 +26,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/type.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -41,14 +42,14 @@ using namespace tvm::tirx;
  */
 std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   Stmt body = stmt;
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = loops[n - 1]->extent;
-  PrimExpr extent_last2 = loops[n - 2]->extent;
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
@@ -57,15 +58,15 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
+      /*0:*/ loops[n - 2]->var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->var.CopyWithSuffix("_1"),
   };
   ffi::Map<Var, PrimExpr> loop_var_map{
-      {loops[n - 2]->loop_var,
+      {loops[n - 2]->var,
        new_loop_vars[0].as_or_throw<PrimExpr>() * 16 + new_loop_vars[2].as_or_throw<PrimExpr>()},
-      {loops[n - 1]->loop_var,
+      {loops[n - 1]->var,
        new_loop_vars[1].as_or_throw<PrimExpr>() * 16 + new_loop_vars[3].as_or_throw<PrimExpr>()},
   };
   auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -81,13 +82,17 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3],
+               IntImm(new_loop_vars[3].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2],
+               IntImm(new_loop_vars[2].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1],
+               IntImm(new_loop_vars[1].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0],
+               IntImm(new_loop_vars[0].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -130,35 +135,43 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
-  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
-  const TensorLoadNode* tensor_load = TVM_TYPE_AS(tensor_store->value, TensorLoadNode);
+  const TensorStoreObj* tensor_store = TVM_TYPE_AS(body, TensorStoreObj);
+  const TensorLoadObj* tensor_load = TVM_TYPE_AS(tensor_store->value, TensorLoadObj);
 
   TensorVar src_tensor = tensor_load->source.as_or_throw<tvm::tirx::TensorVar>();
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
   std::string layout = tgt_tensor.scope() == scope_wmma_matrix_a ? "row_major" : "col_major";
+  static const auto memory_axis = tvm::tirx::Axis::Get("m");
   TensorVar new_src_tensor(
-      /*name=*/"src", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
-                                 /*storage_scope=*/src_tensor.scope(),
-                                 /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                                 /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-                                 /*data_alignment=*/64, /*offset_factor=*/16));
+      "src",
+      TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), 64,
+                 tvm::tirx::TileLayout(
+                     {tvm::tirx::Iter(IntImm::Int32(16), PrimVar("s1", int32_ty), memory_axis),
+                      tvm::tirx::Iter(IntImm::Int32(16), PrimVar("s0", int32_ty), memory_axis)},
+                     {}, {{memory_axis, 16 * PrimVar("src_elem_offset", int32_ty)}})));
   TensorVar new_tgt_tensor(
-      /*name=*/"tgt", TensorType(/*shape=*/{IntImm::Int32(16), IntImm::Int32(16)}, /*dtype=*/dtype,
-                                 /*storage_scope=*/tgt_tensor.scope(), /*strides=*/{},
-                                 /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-                                 /*data_alignment=*/64, /*offset_factor=*/16));
+      "tgt", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(), 64,
+                        tvm::tirx::TileLayout(
+                            {tvm::tirx::Iter(IntImm::Int32(16), IntImm::Int32(16), memory_axis),
+                             tvm::tirx::Iter(IntImm::Int32(16), IntImm::Int32(1), memory_axis)},
+                            {}, {{memory_axis, 16 * PrimVar("tgt_elem_offset", int32_ty)}})));
+
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
   static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
@@ -179,12 +192,25 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*1:*/ PrimExpr(16),
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
-                  /*4:*/ floordiv(new_tgt_tensor.elem_offset(), 256) +
-                      floordiv(floormod(new_tgt_tensor.elem_offset(), 256), 16),
+                  /*4:*/
+                  floordiv(tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty()).value().get<2>(),
+                           256) +
+                      floordiv(floormod(tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty())
+                                            .value()
+                                            .get<2>(),
+                                        256),
+                               16),
                   /*5:*/
                   Call(new_src_tensor.data()->ty, tirx::address_of_op(),
                        {TensorLoad(new_src_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                  /*6:*/ new_src_tensor.strides()[new_src_tensor.strides().size() - 2],
+                  /*6:*/
+                  tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                      .value()
+                      .get<1>()[tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                                    .value()
+                                    .get<1>()
+                                    .size() -
+                                2],
                   /*7:*/ StringImm(layout),
               })),
           /*init=*/std::nullopt,
@@ -218,20 +244,24 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
   // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
-  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
-  const TensorLoadNode* tensor_load = nullptr;
+  const TensorStoreObj* tensor_store = TVM_TYPE_AS(body, TensorStoreObj);
+  const TensorLoadObj* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_wmma_accumulator) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
@@ -249,13 +279,20 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   PrimType dtype_ty = src_tensor.dtype();
   const PrimType& dtype = dtype_ty;
 
+  static const auto memory_axis = tvm::tirx::Axis::Get("m");
   TensorVar new_src_tensor(
-      "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 16));
+      "src", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, src_tensor.scope(), 64,
+                        tvm::tirx::TileLayout(
+                            {tvm::tirx::Iter(IntImm::Int32(16), IntImm::Int32(16), memory_axis),
+                             tvm::tirx::Iter(IntImm::Int32(16), IntImm::Int32(1), memory_axis)},
+                            {}, {{memory_axis, 16 * PrimVar("src_elem_offset", int32_ty)}})));
   TensorVar new_tgt_tensor(
-      "tgt", TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(),
-                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        PrimVar("tgt_elem_offset", int32_ty), 64, 16));
+      "tgt",
+      TensorType({IntImm::Int32(16), IntImm::Int32(16)}, dtype, tgt_tensor.scope(), 64,
+                 tvm::tirx::TileLayout(
+                     {tvm::tirx::Iter(IntImm::Int32(16), PrimVar("s1", int32_ty), memory_axis),
+                      tvm::tirx::Iter(IntImm::Int32(16), PrimVar("s0", int32_ty), memory_axis)},
+                     {}, {{memory_axis, 16 * PrimVar("tgt_elem_offset", int32_ty)}})));
 
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
   ffi::Array<Range> write_region = RelaxIndices(tensor_store->indices, tgt_tensor.shape(), var_dom);
@@ -271,17 +308,25 @@ Stmt RewriteWmmaStore(Stmt stmt) {
           Evaluate(Call(
               /*data=*/PrimType::Void(),
               /*op=*/gpu_store_matrix_sync_op,
-              ffi::Array<Expr>{/*0:*/ new_src_tensor.data(),
-                               /*1:*/ PrimExpr(16),
-                               /*2:*/ PrimExpr(16),
-                               /*3:*/ PrimExpr(16),
-                               /*4:*/ floordiv(new_src_tensor.elem_offset(), 256) +
-                                   floordiv(floormod(new_src_tensor.elem_offset(), 256), 16),
-                               /*5:*/
-                               Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
-                                    {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
-                               /*6:*/ new_tgt_tensor.strides()[0],
-                               /*7:*/ StringImm("row_major")})),
+              ffi::Array<Expr>{
+                  /*0:*/ new_src_tensor.data(),
+                  /*1:*/ PrimExpr(16),
+                  /*2:*/ PrimExpr(16),
+                  /*3:*/ PrimExpr(16),
+                  /*4:*/
+                  floordiv(tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty()).value().get<2>(),
+                           256) +
+                      floordiv(floormod(tvm::tirx::MatchShapeStridePattern(new_src_tensor.ty())
+                                            .value()
+                                            .get<2>(),
+                                        256),
+                               16),
+                  /*5:*/
+                  Call(new_tgt_tensor.data()->ty, tirx::address_of_op(),
+                       {TensorLoad(new_tgt_tensor, {PrimExpr(0), PrimExpr(0)})}),
+                  /*6:*/
+                  tvm::tirx::MatchShapeStridePattern(new_tgt_tensor.ty()).value().get<1>()[0],
+                  /*7:*/ StringImm("row_major")})),
           /*init=*/std::nullopt,
           /*alloc_tensors=*/{},
           /*match_tensors=*/
@@ -319,11 +364,11 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  WmmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
+  WmmaToGlobalRewriter(const SeqStmtObj* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtObj* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       Stmt wmma_to_shared = RewriteWmmaStore(op->seq[0]);
@@ -334,7 +379,7 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
     }
   }
 
-  const SeqStmtNode* tgt_stmt_;
+  const SeqStmtObj* tgt_stmt_;
   const ConstraintSet& constraints_;
 };
 
@@ -359,14 +404,14 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   // j_0, j_1 = sch.split(j, factors=[None, 8])
   // sch.reorder(i_0, j_0, i_1, j_1)
   Stmt body = stmt;
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
-  PrimExpr extent_last1 = loops[n - 1]->extent;
-  PrimExpr extent_last2 = loops[n - 2]->extent;
+  PrimExpr extent_last1 = Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end);
+  PrimExpr extent_last2 = Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end);
   {
     sym::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
@@ -376,15 +421,15 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
+      /*0:*/ loops[n - 2]->var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->var.CopyWithSuffix("_1"),
   };
   ffi::Map<Var, PrimExpr> loop_var_map{
-      {loops[n - 2]->loop_var,
+      {loops[n - 2]->var,
        new_loop_vars[0].as_or_throw<PrimExpr>() * 8 + new_loop_vars[2].as_or_throw<PrimExpr>()},
-      {loops[n - 1]->loop_var,
+      {loops[n - 1]->var,
        new_loop_vars[1].as_or_throw<PrimExpr>() * 8 + new_loop_vars[3].as_or_throw<PrimExpr>()},
   };
   auto f_substitute = [&loop_var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -400,13 +445,17 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3],
+               IntImm(new_loop_vars[3].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2],
+               IntImm(new_loop_vars[2].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1],
+               IntImm(new_loop_vars[1].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0],
+               IntImm(new_loop_vars[0].as_or_throw<PrimVar>().ty(), 1), ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -431,21 +480,25 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
   // Step 1. Get inner loop body
   Stmt body = stmt;
-  std::vector<const ForNode*> loops;
-  while (const ForNode* loop = body.as<ForNode>()) {
+  std::vector<const ForObj*> loops;
+  while (const ForObj* loop = body.as<ForObj>()) {
     loops.push_back(loop);
     body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
   ffi::Map<Var, IntSet> var_dom{
-      {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
-      {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
+      {loops[n - 1]->var,
+       IntSet::FromMinExtent(loops[n - 1]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 1]->begin, loops[n - 1]->end))},
+      {loops[n - 2]->var,
+       IntSet::FromMinExtent(loops[n - 2]->begin,
+                             Range::GetExtentFromBeginEnd(loops[n - 2]->begin, loops[n - 2]->end))},
   };
 
   // Step 2. Find matrixC tensor
-  const TensorStoreNode* tensor_store = TVM_TYPE_AS(body, TensorStoreNode);
-  const TensorLoadNode* tensor_load = nullptr;
+  const TensorStoreObj* tensor_store = TVM_TYPE_AS(body, TensorStoreObj);
+  const TensorLoadObj* tensor_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == scope_mma_matrixC) {
       TVM_FFI_ICHECK(tensor_load == nullptr ||
@@ -471,13 +524,20 @@ Stmt RewriteMmaStore(Stmt stmt) {
   TensorVar tgt_tensor = tensor_store->dest.as_or_throw<TensorVar>();
   PrimType dtype_ty = src_tensor.dtype();
   const PrimType& dtype = dtype_ty;
+  static const auto memory_axis = tvm::tirx::Axis::Get("m");
   TensorVar new_src_tensor(
-      "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), {},
-                        PrimVar("src_elem_offset", int32_ty), 64, 8));
+      "src", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, src_tensor.scope(), 64,
+                        tvm::tirx::TileLayout(
+                            {tvm::tirx::Iter(IntImm::Int32(8), IntImm::Int32(8), memory_axis),
+                             tvm::tirx::Iter(IntImm::Int32(8), IntImm::Int32(1), memory_axis)},
+                            {}, {{memory_axis, 8 * PrimVar("src_elem_offset", int32_ty)}})));
   TensorVar new_tgt_tensor(
-      "tgt", TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, tgt_tensor.scope(),
-                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        PrimVar("tgt_elem_offset", int32_ty), 64, 8));
+      "tgt",
+      TensorType({IntImm::Int32(8), IntImm::Int32(8)}, dtype, tgt_tensor.scope(), 64,
+                 tvm::tirx::TileLayout(
+                     {tvm::tirx::Iter(IntImm::Int32(8), PrimVar("s1", int32_ty), memory_axis),
+                      tvm::tirx::Iter(IntImm::Int32(8), PrimVar("s0", int32_ty), memory_axis)},
+                     {}, {{memory_axis, 8 * PrimVar("tgt_elem_offset", int32_ty)}})));
 
   // Step 3.2. Generate new r/w region
   ffi::Array<Range> read_region = RelaxIndices(tensor_load->indices, src_tensor.shape(), var_dom);
@@ -498,8 +558,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
           /*name_hint=*/"mma_store",
           RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx},
                      DictAttrs(), /*body=*/
-                     For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
-                         /*body=*/
+                     For(vec.as_or_throw<PrimVar>(), 0, 2,
+                         IntImm(vec.as_or_throw<PrimVar>().ty(), 1), ForKind::kVectorized,
                          TensorStore(new_tgt_tensor, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec},
                                      TensorLoad(new_src_tensor,
                                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec})))),
@@ -528,11 +588,11 @@ class MmaToGlobalRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  MmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
+  MmaToGlobalRewriter(const SeqStmtObj* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtObj* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       // Rewrite for local to shared.dyn
@@ -546,7 +606,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
     }
   }
 
-  const SeqStmtNode* tgt_stmt_;
+  const SeqStmtObj* tgt_stmt_;
   const ConstraintSet& constraints_;
 };
 

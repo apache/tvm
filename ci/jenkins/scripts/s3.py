@@ -17,6 +17,7 @@
 # under the License.
 
 import argparse
+import glob
 import importlib.util
 import logging
 import re
@@ -26,28 +27,49 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-DATA_PY = REPO_ROOT / "ci" / "jenkins" / "data.py"
+ARTIFACTS_PY = REPO_ROOT / "ci" / "jenkins" / "artifacts.py"
 
 
-def load_files_to_stash():
-    """Load the files_to_stash dict from ci/jenkins/data.py."""
-    spec = importlib.util.spec_from_file_location("data", DATA_PY)
+def load_artifacts():
+    """Load the ARTIFACTS dict from ci/jenkins/artifacts.py."""
+    spec = importlib.util.spec_from_file_location("artifacts", ARTIFACTS_PY)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.files_to_stash
+    return mod.ARTIFACTS
 
 
-def resolve_bundles(bundle_names: list[str]) -> list[str]:
-    """Resolve a list of bundle names to a flat list of file paths."""
-    files_to_stash = load_files_to_stash()
+def resolve_artifacts(artifact_names: list[str]) -> list[str]:
+    """Resolve a list of artifact names to a flat list of file paths."""
+    artifacts = load_artifacts()
     items = []
-    for name in bundle_names:
-        if name not in files_to_stash:
-            known = list(files_to_stash.keys())
-            logging.error(f"Unknown bundle '{name}'. Known bundles: {known}")
+    for name in artifact_names:
+        if name not in artifacts:
+            known = list(artifacts.keys())
+            logging.error(f"Unknown artifact '{name}'. Known artifacts: {known}")
             raise SystemExit(1)
-        items.extend(files_to_stash[name])
+        items.extend(artifacts[name])
     return items
+
+
+def resolve_upload_items(items: list[str]) -> list[str]:
+    """Expand local artifact patterns once, preserving literal path handling."""
+    paths = set()
+    for item in items:
+        path = Path(item)
+        if glob.has_magic(item):
+            matches = glob.glob(item, root_dir=REPO_ROOT, recursive=True)
+            if not matches:
+                logging.warning("No artifacts matched pattern: %s", item)
+            paths.update(Path(match).as_posix() for match in matches)
+        else:
+            # Keep missing literal paths for the existing optional-artifact warning.
+            paths.add(path.as_posix())
+    directories = {Path(path) for path in paths if Path(path).is_dir()}
+    # Recursive directory copies already include descendants selected by other
+    # entries or overlapping patterns. Transfer each destination only once.
+    return sorted(
+        path for path in paths if not any(parent in directories for parent in Path(path).parents)
+    )
 
 
 RETRY_SCRIPT = REPO_ROOT / "ci" / "jenkins" / "scripts" / "retry.sh"
@@ -136,19 +158,27 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prefix", help="s3 bucket + tag (e.g. s3://tvm-ci-prod/PR-1234/cpu", required=True
     )
-    parser.add_argument("--items", help="files and folders to upload", nargs="+")
     parser.add_argument(
-        "--bundle",
-        help="bundle name(s) from ci/jenkins/data.py files_to_stash (repeatable)",
+        "--path",
+        dest="paths",
         action="append",
-        dest="bundles",
+        help="repository-relative file, folder or upload glob pattern (repeatable)",
+        metavar="PATH",
+    )
+    parser.add_argument(
+        "--artifact",
+        "--bundle",
+        dest="artifacts",
+        action="append",
+        help="artifact name from ci/jenkins/artifacts.py (repeatable)",
         metavar="NAME",
     )
+    # Legacy --items accepts several paths and retains the last occurrence.
+    parser.add_argument("--items", nargs="+", help="files and folders to transfer")
 
     args = parser.parse_args()
-
-    if args.items is not None and args.bundles is not None:
-        parser.error("--items and --bundle are mutually exclusive")
+    if args.artifacts is not None and (args.paths is not None or args.items is not None):
+        parser.error("--artifact/--bundle and --path/--items are mutually exclusive")
 
     logging.info(args)
 
@@ -168,17 +198,20 @@ if __name__ == "__main__":
         logging.error(f"Unsupported action: {args.action}")
         exit(1)
 
-    if args.bundles is not None:
-        items = resolve_bundles(args.bundles)
-    elif args.items is not None:
-        items = args.items
+    if args.artifacts is not None:
+        items = resolve_artifacts(args.artifacts)
+    elif args.paths is not None or args.items is not None:
+        items = (args.paths or []) + (args.items or [])
     else:
         if args.action == "upload":
-            logging.error("Cannot upload without --items or --bundle")
+            logging.error("Cannot upload without --path or --artifact")
             exit(1)
         else:
             # Download the whole prefix
             items = ["."]
+
+    if action == Action.UPLOAD:
+        items = resolve_upload_items(items)
 
     for item in items:
         if action == Action.DOWNLOAD:

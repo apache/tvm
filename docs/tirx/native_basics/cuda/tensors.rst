@@ -57,11 +57,8 @@ The tensor descriptors share these parameters:
    * - ``shape``
      - logical shape (a tuple of extents)
    * - ``layout``
-     - physical mapping (:doc:`TileLayout <../../layout>`); ``"default"`` = dense
-       row-major
-   * - ``elem_offset``
-     - ``elem_offset`` (or ``byte_offset``) places a *view* at an offset into
-       ``data``
+     - physical mapping, including strides and element origin
+       (:doc:`TileLayout <../../layout>`); ``"default"`` = dense row-major
    * - ``align``
      - alignment of the data pointer, in bytes
 
@@ -103,21 +100,23 @@ The ``scope`` argument selects the memory space:
 **A ptr-based tensor is just metadata over a pointer.** For any non-tmem tensor,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
 
-    addr(tensor[coord]) = tensor.data + elem_offset + layout.apply(coord, shape=shape)["m"]
+    addr(tensor[coord]) = tensor.data + layout.apply(coord, shape=shape)["m"]
 
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
-element offset.) So the *same* logical access compiles to different address
-arithmetic depending purely on the tensor's metadata. Writing
+element offset, including the layout's origin.) Pointer arithmetic here is in
+elements. Strides and origins are represented only by the layout, not by separate
+tensor arguments or properties. So the *same* logical access compiles to different
+address arithmetic depending purely on the tensor's metadata. Writing
 ``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` annotated four ways in
 the function signature:
 
 .. code-block:: python
 
-    from tvm.tirx.layout import TileLayout, S
+    from tvm_tirx.tirx.layout import TileLayout, S
 
     B: Tx.Tensor((4, 8), "float32")  # row-major
     B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (1, 4)]))  # column-major
-    B: Tx.Tensor((4, 8), "float32", elem_offset=64)  # shifted view
+    B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8)] + 64))  # shifted view
     B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (16, 1)]))  # row stride 16
 
 each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
@@ -127,8 +126,13 @@ each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
 
     B_ptr[((i * 8) + j)]        = ...;   // row-major:        i*8 + j
     B_ptr[((j * 4) + i)]        = ...;   // column-major:     j*4 + i
-    B_ptr[(((i * 8) + j) + 64)] = ...;   // elem_offset=64:   i*8 + j + 64
+    B_ptr[(((i * 8) + j) + 64)] = ...;   // layout origin 64:   i*8 + j + 64
     B_ptr[((i * 16) + j)]       = ...;   // row stride 16:    i*16 + j
+
+Layouts must describe the actual tensor domain; lowering does not resize or
+extend mismatched tile extents. For nonzero shapes and non-negative strides,
+allocation footprints cover the maximum mapped memory address. A declaration
+over a borrowed pointer remains responsible for the storage that pointer addresses.
 
 Shared memory
 -------------
@@ -176,7 +180,7 @@ Dynamic
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
 each tensor as a view into it: ``Tx.decl_tensor`` with the arena pointer as its
-first argument and an ``elem_offset``:
+first argument and a memory-axis origin in its layout:
 
 .. code-block:: python
 
@@ -187,7 +191,10 @@ first argument and an ``elem_offset``:
         arena.data, ty_args=[Tx.Tensor((64,), "float32", scope="shared.dyn")]
     )  # offset 0
     Bs = Tx.decl_tensor(
-        arena.data, ty_args=[Tx.Tensor((64,), "float32", elem_offset=64, scope="shared.dyn")]
+        arena.data,
+        ty_args=[Tx.Tensor(
+            (64,), "float32", scope="shared.dyn", layout=Tx.TileLayout(Tx.S[(64,)] + 64)
+        )],
     )  # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
@@ -404,9 +411,9 @@ or hand you a pointer — they emit no runtime op of their own.
 through an expression: ``B.view(...)`` binds the operand exactly as
 ``B.ty.view(B, ...)``. ``TensorType.__expr_properties__`` maps property names
 to getters taking the type and original expression. It preserves conveniences
-such as ``B.shape``, ``B.strides``, ``B.dtype``, ``B.byte_offset``, ``B.sub`` and
-``B.data`` without modifying the shared ``Var`` class. ``B.dtype`` returns a
-runtime ``DataType``; ``B.ty.dtype`` stores a ``PrimType``.
+such as ``B.shape``, ``B.dtype``, ``B.layout``, ``B.sub`` and ``B.data`` without
+modifying the shared ``Var`` class. ``B.dtype`` returns a runtime ``DataType``;
+``B.ty.dtype`` stores a ``PrimType``.
 
 Existing expression attributes and reflected fields take precedence, followed
 by declared properties and then declared methods. Declared properties are

@@ -24,15 +24,15 @@ import numpy as np
 import pytest
 import tvm_ffi
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.relax.testing.vm import check_saved_func
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def codegen(mod, target):
@@ -42,7 +42,7 @@ def codegen(mod, target):
 
 
 def test_vm_copy():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMMove:
         @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
@@ -51,16 +51,16 @@ def test_vm_copy():
             return z
 
     mod = TestVMMove
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = check_saved_func(vm, "foo", inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_to_device():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMToDevice:
         @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
@@ -72,20 +72,20 @@ def test_vm_to_device():
             return z
 
     mod = TestVMToDevice
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = check_saved_func(vm, "foo", inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     # check the resulting tensor is on cpu:0
-    assert res.device == tvm.cpu(0)
+    assert res.device == tvm_tirx.cpu(0)
     assert res.device.dlpack_device_type() == 1
     assert res.device.index == 0
 
 
 def test_if_cond_const():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMIfCondConst:
         @R.function
         def main(x: R.Tensor(ndim=2, dtype="float32")) -> R.Tensor(ndim=2, dtype="float32"):
@@ -97,16 +97,16 @@ def test_if_cond_const():
             return ret
 
     mod = TestVMIfCondConst
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.runtime.tensor(np.random.rand(3, 4))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(3, 4))
     res = vm["main"](inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy())
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
 def test_vm_exec_serialize_export_library():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMMove:
         @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
@@ -115,20 +115,20 @@ def test_vm_exec_serialize_export_library():
             return z
 
     mod = TestVMMove
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    from tvm.support import utils
+    from tvm_tirx.support import utils
 
     temp_dir = utils.tempdir()
     path_exec = temp_dir.relpath("exec.so")
     ex.export_library(path_exec)
 
-    loaded_exec = tvm.runtime.load_module(path_exec)
+    loaded_exec = tvm_tirx.runtime.load_module(path_exec)
     assert ex.as_text() == loaded_exec["as_text"]()
 
 
 def test_if_cond():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMCompileIf:
         @R.function(pure=False)
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
@@ -140,22 +140,22 @@ def test_if_cond():
             return w
 
     mod = TestVMCompileIf
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.runtime.tensor(np.random.rand(3, 4))
-    res = vm["ife"](tvm.runtime.tensor(1), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.runtime.tensor(True), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.runtime.tensor(0), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.runtime.tensor(False), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(3, 4))
+    res = vm["ife"](tvm_tirx.runtime.tensor(1), inp)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
+    res = vm["ife"](tvm_tirx.runtime.tensor(True), inp)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
+    res = vm["ife"](tvm_tirx.runtime.tensor(0), inp)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
+    res = vm["ife"](tvm_tirx.runtime.tensor(False), inp)
+    tvm_tirx.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_return_const_tuple():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class ReturnConstTuple:
         @R.function
         def main(x: R.Tensor(ndim=2, dtype="float32")):
@@ -165,18 +165,18 @@ def test_vm_return_const_tuple():
             return z
 
     mod = ReturnConstTuple
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.runtime.tensor(np.random.rand(2, 3))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(2, 3))
     res0, res1, res2 = vm["main"](inp)
-    tvm.testing.assert_allclose(res0.numpy(), np.array([1, 2]))
-    tvm.testing.assert_allclose(res1.numpy(), np.array([3, 4]))
-    tvm.testing.assert_allclose(res2.numpy(), inp.numpy())
+    tvm_tirx.testing.assert_allclose(res0.numpy(), np.array([1, 2]))
+    tvm_tirx.testing.assert_allclose(res1.numpy(), np.array([3, 4]))
+    tvm_tirx.testing.assert_allclose(res2.numpy(), inp.numpy())
 
 
 def test_vm_const_as_call_arg():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMConstAsCallArg:
         @R.function(pure=False)
         def main(x: R.Tensor(ndim=2, dtype="float32")):
@@ -196,12 +196,12 @@ def test_vm_const_as_call_arg():
             return b
 
     mod = TestVMConstAsCallArg
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.runtime.tensor(np.random.rand(1, 2))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    inp = tvm_tirx.runtime.tensor(np.random.rand(1, 2))
     res = vm["main"](inp)
-    tvm.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
+    tvm_tirx.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
 
 
 def test_shape_check_builtin():
@@ -215,7 +215,7 @@ def test_shape_check_builtin():
     k = T.dynamic("k", "int64")
     m = T.dynamic("m", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMShapeCheck:
         @R.function(pure=False)
         def main(x: R.Tensor([n, m], "float32")) -> R.Shape(ndim=3):
@@ -256,10 +256,10 @@ def test_shape_check_builtin():
             return s
 
     mod = TestVMShapeCheck
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    x = tvm_tirx.runtime.tensor(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
     assert res == tvm_ffi.Shape([2, 1, 2])
 
@@ -269,15 +269,15 @@ def test_shape_check_builtin():
 
     # wrong ndim
     with pytest.raises(ValueError, match=r".*ndim.*"):
-        vm["main"](tvm.runtime.tensor(np.zeros(1).astype("float32")))
+        vm["main"](tvm_tirx.runtime.tensor(np.zeros(1).astype("float32")))
 
     # wrong dtype
     with pytest.raises(ValueError, match=r".*dtype.*"):
-        vm["main"](tvm.runtime.tensor(np.zeros((1, 2)).astype("int32")))
+        vm["main"](tvm_tirx.runtime.tensor(np.zeros((1, 2)).astype("int32")))
 
 
 def test_prim_value():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMPrimExpr:
         @R.function
         def main():
@@ -286,15 +286,15 @@ def test_prim_value():
             return ret
 
     mod = TestVMPrimExpr
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = vm["main"]()
     assert res == 1
 
 
 def test_string_imm():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMStringImm:
         @R.function
         def main():
@@ -303,15 +303,15 @@ def test_string_imm():
             return ret
 
     mod = TestVMStringImm
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = vm["main"]()
     assert res == "hello"
 
 
 def test_datatype_imm():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestDataTypeImm:
         @R.function
         def main():
@@ -320,15 +320,15 @@ def test_datatype_imm():
             return ret
 
     mod = TestDataTypeImm
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     res = vm["main"]()
     assert res == "float32"
 
 
 def test_vm_builtin_reshape():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TestVMBuiltinReshape:
         @R.function(pure=False)
         def main(x: R.Tensor((3, 4), "float32")):
@@ -339,16 +339,16 @@ def test_vm_builtin_reshape():
             return y
 
     mod = TestVMBuiltinReshape
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
     vm = relax.VirtualMachine(ex, dev)
 
     input_np = np.random.rand(3, 4).astype("float32")
-    input = tvm.runtime.tensor(input_np, dev)
+    input = tvm_tirx.runtime.tensor(input_np, dev)
     res = vm["main"](input)
     expected = input_np.reshape(6, 2)
-    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
+    tvm_tirx.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
 
 
 def test_vm_kill_object():
@@ -402,13 +402,13 @@ def test_vm_kill_object():
             return z
 
     mod = TestKillObject
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
     vm = relax.VirtualMachine(ex, dev)
 
     res = vm["main"]()
-    tvm.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
+    tvm_tirx.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
 
 
 def test_preserve_trivial_bindings():
@@ -447,9 +447,9 @@ def test_preserve_trivial_bindings():
                 alloc_alias_after,
             )
 
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm_tirx.target.Target("llvm", host="llvm")
     ex = codegen(mod, target)
-    dev = tvm.cpu()
+    dev = tvm_tirx.cpu()
     vm = relax.VirtualMachine(ex, dev)
 
     result_list = vm["main"]()
@@ -477,4 +477,4 @@ def test_preserve_trivial_bindings():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -40,7 +40,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
-    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<ExprObj>()) return ffi::Unchanged();
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
@@ -69,7 +69,7 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
         old_reduction_block_(std::move(old_reduction_block)) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* loop, InplaceMode inplace_mode) final {
     Stmt mutated_stmt =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     if (loop == target_loop_.get()) {
@@ -79,14 +79,14 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* block, InplaceMode inplace_mode) final {
     if (block == old_reduction_block_.get()) {
-      auto p_new_block = ffi::make_object<SBlockNode>(*block);
+      auto p_new_block = ffi::make_object<SBlockObj>(*block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
       ffi::Array<TensorRegion> new_reads;
-      std::unordered_set<const VarNode*> read_tensors;
+      std::unordered_set<const VarObj*> read_tensors;
       for (const TensorRegion& read_access : block->reads) {
         read_tensors.insert(read_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
@@ -115,8 +115,8 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
 
 class LoopHeightError : public ScheduleErrorContextObj {
  public:
-  static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const SBlockNode* block,
-                                             const SBlockRealizeNode* realize,
+  static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const SBlockObj* block,
+                                             const SBlockRealizeObj* realize,
                                              const ffi::Array<StmtSRef>& loops,
                                              const StmtSRef& loop_sref) {
     for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
@@ -132,13 +132,13 @@ class LoopHeightError : public ScheduleErrorContextObj {
           break;
         }
         // loop_var of a higher loop shouldn't contain loop var
-        const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
+        const Var& loop_var = higher_loop->StmtAs<ForObj>()->var;
         auto walkfn = [v = loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
           return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                 : ffi::WalkResult::Advance();
         };
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
-          const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+          const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
           throw MakeScheduleError<LoopHeightError>(mod, ffi::GetRef<For>(loop),
                                                    ffi::GetRef<SBlock>(block));
         }
@@ -170,13 +170,13 @@ class LoopHeightError : public ScheduleErrorContextObj {
 };
 
 PrimExpr RewriteInitPredicate(PrimExpr pred,
-                              const std::unordered_set<const VarNode*>& discarded_loops) {
+                              const std::unordered_set<const VarObj*>& discarded_loops) {
   if (IsOne(pred)) return IntImm::Bool(true);
-  if (const auto* and_node = pred.as<AndNode>()) {
+  if (const auto* and_node = pred.as<AndObj>()) {
     return RewriteInitPredicate(and_node->a, discarded_loops) &&
            RewriteInitPredicate(and_node->b, discarded_loops);
   }
-  auto uses_discarded_loop = [&discarded_loops](const VarNode* var) {
+  auto uses_discarded_loop = [&discarded_loops](const VarObj* var) {
     return discarded_loops.count(var);
   };
   auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
@@ -199,11 +199,11 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
    *    - generate corresponding init block and update block
    */
   // Condition Checks and Information Collection
-  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  const SBlockObj* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
   // Get the outer loops from high to low
   ffi::Array<StmtSRef> loops = GetLoops(block_sref);
-  const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
+  const SBlockRealizeObj* realize = GetSBlockRealize(self, block_sref).get();
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/false);
   if (self->enable_check) {
@@ -252,7 +252,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     }
     return ffi::Unchanged();
   };
-  auto init_block = ffi::make_object<SBlockNode>(
+  auto init_block = ffi::make_object<SBlockObj>(
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(block->init.value(), map_block_var)
           .as_or_throw<Stmt>());
   init_block->name_hint = block->name_hint + "_init";
@@ -260,7 +260,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   init_block->iter_vars = std::move(init_iter_vars);
   for (const TensorRegion& write : block->writes) {
     ffi::Array<Range> mapped_region = write->region.Map([&map_block_var](const Range& range) {
-      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                          .as_or_throw<PrimExpr>();
       PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
                             .as_or_throw<PrimExpr>();
@@ -272,10 +272,10 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   // Step 3. Scan loops not higher than the specified loop above the reduction block.
   //         If the loop is used in the init block binding, then it is chosen.
   //         Otherwise, it is discarded.
-  std::unordered_set<const VarNode*> discarded_loops;
+  std::unordered_set<const VarObj*> discarded_loops;
   std::vector<int> chosen_loops;
   for (int i = static_cast<int>(loops.size()) - 1; i >= 0; --i) {
-    const VarNode* loop_var = loops[i]->StmtAs<ForNode>()->loop_var.get();
+    const VarObj* loop_var = loops[i]->StmtAs<ForObj>()->var.get();
     bool discarded = true;
     auto walkfn = [v = loop_var](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
@@ -300,7 +300,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   // Step 4. Derive the predicate for the init block realize.  Omit conjunction clauses that
   //         depend on discarded loops.
-  auto init_realize = ffi::make_object<SBlockRealizeNode>(
+  auto init_realize = ffi::make_object<SBlockRealizeObj>(
       RewriteInitPredicate(realize->predicate, discarded_loops), SBlock(init_block));
   init_realize->iter_values = std::move(init_iter_values);
   // Step 5. Create new loops above init block
@@ -309,11 +309,11 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   for (int i : chosen_loops) {
     For old_loop = ffi::GetRef<For>(TVM_SREF_TO_FOR(loops[i]));
     // Create a new equivalent to the chosen loop
-    Var old_loop_var = old_loop->loop_var;
-    PrimVar new_loop_var = old_loop->loop_var.CopyWithSuffix("_init");
+    Var old_loop_var = old_loop->var;
+    PrimVar new_loop_var = old_loop->var.CopyWithSuffix("_init");
     loop_var_map.insert_or_assign(old_loop_var, new_loop_var);
     auto new_loop = old_loop.CopyOnWrite();
-    new_loop->loop_var = new_loop_var;
+    new_loop->var = new_loop_var;
     new_loop->body = body;
     body = ffi::GetRef<For>(new_loop);
   }
@@ -328,7 +328,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   };
   body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   // Step 6. Mutate IR
-  const SBlockNode* old_scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
+  const SBlockObj* old_scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
   auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
       ffi::GetRef<SBlock>(old_scope_root), ffi::GetRef<For>(loop), body,
       ffi::GetRef<SBlock>(block));
@@ -670,9 +670,9 @@ class LoopPropertyError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   static void CheckLoopProperty(const ScheduleState& self, const ffi::Array<For>& loops,
-                                const ForNode* rf_loop, const SBlock& block,
-                                const std::unordered_set<const VarNode*>& data_par_loop_vars,
-                                const std::unordered_set<const VarNode*>& reduce_loop_vars) {
+                                const ForObj* rf_loop, const SBlock& block,
+                                const std::unordered_set<const VarObj*>& data_par_loop_vars,
+                                const std::unordered_set<const VarObj*>& reduce_loop_vars) {
     ffi::Array<SBlockRealize> children_of_outermost_loop =
         GetChildBlockRealizeOnSRefTree(self->stmt2ref.at(loops[0].get()));
     if (!children_of_outermost_loop[0]->block.same_as(block)) {
@@ -682,8 +682,8 @@ class LoopPropertyError : public ScheduleErrorContextObj {
 
     bool meet_reduction_loop = false;
     for (const For& loop : loops) {
-      bool data_par_touched = data_par_loop_vars.count(loop->loop_var.get());
-      bool reduction_touched = reduce_loop_vars.count(loop->loop_var.get());
+      bool data_par_touched = data_par_loop_vars.count(loop->var.get());
+      bool reduction_touched = reduce_loop_vars.count(loop->var.get());
 
       if (data_par_touched && reduction_touched) {
         throw MakeScheduleError<LoopPropertyError>(self->mod, loop,
@@ -699,7 +699,8 @@ class LoopPropertyError : public ScheduleErrorContextObj {
           meet_reduction_loop = true;
         }
         continue;
-      } else if (meet_reduction_loop && !IsOne(loop->extent)) {
+      } else if (meet_reduction_loop &&
+                 !IsOne(Range::GetExtentFromBeginEnd(loop->begin, loop->end))) {
         throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kUnboundLoopUnderReductionLoop);
       }
     }
@@ -716,11 +717,11 @@ class LoopPropertyError : public ScheduleErrorContextObj {
  * \param loops The loops to be analyzed
  * \return A mapping from loops to their corresponding loop vars
  */
-std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>& loops) {
-  std::unordered_map<const VarNode*, For> loop_vars2loop;
+std::unordered_map<const VarObj*, For> GetLoopVar2LoopMap(const ffi::Array<For>& loops) {
+  std::unordered_map<const VarObj*, For> loop_vars2loop;
   loop_vars2loop.reserve(loops.size());
   for (const For& loop : loops) {
-    loop_vars2loop.insert_or_assign(loop->loop_var.get(), loop);
+    loop_vars2loop.insert_or_assign(loop->var.get(), loop);
   }
   return loop_vars2loop;
 }
@@ -735,15 +736,16 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
  * \return The new created intermediate rfactor tensor
  */
 ffi::Array<TensorVar> CreateRFactorTensors(const ffi::Array<TensorStore>& tensor_stores,
-                                           int factor_axis, const ForNode* rf_loop) {
+                                           int factor_axis, const ForObj* rf_loop) {
   ffi::Array<TensorVar> rf_tensors;
   rf_tensors.reserve(tensor_stores.size());
   for (const TensorStore& tensor_store : tensor_stores) {
     TensorVar tensor = tensor_store->dest.as_or_throw<TensorVar>();
     ffi::Array<PrimExpr> rf_shape = tensor.shape();
-    rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
+    rf_shape.insert(rf_shape.begin() + factor_axis,
+                    Range::GetExtentFromBeginEnd(rf_loop->begin, rf_loop->end));
 
-    ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>(*tensor.ty().get());
+    ffi::ObjectPtr<TensorTypeObj> n = ffi::make_object<TensorTypeObj>(*tensor.ty().get());
     n->shape = rf_shape;
     rf_tensors.push_back(TensorVar(tensor->name + ".rf", TensorType(std::move(n)), tensor->loc));
   }
@@ -963,7 +965,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                ffi::Array<TensorStore> old_reduction_updates,
                                te::CommReducer reducer, ffi::Array<TensorVar> rf_tensors,
-                               std::unordered_map<const VarNode*, For> loop_vars2loop,
+                               std::unordered_map<const VarObj*, For> loop_vars2loop,
                                int factor_axis, ffi::Array<PrimExpr> combiner_rhs)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
                          std::move(old_reduction_updates), std::move(reducer),
@@ -975,17 +977,16 @@ class RFactorBlockCreator : public BaseBlockCreator {
  private:
   void CreateAdditionalIter() final {
     // Create a new data parallel block iter for the rfactor loop.
-    additional_iter_ =
-        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name, IterVarType::kDataPar);
-    loop_var2block_binding_.insert_or_assign(rf_loop_->loop_var.get(), additional_iter_->var);
+    additional_iter_ = IterVarFromLoop(rf_loop_, "v" + rf_loop_->var->name, IterVarType::kDataPar);
+    loop_var2block_binding_.insert_or_assign(rf_loop_->var.get(), additional_iter_->var);
     iter_vars_.push_back(additional_iter_);
-    iter_values_.push_back(rf_loop_->loop_var);
+    iter_values_.push_back(rf_loop_->var);
   }
 
   void CreateNormalIters(int idx) final {
     IterVar old_iter = old_block_realize_->block->iter_vars[idx];
     PrimExpr old_binding = old_block_realize_->iter_values[idx];
-    auto walkfn = [v = rf_loop_->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [v = rf_loop_->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                             : ffi::WalkResult::Advance();
     };
@@ -1013,7 +1014,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
         // We haven't created the new block iter for `var`. So here we create it, append it
         // and its binding to `rf_block_iter_vars` and `rf_block_iter_values` respectively.
         IterVar new_iter_var =
-            IterVarFromLoop(loop, "v" + loop->loop_var->name, IterVarType::kCommReduce);
+            IterVarFromLoop(loop, "v" + loop->var->name, IterVarType::kCommReduce);
         loop_var2block_binding_.insert_or_assign(var.get(), new_iter_var->var);
         iter_vars_.push_back(new_iter_var);
         iter_values_.push_back(var.as_or_throw<PrimExpr>());
@@ -1058,7 +1059,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
     read_regions_.reserve(old_block->reads.size());
     for (const TensorRegion& read_region : old_block->reads) {
       ffi::Array<Range> region = read_region->region.Map([&map_block_var](const Range& range) {
-        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                            .as_or_throw<PrimExpr>();
         PrimExpr extent =
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
@@ -1078,7 +1079,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
           tensor_map.Get(write_region->source.as_or_throw<tvm::tirx::TensorVar>());
       TVM_FFI_ICHECK(rf_tensor.has_value());
       region.MutateByApply([&map_block_var](const Range& range) {
-        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
+        PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->begin, map_block_var)
                            .as_or_throw<PrimExpr>();
         PrimExpr extent =
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_block_var)
@@ -1098,7 +1099,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
    * \brief A mapping which maps a loop var to its corresponding For loop for all the reduction
    * block's outer loops
    */
-  std::unordered_map<const VarNode*, For> loop_vars2loop_;
+  std::unordered_map<const VarObj*, For> loop_vars2loop_;
   /*! \brief The factor_axis specified for rfactor */
   int factor_axis_;
   /*! \brief The RHS values of the reduction in the old block */
@@ -1108,7 +1109,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
    * substitute the loop vars which appear in the bindings of some old block iters with the new
    * created block iters
    */
-  std::unordered_map<const VarNode*, Var> loop_var2block_binding_;
+  std::unordered_map<const VarObj*, Var> loop_var2block_binding_;
 };
 
 /*!
@@ -1135,10 +1136,9 @@ class WriteBackBlockCreator : public BaseBlockCreator {
  private:
   void CreateAdditionalIter() final {
     // Create a new reduction block iter for the rfactor loop.
-    IterVar wb_new_block_iter =
-        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name, kCommReduce);
+    IterVar wb_new_block_iter = IterVarFromLoop(rf_loop_, "v" + rf_loop_->var->name, kCommReduce);
     iter_vars_.push_back(wb_new_block_iter);
-    iter_values_.push_back(rf_loop_->loop_var);
+    iter_values_.push_back(rf_loop_->var);
     var_map_.Set(rf_additional_iter_->var, wb_new_block_iter->var);
   }
 
@@ -1178,7 +1178,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   void CreateRegion(const ffi::Array<PrimExpr>& tensor_loads, bool is_read) {
     ffi::Array<TensorRegion>& tensor_regions = is_read ? read_regions_ : write_regions_;
     for (const PrimExpr& expr : tensor_loads) {
-      const auto* tensor_load = expr.as<TensorLoadNode>();
+      const auto* tensor_load = expr.as<TensorLoadObj>();
       TVM_FFI_ICHECK(tensor_load != nullptr);
       ffi::Array<Range> region;
       region.reserve(tensor_load->indices.size());
@@ -1209,12 +1209,12 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
 
   // Step 1. Create new loop vars.
   ffi::Array<For> new_loops;
-  std::unordered_map<const VarNode*, Var> new_loop_var_map;
+  std::unordered_map<const VarObj*, Var> new_loop_var_map;
   new_loops.reserve(n_loops);
   new_loop_var_map.reserve(n_loops);
   for (const For& old_loop : loops) {
-    Var new_loop_var = old_loop->loop_var.CopyWithSuffix("");
-    new_loop_var_map.insert_or_assign(old_loop->loop_var.get(), new_loop_var);
+    Var new_loop_var = old_loop->var.CopyWithSuffix("");
+    new_loop_var_map.insert_or_assign(old_loop->var.get(), new_loop_var);
   }
 
   // Step 2. Update the iter bindings and predicate of the rfactor block.
@@ -1232,7 +1232,7 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
                                .as_or_throw<PrimExpr>());
   }
   {
-    SBlockRealizeNode* p_rf_block_realize = rf_block_realize.CopyOnWrite();
+    SBlockRealizeObj* p_rf_block_realize = rf_block_realize.CopyOnWrite();
     p_rf_block_realize->iter_values = new_bindings;
     p_rf_block_realize->predicate =
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rf_block_realize->predicate, map_loop_var)
@@ -1242,8 +1242,8 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   // Step 3. Wrap `rf_block_realize` with outer loops.
   Stmt rf_body = rf_block_realize;
   for (int i = n_loops - 1; i >= 0; --i) {
-    ffi::ObjectPtr<ForNode> p_loop = ffi::make_object<ForNode>(*loops[i].get());
-    p_loop->loop_var = new_loop_var_map.at(loops[i]->loop_var.get()).as_or_throw<PrimVar>();
+    ffi::ObjectPtr<ForObj> p_loop = ffi::make_object<ForObj>(*loops[i].get());
+    p_loop->var = new_loop_var_map.at(loops[i]->var.get()).as_or_throw<PrimVar>();
     p_loop->body = rf_body;
     rf_body = For(std::move(p_loop));
   }
@@ -1256,7 +1256,7 @@ class BlockReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
-    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<ExprObj>()) return ffi::Unchanged();
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
@@ -1284,8 +1284,8 @@ class BlockReplacer : public StmtExprMutator {
    */
   static SBlock Replace(SBlock scope_root_block, Stmt rf_body, For outermost_loop,
                         SBlockRealize wb_block_realize, SBlockRealize old_block_realize,
-                        For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
-                        std::unordered_map<const VarNode*, For> loop_vars2loop,
+                        For rf_loop, std::unordered_set<const VarObj*> reduce_loop_vars,
+                        std::unordered_map<const VarObj*, For> loop_vars2loop,
                         const ffi::Array<TensorVar>& rf_tensors) {
     auto replacer = ffi::make_object<BlockReplacer>(
         std::move(rf_body), std::move(outermost_loop), std::move(wb_block_realize),
@@ -1294,7 +1294,7 @@ class BlockReplacer : public StmtExprMutator {
     SBlock new_scope_root = replacer->Mutate(scope_root_block, InplaceMode::kAllow)
                                 .ValueOrUnchanged(std::move(scope_root_block))
                                 .as_or_throw<SBlock>();
-    SBlockNode* p = new_scope_root.CopyOnWrite();
+    SBlockObj* p = new_scope_root.CopyOnWrite();
     for (const TensorVar& rf_tensor : rf_tensors) {
       p->alloc_tensors.push_back(rf_tensor);
     }
@@ -1303,8 +1303,8 @@ class BlockReplacer : public StmtExprMutator {
 
   explicit BlockReplacer(Stmt rf_body, For outermost_loop, SBlockRealize wb_block_realize,
                          SBlockRealize old_block_realize, For rf_loop,
-                         std::unordered_set<const VarNode*> reduce_loop_vars,
-                         std::unordered_map<const VarNode*, For> loop_vars2loop)
+                         std::unordered_set<const VarObj*> reduce_loop_vars,
+                         std::unordered_map<const VarObj*, For> loop_vars2loop)
       : rf_body_(std::move(rf_body)),
         outermost_loop_(std::move(outermost_loop)),
         wb_block_realize_(std::move(wb_block_realize)),
@@ -1314,11 +1314,11 @@ class BlockReplacer : public StmtExprMutator {
         loop_vars2loop_(std::move(loop_vars2loop)) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* loop, InplaceMode inplace_mode) final {
     // Step 1. Check whether this loop is outside the reduction block. Given that we've made sure
     // that the scope root block has stage-pipeline property, if this loop is not outside the
     // reduction block, there's no need to recursively mutate.
-    if (!loop_vars2loop_.count(loop->loop_var.get())) {
+    if (!loop_vars2loop_.count(loop->var.get())) {
       return ffi::Unchanged();
     }
 
@@ -1329,12 +1329,12 @@ class BlockReplacer : public StmtExprMutator {
 
     // Step 3. If this loop is the rfactor loop and isn't touched by any reduction block iter, it
     // should be kept outside the write-back block. Otherwise it shouldn't.
-    if (loop == rf_loop_.get() || !reduce_loop_vars_.count(loop->loop_var.get())) {
+    if (loop == rf_loop_.get() || !reduce_loop_vars_.count(loop->var.get())) {
       if (inplace_mode == InplaceMode::kAllow) {
-        const_cast<ForNode*>(loop)->body = std::move(body);
+        const_cast<ForObj*>(loop)->body = std::move(body);
         body = ffi::GetRef<For>(loop);
       } else {
-        auto copy = ffi::make_object<ForNode>(*loop);
+        auto copy = ffi::make_object<ForObj>(*loop);
         copy->body = std::move(body);
         body = For(std::move(copy));
       }
@@ -1345,9 +1345,8 @@ class BlockReplacer : public StmtExprMutator {
     return loop == outermost_loop_.get() ? SeqStmt({rf_body_, body}) : body;
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* block_realize,
-                            InplaceMode inplace_mode) final {
-    // Due to the visitor's behavior on ForNode, this block-realize must be the reduction block's
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeObj* block_realize, InplaceMode inplace_mode) final {
+    // Due to the visitor's behavior on ForObj, this block-realize must be the reduction block's
     // block-realize. And we directly return the new `wb_block_realize`.
     TVM_FFI_ICHECK_EQ(block_realize, old_block_realize_.get());
     return wb_block_realize_;
@@ -1358,8 +1357,8 @@ class BlockReplacer : public StmtExprMutator {
   SBlockRealize wb_block_realize_;
   SBlockRealize old_block_realize_;
   For rf_loop_;
-  std::unordered_set<const VarNode*> reduce_loop_vars_;
-  std::unordered_map<const VarNode*, For> loop_vars2loop_;
+  std::unordered_set<const VarObj*> reduce_loop_vars_;
+  std::unordered_map<const VarObj*, For> loop_vars2loop_;
 };
 
 StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_axis) {
@@ -1376,21 +1375,21 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   if (self->enable_check) {
     CheckReductionBlock(self, block_sref, scope_root);
   }
-  const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
+  const ForObj* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kDefault) {
     throw MakeScheduleError<NotSerialLoopKindError>(self->mod, ffi::GetRef<For>(rf_loop));
   }
 
   // Step 2. Collect loop vars that are touched by data parallel block iters and reduction block
   // iters, respectively.
-  std::unordered_set<const VarNode*> data_par_loop_vars;
-  std::unordered_set<const VarNode*> reduce_loop_vars;
+  std::unordered_set<const VarObj*> data_par_loop_vars;
+  std::unordered_set<const VarObj*> reduce_loop_vars;
   GetVarsTouchedByBlockIters(block_realize, &data_par_loop_vars, &reduce_loop_vars);
 
   // Step 3. Collect the loops of the reduction block. Construct a mapping from loops to
   // corresponding loop vars.
   ffi::Array<For> loops = LoopSRefs2Loops(GetLoops(block_sref));
-  std::unordered_map<const VarNode*, For> loop_vars2loop = GetLoopVar2LoopMap(loops);
+  std::unordered_map<const VarObj*, For> loop_vars2loop = GetLoopVar2LoopMap(loops);
 
   // Step 4. Check four properties that the loops should have:
   // - the rfactor loop cannot be touched by any data parallel block iter;
@@ -1452,7 +1451,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // *****************************************************
 
   // Step 1. Substitute the old scope root block with the new scope root block.
-  SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root->StmtAs<SBlockNode>());
+  SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root->StmtAs<SBlockObj>());
   SBlock new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
       ffi::GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_tensors);

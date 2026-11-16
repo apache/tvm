@@ -23,11 +23,13 @@ import pytest
 from numpy.testing import assert_allclose
 
 import tvm
-import tvm.testing
-from tvm import s_tir, te, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir, te
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 N_FEATURES = 164
 
@@ -56,7 +58,7 @@ def matmul(
 # fmt: off
 
 # from tvm.script import tirx as T
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class LayoutTransform:
     @Ts.function
     def main(placeholder: T.Tensor((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Tensor((25088,), "float32"), T_layout_trans: T.Tensor((1, 1, 7, 7, 512), "float32")) -> None:
@@ -64,7 +66,7 @@ class LayoutTransform:
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"auto_unroll_max_step":64, "unroll_explicit":1}):
+        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"tirx.auto_unroll_max_step":64, "tirx.unroll_explicit":1}):
             with Ts.sblock("T_layout_trans_1"):
                 ax0 = Ts.axis.spatial(1, 0)
                 ax1 = Ts.axis.spatial(1, 0)
@@ -186,7 +188,7 @@ def _feature_names(  # pylint: disable=invalid-name
             "alloc_inner_prod",
             "outer_prod",
             "num_loops",
-            "auto_unroll_max_step",
+            "tirx.auto_unroll_max_step",
         ]
     )
     # 57 + 18 * 5 + 10 + 4 + 3
@@ -224,7 +226,7 @@ def test_cpu_matmul():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -443,7 +445,7 @@ def test_cpu_fusion():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -729,7 +731,7 @@ def test_empty_feature():
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -784,13 +786,13 @@ def test_gpu():
         _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
         sch.bind(b_j, "threadIdx.x")
         # auto unroll
-        sch.annotate(i0_j0, "auto_unroll_max_step", tirx.IntImm("int32", 1024))
-        sch.annotate(i0_j0, "unroll_explicit", tirx.IntImm("int32", 1))
+        sch.annotate(i0_j0, "tirx.auto_unroll_max_step", tvm_tirx.ir.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "tirx.unroll_explicit", tvm_tirx.ir.IntImm("int32", 1))
         return sch
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("cuda")),
+        _make_context(tvm_tirx.target.Target("cuda")),
         candidates=[_make_candidate(_create_schedule)],
     )
     feature = feature.numpy()
@@ -849,6 +851,9 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
+    # Region estimates replay each loop-range context, without retaining the
+    # temporary constant bindings used while relaxing inner loops.  In particular,
+    # the full 512x512 float32 input contributes 2**20 unique bytes.
     # Group 2.1: Tensor A
     assert_allclose(
         actual=f[57:75],
@@ -857,19 +862,19 @@ def test_gpu():
             0.0,
             0.0,
             25.00000004,
-            19.99718086,
+            20.000001375860553,
             23.00000017,
-            13.99726771,
+            14.000088052430122,
             1.0,
             0.0,
             0.0,
             18.0000055,
-            20.00000138,
+            20.00562591970089,
             2.32192809,
             23.00000017,
-            17.997185,
+            18.00000550343433,
             21.00000069,
-            11.99753235,
+            12.0003521774803,
             12.00035218,
         ],
         rtol=1e-5,
@@ -883,9 +888,9 @@ def test_gpu():
             1.0,
             0.0,
             25.00000004,
-            11.00070427,
+            12.0003521774803,
             23.00000017,
-            5.04439412,
+            9.002815015607053,
             1.0,
             0.0,
             0.0,
@@ -893,9 +898,9 @@ def test_gpu():
             11.98049664,
             8.00562455,
             17.00001101,
-            3.169925,
+            4.087462841250339,
             15.00004403,
-            0.169925,
+            1.584962500721156,
             4.08746284,
         ],
         rtol=1e-5,
@@ -1063,19 +1068,19 @@ def test_gpu():
             0.0,
             0.0,
             22.00000034,
-            19.85798251,
+            20.000001375860553,
             20.00000138,
-            13.85807816,
+            14.000088052430122,
             1.0,
             0.0,
             0.0,
             15.00004403,
-            20.04456622,
+            20.17555076886471,
             2.32192809,
             20.00000138,
-            17.85798707,
+            18.00000550343433,
             18.0000055,
-            11.8583696,
+            12.0003521774803,
             4.08746284,
         ],
         rtol=1e-5,
@@ -1089,19 +1094,19 @@ def test_gpu():
             1.0,
             0.0,
             22.00000034,
-            7.01122726,
+            9.002815015607053,
             20.00000138,
-            4.08746284,
+            3.169925001442312,
             1.0,
             0.0,
             0.0,
             3.169925001442312,
-            4.08746284,
+            9.61654884377899,
             8.005624549193879,
             14.000088052430122,
-            0.5849625,
+            1.584962500721156,
             12.00035218,
-            0.08746284,
+            0.044394119358453436,
             4.087462841250339,
         ],
         rtol=1e-5,
@@ -1621,7 +1626,7 @@ def test_gpu():
 def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(LayoutTransform))],
     )
 
@@ -1635,7 +1640,7 @@ def negative_extent(A: T.Tensor((1,), "float32")):
 def test_negative_extent():
     extractor = ms.feature_extractor.PerStoreFeature()
     (features,) = extractor.extract_from(
-        _make_context(tvm.target.Target("llvm")),
+        _make_context(tvm_tirx.target.Target("llvm")),
         candidates=[_make_candidate(lambda: s_tir.Schedule(negative_extent))],
     )
     named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
@@ -1643,4 +1648,4 @@ def test_negative_extent():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

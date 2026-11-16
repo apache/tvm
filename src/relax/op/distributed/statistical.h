@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_STATISTICAL_H_
 #define TVM_RELAX_OP_DISTRIBUTED_STATISTICAL_H_
 
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include "utils.h"
 

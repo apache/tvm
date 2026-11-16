@@ -22,15 +22,14 @@ from typing import TYPE_CHECKING
 import tvm_ffi
 from tvm_ffi import Array
 
-import tvm
-from tvm import ir
-from tvm import tirx as tir
-from tvm.ir import Expr, Scriptable, Var, const
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.ir.prim import _ffi_api as _prim_ffi_api
-from tvm.ir.prim import max_value, min_value
-from tvm.runtime import Object
-from tvm.tirx.op import _primexpr_dtype
+import tvm_tirx
+from tvm_tirx import ir
+from tvm_tirx import tirx as tir
+from tvm_tirx.ir import Expr, Scriptable, Var, const
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
+from tvm_tirx.ir.prim import max_value, min_value
+from tvm_tirx.tirx.op import _primexpr_dtype
 
 from . import _ffi_api
 
@@ -45,7 +44,7 @@ def _iter_var_type():
 
 
 @tvm_ffi.register_object("te.CommReducer")
-class CommReducer(Object, Scriptable):
+class CommReducer(tvm_ffi.Object, Scriptable):
     """Commutative reduce operator
 
     Parameters
@@ -175,7 +174,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         n = te.var("n")
         m = te.var("m")
         mysum = te.comm_reducer(lambda x, y: x+y,
-            lambda t: tvm.tirx.const(0, dtype=t), name="mysum")
+            lambda t: tvm_tirx.tirx.const(0, dtype=t), name="mysum")
         A = te.placeholder((n, m), name="A")
         k = te.reduce_axis((0, m), name="k")
         B = te.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
@@ -214,7 +213,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             result = fcombine(lhs, rhs)
             id_elem = fidentity(*dtypes)
         else:
-            assert tvm.ir.is_prim_expr(expr)
+            assert tvm_tirx.ir.is_prim_expr(expr)
             size = 1
             dtype = _primexpr_dtype(expr)
             lvar = Var(code.co_varnames[0], dtype)
@@ -227,7 +226,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, list | tuple | tvm.ir.Array):
+        if not isinstance(axis, list | tuple | tvm_ffi.Array):
             axis = [axis]
         if where is None:
             where = tir.convert(True)
@@ -289,5 +288,13 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC), max_value, name="min")  # type: ignore
-max = comm_reducer(lambda x, y: _prim_ffi_api._OpMax(x, y, UNKNOWN_LOC), min_value, name="max")  # type: ignore
+min = comm_reducer(
+    lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC),
+    lambda dtype: max_value(ty=dtype),
+    name="min",
+)  # type: ignore
+max = comm_reducer(
+    lambda x, y: _prim_ffi_api._OpMax(x, y, UNKNOWN_LOC),
+    lambda dtype: min_value(ty=dtype),
+    name="max",
+)  # type: ignore

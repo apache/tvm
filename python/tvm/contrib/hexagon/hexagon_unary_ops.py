@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
-    return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
+    return te.max(te.min_value(ty=dtype), te.min(x, te.max_value(ty=dtype)))
 
 
 def hardswish_func(x):
