@@ -18,6 +18,45 @@
  */
 const { CachedCallStack, Memory } = require("../../src/memory");
 
+test.each([
+  Number.MIN_SAFE_INTEGER,
+  -0x180000001,
+  -0x80000001,
+  -1,
+  0,
+  0x7fffffff,
+  0x80000000,
+  2179989504,
+  0x180000001,
+  Number.MAX_SAFE_INTEGER,
+])("reads and writes signed int64 value %i", (value) => {
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new Memory(wasmMemory);
+  new DataView(wasmMemory.buffer).setBigInt64(8, BigInt(value), true);
+  expect(memory.loadI64(8)).toBe(value);
+
+  const { stack, memory: mockMemory } = createMockStack();
+  const offset = stack.allocRawBytes(8);
+  stack.storeI64(offset, value);
+  stack.commitToWasmMemory();
+  const bytes = mockMemory.storeRawBytes.mock.calls[0][1];
+  const actual = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  expect(actual.getBigInt64(0, true)).toBe(BigInt(value));
+});
+
+test("rejects int64 values outside the safe JavaScript integer range", () => {
+  const wasmMemory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new Memory(wasmMemory);
+  const view = new DataView(wasmMemory.buffer);
+  const { stack } = createMockStack();
+  const offset = stack.allocRawBytes(8);
+  for (const value of [2 ** 53, -(2 ** 53)]) {
+    view.setBigInt64(8, BigInt(value), true);
+    expect(() => memory.loadI64(8)).toThrow("Cannot represent int64 value");
+    expect(() => stack.storeI64(offset, value)).toThrow("exact int64");
+  }
+});
+
 test("loadU64 reads unsigned values and rejects unsafe integers", () => {
   const wasmMemory = new WebAssembly.Memory({ initial: 1 });
   const memory = new Memory(wasmMemory);

@@ -111,8 +111,12 @@ export class Memory {
       this.updateViews();
     }
     const base = ptr >> 2;
-    // assumes little endian, for now truncate high.
-    return this.viewI32[base];
+    // WebAssembly is little-endian. Only the high word carries the sign.
+    const value = this.viewU32[base] + this.viewI32[base + 1] * 0x100000000;
+    if (!Number.isSafeInteger(value)) {
+      throw new Error("Cannot represent int64 value as a JavaScript number");
+    }
+    return value;
   }
 
   loadU64(ptr: Pointer): number {
@@ -508,13 +512,12 @@ export class CachedCallStack implements Disposable {
   }
 
   storeI64(offset: PtrOffset, value: number): void {
-    // For now, just store as 32bit
-    // NOTE: wasm always uses little endian.
-    const low = value & 0xffffffff;
+    if (!Number.isSafeInteger(value)) {
+      throw new Error("Cannot represent JavaScript value as an exact int64");
+    }
     const base = offset >> 2;
-    this.viewI32[base] = low;
-    // sign extend
-    this.viewI32[base + 1] = value < 0 ? -1 : 0;
+    this.viewU32[base] = value;
+    this.viewI32[base + 1] = Math.floor(value / 0x100000000);
   }
 
   storeF64(offset: PtrOffset, value: number): void {
