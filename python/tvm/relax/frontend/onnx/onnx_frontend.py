@@ -6265,6 +6265,26 @@ class QLinearMatMul(OnnxOpConverter):
                 if len(bs_shape) >= 2 and isinstance(bs_shape[-2], (int, tvm_tirx.ir.IntImm)) and int(bs_shape[-2]) == 1:
                     b_scale = relax.op.squeeze(b_scale, axis=[-2])
 
+        # Normalize singleton [1]-shape parameters to scalars so that _align_output_param
+        # and later broadcasting do not accidentally add a rank-1 axis to the output.
+        def _squeeze_singleton(bb, param):
+            if param is None:
+                return None
+            p_norm = bb.normalize(param)
+            if (
+                hasattr(p_norm.ty, "shape")
+                and len(p_norm.ty.shape) == 1
+                and isinstance(p_norm.ty.shape[0], (int, tvm_tirx.ir.IntImm))
+                and int(p_norm.ty.shape[0]) == 1
+            ):
+                return relax.op.squeeze(param, axis=[0])
+            return param
+
+        a_scale = _squeeze_singleton(bb, a_scale)
+        b_scale = _squeeze_singleton(bb, b_scale)
+        y_scale = _squeeze_singleton(bb, y_scale)
+        y_zero_point = _squeeze_singleton(bb, y_zero_point)
+
         y_scale = cls._align_output_param(bb, y_scale, a_norm, b_norm)
         y_zero_point = cls._align_output_param(bb, y_zero_point, a_norm, b_norm)
 

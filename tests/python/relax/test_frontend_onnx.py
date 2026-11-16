@@ -14846,5 +14846,67 @@ def test_qlinearmatmul_float8_unsupported():
         from_onnx(model, opset=21, keep_params_in_input=True)
 
 
+def test_qlinearmatmul_singleton_scales_output_shape():
+    """Singleton [1]-shape scales and zero points must not alter the MatMul output rank.
+
+    A valid a_scale:[1] on [3] @ [3,4] must still produce output [4], not [1,4].
+    """
+    a = np.array([2, 3, 4], dtype=np.uint8)
+    b = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.uint8)
+    # All quantization parameters as [1]-shape (singleton) arrays
+    a_scale = np.array([0.5], dtype=np.float32)
+    a_zp = np.array([0], dtype=np.uint8)
+    b_scale = np.array([0.5], dtype=np.float32)
+    b_zp = np.array([0], dtype=np.uint8)
+    y_scale = np.array([1.0], dtype=np.float32)
+    y_zp = np.array([0], dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph = helper.make_graph(
+        [node],
+        "singleton_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3, 4]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    # Output must be rank-1, shape [4], not rank-2 [1,4]
+    assert tvm_val.shape == (4,), f"Expected shape (4,) but got {tvm_val.shape}"
+    # Reference: (a - a_zp) @ (b - b_zp) * (a_scale * b_scale / y_scale) + y_zp
+    ref = np.clip(
+        np.round(
+            np.matmul(a.astype(np.int32), b.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val, ref)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
