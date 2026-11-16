@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 
 import tvm
 import tvm_tirx
@@ -623,11 +624,12 @@ def test_call_tir_with_primitive_args_not_folded():
     tvm_tirx.ir.assert_structural_equal(after, Module)
 
 
-def test_fold_tensor_to_shape_int32():
+@pytest.mark.parametrize("dtype", ["int16", "int32", "int64"])
+def test_fold_tensor_to_shape_integer_dtype(dtype):
     @I.ir_module
     class Module:
         @R.function
-        def before(data: R.Tensor((6,), "float32"), shape_data: R.Tensor((2,), "int32")):
+        def before(data: R.Tensor((6,), "float32"), shape_data: R.Tensor((2,), dtype)):
             with R.dataflow():
                 shape: R.Shape(ndim=2) = R.tensor_to_shape(shape_data)
                 out: R.Tensor(ndim=2, dtype="float32") = R.reshape(data, shape)
@@ -641,7 +643,7 @@ def test_fold_tensor_to_shape_int32():
                 R.output(out)
             return out
 
-    before = gen_mod(Module, "before", {"shape_data": np.array([2, 3], dtype="int32")})
+    before = gen_mod(Module, "before", {"shape_data": np.array([2, 3], dtype=dtype)})
     expected = gen_mod(Module, "expected", {})
     after = relax.transform.FoldConstant()(before)
     tvm_tirx.ir.assert_structural_equal(after, expected)

@@ -631,5 +631,24 @@ def test_noncapturing_function_called_through_alias():
     assert_structural_equal(after, Expected)
 
 
+def test_explicit_opaque_closure_invocation():
+    @I.ir_module
+    class Before:
+        @R.function(private=True, pure=False)
+        def inner(z: R.Tensor((2,), "float32"), x: R.Tensor((2,), "float32")):
+            R.print(z)
+            return R.add(z, x)
+
+        @R.function(pure=False)
+        def main(x: R.Tensor((2,), "float32"), y: R.Tensor((2,), "float32")):
+            closure: R.Object = R.make_closure(Before.inner, (x,))
+            alias: R.Object = closure
+            return R.invoke_closure(alias, (y,), ty_args=(R.Tensor((2,), "float32"),))
+
+    after = transform.LambdaLift()(Before)
+    relax.analysis.check_well_formed(after, check_ty=True)
+    assert_structural_equal(after, Before)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
