@@ -3784,6 +3784,77 @@ class Attention(OnnxOpConverter):
         return relax.Tuple([output, placeholder])
 
 
+class RotaryEmbedding(OnnxOpConverter):
+    """Convert the standard ONNX RotaryEmbedding operator to Relax."""
+
+    @classmethod
+    def _impl_v23(cls, bb, inputs, attr, params):
+        data, cos, sin = inputs[0], inputs[1], inputs[2]
+        position_ids = inputs[3] if len(inputs) > 3 else None
+        rank = _get_known_tensor_rank(data)
+        if rank not in (3, 4):
+            raise ValueError("RotaryEmbedding requires a rank-3 or rank-4 input.")
+
+        input_shape = data.ty.shape
+        if not isinstance(input_shape, relax.ShapeExpr) or not isinstance(
+            input_shape.values[-1], tirx.IntImm
+        ):
+            raise ValueError("RotaryEmbedding requires a statically known last dimension.")
+
+        head_size = int(input_shape.values[-1])
+        if rank == 3:
+            batch, sequence, _ = input_shape.values
+            heads = attr.get("num_heads", 0)
+            if heads <= 0 or head_size % heads != 0:
+                raise ValueError("RotaryEmbedding needs num_heads to divide the hidden size.")
+            head_size //= heads
+            data = relax.op.reshape(data, (batch, sequence, heads, head_size))
+            data = relax.op.permute_dims(data, axes=[0, 2, 1, 3])
+        else:
+            batch, heads, sequence, _ = input_shape.values
+
+        if head_size % 2 != 0:
+            raise ValueError("RotaryEmbedding requires an even head size.")
+        rotary_dim = attr.get("rotary_embedding_dim", 0) or head_size
+        if rotary_dim <= 0 or rotary_dim > head_size or rotary_dim % 2 != 0:
+            raise ValueError("RotaryEmbedding needs an even rotary dimension within the head size.")
+
+        # Gather cache rows before broadcasting across heads.
+        if position_ids is not None:
+            cos = relax.op.take(cos, position_ids, axis=0, mode="nan")
+            sin = relax.op.take(sin, position_ids, axis=0, mode="nan")
+        cos = relax.op.expand_dims(cos, axis=1)
+        sin = relax.op.expand_dims(sin, axis=1)
+
+        interleaved = attr.get("interleaved", 0)
+        half_dim = rotary_dim // 2
+        if interleaved:
+            first = relax.op.strided_slice(data, axes=[3], begin=[0], end=[rotary_dim], strides=[2])
+            second = relax.op.strided_slice(
+                data, axes=[3], begin=[1], end=[rotary_dim], strides=[2]
+            )
+        else:
+            first = relax.op.strided_slice(data, axes=[3], begin=[0], end=[half_dim])
+            second = relax.op.strided_slice(data, axes=[3], begin=[half_dim], end=[rotary_dim])
+
+        real = relax.op.subtract(relax.op.multiply(first, cos), relax.op.multiply(second, sin))
+        imaginary = relax.op.add(relax.op.multiply(first, sin), relax.op.multiply(second, cos))
+        if interleaved:
+            rotated = bb.normalize(relax.op.stack([real, imaginary], axis=-1))
+            rotated = relax.op.reshape(rotated, (batch, heads, sequence, rotary_dim))
+        else:
+            rotated = relax.op.concat([real, imaginary], axis=-1)
+
+        if rotary_dim < head_size:
+            tail = relax.op.strided_slice(data, axes=[3], begin=[rotary_dim], end=[head_size])
+            rotated = relax.op.concat([rotated, tail], axis=-1)
+
+        if rank == 3:
+            rotated = bb.normalize(relax.op.permute_dims(rotated, axes=[0, 2, 1, 3]))
+            return relax.op.reshape(rotated, input_shape)
+        return rotated
+
+
 class Identity(OnnxOpConverter):
     """Converts an onnx Identity node into an equivalent Relax expression."""
 
@@ -6313,6 +6384,7 @@ def _get_convert_map():
         "ConstantOfShape": ConstantOfShape,
         "Slice": Slice,
         "Attention": Attention,
+        "RotaryEmbedding": RotaryEmbedding,
         "Pad": Pad,
         "Split": Split,
         "Tile": Tile,

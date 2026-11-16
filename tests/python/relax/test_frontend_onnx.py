@@ -37,6 +37,7 @@ import onnx
 import onnxruntime
 import tvm_ffi
 from onnx import ModelProto, TensorProto, helper, numpy_helper
+from onnx.reference import ReferenceEvaluator
 
 import tvm
 import tvm_tirx
@@ -111,8 +112,9 @@ def check_correctness(
     rtol: float = 1e-7,
     atol: float = 1e-5,
     check_dtypes: bool = False,
+    use_reference: bool = False,
 ) -> None:
-    """Run an onnx model in both onnxruntime and TVM through our importer
+    """Run an ONNX model with a reference backend and TVM through our importer
        confirm that the results match. Otherwise, an exception will be raised.
 
     Parameters
@@ -130,6 +132,8 @@ def check_correctness(
         arithmetic variance than others.
     check_dtypes: bool
         Check if data types are the same.
+    use_reference: bool
+        Use the ONNX reference evaluator for operators absent from ONNX Runtime.
     """
     # Configure model format.
     if ir_version is not None:
@@ -141,11 +145,13 @@ def check_correctness(
     # values that we'll use for testing.
     inputs = generate_random_inputs(model, inputs)
 
-    # Run the model through onnx to get the expected result.
-    ort_session = onnxruntime.InferenceSession(
-        model.SerializeToString(), providers=["CPUExecutionProvider"]
-    )
-    ort_output = ort_session.run([], inputs)
+    if use_reference:
+        expected_output = ReferenceEvaluator(model).run(None, inputs)
+    else:
+        ort_session = onnxruntime.InferenceSession(
+            model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        expected_output = ort_session.run([], inputs)
 
     # Convert the onnx model into relax through the onnx importer.
     tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
@@ -170,7 +176,7 @@ def check_correctness(
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
     # Wrap as a list if there is only one output.
-    if len(ort_output) == 1:
+    if len(expected_output) == 1:
         # Do not check the output number for TVM
         # As for sequence output, the TVM output is a Tuple
         # while the ONNX output number is one, which is a list
@@ -210,8 +216,8 @@ def check_correctness(
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 
     # Check that number of outputs match.
-    assert len(tvm_output) == len(ort_output), "Unequal number of outputs"
-    for tvm_out, ort_out in zip(tvm_output, ort_output):
+    assert len(tvm_output) == len(expected_output), "Unequal number of outputs"
+    for tvm_out, ort_out in zip(tvm_output, expected_output):
         # TODO Allow configurable tolerance.
         if ort_out is not None:
             _check_output(tvm_out, ort_out)
@@ -6548,6 +6554,54 @@ def test_group_norm():
             opset=18,
             dtype=TensorProto.FLOAT16,
         )
+
+
+@pytest.mark.parametrize(
+    "rank,rotary_dim,interleaved,with_position_ids",
+    [
+        (3, 0, False, False),
+        (3, 4, True, True),
+        (4, 0, True, True),
+        (4, 4, False, False),
+        (4, 4, True, False),
+    ],
+)
+def test_rotary_embedding(rank, rotary_dim, interleaved, with_position_ids):
+    batch, heads, sequence, head_size = 2, 3, 4, 8
+    shape = (
+        (batch, sequence, heads * head_size) if rank == 3 else (batch, heads, sequence, head_size)
+    )
+    data = np.arange(np.prod(shape), dtype="float32").reshape(shape) / 100
+    half_dim = (rotary_dim or head_size) // 2
+    angles = np.arange(7 * half_dim, dtype="float32").reshape(7, half_dim) / 10
+    positions = np.array([[4, 1, 5, 0], [6, 2, 2, 3]], dtype="int64")
+    if not with_position_ids:
+        angles = angles[positions]
+    inputs = {"X": data, "cos_cache": np.cos(angles), "sin_cache": np.sin(angles)}
+    input_info = [
+        helper.make_tensor_value_info(name, TensorProto.FLOAT, value.shape)
+        for name, value in inputs.items()
+    ]
+    if with_position_ids:
+        inputs["position_ids"] = positions
+        input_info.append(
+            helper.make_tensor_value_info("position_ids", TensorProto.INT64, positions.shape)
+        )
+
+    attrs = {"rotary_embedding_dim": rotary_dim, "interleaved": int(interleaved)}
+    if rank == 3:
+        attrs["num_heads"] = heads
+    node = helper.make_node("RotaryEmbedding", list(inputs), ["Y"], **attrs)
+    output_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, shape)
+    graph = helper.make_graph([node], "rotary_embedding", input_info, [output_info])
+    check_correctness(
+        helper.make_model(graph),
+        inputs,
+        ir_version=11,
+        opset=23,
+        check_dtypes=True,
+        use_reference=True,
+    )
 
 
 # TODO Enable dynamism
