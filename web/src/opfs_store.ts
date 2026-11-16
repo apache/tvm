@@ -339,9 +339,35 @@ export class OPFSStore {
 
   private async readPayload(handle: OPFSFileHandle): Promise<ArrayBuffer> {
     const syncHandle = await this.openSyncAccessHandle(handle, "read-only");
-    return syncHandle !== undefined
-      ? this.readPayloadWithSyncHandle(syncHandle)
-      : (await handle.getFile()).arrayBuffer();
+    if (syncHandle !== undefined) {
+      return this.readPayloadWithSyncHandle(syncHandle);
+    }
+    const file = await handle.getFile();
+    if (file.size <= 0x7fffffff) {
+      return file.arrayBuffer();
+    }
+    // Chromium can reject a single Blob.arrayBuffer() read of a large shard.
+    const payload = new Uint8Array(file.size);
+    const reader = file.stream().getReader();
+    try {
+      let offset = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          if (offset !== payload.byteLength) {
+            throw new Error("OPFSStore: Incomplete payload read");
+          }
+          return payload.buffer;
+        }
+        payload.set(value, offset);
+        offset += value.byteLength;
+      }
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   private async hasExpectedPayloadSize(
