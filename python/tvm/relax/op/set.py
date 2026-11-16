@@ -221,4 +221,4 @@ def nonzero(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
 @tvm_ffi.register_global_func("relax.run.nonzero")
 def numpy_nonzero(x: tvm_tirx.runtime.tensor) -> tvm_tirx.runtime.tensor:
     np_result = np.atleast_1d(x.numpy()).nonzero()
-    return tvm_tirx.runtime.tensor(np.stack(np_result, axis=0))
+    return tvm_tirx.runtime.tensor(np.stack(np_result, axis=0), device=x.device)
