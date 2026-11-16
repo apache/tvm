@@ -17,15 +17,15 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 
-import tvm
-import tvm.script
-import tvm.testing
-from tvm.ir.base import assert_structural_equal
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.backend import DispatchSampling
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir.base import assert_structural_equal
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 @I.ir_module
@@ -44,14 +44,14 @@ class MultiFromUniformModule:
 
 def test_dispatch_multinomial_from_uniform_generic():
     # fmt: off
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    out_batch = T.dynamic("out_batch", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def get_sample_index(prob: T.Tensor((batch, vocab_size)), usample: T.Tensor((out_batch, 1)), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
+        def get_sample_index(prob: T.Tensor((batch, vocab_size), "float32"), usample: T.Tensor((out_batch, 1), "float32"), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
 
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
@@ -74,22 +74,21 @@ def test_dispatch_multinomial_from_uniform_generic():
             return gv
     # fmt: on
 
-    with tvm.target.Target("llvm"):
-        mod = DispatchSampling()(MultiFromUniformModule)
+    mod = DispatchSampling(target=tvm_tirx.target.Target("llvm"))(MultiFromUniformModule)
 
     assert_structural_equal(mod, Expected)
 
 
 def test_dispatch_multinomial_from_uniform_gpu():
     # fmt: off
-    n = T.dynamic("n")
-    vocab_size = T.dynamic("vocab_size")
-    batch_size = T.dynamic("batch_size")
+    n = T.dynamic("n", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function
-        def parallel_sampling_from_prob(prob: T.Tensor((n, vocab_size)), uniform_samples: T.Tensor((batch_size, 1)), row_indices: T.Tensor((batch_size, 1), 'int64'), token_ids: T.Tensor((batch_size, 1), 'int64')):
+        def parallel_sampling_from_prob(prob: T.Tensor((n, vocab_size), "float32"), uniform_samples: T.Tensor((batch_size, 1), "float32"), row_indices: T.Tensor((batch_size, 1), 'int64'), token_ids: T.Tensor((batch_size, 1), 'int64')):
             T.func_attr({"tirx.is_scheduled": True})
 
             # with Ts.sblock("root"):
@@ -191,11 +190,10 @@ def test_dispatch_multinomial_from_uniform_gpu():
             return gv
     # fmt: on
 
-    with tvm.target.Target("cuda"):
-        mod = DispatchSampling()(MultiFromUniformModule)
+    mod = DispatchSampling(target=tvm_tirx.target.Target("cuda"))(MultiFromUniformModule)
 
     assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/schedule/instruction.h>
 #include <tvm/s_tir/schedule/schedule.h>
@@ -44,7 +45,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../runtime/thread_storage_scope.h"
+#include "../memory_scope.h"
 #include "../support/array_utils.h"
 #include "../support/nd_int_set.h"
 #include "./analysis.h"
@@ -66,7 +67,7 @@ inline ffi::Array<For> LoopSRefs2Loops(const ffi::Array<StmtSRef>& loop_srefs) {
   ffi::Array<For> loops;
   loops.reserve(loop_srefs.size());
   for (StmtSRef loop_sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+    const ForObj* loop = TVM_SREF_TO_FOR(loop_sref);
     loops.push_back(ffi::GetRef<For>(loop));
   }
   return loops;
@@ -97,13 +98,22 @@ inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
  * \param thread_scope The thread scope to be relaxed
  * \return A boolean indicating the result
  */
-inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scope,
+inline bool CanRelaxStorageUnderThread(const runtime::MemoryScope& storage_scope,
                                        const support::GPUThreadTag& thread_scope) {
-  if (storage_scope.rank == runtime::StorageRank::kWarp) {
+  static const auto scope_warp = runtime::MemoryScope::Get("warp");
+  static const auto scope_shared = runtime::MemoryScope::Get("shared");
+  static const auto scope_shared_dyn = runtime::MemoryScope::Get("shared.dyn");
+
+  if (storage_scope == scope_warp) {
     // for warp memory, we only relax threadIdx.x
     return thread_scope.rank == 1 && thread_scope.dim_index == 0;
   }
-  return static_cast<int>(storage_scope.rank) <= static_cast<int>(thread_scope.rank);
+  // Global spaces are visible across blocks; shared spaces only across threads.
+  if (IsGlobalMemoryScope(storage_scope)) {
+    return thread_scope.rank >= 0;
+  }
+  return (storage_scope == scope_shared || storage_scope == scope_shared_dyn) &&
+         thread_scope.rank == 1;
 }
 
 /******** SeqStmt ********/
@@ -122,7 +132,7 @@ inline SeqStmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     if (to_remove.same_as(stmt)) {
       continue;
     }
-    if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
+    if (const auto* realize = stmt.as<SBlockRealizeObj>()) {
       if (to_remove.same_as(realize->block)) {
         continue;
       }
@@ -156,8 +166,8 @@ inline bool IsSingleStmt(const SeqStmt& stmt) { return stmt->size() == 1; }
  * \return The newly created IterVar
  */
 inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType iter_var_type) {
-  return IterVar(Range::FromMinExtent(loop->min, loop->extent),
-                 PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
+  return IterVar(Range(loop->begin, loop->end), PrimVar(std::move(name), loop->var.ty()),
+                 iter_var_type);
 }
 
 /*! \brief Interpret physical and virtual thread bindings for S-TIR scheduling. */
@@ -173,7 +183,7 @@ inline support::GPUThreadTag ParseThreadBindingTag(const ffi::String& tag) {
  * \param loop The loop to be inspected
  * \return The thread scope bound to the loop
  */
-inline support::GPUThreadTag GetThreadBindingTag(const ForNode* loop) {
+inline support::GPUThreadTag GetThreadBindingTag(const ForObj* loop) {
   if (tvm::s_tir::GetThreadBinding(loop).has_value()) {
     return ParseThreadBindingTag(tvm::s_tir::GetThreadBinding(loop).value());
   }
@@ -212,7 +222,7 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     return static_cast<Var>(var.value());
   }
   // match: "var + shift"
-  if (const auto* add = expr.as<prim::AddNode>()) {
+  if (const auto* add = expr.as<prim::AddObj>()) {
     if (auto var = add->a.as<Var>()) {
       if (auto shift = add->b.as<IntImm>()) {
         *constant = shift;
@@ -227,7 +237,7 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
     }
   }
   // match: "var - shift"
-  if (const auto* sub = expr.as<prim::SubNode>()) {
+  if (const auto* sub = expr.as<prim::SubObj>()) {
     if (auto var = sub->a.as<Var>()) {
       if (auto shift = sub->b.as<IntImm>()) {
         *constant = IntImm(shift.value().ty(), -shift.value()->value);
@@ -267,10 +277,10 @@ inline ffi::Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const ffi::String
  */
 template <class TObjectRef>
 inline ffi::Optional<TObjectRef> GetAnn(const StmtSRef& sref, const ffi::String& ann_key) {
-  if (const auto* loop = sref->StmtAs<ForNode>()) {
-    return GetAnn<TObjectRef, ForNode>(loop, ann_key);
-  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
-    return GetAnn<TObjectRef, SBlockNode>(block, ann_key);
+  if (const auto* loop = sref->StmtAs<ForObj>()) {
+    return GetAnn<TObjectRef, ForObj>(loop, ann_key);
+  } else if (const auto* block = sref->StmtAs<SBlockObj>()) {
+    return GetAnn<TObjectRef, SBlockObj>(block, ann_key);
   } else {
     TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
@@ -381,11 +391,11 @@ inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
     using s_tir::StmtExprVisitor::Visit_;
 
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-      if (value.as<ExprNode>()) return std::nullopt;
+      if (value.as<ExprObj>()) return std::nullopt;
       return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockObj* block) override {
       block_names.insert(block->name_hint);
       return StmtExprVisitor::Visit(block->body);
     }

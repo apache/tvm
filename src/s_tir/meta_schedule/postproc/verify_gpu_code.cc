@@ -36,7 +36,7 @@ class ThreadExtentChecker : public StmtExprVisitor {
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
+    if (value.as<ExprObj>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
 
@@ -54,10 +54,11 @@ class ThreadExtentChecker : public StmtExprVisitor {
   explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) {
+  ffi::Optional<VisitInterrupt> Visit_(const ForObj* loop) {
     support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope)) {
-      const auto* p_ext_imm = loop->extent.as<IntImmNode>();
+      PrimExpr p_ext_imm_expr = Range::GetExtentFromBeginEnd(loop->begin, loop->end);
+      const auto* p_ext_imm = p_ext_imm_expr.as<IntImmObj>();
       if (auto p_ext = p_ext_imm ? p_ext_imm->value.as<int64_t>() : std::nullopt;
           p_ext.has_value()) {
         int64_t ext = *p_ext;
@@ -84,15 +85,15 @@ class ThreadExtentChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(loop);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockObj* block) {
     int old_thread_idx_x = thread_idx_x;
-    if (block->annotations.count(tvm::s_tir::attr::kWarpExecution)) {
+    if (block->annotations.count(tvm::s_tir::attr::kWarpExecution.name)) {
       thread_idx_x = thread_warp_size_;
     }
     if (ffi::Optional<int64_t> low_inclusive =
-            GetAnn<int64_t>(block, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive)) {
-      if (ffi::Optional<int64_t> high_inclusive =
-              GetAnn<int64_t>(block, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive)) {
+            GetAnn<int64_t>(block, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive.name)) {
+      if (ffi::Optional<int64_t> high_inclusive = GetAnn<int64_t>(
+              block, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive.name)) {
         int64_t low = low_inclusive.value();
         int64_t high = high_inclusive.value();
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
@@ -165,9 +166,9 @@ class VerifyGPUCodeObj : public PostprocObj {
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
-      if (const auto* function = base_func.as<tirx::FunctionNode>()) {
-        if (function->body.has_value() &&
-            !s_tir::ThreadExtentChecker::Check(function->body.value(), thread_warp_size_)) {
+      if (const auto* function = base_func.as<tirx::FunctionObj>()) {
+        if (!function->GetAttr(tvm::attr::kDeclaration).value_or(false) &&
+            !s_tir::ThreadExtentChecker::Check(function->body, thread_warp_size_)) {
           return false;
         }
         IRModule lowered{ffi::UnsafeInit()};
@@ -200,11 +201,12 @@ class VerifyGPUCodeObj : public PostprocObj {
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
           tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function),
-                                      tvm::attr::kGlobalSymbol, ffi::String(g_var->name_hint));
-          f = WithAttr(f, tvm::attr::kTarget, this->target_.value());  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<bool>(tvm::tirx::attr::kNoAlias).value_or(true);
+                                      tvm::attr::kGlobalSymbol.name, ffi::String(g_var->name_hint));
+          f = WithAttr(f, tvm::attr::kTarget.name,
+                       this->target_.value());  // Required for LowerIntrin
+          bool noalias = pass_ctx->GetConfig<bool>(tvm::tirx::attr::kNoAlias.name).value_or(true);
           if (noalias) {
-            f = WithAttr(std::move(f), tvm::tirx::attr::kNoAlias, true);
+            f = WithAttr(std::move(f), tvm::tirx::attr::kNoAlias.name, true);
           }
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));

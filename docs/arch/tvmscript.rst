@@ -65,12 +65,14 @@ are read only when needed, including conditional and optional annotations.
 Annotations read concrete values from their definition scope, preserving missing-name
 errors when a value is used. Create external symbols with ``n = I.dynamic("n")``
 or the identical ``T.dynamic`` and ``Ts.dynamic`` constructors. Each call creates a
-fresh native variable, defaulting to int64. Reuse that object in ordinary Python shape,
+fresh native variable, defaulting to int32. Reuse that object in ordinary Python shape,
 stride and offset expressions to share identity; strings in those fields are not
 parsed as expressions. On Python 3.12+, explicit headers such as
-``def f[n, k: T.int32](...)`` declare local symbols; ``n: int`` retains the int64
-default. Use ``from __future__ import annotations`` to defer eager Python evaluation
-of header symbols. Explicit whole quoted annotations are rejected in script source;
+``def f[n, k: T.int64](...)`` declare local symbols; ``n: int`` retains the int32
+default. Relax symbolic shapes require explicit int64 symbols, such as
+``I.dynamic("n", "int64")`` or ``def f[n: T.int64](...)``; Relax integer shape
+constants continue to normalize to int64. Use ``from __future__ import annotations``
+to defer eager Python evaluation of header symbols. Explicit whole quoted annotations are rejected in script source;
 normal string arguments inside annotation constructors remain valid. Captured runtime ``typing.TypeVar``
 objects are not script symbols; ordinary Python typing uses remain unaffected.
 
@@ -89,7 +91,11 @@ builder frames. The namespace owns the meaning of these operations and the suppo
 IR constructs. Standalone decorators pass already-evaluated ``root_function_kwargs``
 so option expressions execute once. Nested functions and module members use their own
 decorator options. Builder hooks own option defaults; ``check_well_formed`` remains a
-separate parser setting.
+separate parser setting for standalone functions. Set it to ``False`` on a function
+decorator to skip that function's validation. ``@I.ir_module`` constructs a module
+without automatic whole-module validation. Validate completed modules explicitly
+with the language's ``analysis.check_well_formed(module)`` API. These checks raise on
+invalid IR by default; TIRx also supports ``assert_mode=False`` for a boolean result.
 
 ``tvm.script.parser.protocol_registry`` records syntax policies under registered
 canonical namespace paths rooted at ``tirx``, ``relax``, ``ir`` and ``s_tir``.
@@ -134,13 +140,15 @@ lookup in the active module.
 Public script namespaces expose decorators and construction operations. The same
 underlying builders can also be used directly from Python. The transpiler therefore
 needs no separate mutable IR representation: it generates calls to this construction
-protocol.
+protocol. ``script.namespace`` records the construction namespace for printing
+and dialect lowering. S-TIR functions use ``"s_tir"``; their builders own block
+completion and validation.
 
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
 ``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source locations
-and validation. ``Call(..., ty=...)`` preserves an explicit result type, including
-``Type.missing()``. Omitted or ``None`` results use available inference and retain
+and validation. ``Call(op, args, ..., ty=ty)`` preserves an explicit result type, including
+``Type.missing()``. Omitting ``ty`` or passing ``ty=None`` uses available inference and retains
 ``Type.missing()`` when no deduction is available; inference errors propagate.
 Construction permits provisional IR, and ``call.validate()`` checks the registered
 operator contract separately. Raw printed calls use ``I.Call`` with an explicit

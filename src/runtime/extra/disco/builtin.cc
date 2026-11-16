@@ -23,6 +23,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/extra_base.h>
 #include <tvm/runtime/tensor.h>
 
 #include <sstream>
@@ -94,14 +95,14 @@ void AllGather(ffi::Tensor send, bool in_group, ffi::Tensor recv) {
   GetCCLFunc("allgather")(send, in_group, recv);
 }
 
-TVM_RUNTIME_DLL void BroadcastFromWorker0(ffi::Tensor send, bool in_group, ffi::Tensor recv) {
+TVM_RUNTIME_EXTRA_DLL void BroadcastFromWorker0(ffi::Tensor send, bool in_group, ffi::Tensor recv) {
   TVM_FFI_ICHECK(send.defined());
   TVM_FFI_ICHECK(recv.defined());
   GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_RUNTIME_DLL void ScatterFromWorker0(ffi::Optional<ffi::Tensor> send, bool in_group,
-                                        ffi::Tensor recv) {
+TVM_RUNTIME_EXTRA_DLL void ScatterFromWorker0(ffi::Optional<ffi::Tensor> send, bool in_group,
+                                              ffi::Tensor recv) {
   TVM_FFI_ICHECK(recv.defined());
   GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }

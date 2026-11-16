@@ -32,8 +32,8 @@ A native-level TIRx kernel reads like a structured device kernel: you place
 threads yourself, allocate shared/per-thread local tensors, write loops and barriers, and
 call device intrinsics directly. You explicitly choose the orchestration and
 layouts; standard lowering still dispatches primitives, applies layouts, and
-vectorizes or unrolls marked loops. This is the foundation the tile primitives
-(:doc:`tile_primitives`) are built on; everything here is what those primitives
+vectorizes or unrolls marked loops. This is the foundation the tile ops
+(:doc:`tile_ops`) are built on; everything here is what those ops
 ultimately lower to, so it is also where you go when a hardware feature does not
 have a primitive yet.
 

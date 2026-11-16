@@ -44,7 +44,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
  public:
   using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
-    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<ExprObj>()) return ffi::Unchanged();
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
@@ -54,12 +54,12 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
  private:
   ffi::Map<Var, TensorVar>* tensor_var_map_;
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* op, InplaceMode inplace_mode) final {
     GetThreadBinding(op);
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeObj* op, InplaceMode inplace_mode) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();
       TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
@@ -68,14 +68,14 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const s_tir::SBlockObj* op, InplaceMode inplace_mode) final {
     // Tensors allocated in the block can be accessed by its body.
     for (const auto& alloc_tensor : op->alloc_tensors) {
-      tensor_var_map_->Set(alloc_tensor.var(), alloc_tensor);
+      tensor_var_map_->Set(alloc_tensor, alloc_tensor);
     }
     for (const auto& match_tensor : op->match_tensors) {
       const TensorVar& target_tensor = match_tensor->tensor;
-      tensor_var_map_->Set(target_tensor.var(), target_tensor);
+      tensor_var_map_->Set(target_tensor, target_tensor);
     }
 
     bool is_root_block = this->is_root_block_;
@@ -87,18 +87,18 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
     // Remove tensors allocated inside block to detect its access region
     for (const auto& alloc_tensor : op->alloc_tensors) {
-      tensor_var_map_->erase(alloc_tensor.var());
+      tensor_var_map_->erase(alloc_tensor);
     }
     for (const auto& match_tensor : op->match_tensors) {
       const TensorVar& target_tensor = match_tensor->tensor;
-      tensor_var_map_->erase(target_tensor.var());
+      tensor_var_map_->erase(target_tensor);
     }
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
     int mask = 0;
-    auto it = op->annotations.find(tvm::s_tir::attr::kScriptParsingDetectAccess);
+    auto it = op->annotations.find(tvm::s_tir::attr::kScriptParsingDetectAccess.name);
     if (it != op->annotations.end()) {
-      mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
+      mask = (*it).second.cast<int>();
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {
@@ -115,17 +115,17 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
         if (mask & 2) n->writes = writes;
       }
       n->annotations = op->annotations;
-      n->annotations.erase(tvm::s_tir::attr::kScriptParsingDetectAccess);
+      n->annotations.erase(tvm::s_tir::attr::kScriptParsingDetectAccess.name);
       return block;
     } else {
       return block;
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindObj* op, InplaceMode inplace_mode) final {
     Stmt stmt =
         s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const Var& var = stmt.as<BindNode>()->var;
+    const Var& var = stmt.as<BindObj>()->var;
     // A flat definition registers its tensor for access detection in subsequent siblings.
     if (auto tensor = var.as<TensorVar>(); tensor && !tensor_var_map_->count(var)) {
       tensor_var_map_->Set(var, tensor.value());
@@ -138,19 +138,19 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
 Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocates,
                         const TensorAllocatedAddresses& root_addresses) {
-  func = WithAttr(std::move(func), tvm::attr::kScriptNamespace, ffi::String("s_tir"));
-  if (!func->body.has_value()) return func;
+  func = WithAttr(std::move(func), tvm::attr::kScriptNamespace.name, ffi::String("s_tir"));
+  if (func->GetAttr(tvm::attr::kDeclaration).value_or(false)) return func;
   ffi::Map<Var, TensorVar> tensor_var_map;
   for (const Var& param : func->params) {
     if (auto tensor = param.as<TensorVar>()) {
-      tensor_var_map.Set(tensor.value().var(), tensor.value());
+      tensor_var_map.Set(tensor.value(), tensor.value());
     }
   }
   for (const auto& alloc : root_allocates) {
-    tensor_var_map.Set(alloc.var(), alloc);
+    tensor_var_map.Set(alloc, alloc);
   }
 
-  Stmt res = func->body.value();
+  Stmt res = func->body;
 
   // Generate root block automatically.  This is done before
   // ScriptCompleter, in order to fill the root block's Ts.reads() and
@@ -159,13 +159,12 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
     if (root_allocates.size()) {
       return true;
     }
-    auto* block_realize = func->body.value()->seq.size() == 1
-                              ? func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()
-                              : nullptr;
+    auto* block_realize =
+        func->body->seq.size() == 1 ? func->body->seq[0].as<s_tir::SBlockRealizeObj>() : nullptr;
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body.value())) {
+    if (!block_realize && ContainsNode<s_tir::SBlockRealizeObj>(func->body)) {
       return true;
     }
     return false;
@@ -174,7 +173,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   if (should_insert_root) {
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (!root_addresses.empty()) {
-      annotations.Set(s_tir::attr::kTensorAllocatedAddr, root_addresses);
+      annotations.Set(s_tir::attr::kTensorAllocatedAddr.name, root_addresses);
     }
     s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates, {},
                              annotations);

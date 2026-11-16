@@ -20,13 +20,12 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.error import InternalError as _InternalError
-from tvm.ir import Attrs, is_prim_expr
-from tvm.ir import Call as _Call
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
-from tvm.runtime import DataTypeCode
-from tvm.tirx import FloatImm, IndexMap, IntImm
+from tvm_tirx.ir import Attrs, FloatImm, IntImm, is_prim_expr
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.runtime import DataTypeCode
+from tvm_tirx.tirx import IndexMap
 
 from ..expr import Expr, ShapeExpr, prim_value
 from ..expr import Tuple as RxTuple
@@ -55,7 +54,7 @@ def broadcast_to(
     """
     if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
-    return _Call("relax.broadcast_to", [x, shape], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.broadcast_to", [x, shape], loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ConcatAttrs")
@@ -93,8 +92,8 @@ def concat(
         "relax.concat",
         [tensors],
         attrs=_make_attrs("relax.attrs.ConcatAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -127,8 +126,8 @@ def expand_dims(x: Expr, axis: int | list[int], *, ty=None, loc: Location = UNKN
         "relax.expand_dims",
         [x],
         attrs=_make_attrs("relax.attrs.ExpandDimsAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -145,7 +144,7 @@ def flatten(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The flattened result.
     """
-    return _Call("relax.flatten", [x], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.flatten", [x], loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.LayoutTransformAttrs")
@@ -205,8 +204,8 @@ def layout_transform(
         attrs=_make_attrs(
             "relax.attrs.LayoutTransformAttrs", index_map=index_map, pad_value=pad_value
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -237,8 +236,8 @@ def permute_dims(
         "relax.permute_dims",
         [x],
         attrs=_make_attrs("relax.attrs.PermuteDimsAttrs", axes=axes),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -279,7 +278,7 @@ def reshape(
     if not isinstance(shape, tuple | list | Expr) or is_prim_expr(shape):
         raise TypeError("shape must be a tuple/list or a Relax shape expression")
     shape = _ffi_api._NormalizeReshapeShape(x, shape)
-    return _Call("relax.reshape", [x, shape], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.reshape", [x, shape], loc=loc, ty=ty)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.SplitAttrs")
@@ -326,7 +325,7 @@ def split(
         indices_or_sections = [IntImm("int64", int(index)) for index in indices_or_sections]
     if isinstance(indices_or_sections, IntImm):
         if int(indices_or_sections) <= 0:
-            raise _InternalError("The number of split sections must be positive")
+            raise RuntimeError("The number of split sections must be positive")
     elif not isinstance(indices_or_sections, list | tuple):
         raise TypeError("indices_or_sections must be an integer or a list of integers")
     return _Call(
@@ -335,8 +334,8 @@ def split(
         attrs=_make_attrs(
             "relax.attrs.SplitAttrs", indices_or_sections=indices_or_sections, axis=axis
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -371,8 +370,8 @@ def squeeze(
         "relax.squeeze",
         [x],
         attrs=_make_attrs("relax.attrs.SqueezeAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -408,8 +407,8 @@ def stack(
         "relax.stack",
         [tensors],
         attrs=_make_attrs("relax.attrs.StackAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -436,8 +435,8 @@ def collapse_sum_like(
     return _Call(
         "relax.collapse_sum_like",
         [data, collapse_target],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -475,8 +474,8 @@ def collapse_sum_to(
     return _Call(
         "relax.collapse_sum_to",
         [data, shape],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -526,8 +525,8 @@ def repeat(
         "relax.repeat",
         [data],
         attrs=_make_attrs("relax.attrs.RepeatAttrs", repeats=repeats, axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -585,8 +584,8 @@ def tile(
         "relax.tile",
         [data],
         attrs=_make_attrs("relax.attrs.TileAttrs", repeats=repeats),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -624,8 +623,8 @@ def flip(data, axis, *, ty=None, loc: Location = UNKNOWN_LOC):
         "relax.flip",
         [data],
         attrs=_make_attrs("relax.attrs.FlipAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -670,8 +669,8 @@ def reverse_sequence(
         attrs=_make_attrs(
             "relax.attrs.ReverseSequenceAttrs", seq_axis=seq_axis, batch_axis=batch_axis
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -719,8 +718,8 @@ def gather_elements(
         "relax.gather_elements",
         [data, indices],
         attrs=_make_attrs("relax.attrs.GatherElementsAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -769,8 +768,8 @@ def gather_nd(
         "relax.gather_nd",
         [data, indices],
         attrs=_make_attrs("relax.attrs.GatherNDAttrs", batch_dims=batch_dims),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -839,8 +838,8 @@ def index_tensor(
     return _Call(
         "relax.index_tensor",
         [data, indices],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -905,8 +904,8 @@ def index_put(
         "relax.index_put",
         [data, indices, values],
         attrs=_make_attrs("relax.attrs.IndexPutAttrs", accumulate=accumulate),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -945,8 +944,8 @@ def meshgrid(
         "relax.meshgrid",
         [tensors],
         attrs=_make_attrs("relax.attrs.MeshgridAttrs", indexing=indexing),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1041,8 +1040,8 @@ def scatter_elements(
         "relax.scatter_elements",
         [data, indices, updates],
         attrs=_make_attrs("relax.attrs.ScatterElementsAttrs", axis=axis, reduction=reduction),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1099,8 +1098,8 @@ def scatter_nd(
         "relax.scatter_nd",
         [data, indices, updates],
         attrs=_make_attrs("relax.attrs.ScatterNDAttrs", reduction=reduction),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -1158,8 +1157,8 @@ def slice_scatter(
         "relax.slice_scatter",
         [input_tensor, src, start, end, step],
         attrs=_make_attrs("relax.attrs.SliceScatterAttrs", axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )
 
 
@@ -1219,11 +1218,11 @@ def one_hot(
     on_value = prim_value(on_value)
     off_value = prim_value(off_value)
     if depth <= 0:
-        raise _InternalError("one_hot: depth must be positive")
+        raise RuntimeError("one_hot: depth must be positive")
     return _Call(
         "relax.one_hot",
         [indices, on_value, off_value],
         attrs=_make_attrs("relax.attrs.OneHotAttrs", depth=depth, axis=axis),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

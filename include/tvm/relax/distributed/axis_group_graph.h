@@ -74,18 +74,18 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
     extractor->Visit(function->body);
     ffi::Map<TensorVar, Var> inverse_tensor_map;
     for (const Var& param : function->params) {
-      if (param->ty.as<TensorTypeNode>()) {
+      if (param->ty.as<TensorTypeObj>()) {
         inverse_tensor_map.Set(param.as_or_throw<TensorVar>(), param);
       }
     }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
     std::unordered_set<TensorAxis, TensorAxisHash> visited;
     for (const Var& param : function->params) {
-      if (!param->ty.as<TensorTypeNode>()) {
+      if (!param->ty.as<TensorTypeObj>()) {
         continue;
       }
       TensorVar tensor = param.as_or_throw<TensorVar>();
-      for (int i = 0; i < static_cast<int>(tensor->shape.size()); i++) {
+      for (int i = 0; i < static_cast<int>(tensor.shape().size()); i++) {
         if (extractor->tensor_axis_graph_.count({tensor, i})) {
           std::vector<TensorAxis> tensor_axis_group;
           extractor->DFSGraph({tensor, i}, &visited, &tensor_axis_group);
@@ -120,14 +120,14 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreObj* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     tensor_access_indices_.push_back({op->dest.as_or_throw<tvm::tirx::TensorVar>(), op->indices});
 
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadObj* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     tensor_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::TensorVar>(), op->indices});
 
@@ -145,7 +145,6 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
       return false;
     }
     Var var = *prim_var;
-    analyzer->Bind(iter_var_range_);
     b = analyzer->Simplify(b);
     // index var `a` must access whole range of a specific tensor dimension
     sym::IntSet intset_b = sym::EvalSet(b, sym::AsIntSet(iter_var_range_));
@@ -160,7 +159,7 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
     return true;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockObj* op) final {
     if (op->name_hint == "root") {
       return s_tir::StmtExprVisitor::Visit_(op);
     }
@@ -171,6 +170,11 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
       iter_var_range_.Set(iter_var->var, iter_var->dom.value());
     }
     sym::Analyzer analyzer;
+    sym::ConstraintContext context;
+    for (const auto& [var, range] : iter_var_range_) {
+      context->Append(sym::RangeConstraint(var, range));
+    }
+    analyzer->SyncConstraintContext(context);
     for (const auto& access_pr : tensor_access_indices_) {
       TensorVar tensor = access_pr.first;
       ffi::Array<PrimExpr> indices = access_pr.second;
@@ -182,7 +186,7 @@ class TensorAxisGraphExtractor : public s_tir::StmtExprVisitor {
           TensorVar another_tensor = another_access_pr.first;
           ffi::Array<PrimExpr> another_indices = another_access_pr.second;
           for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
-            if (Match(indices[i], tensor->shape[i], another_indices[j], another_tensor->shape[j],
+            if (Match(indices[i], tensor.shape()[i], another_indices[j], another_tensor.shape()[j],
                       analyzer)) {
               JoinTensorAxis({tensor, i}, {another_tensor, j});
             }
@@ -219,13 +223,13 @@ namespace distributed {
 
 /*! \brief tensor axis*/
 struct Axis {
-  const ExprNode* tensor;
+  const ExprObj* tensor;
   int dim = 0;
   int tuple_index = 0;
 
-  Axis(const ExprNode* tensor, int dim, int tuple_index = 0)
+  Axis(const ExprObj* tensor, int dim, int tuple_index = 0)
       : tensor(tensor), dim(dim), tuple_index(tuple_index) {
-    TVM_FFI_ICHECK(tensor->IsInstance<GenericConstNode>() || tensor->IsInstance<VarNode>());
+    TVM_FFI_ICHECK(tensor->IsInstance<GenericConstObj>() || tensor->IsInstance<VarObj>());
   }
 
   bool operator==(const Axis& other) const {
@@ -236,7 +240,7 @@ struct Axis {
 class AxisHash {
  public:
   size_t operator()(const Axis& axis) const {
-    size_t const h1(std::hash<const ExprNode*>()(axis.tensor));
+    size_t const h1(std::hash<const ExprObj*>()(axis.tensor));
     size_t const h2(std::hash<int>()(axis.dim));
     size_t const h3(std::hash<int>()(axis.tuple_index));
     return h1 ^ (h2 << 1) ^ (h3 << 2);

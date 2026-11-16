@@ -22,7 +22,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/sym/int_set.h>
 
-#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -135,7 +134,7 @@ inline NDIntSet NDIntSetEmpty(int ndim) {
  * \sa EvalSet
  */
 inline NDIntSet NDIntSetEval(const NDIntSet& nd_int_set,
-                             const std::unordered_map<const tvm::VarNode*, sym::IntSet>& dom_map) {
+                             const ffi::Map<Var, sym::IntSet>& dom_map) {
   NDIntSet ret;
   ret.reserve(nd_int_set.size());
   for (const sym::IntSet& s : nd_int_set) {

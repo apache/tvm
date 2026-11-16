@@ -60,7 +60,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     std::optional<ffi::Any> unroll_explicit;
   };
 
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeObj* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenTensor. Please "
@@ -82,7 +82,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = new_block->annotations.Get(s_tir::attr::kTensorAllocatedAddr)) {
+    if (auto value = new_block->annotations.Get(s_tir::attr::kTensorAllocatedAddr.name)) {
       for (const auto& entry : value.value().cast<TensorAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
@@ -90,37 +90,34 @@ class OpaqueBlockLower : public StmtExprMutator {
     for (size_t i = new_block->alloc_tensors.size(); i > 0; --i) {
       const TensorVar& tensor = new_block->alloc_tensors[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
-      auto it = storage_align_.find(tensor.var());
+      auto it = storage_align_.find(tensor);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
           tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
-        allocate_annotations.Set(s_tir::attr::kTensorDimAlign, allocate_aligns);
+        allocate_annotations.Set(s_tir::attr::kTensorDimAlign.name, allocate_aligns);
       }
-      allocate_annotations.Set(tvm::tirx::attr::kTensorDataAlignment,
-                               IntImm::Int32(tensor->data_alignment));
       ffi::Array<Expr> args;
-      if (auto address = addresses.Get(tensor.var())) args.push_back(tvm::Tuple(address.value()));
-      body = SeqStmt({Bind(tensor.var(), Call(tensor.type(), tirx::alloc_tensor_op(), args,
-                                              DictAttrs(allocate_annotations), {tensor.type()})),
+      if (auto address = addresses.Get(tensor)) args.push_back(tvm::Tuple(address.value()));
+      body = SeqStmt({Bind(tensor, Call(tensor.ty(), tirx::alloc_tensor_op(), args,
+                                        DictAttrs(allocate_annotations), {tensor.ty()})),
                       std::move(body)});
     }
     return body;
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
-    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    auto step = this->Mutate(op->step, inplace_mode)
-                    .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
-                    .ValueOrUnchanged(op->step);
-    auto previous_remap = VarRemapGet(op->loop_var);
+    PrimExpr min = this->Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
+    PrimExpr end = this->Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
+    PrimExpr extent = Range::GetExtentFromBeginEnd(min, end);
+    PrimExpr step = this->Mutate(op->step, inplace_mode).ValueOrUnchanged(op->step);
+    auto previous_remap = VarRemapGet(op->var);
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
-      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
+      VarRemapSet(op->var, prim::cast(min, op->var.ty()));
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.
@@ -132,33 +129,34 @@ class OpaqueBlockLower : public StmtExprMutator {
       UpdateUnrollPolicy(op->annotations);
       const auto& policy = unroll_policy_.Current();
       if (policy.auto_unroll_max_step.has_value()) {
-        annotations.Set(tvm::tirx::attr::kAutoUnrollMaxStep, policy.auto_unroll_max_step.value());
+        annotations.Set(tvm::tirx::attr::kAutoUnrollMaxStep.name,
+                        policy.auto_unroll_max_step.value());
       }
       if (policy.unroll_explicit.has_value()) {
-        annotations.Set(tvm::tirx::attr::kUnrollExplicit, policy.unroll_explicit.value());
+        annotations.Set(tvm::tirx::attr::kUnrollExplicit.name, policy.unroll_explicit.value());
       }
       // Rewrite annotations before visiting body-local definitions.
       new_annotations = HandleAnnotations(annotations);
       return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     });
-    VarRemapSet(op->loop_var, previous_remap);
+    VarRemapSet(op->var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
     if (!tvm::s_tir::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
-        !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark)) {
+        !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark.name)) {
       return body;
     }
-    return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-               std::move(new_annotations), std::move(step), op->loc);
+    return For(op->var, std::move(min), std::move(end), std::move(step), op->kind, std::move(body),
+               std::move(new_annotations), op->loc);
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
     auto& policy = unroll_policy_.Current();
-    if (auto value = annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep);
+    if (auto value = annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep.name);
         value.has_value() && value.value() != nullptr) {
       policy.auto_unroll_max_step = value.value();
     }
-    if (auto value = annotations.Get(tvm::tirx::attr::kUnrollExplicit);
+    if (auto value = annotations.Get(tvm::tirx::attr::kUnrollExplicit.name);
         value.has_value() && value.value() != nullptr) {
       policy.unroll_explicit = value.value();
     }
@@ -185,9 +183,9 @@ namespace transform {
 
 Pass LowerOpaqueBlock() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    if (!f->body.has_value()) return f;
+    if (f->GetAttr(tvm::attr::kDeclaration).value_or(false)) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
+    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock");

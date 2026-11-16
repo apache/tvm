@@ -20,10 +20,9 @@
 import math
 from collections.abc import Callable
 
-import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.tirx import Function
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.tirx import Function
 
 
 def _is_power_of_two(n: int):
@@ -40,6 +39,8 @@ def gpu_multinomial_from_uniform(
     tx_len: int = 32,
     thread_elem: int = 4,
     eps: float = 1e-6,
+    *,
+    target=None,
 ) -> Function:
     """Generate GPU kernel for multinomial_from_uniform operator.
 
@@ -72,7 +73,6 @@ def gpu_multinomial_from_uniform(
         The generated function
     """
 
-    target = tvm.target.Target.current()
     target_dtype = "int32" if "webgpu" in str(target) else "int64"
 
     TX = T.int64(tx_len)  # threadIdx.x
@@ -259,9 +259,9 @@ def gpu_multinomial_from_uniform(
 
             aggregate[()] += step_aggregate[()]
 
-    n = T.dynamic("n")
-    vocab_size = T.dynamic("vocab_size")
-    batch_size = T.dynamic("batch_size")
+    n = T.dynamic("n", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    batch_size = T.dynamic("batch_size", "int64")
 
     @Ts.function
     def parallel_sampling_from_prob(
@@ -318,9 +318,9 @@ def generic_get_sample_index(
 ):
     """Generate a generic get_sample_index kernel."""
 
-    batch = T.dynamic("batch")
-    vocab_size = T.dynamic("vocab_size")
-    out_batch = T.dynamic("out_batch")
+    batch = T.dynamic("batch", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    out_batch = T.dynamic("out_batch", "int64")
 
     @Ts.function(private=True)
     def _get_sample_index(

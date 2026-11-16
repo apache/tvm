@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
@@ -40,19 +41,19 @@ namespace {
 
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
-    if (var.value()->ty.as<PtrTypeNode>() || var.value()->ty.as<TensorTypeNode>()) return var;
+    if (var.value()->ty.as<PtrTypeObj>() || var.value()->ty.as<TensorTypeObj>()) return var;
     return std::nullopt;
   }
-  if (const auto* call = data.as<CallNode>();
+  if (const auto* call = data.as<CallObj>();
       call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
-  if (const auto* call = data.as<CallNode>()) {
+  if (const auto* call = data.as<CallObj>()) {
     if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::reinterpret_op())) {
       return GetBufferDataVar(call->args[0]);
     }
     if (call->op.same_as(tirx::address_of_op())) {
-      if (const auto* load = call->args[0].as<TensorLoadNode>()) {
+      if (const auto* load = call->args[0].as<TensorLoadObj>()) {
         return load->source.as<Var>();
       }
     }
@@ -62,11 +63,11 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 }  // namespace
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode* op) {
-  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>().var());
-  StorageScope scope = StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadObj* op) {
+  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>());
+  MemoryScope scope = op->source.as_or_throw<tvm::tirx::TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
-    TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
+    TVM_FFI_ICHECK(allow_append_) << op << " " << scope.name();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
@@ -83,13 +84,13 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode*
   return StmtExprVisitor::Visit_(op);
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreObj* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
-  Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>().var());
-  StorageScope scope = StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
+  Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>());
+  MemoryScope scope = op->dest.as_or_throw<TensorVar>().scope();
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
     e.threads = env_threads();
@@ -113,7 +114,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateObj* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -127,15 +128,15 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
-  if (op->var->ty.as<PtrTypeNode>()) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindObj* op) {
+  if (op->var->ty.as<PtrTypeObj>()) {
     pointer_values_.insert_or_assign(op->var.get(), op->value);
     if (HasOffsetPointer(op->value)) offset_aliases_.insert(op->var.get());
     if (auto source = GetBufferDataVar(op->value)) {
       buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
     }
   }
-  if (const auto* call = op->value.as<CallNode>();
+  if (const auto* call = op->value.as<CallObj>();
       call && call->op.same_as(tirx::decl_tensor_op())) {
     if (HasOffsetPointer(call->args[0])) offset_aliases_.insert(op->var.get());
     if (auto source = GetBufferDataVar(call->args[0])) {
@@ -144,8 +145,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
     }
     return StmtExprVisitor::Visit_(op);
   }
-  if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::alloc_tensor_op()))
+  if (const auto* call = op->value.as<CallObj>(); call && call->op.same_as(tirx::alloc_tensor_op()))
     return StmtExprVisitor::Visit_(op);
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
@@ -159,7 +159,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtObj* op) {
   if (op->op.same_as(s_tir::manual_sync())) {
     // Trust the region's explicit barriers instead of planning access-based synchronization.
     return std::nullopt;
@@ -197,7 +197,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode*
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForObj* op) {
   scope_.push_back(std::vector<StmtEntry>());
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   StmtEntry s;
@@ -206,9 +206,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForNode* op) {
   scope_.pop_back();
   if (s.access.size() != 0) {
     // relax the touched set to contain all ranges in the loop.
-    std::unordered_map<const VarNode*, sym::IntSet> relax_map;
-    relax_map.insert_or_assign(op->loop_var.get(),
-                               sym::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent)));
+    ffi::Map<Var, sym::IntSet> relax_map;
+    relax_map.Set(op->var, sym::IntSet::FromRange(Range(op->begin, op->end)));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         TVM_FFI_ICHECK(e.touched.size());
@@ -227,7 +226,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const ForNode* op) {
 }
 
 bool IsThreadInvariant(const PrimExpr& cond) {
-  if (auto call = cond.as<CallNode>()) {
+  if (auto call = cond.as<CallObj>()) {
     if (auto opt_call_op = call->op.as<Op>()) {
       auto call_op = opt_call_op.value();
       if (call_op.same_as(tirx::gpu_thread_invariant_op())) {
@@ -238,7 +237,7 @@ bool IsThreadInvariant(const PrimExpr& cond) {
   return false;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const IfNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const IfObj* op) {
   bool is_thread_invariant = IsThreadInvariant(op->condition);
   if (!is_thread_invariant) {
     ++condition_counter_;
@@ -264,7 +263,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const IfNode* op) {
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileObj* op) {
   bool is_thread_invariant = IsThreadInvariant(op->condition);
   if (!is_thread_invariant) {
     ++condition_counter_;
@@ -284,8 +283,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) 
 }
 
 bool StorageAccessVisitor::HasOffsetPointer(const Expr& value) const {
-  if (const auto* var = value.as<VarNode>()) return offset_aliases_.count(var);
-  if (const auto* call = value.as<CallNode>()) {
+  if (const auto* var = value.as<VarObj>()) return offset_aliases_.count(var);
+  if (const auto* call = value.as<CallObj>()) {
     if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::address_of_op()) ||
         call->op.same_as(tirx::reinterpret_op()))
       return true;
@@ -296,7 +295,7 @@ bool StorageAccessVisitor::HasOffsetPointer(const Expr& value) const {
 
 void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   Var root = ResolveBuffer(source);
-  StorageScope scope = GetScope(root);
+  MemoryScope scope = GetScope(root);
   if (!Enabled(root.get(), scope)) return;
   AccessEntry entry;
   entry.threads = env_threads();
@@ -305,8 +304,8 @@ void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   auto tensor = root.as<TensorVar>();
   if (!tensor.has_value()) tensor = source.as<TensorVar>();
   if (tensor.has_value()) {
-    entry.dtype = tensor.value()->dtype;
-    for (const PrimExpr& extent : tensor.value()->shape) {
+    entry.dtype = tensor.value().dtype();
+    for (const PrimExpr& extent : tensor.value().shape()) {
       entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
     }
   } else {
@@ -321,24 +320,26 @@ void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
   curr_stmt_.access.push_back(std::move(entry));
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarObj* op) {
   if (allow_append_ && in_opaque_call_) {
     if (auto it = pointer_values_.find(op); it != pointer_values_.end()) {
       return Visit(it->second);
     }
-    if (op->ty.as<PtrTypeNode>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
+    if (op->ty.as<PtrTypeObj>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
   }
   return StmtExprVisitor::Visit_(op);
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallObj* op) {
+  static const auto scope_warp = runtime::MemoryScope::Get("warp");
+
   Call call = ffi::GetRef<Call>(op);
   if (allow_append_ && in_opaque_call_) {
     ffi::Optional<TensorVar> tensor;
     if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       tensor = op->args[0].as<TensorVar>();
     } else if (op->op.same_as(tirx::address_of_op())) {
-      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+      if (const auto* load = op->args[0].as<TensorLoadObj>()) {
         tensor = load->source.as<TensorVar>();
       }
     }
@@ -351,10 +352,10 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     TensorVar tensor = op->args[0].as_or_throw<TensorVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
-    Var buf = ResolveBuffer(tensor.var());
-    StorageScope scope = StorageScope::Create(tensor.scope());
+    Var buf = ResolveBuffer(tensor);
+    MemoryScope scope = tensor.scope();
     if (Enabled(buf.get(), scope)) {
-      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.to_string();
+      TVM_FFI_ICHECK(allow_append_) << call << " " << scope.name();
       AccessEntry e;
       e.threads = env_threads();
       e.buffer = buf;
@@ -369,7 +370,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::address_of_op())) {
-    if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+    if (const auto* load = op->args[0].as<TensorLoadObj>()) {
       // Taking an address does not read the tensor value.  Visit only the
       // load's children so index expressions still contribute accesses.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(load));
@@ -380,21 +381,21 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
     }
   } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
-    const std::string& s = op->args[0].as<StringImmNode>()->value;
-    if (s != "warp") {
-      StorageScope scope = StorageScope::Create(s);
+    const std::string& s = op->args[0].as<StringImmObj>()->value;
+    MemoryScope scope = runtime::MemoryScope::Get(s);
+    if (scope != scope_warp) {
       AccessEntry e;
       e.threads = env_threads();
       e.type = kSync;
-      e.scope = StorageScope::Create(s);
+      e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));
     }
   } else {
     bool previous = in_opaque_call_;
-    auto effect_map = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
+    auto effect_map = Op::GetAttrMap(tvm::op_attr::kCallEffectKind);
     auto callee = op->op.as<Op>();
     if (!callee.has_value() || !effect_map.count(callee.value()) ||
-        effect_map[callee.value()] > static_cast<int>(CallEffectKind::kPure)) {
+        effect_map[callee.value()] > CallEffectKind::kPure) {
       in_opaque_call_ = true;
     }
     auto result = StmtExprVisitor::Visit_(op);
@@ -404,14 +405,14 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   return std::nullopt;
 }
 
-StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
+MemoryScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   if (auto tensor_type = buffer_var->ty.as<TensorType>()) {
-    return StorageScope::Create(tensor_type.value()->storage_scope);
+    return tensor_type.value()->scope;
   }
-  if (const auto* pointer_type = buffer_var->ty.as<PtrTypeNode>()) {
-    return StorageScope::Create(pointer_type->storage_scope);
+  if (const auto* pointer_type = buffer_var->ty.as<PtrTypeObj>()) {
+    return pointer_type->scope;
   }
-  return StorageScope();  // global by default
+  return MemoryScope();  // global by default
 }
 
 Var StorageAccessVisitor::ResolveBuffer(Var buffer_var) const {

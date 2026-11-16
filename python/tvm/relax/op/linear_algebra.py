@@ -19,12 +19,11 @@
 
 import tvm_ffi
 
-from tvm import DataType
-from tvm.ir import Attrs
-from tvm.ir import Call as _Call
-from tvm.ir import PrimType as _PrimType
-from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Attrs
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import PrimType as _PrimType
+from tvm_tirx.ir.attrs import make_node as _make_attrs
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
@@ -39,7 +38,7 @@ class MatmulAttrs(Attrs):
 def matmul(
     x1: Expr,
     x2: Expr,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
     *,
     ty=None,
     loc: Location = UNKNOWN_LOC,
@@ -57,7 +56,7 @@ def matmul(
     x2 : relax.Expr
         The second input tensor.
 
-    out_dtype: Optional[Union[str, DataType]]
+    out_dtype: Optional[Union[str, tvm_ffi.dtype]]
         The data type of the matmul result.
         When it is not specified, the output dtype will be the same as input dtype.
 
@@ -73,8 +72,8 @@ def matmul(
             "relax.attrs.MatmulAttrs",
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -82,7 +81,7 @@ def linear(
     data: Expr,
     weight: Expr,
     bias: Expr | None = None,
-    out_dtype: str | DataType | None = None,
+    out_dtype: str | tvm_ffi.dtype | None = None,
 ) -> Expr:
     """Applies a linear transformation to the incoming data: y = xA^T + b
 
@@ -97,7 +96,7 @@ def linear(
     bias : Optional[Expr]
         The bias tensor.
 
-    out_dtype: Optional[Union[str, DataType]]
+    out_dtype: Optional[Union[str, tvm_ffi.dtype]]
         The data type of the matmul result.
         When it is not specified, the output dtype will be the same as input dtype.
 
@@ -145,8 +144,8 @@ def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
         "relax.einsum",
         [operands],
         attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -174,4 +173,4 @@ def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _Call("relax.outer", [x1, x2], ty=ty, loc=loc)
+    return _Call("relax.outer", [x1, x2], loc=loc, ty=ty)

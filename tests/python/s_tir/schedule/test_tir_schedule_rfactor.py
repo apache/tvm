@@ -19,14 +19,16 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import te, tirx, topi
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import te, topi
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -98,7 +100,9 @@ def matmul_rfactor(
 
 @Ts.function
 def matmul_not_stage_pipeline(
-    A: T.Tensor([256, 256]), B: T.Tensor([256, 256]), D: T.Tensor([256, 256])
+    A: T.Tensor([256, 256], "float32"),
+    B: T.Tensor([256, 256], "float32"),
+    D: T.Tensor([256, 256], "float32"),
 ) -> None:
     C = Ts.sblock_alloc_tensor([256, 256])
 
@@ -117,7 +121,9 @@ def matmul_not_stage_pipeline(
 
 @Ts.function
 def matmul_not_same_tensor_access(
-    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -129,10 +135,10 @@ def matmul_not_same_tensor_access(
 
 @Ts.function
 def matmul_loop_multiple_children(
-    A: T.Tensor([128, 128]),
-    B: T.Tensor([128, 128]),
-    C: T.Tensor([128, 128]),
-    D: T.Tensor([128, 128]),
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+    D: T.Tensor([128, 128], "float32"),
 ) -> None:
     for k, i, j in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -148,7 +154,7 @@ def matmul_loop_multiple_children(
 
 
 @Ts.function
-def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum(A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             b, i, j = Ts.axis.remap("SRR", [b0, i0, j0])
@@ -158,7 +164,9 @@ def square_sum(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
 
 
 @Ts.function
-def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -177,7 +185,9 @@ def square_sum_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
 
 
 @Ts.function
-def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
+def transformed_square_sum_square_root(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
     for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
@@ -199,7 +209,9 @@ def transformed_square_sum_square_root(A: T.Tensor([16, 256, 256]), D: T.Tensor(
 
 
 @Ts.function
-def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16])) -> None:
+def square_sum_square_root_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16])
     C_rf = Ts.sblock_alloc_tensor([1, 16])
 
@@ -227,7 +239,7 @@ def square_sum_square_root_rfactor(A: T.Tensor([16, 256, 256]), D: T.Tensor([16]
 
 @Ts.function
 def transformed_square_sum_square_root_factor_one_1(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
@@ -274,7 +286,7 @@ def square_sum_square_root_factor_one_1_rfactor(
 
 @Ts.function
 def transformed_square_sum_square_root_factor_one_2(
-    A: T.Tensor([16, 256, 256]), D: T.Tensor([16])
+    A: T.Tensor([16, 256, 256], "float32"), D: T.Tensor([16], "float32")
 ) -> None:
     C = Ts.sblock_alloc_tensor([16])
 
@@ -320,7 +332,9 @@ def square_sum_square_root_factor_one_2_rfactor(
 
 
 @Ts.function
-def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_with_annotation(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     for b0, i0, j0 in T.grid(16, 256, 256):
         with Ts.sblock("C"):
             Ts.sblock_attr({"test_annotation": 1})
@@ -331,7 +345,9 @@ def square_sum_with_annotation(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -
 
 
 @Ts.function
-def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor([16])) -> None:
+def square_sum_with_annotation_rfactor(
+    A: T.Tensor([16, 256, 256], "float32"), C: T.Tensor([16], "float32")
+) -> None:
     C_rf = Ts.sblock_alloc_tensor([16, 256])
 
     for i0, i1, i2 in T.grid(16, 256, 256):
@@ -352,7 +368,7 @@ def square_sum_with_annotation_rfactor(A: T.Tensor([16, 256, 256]), C: T.Tensor(
 
 
 @Ts.function
-def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def element_wise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -360,7 +376,7 @@ def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -370,7 +386,9 @@ def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_quasi_affine(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -381,7 +399,9 @@ def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> Non
 
 
 @Ts.function
-def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def rowsum_not_dominant(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -391,7 +411,7 @@ def rowsum_not_dominant(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> Non
 
 
 @Ts.function
-def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_serial(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i in T.serial(0, 128):
         for k in T.parallel(0, 128):
             with Ts.sblock("B"):
@@ -402,7 +422,9 @@ def rowsum_not_serial(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_wrong_reduce_pattern1(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -412,7 +434,9 @@ def rowsum_wrong_reduce_pattern1(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.function
-def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_wrong_reduce_pattern2(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -422,7 +446,9 @@ def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.function
-def rowsum_init_not_tensorstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_init_not_tensorstore(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -433,7 +459,7 @@ def rowsum_init_not_tensorstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) ->
 
 
 @Ts.function
-def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_transformed(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for io, ii_ko_fused, ki in T.grid(32, 128, 4):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, io * 4 + T.floordiv(ii_ko_fused, 32))
@@ -444,7 +470,7 @@ def rowsum_transformed(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
+def rowsum_zero_dim(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
     for k0 in range(128):
         with Ts.sblock("B"):
             k = Ts.axis.R(128, k0)
@@ -454,8 +480,8 @@ def rowsum_zero_dim(A: T.Tensor([128]), B: T.Tensor([])) -> None:
 
 
 @Ts.function
-def rowsum_zero_dim_rfactor(A: T.Tensor([128]), B: T.Tensor([])) -> None:
-    B_rf = Ts.sblock_alloc_tensor([128], elem_offset=T.int64(0))
+def rowsum_zero_dim_rfactor(A: T.Tensor([128], "float32"), B: T.Tensor([], "float32")) -> None:
+    B_rf = Ts.sblock_alloc_tensor([128])
 
     for i in range(128):
         with Ts.sblock("B_rf"):
@@ -505,7 +531,9 @@ def rowsum_predicate_rfactor(
 
 
 @Ts.function
-def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) -> None:
+def multiple_reduction_blocks(
+    A: T.Tensor((16, 16, 16), "float32"), F: T.Tensor((16, 16), "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor((16, 16))
     D = Ts.sblock_alloc_tensor((16, 16))
     E = Ts.sblock_alloc_tensor((16, 16))
@@ -544,7 +572,9 @@ def multiple_reduction_blocks(A: T.Tensor((16, 16, 16)), F: T.Tensor((16, 16))) 
 
 
 @Ts.function
-def multiple_reduction_blocks_rfactor(A: T.Tensor([16, 16, 16]), F: T.Tensor([16, 16])) -> None:
+def multiple_reduction_blocks_rfactor(
+    A: T.Tensor([16, 16, 16], "float32"), F: T.Tensor([16, 16], "float32")
+) -> None:
     C = Ts.sblock_alloc_tensor([16, 16])
     D = Ts.sblock_alloc_tensor([16, 16])
     E = Ts.sblock_alloc_tensor([16, 16])
@@ -654,7 +684,7 @@ def argmax_split(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -679,7 +709,7 @@ def argmin_split_init_update_reordered(
             Ts.reads(idx[i, k], val[i, k])
             Ts.writes(argmin_v0[i], argmin_v1[i])
             with Ts.init():
-                argmin_v1[i] = T.max_value("float32")
+                argmin_v1[i] = T.max_value(ty="float32")
                 argmin_v0[i] = -1
             v_argmin_v0: T.let[T.int32] = T.Select(
                 argmin_v1[i] <= val[i, k], argmin_v0[i], idx[i, k]
@@ -706,7 +736,7 @@ def argmax_split_different_shape(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -732,7 +762,7 @@ def argmax_split_different_indices(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i + 1] = T.min_value("float32")
+                argmax_v1[i + 1] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -758,7 +788,7 @@ def argmax_split_init_not_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                v1_init: T.let[T.float32] = T.min_value("float32")
+                v1_init: T.let[T.float32] = T.min_value(ty="float32")
                 argmax_v1[i] = v1_init
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
@@ -811,7 +841,7 @@ def argmax_split_bind_fewer_than_init(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -859,7 +889,7 @@ def argmax_split_let_body_neither_seqstmt_nor_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -884,7 +914,7 @@ def argmax_split_init_update_inconsistent_tensorstore_number(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -911,7 +941,7 @@ def argmax_split_body_seq_not_tensorstore(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -937,7 +967,7 @@ def argmax_split_body_tensorstore_value_not_var(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -967,7 +997,7 @@ def argmax_split_body_tensorstore_value_unbound_var(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -993,7 +1023,7 @@ def argmax_split_one_let_var_used_multi_times(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("int32")
+                argmax_v1[i] = T.min_value(ty="int32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1019,7 +1049,7 @@ def argmax_split_body_one_tensor_updated_multi_times(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("int32")
+                argmax_v1[i] = T.min_value(ty="int32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1046,7 +1076,7 @@ def argmax_split_init_tensor_not_match(
             Ts.writes(argmax_v0[i], argmax_v0_1[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0_1[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
             )
@@ -1073,7 +1103,7 @@ def argmax_split_rfactor(
             Ts.writes(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
             with Ts.init():
                 argmax_v0_rf[i, vi1_1] = -1
-                argmax_v1_rf[i, vi1_1] = T.min_value("float32")
+                argmax_v1_rf[i, vi1_1] = T.min_value(ty="float32")
             v_argmax_v0_rf: T.let[T.int32] = T.Select(
                 argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 32 + vi1_1],
                 argmax_v0_rf[i, vi1_1],
@@ -1093,7 +1123,7 @@ def argmax_split_rfactor(
             Ts.writes(argmax_v0[i], argmax_v1[i])
             with Ts.init():
                 argmax_v0[i] = -1
-                argmax_v1[i] = T.min_value("float32")
+                argmax_v1[i] = T.min_value(ty="float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
                 argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
             )
@@ -1120,7 +1150,7 @@ def argmin_split_rfactor(
             Ts.writes(argmin_v0_rf[i, vi1_1], argmin_v1_rf[i, vi1_1])
             with Ts.init():
                 argmin_v0_rf[i, vi1_1] = -1
-                argmin_v1_rf[i, vi1_1] = T.max_value("float32")
+                argmin_v1_rf[i, vi1_1] = T.max_value(ty="float32")
             v_argmin_v0_rf: T.let[T.int32] = T.Select(
                 argmin_v1_rf[i, vi1_1] <= val[i, vi1_0 * 32 + vi1_1],
                 argmin_v0_rf[i, vi1_1],
@@ -1140,7 +1170,7 @@ def argmin_split_rfactor(
             Ts.writes(argmin_v0[i], argmin_v1[i])
             with Ts.init():
                 argmin_v0[i] = -1
-                argmin_v1[i] = T.max_value("float32")
+                argmin_v1[i] = T.max_value(ty="float32")
             v_argmin_v0: T.let[T.int32] = T.Select(
                 argmin_v1[i] <= argmin_v1_rf[i, vi1_1], argmin_v0[i], argmin_v0_rf[i, vi1_1]
             )
@@ -1896,4 +1926,4 @@ def test_reduction_rfactor_int64():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

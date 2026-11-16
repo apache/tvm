@@ -18,7 +18,7 @@
 """Default legalization function for unary operators."""
 
 from tvm import te, topi
-from tvm.ir import Call
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr

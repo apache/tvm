@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_ANALYSIS_H_
 #define TVM_S_TIR_ANALYSIS_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
@@ -86,7 +87,7 @@ TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectTensorAccessLCA(const Fun
  * \param mod The input TIR module.
  * \return The anchor block if found, nullptr otherwise.
  */
-const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
+const s_tir::SBlockObj* FindAnchorBlock(const IRModule& mod);
 
 }  // namespace tirx
 
@@ -99,9 +100,9 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Verify variable/tensor definitions, load types and schedulable block boundaries. */
-TVM_DLL bool VerifyWellFormed(const tirx::Function& func, bool assert_mode = true);
+TVM_DLL void CheckWellFormed(const tirx::Function& func);
 /*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
-TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
+TVM_DLL void CheckWellFormed(const IRModule& mod);
 
 /*!
  * \brief Estimate the FLOPs of a TIR fragment.

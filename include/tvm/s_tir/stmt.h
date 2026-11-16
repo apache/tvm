@@ -27,6 +27,7 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/iter_var.h>
 #include <tvm/tirx/stmt.h>
@@ -46,11 +47,11 @@ using TensorAllocatedAddresses = ffi::Array<ffi::Tuple<Var, ffi::Array<PrimExpr>
  * low-level hardware primitives in the IR and defer the check after the sequence of
  * transformations.
  */
-class MatchTensorRegionNode : public ffi::Object {
+class MatchTensorRegionObj : public ffi::Object {
  public:
-  explicit MatchTensorRegionNode(ffi::UnsafeInit tag) : tensor(tag), source(tag) {}
+  explicit MatchTensorRegionObj(ffi::UnsafeInit tag) : tensor(tag), source(tag) {}
 
-  MatchTensorRegionNode(tirx::TensorVar tensor, TensorRegion source)
+  MatchTensorRegionObj(tirx::TensorVar tensor, TensorRegion source)
       : tensor(std::move(tensor)), source(std::move(source)) {}
 
   /*! \brief The target tensor. */
@@ -60,23 +61,22 @@ class MatchTensorRegionNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MatchTensorRegionNode>()
-        .def_ro("tensor", &MatchTensorRegionNode::tensor,
-                refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("source", &MatchTensorRegionNode::source);
+    refl::ObjectDef<MatchTensorRegionObj>()
+        .def_ro("tensor", &MatchTensorRegionObj::tensor, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("source", &MatchTensorRegionObj::source);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.MatchTensorRegion", MatchTensorRegionNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.MatchTensorRegion", MatchTensorRegionObj, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to MatchTensorRegionNode.
- * \sa MatchTensorRegionNode
+ * \brief Managed reference to MatchTensorRegionObj.
+ * \sa MatchTensorRegionObj
  */
 class MatchTensorRegion : public ffi::ObjectRef {
  public:
-  explicit MatchTensorRegion(ffi::UnsafeInit tag, ffi::ObjectPtr<MatchTensorRegionNode> data)
+  explicit MatchTensorRegion(ffi::UnsafeInit tag, ffi::ObjectPtr<MatchTensorRegionObj> data)
       : ffi::ObjectRef(tag) {
     data_ = std::move(data);
   }
@@ -84,8 +84,8 @@ class MatchTensorRegion : public ffi::ObjectRef {
   TVM_DLL explicit MatchTensorRegion(tirx::TensorVar tensor, TensorRegion source);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchTensorRegion, ffi::ObjectRef,
-                                                MatchTensorRegionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchTensorRegionNode);
+                                                MatchTensorRegionObj);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchTensorRegionObj);
 };
 
 /*!
@@ -109,11 +109,11 @@ class MatchTensorRegion : public ffi::ObjectRef {
  *
  * \endcode
  */
-class SBlockNode : public StmtNode {
+class SBlockObj : public StmtObj {
  public:
-  explicit SBlockNode(ffi::UnsafeInit tag) : body(tag) {}
+  explicit SBlockObj(ffi::UnsafeInit tag) : body(tag) {}
 
-  explicit SBlockNode(SeqStmt body) : body(std::move(body)) {}
+  explicit SBlockObj(SeqStmt body) : body(std::move(body)) {}
 
   /*! \brief The variables of the block. */
   ffi::Array<s_tir::IterVar> iter_vars;
@@ -142,24 +142,24 @@ class SBlockNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockNode>()
-        .def_ro("iter_vars", &SBlockNode::iter_vars)
-        .def_ro("reads", &SBlockNode::reads)
-        .def_ro("writes", &SBlockNode::writes)
-        .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_tensors", &SBlockNode::alloc_tensors,
+    refl::ObjectDef<SBlockObj>()
+        .def_ro("iter_vars", &SBlockObj::iter_vars)
+        .def_ro("reads", &SBlockObj::reads)
+        .def_ro("writes", &SBlockObj::writes)
+        .def_ro("name_hint", &SBlockObj::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("alloc_tensors", &SBlockObj::alloc_tensors,
                 refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("match_tensors", &SBlockNode::match_tensors)
-        .def_ro("annotations", &SBlockNode::annotations)
-        .def_ro("init", &SBlockNode::init)
-        .def_ro("body", &SBlockNode::body);
+        .def_ro("match_tensors", &SBlockObj::match_tensors)
+        .def_ro("annotations", &SBlockObj::annotations)
+        .def_ro("init", &SBlockObj::init)
+        .def_ro("body", &SBlockObj::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlock", SBlockNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlock", SBlockObj, StmtObj);
 };
 
 /*!
- * \brief Managed reference to SBlockNode.
- * \sa SBlockNode
+ * \brief Managed reference to SBlockObj.
+ * \sa SBlockObj
  */
 class SBlock : public Stmt {
  public:
@@ -176,20 +176,20 @@ class SBlock : public Stmt {
                           ffi::Array<tirx::TensorVar> alloc_tensors = ffi::Array<tirx::TensorVar>(),
                           Location loc = UnknownLoc());
 
-  explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : Stmt(std::move(node)) {}
+  explicit SBlock(ffi::ObjectPtr<SBlockObj> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, Stmt, SBlockNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, Stmt, SBlockObj);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockObj);
 };
 
 /*!
  * \brief A block realization node represents execution of the block at the binding values.
  */
-class SBlockRealizeNode : public StmtNode {
+class SBlockRealizeObj : public StmtObj {
  public:
-  explicit SBlockRealizeNode(ffi::UnsafeInit tag) : predicate(tag), block(tag) {}
+  explicit SBlockRealizeObj(ffi::UnsafeInit tag) : predicate(tag), block(tag) {}
 
-  SBlockRealizeNode(PrimExpr predicate, SBlock block)
+  SBlockRealizeObj(PrimExpr predicate, SBlock block)
       : predicate(std::move(predicate)), block(std::move(block)) {}
 
   /*! \brief The corresponding values of the iter vars. */
@@ -204,12 +204,12 @@ class SBlockRealizeNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SBlockRealizeNode>()
-        .def_ro("iter_values", &SBlockRealizeNode::iter_values)
-        .def_ro("predicate", &SBlockRealizeNode::predicate)
-        .def_ro("block", &SBlockRealizeNode::block);
+    refl::ObjectDef<SBlockRealizeObj>()
+        .def_ro("iter_values", &SBlockRealizeObj::iter_values)
+        .def_ro("predicate", &SBlockRealizeObj::predicate)
+        .def_ro("block", &SBlockRealizeObj::block);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRealize", SBlockRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRealize", SBlockRealizeObj, StmtObj);
 };
 
 /*!
@@ -221,10 +221,10 @@ class SBlockRealize : public Stmt {
   TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
                                  Location loc = UnknownLoc());
 
-  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : Stmt(std::move(node)) {}
+  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeObj> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, Stmt, SBlockRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, Stmt, SBlockRealizeObj);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeObj);
 };
 
 /*! \brief Region marking copies eligible for asynchronous lowering. */
@@ -238,85 +238,96 @@ TVM_DLL const Op& manual_sync();
 
 namespace attr {
 /*! \brief Hardware thread axis bound to a parallel loop during S-TIR scheduling. */
-constexpr const char* kThreadBinding = "thread_binding";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kThreadBinding{"thread_binding"};
 
 /*!
  * \brief SBlock annotation selecting a write-tensor index for double buffering in
  * InjectSoftwarePipeline.
  */
-constexpr const char* kDoubleBufferScope = "double_buffer_scope";
+inline constexpr ffi::reflection::AttrKey<int64_t> kDoubleBufferScope{"double_buffer_scope"};
 
 /*!
  * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
  */
-constexpr const char* kFragmentShape = "fragment_shape";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kFragmentShape{"fragment_shape"};
 
 /*!
  * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
  */
-constexpr const char* kFragmentLayout = "fragment_layout";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kFragmentLayout{"fragment_layout"};
 
 /*!
  * \brief For annotation requesting partitioning when its PrimExpr value is provably true.
  */
-constexpr const char* kLoopPartitionHint = "loop_partition_hint";
+inline constexpr ffi::reflection::AttrKey<PrimExpr> kLoopPartitionHint{"loop_partition_hint"};
 
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------
 
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
-constexpr const char* kMetaScheduleTilingStructure = "meta_schedule.tiling_structure";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kMetaScheduleTilingStructure{
+    "meta_schedule.tiling_structure"};
 
 /*!
  * \brief Mark that the loop should be further skip and bound to environment threads to enable
  * cooperative fetching.
  */
-constexpr const char* kMetaScheduleCooperativeFetch = "meta_schedule.cooperative_fetch";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleCooperativeFetch{
+    "meta_schedule.cooperative_fetch"};
 
 /*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* kMetaScheduleThreadExtentLowInclusive =
-    "meta_schedule.thread_extent_low_inclusive";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleThreadExtentLowInclusive{
+    "meta_schedule.thread_extent_low_inclusive"};
 
 /*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* kMetaScheduleThreadExtentHighInclusive =
-    "meta_schedule.thread_extent_high_inclusive";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleThreadExtentHighInclusive{
+    "meta_schedule.thread_extent_high_inclusive"};
 
 /*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
-constexpr const char* kMetaScheduleRandomComputeProducer = "meta_schedule.random_compute_producer";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleRandomComputeProducer{
+    "meta_schedule.random_compute_producer"};
 
 /*! \brief Mark auto-parallel setting on the block. */
-constexpr const char* kMetaScheduleParallel = "meta_schedule.parallel";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleParallel{"meta_schedule.parallel"};
 
 /*! \brief Mark auto-vectorize setting on the block. */
-constexpr const char* kMetaScheduleVectorize = "meta_schedule.vectorize";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleVectorize{
+    "meta_schedule.vectorize"};
 
 /*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* kMetaScheduleUnrollExplicit = "meta_schedule.unroll_explicit";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleUnrollExplicit{
+    "meta_schedule.unroll_explicit"};
 
 /*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* kMetaScheduleUnrollImplicit = "meta_schedule.unroll_implicit";
+inline constexpr ffi::reflection::AttrKey<int64_t> kMetaScheduleUnrollImplicit{
+    "meta_schedule.unroll_implicit"};
 
 /*! \brief Mark that a block should be further rewritten using tensorization. */
-constexpr const char* kMetaScheduleAutoTensorize = "meta_schedule.auto_tensorize";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kMetaScheduleAutoTensorize{
+    "meta_schedule.auto_tensorize"};
 
 /*! \brief Mark that a block is a preprocessor block for layout rewrite. */
-constexpr const char* kMetaScheduleLayoutRewritePreproc = "meta_schedule.layout_rewrite_preproc";
+inline constexpr ffi::reflection::AttrKey<bool> kMetaScheduleLayoutRewritePreproc{
+    "meta_schedule.layout_rewrite_preproc"};
 
 /*!
  * \brief Mark that the init statement of a block should be further rewritten using tensorization.
  */
-constexpr const char* kMetaScheduleAutoTensorizeInit = "meta_schedule.auto_tensorize_init";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kMetaScheduleAutoTensorizeInit{
+    "meta_schedule.auto_tensorize_init"};
 
 /*! \brief Mark that a block is disallowed in auto inline. */
-constexpr const char* kMetaScheduleInlineRule = "meta_schedule.inline_rule";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kMetaScheduleInlineRule{
+    "meta_schedule.inline_rule"};
 
 // -----------------------------------------------------------------------
 // Schedule primitive / SBlock annotations
 // -----------------------------------------------------------------------
 
 /*! \brief TensorAllocatedAddresses for block-owned allocations and match tensors. */
-constexpr const char* kTensorAllocatedAddr = "s_tir.tensor_allocated_addr";
+inline constexpr ffi::reflection::AttrKey<TensorAllocatedAddresses> kTensorAllocatedAddr{
+    "s_tir.tensor_allocated_addr"};
 
 /*!
  * \brief Mark whether the script-completer need to fill in missing access region
@@ -325,7 +336,8 @@ constexpr const char* kTensorAllocatedAddr = "s_tir.tensor_allocated_addr";
  *       if (mask & 1) the read region should be detected,
  *       if (mask & 2) the write region should be detected.
  */
-constexpr const char* kScriptParsingDetectAccess = "tirx.script_parsing_detect_access";
+inline constexpr ffi::reflection::AttrKey<int64_t> kScriptParsingDetectAccess{
+    "tirx.script_parsing_detect_access"};
 
 /*!
  * \brief Mark that the block need to add predicate for block var bounds during lowering
@@ -333,19 +345,23 @@ constexpr const char* kScriptParsingDetectAccess = "tirx.script_parsing_detect_a
 constexpr const char* kRequireBlockVarBoundPredicate = "require_bound_predicate";
 
 /*! \brief Mark the stage of a statement in the software pipeline */
-constexpr const char* kSoftwarePipelineStage = "software_pipeline_stage";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kSoftwarePipelineStage{
+    "software_pipeline_stage"};
 
 /*! \brief Mark the order of a statement in the software pipeline */
-constexpr const char* kSoftwarePipelineOrder = "software_pipeline_order";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kSoftwarePipelineOrder{
+    "software_pipeline_order"};
 
 /*! \brief List stages in the software pipeline that should run asynchronously
  * \note All statements in the provided stages are assumed to have asynchronous
  *       semantics (e.g. CUDA async global to shared memory copy).
  */
-constexpr const char* kSoftwarePipelineAsyncStages = "software_pipeline_async_stages";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kSoftwarePipelineAsyncStages{
+    "software_pipeline_async_stages"};
 
 /*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* kManifestSharedMemoryLocalStage = "tirx.manifest_shared_memory_local_stage";
+inline constexpr ffi::reflection::AttrKey<int64_t> kManifestSharedMemoryLocalStage{
+    "tirx.manifest_shared_memory_local_stage"};
 
 /*!
  * \brief Mark alignment of tensor dimension
@@ -353,47 +369,52 @@ constexpr const char* kManifestSharedMemoryLocalStage = "tirx.manifest_shared_me
  *  (tensor_index, axis, factor, offset).
  *  This requires the stride of an axis to be k * factor + offset.
  */
-constexpr const char* kTensorDimAlign = "tensor_dim_align";
+inline constexpr ffi::reflection::AttrKey<
+    ffi::Array<ffi::Tuple<int32_t, int32_t, int32_t, int32_t>>>
+    kTensorDimAlign{"tensor_dim_align"};
 
 /*! \brief Mark that a block has an explicitly specified read region.
  * This is used to override the default read region inference in TIR.
  */
-constexpr const char* kExplicitReadRegion = "explicit_read_region";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kExplicitReadRegion{
+    "explicit_read_region"};
 
 /*! \brief Mark that a block has an explicitly specified write region.
  * This is used to override the default write region inference in TIR.
  */
-constexpr const char* kExplicitWriteRegion = "explicit_write_region";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kExplicitWriteRegion{
+    "explicit_write_region"};
 
-/*! \brief ,ark a ForNode represent an irregular loop of non-structural control flow edges. */
-constexpr const char* kIrregularLoopMark = "irregular_loop_mark";
+/*! \brief ,ark a ForObj represent an irregular loop of non-structural control flow edges. */
+inline constexpr ffi::reflection::AttrKey<int64_t> kIrregularLoopMark{"irregular_loop_mark"};
 
 /*! \brief Mark auto copy for memhammer */
-constexpr const char* kAutoCopy = "auto_copy";
+inline constexpr ffi::reflection::AttrKey<int64_t> kAutoCopy{"auto_copy"};
 
 /*! \brief Mark local stage constraint on data copy */
-constexpr const char* kLocalStage = "local_stage";
+inline constexpr ffi::reflection::AttrKey<int64_t> kLocalStage{"local_stage"};
 
 /*! \brief Mark vectorization length constraint on block */
-constexpr const char* kVectorBytes = "vector_bytes";
+inline constexpr ffi::reflection::AttrKey<int64_t> kVectorBytes{"vector_bytes"};
 
 /*!
  * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
  * warp size.
  */
-constexpr const char* kWarpExecution = "warp_execution";
+inline constexpr ffi::reflection::AttrKey<int64_t> kWarpExecution{"warp_execution"};
 
 constexpr const char* kPermutedLayout = "permuted_layout";
 
-constexpr const char* kScheduleRule = "schedule_rule";
+inline constexpr ffi::reflection::AttrKey<ffi::String> kScheduleRule{"schedule_rule"};
 
-constexpr const char* kMetaScheduleWriteCacheLevel = "s_tir.meta_schedule.write_cache_level";
+inline constexpr ffi::reflection::AttrKey<ffi::Array<int64_t>> kMetaScheduleWriteCacheLevel{
+    "s_tir.meta_schedule.write_cache_level"};
 
 }  // namespace attr
 
 /*! \brief Interpret and validate S-TIR thread placement on a shared loop. */
-inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
-  if (auto tag = loop->annotations.Get(tvm::s_tir::attr::kThreadBinding)) {
+inline ffi::Optional<ffi::String> GetThreadBinding(const ForObj* loop) {
+  if (auto tag = loop->annotations.Get(tvm::s_tir::attr::kThreadBinding.name)) {
     TVM_FFI_CHECK(loop->kind == ForKind::kParallel, ValueError)
         << "thread_binding requires a parallel loop";
     TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)

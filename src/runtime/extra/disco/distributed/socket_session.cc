@@ -70,9 +70,10 @@ class SocketSessionObj : public BcastSessionObj {
                                num_workers_per_node_);
 
     Socket::Startup();
-    socket_.Create();
+    SockAddr addr{host.c_str(), port};
+    socket_.Create(addr.ss_family());
     socket_.SetKeepAlive(true);
-    socket_.Bind(SockAddr(host.c_str(), port));
+    socket_.Bind(addr);
     socket_.Listen();
     LOG(INFO) << "SocketSession controller listening on " << host << ":" << port;
 
@@ -214,10 +215,10 @@ class RemoteSocketSession {
  public:
   explicit RemoteSocketSession(const ffi::String& server_host, int server_port,
                                int num_local_workers) {
-    socket_.Create();
-    socket_.SetKeepAlive(true);
-    SockAddr server_addr{server_host.c_str(), server_port};
     Socket::Startup();
+    SockAddr server_addr{server_host.c_str(), server_port};
+    socket_.Create(server_addr.ss_family());
+    socket_.SetKeepAlive(true);
     if (!socket_.Connect(server_addr)) {
       TVM_FFI_THROW(InternalError) << "Failed to connect to server " << server_addr.AsString()
                                    << ", errno = " << Socket::GetLastErrorCode();

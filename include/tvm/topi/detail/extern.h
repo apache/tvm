@@ -27,6 +27,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/type.h>
 
 #include <string>
 #include <utility>
@@ -72,11 +73,13 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
 
   ffi::Array<TensorVar> input_placeholders;
   for (auto t : inputs) {
-    input_placeholders.push_back(tvm::tirx::decl_tensor(t->shape, t->dtype, t->op.value()->name));
+    input_placeholders.push_back(
+        tvm::tirx::TensorVar(t->op.value()->name, tvm::tirx::TensorType(t->shape, t->dtype)));
   }
   ffi::Array<TensorVar> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
-    output_placeholders.push_back(tvm::tirx::decl_tensor(out_shapes[i], out_types[i], name));
+    output_placeholders.push_back(
+        tvm::tirx::TensorVar(name, tvm::tirx::TensorType(out_shapes[i], out_types[i])));
   }
 
   auto body = fextern(input_placeholders, output_placeholders);
@@ -104,8 +107,9 @@ inline Expr pack_buffer(TensorVar buf) {
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   Expr shape = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->shape);
   Expr strides;
-  if (buf->strides.size() > 0) {
-    strides = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->strides);
+  if (tvm::tirx::MatchShapeStridePattern(buf.ty()).value().get<1>().size() > 0) {
+    strides = Call(PtrType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(),
+                   tvm::tirx::MatchShapeStridePattern(buf.ty()).value().get<1>());
   } else {
     strides = PrimExpr(0);
   }
@@ -114,7 +118,7 @@ inline Expr pack_buffer(TensorVar buf) {
                              strides,
                              IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
-                             buf->elem_offset};
+                             tvm::tirx::MatchShapeStridePattern(buf.ty()).value().get<2>()};
   return Call(PtrType::VoidPtrType(), tvm::tirx::stack_make_dltensor_op(), pack_args);
 }
 

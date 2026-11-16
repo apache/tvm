@@ -23,6 +23,7 @@
 #ifndef TVM_S_TIR_SCHEDULE_STATE_H_
 #define TVM_S_TIR_SCHEDULE_STATE_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
@@ -110,7 +111,7 @@ class ScheduleStateObj : public ffi::Object {
    */
   std::unordered_map<StmtSRef, SBlockInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> block_info;
   /*! \brief The reverse mapping from block/for-loop to their corresponding srefs */
-  std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
+  std::unordered_map<const StmtObj*, StmtSRef> stmt2ref;
   /*!
    * \brief Do extra correctness checking after the class creation
    * and each time after calling the Replace method.

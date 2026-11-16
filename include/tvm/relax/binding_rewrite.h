@@ -24,16 +24,13 @@
 
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
-#include <map>
-#include <set>
-#include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -85,7 +82,7 @@ class DataflowBlockRewriteObj : public ffi::Object {
 
   DataflowBlock dfb_;                        //!< The rewritten dataflow block.
   ffi::Optional<Function> root_fn_;          //!< The rewritten function.
-  const FunctionNode* original_fn_ptr_;      //!< Pointer to the original function.
+  const FunctionObj* original_fn_ptr_;       //!< Pointer to the original function.
   ffi::Map<Var, ffi::Array<Var>> to_users_;  //!< Map from variable to its users.
   ffi::Array<Var> fn_outputs_;               //!< Variables required by function outputs.
 

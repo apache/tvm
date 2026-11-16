@@ -20,14 +20,15 @@ import inspect
 from collections.abc import Callable
 from typing import Literal
 
+import tvm_ffi
+from tvm_ffi import register_error
 from tvm_ffi import register_object as _register_object
 
-from tvm.error import register_error
-from tvm.ir import Expr, For, GlobalVar, IRModule, is_prim_expr
-from tvm.runtime import DataTypeCode, Object
 from tvm.s_tir import SBlock
-from tvm.tirx import FloatImm, Function, IntImm, Var, is_tensor_var
-from tvm.tirx.function import IndexMap
+from tvm_tirx.ir import Expr, FloatImm, For, GlobalVar, IntImm, IRModule, is_prim_expr
+from tvm_tirx.runtime import DataTypeCode, MemoryScope
+from tvm_tirx.tirx import Function, Var, is_tensor_var
+from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
 from ._type_checker import type_checked
@@ -41,7 +42,7 @@ class ScheduleError(RuntimeError):
 
 
 @_register_object("s_tir.LoopRV")
-class LoopRV(Object):
+class LoopRV(tvm_ffi.Object):
     """A random variable that refers to a loop"""
 
     def __init__(self) -> None:
@@ -52,7 +53,7 @@ class LoopRV(Object):
 
 
 @_register_object("s_tir.SBlockRV")
-class SBlockRV(Object):
+class SBlockRV(tvm_ffi.Object):
     """A random variable that refers to a block"""
 
     def __init__(self) -> None:
@@ -107,12 +108,12 @@ def _get_sblock_default_dtype(block: SBlock) -> str:
         return str(i.var.ty)
     for tensor_region in list(block.reads) + list(block.writes):
         for dom in tensor_region.region:
-            return str(dom.min.ty)
+            return str(dom.begin.ty)
     return "int64"
 
 
 @_register_object("s_tir.Schedule")
-class Schedule(Object):
+class Schedule(tvm_ffi.Object):
     """The user-facing schedule class
 
     A schedule is a set of transformations that change the order of computation but
@@ -289,12 +290,12 @@ class Schedule(Object):
 
         trace = self.trace
         if trace is not None:
-            # Trace.show only supports the style and black_format arguments
+            # Trace.show only supports the style argument
             param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
             param_binding.apply_defaults()
             bound_args = param_binding.arguments
 
-            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
+            trace.show(style=bound_args["style"])
 
     ########## Lookup ##########
 
@@ -1361,7 +1362,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a read cache. It requires:
@@ -1381,7 +1382,7 @@ class Schedule(Object):
             name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
@@ -1436,6 +1437,8 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1456,7 +1459,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         write_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a write cache. It requires:
@@ -1476,7 +1479,7 @@ class Schedule(Object):
             name of a write tensor in the block, or a Var object
             that is within the blocks write region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
@@ -1531,6 +1534,8 @@ class Schedule(Object):
                         B[vi, vj] = B_local[vi, vj]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1551,7 +1556,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         index_map: IndexMap | Callable,
     ) -> SBlockRV:
         """Create a block that reads a tensor region into a read cache using customized
@@ -1571,7 +1576,7 @@ class Schedule(Object):
             The consumer block of the target tensor.
         read_tensor_index: int
             The index of the tensor in block's read region.
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: IndexMap | Callable
             User defined indices to access allocated cache tensor, maps from block iter vars.
@@ -1631,6 +1636,8 @@ class Schedule(Object):
         cache_read
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1648,7 +1655,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         write_tensor_index: int,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
         index_map: Callable | IndexMap,
     ) -> SBlockRV:
         r"""Create a block that reads a tensor region into a write cache using customized
@@ -1668,7 +1675,7 @@ class Schedule(Object):
             The consumer block of the target tensor.
         write_tensor_index: int
             The index of the tensor in block's write region.
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: Callable | IndexMap
             User defined indices to access allocated cache tensor, maps from block iter vars.
@@ -1732,6 +1739,8 @@ class Schedule(Object):
         cache_write
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1749,7 +1758,7 @@ class Schedule(Object):
         self,
         block: SBlockRV | str,
         read_tensor_index: int | str | Var,
-        storage_scope: str,
+        storage_scope: str | MemoryScope,
     ) -> list[SBlockRV]:
         """Create blocks that reads & write a tensor region into a cache block.
         It requires the target block both read & write the target tensor.
@@ -1765,7 +1774,7 @@ class Schedule(Object):
             name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
 
@@ -1823,6 +1832,8 @@ class Schedule(Object):
                             data_io[v0] = data_io_local[v0]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
         if not isinstance(read_tensor_index, int):
@@ -1835,7 +1846,7 @@ class Schedule(Object):
 
     @type_checked
     def cache_index(
-        self, block: SBlockRV | str, storage_scope: str, cse_thresh: int = 0
+        self, block: SBlockRV | str, storage_scope: str | MemoryScope, cse_thresh: int = 0
     ) -> list[SBlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
@@ -1845,7 +1856,7 @@ class Schedule(Object):
         block : SBlockRV | str
             The target block operates on the target tensor.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The storage scope of cached block.
 
         cse_thresh: int
@@ -1890,8 +1901,8 @@ class Schedule(Object):
             def resize_cache_index(
                 A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32", strides=[1])
-                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32")
+                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32")
                 for ax0, ax1 in T.grid(80, 80):
                     with Ts.sblock("index_0"):
                         v0 = Ts.axis.spatial(80, ax0)
@@ -1913,6 +1924,8 @@ class Schedule(Object):
                         B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
         return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
@@ -2013,15 +2026,27 @@ class Schedule(Object):
     ########## Schedule: Data movement ##########
 
     def read_at(
-        self, loop: LoopRV, block: SBlockRV, read_tensor_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        read_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleReadAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, read_tensor_index, storage_scope
         )
 
     def write_at(
-        self, loop: LoopRV, block: SBlockRV, write_tensor_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        write_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleWriteAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, write_tensor_index, storage_scope
         )
@@ -2737,7 +2762,7 @@ class Schedule(Object):
 
     @type_checked
     def set_scope(
-        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str
+        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str | MemoryScope
     ) -> None:
         """Set the storage scope of a tensor, where the tensor is
         specified by the a block and a write-index.
@@ -2748,7 +2773,7 @@ class Schedule(Object):
             The producer block of the tensor
         tensor_index : int
             The index of the tensor in block's write region
-        storage_scope : str
+        storage_scope : str or MemoryScope
             The storage scope to be set
 
         Examples
@@ -2804,6 +2829,8 @@ class Schedule(Object):
         ----
         `set_scope` requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
         if not isinstance(tensor_index, int):
             _, tensor_index, _ = self._normalize_tensor_arg(
@@ -2873,11 +2900,11 @@ class Schedule(Object):
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("B"):
                         vi, vj = Ts.axis.remap("SS", [i, j])
-                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
+                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, ty="float16")
                 for i, j in T.grid(128, 128):
                     with Ts.sblock("C"):
                         vi, vj = Ts.axis.remap("SS", [i, j]
-                        C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
+                        C[vi, vj] = T.cast(B[vi, vj], ty="float32") + 1.0
 
         Note
         ----
@@ -3018,9 +3045,9 @@ class Schedule(Object):
 
             @Ts.function
             def mma_desc(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3033,9 +3060,9 @@ class Schedule(Object):
 
             @Ts.function
             def mma_intrin(
-                A: T.Tensor((16, 16), align=128, offset_factor=1),
-                B: T.Tensor((16, 16), align=128, offset_factor=1),
-                C: T.Tensor((16, 16), align=128, offset_factor=1),
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
             ) -> None:
 
                 with Ts.sblock("root"):
@@ -3044,13 +3071,13 @@ class Schedule(Object):
                     T.evaluate(
                         T.gpu_mma_sync(
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             A.data,
-                            A.elem_offset // 256,
+                            A.layout.apply(0, 0)["m"] // 256,
                             B.data,
-                            B.elem_offset // 256,
+                            B.layout.apply(0, 0)["m"] // 256,
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             dtype="void",
                         )
                     )
@@ -3092,30 +3119,30 @@ class Schedule(Object):
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         B_1 = Ts.match_tensor(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         C_1 = Ts.match_tensor(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         T.evaluate(
                             T.gpu_mma_sync(
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 A_1.data,
-                                A_1.elem_offset // 256,
+                                A_1.layout.apply(0, 0)["m"] // 256,
                                 B_1.data,
-                                B_1.elem_offset // 256,
+                                B_1.layout.apply(0, 0)["m"] // 256,
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 dtype="void",
                             )
                         )
@@ -3471,7 +3498,7 @@ class Schedule(Object):
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
-            # tensor's type.  If the default `tvm.runtime.convert`
+            # tensor's type.  If the default `tvm_ffi.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the tensor's type.
             if tensor_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(

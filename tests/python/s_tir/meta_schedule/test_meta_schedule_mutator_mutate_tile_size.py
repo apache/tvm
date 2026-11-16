@@ -20,15 +20,19 @@ from functools import reduce
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name, no-member
 
 
 @Ts.function
-def matmul(A: T.Tensor([512, 512]), B: T.Tensor([512, 512]), C: T.Tensor([512, 512])) -> None:
+def matmul(
+    A: T.Tensor([512, 512], "float32"),
+    B: T.Tensor([512, 512], "float32"),
+    C: T.Tensor([512, 512], "float32"),
+) -> None:
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
         with Ts.sblock("C"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])  # type: ignore

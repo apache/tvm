@@ -20,6 +20,7 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_POSTPROC_H_
 #define TVM_S_TIR_META_SCHEDULE_POSTPROC_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
@@ -170,8 +171,6 @@ class Postproc : public ffi::ObjectRef {
   TVM_DLL static ffi::Array<Postproc, void> DefaultRISCV();
   /*! \brief Create default postprocessors for CUDA */
   TVM_DLL static ffi::Array<Postproc, void> DefaultCUDA();
-  /*! \brief Create default postprocessors for CUDA with TensorCore */
-  TVM_DLL static ffi::Array<Postproc, void> DefaultCUDATensorCore();
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 

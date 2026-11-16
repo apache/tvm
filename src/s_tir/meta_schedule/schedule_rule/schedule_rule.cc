@@ -173,47 +173,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
   };
 }
 
-ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
-  ffi::Array<ffi::Map<ffi::String, ffi::String>> mma_intrin_groups = {
-      // Tensor Core MMA
-      {
-          {"init", "mma_init_m16n8k8_f16"},
-          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
-          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
-          {"compute", "mma_sync_m16n8k8_f16f16f16"},
-          {"store", "mma_store_m16n8k8_f16_global"},
-      },
-      {
-          {"init", "mma_init_m16n8k8_f32"},
-          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
-          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
-          {"compute", "mma_sync_m16n8k8_f16f16f32"},
-          {"store", "mma_store_m16n8k8_f32_global"},
-      },
-  };
-  ffi::Array<ScheduleRule> results{
-      ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::MultiLevelTilingTensorCore(
-          /*intrin_groups=*/mma_intrin_groups,
-          /*structure=*/"SSSRRSRS",
-          /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/static_cast<int64_t>(4),
-          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
-          /*reuse_read=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{4}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*reuse_write=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("no")},
-                                          {"levels", ffi::Array<int64_t>{2}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*use_software_pipeline=*/true)  //
-  };
-  ffi::Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
-  results.insert(results.end(), append.begin() + 1, append.end());
-  return results;
-}
-
 ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   return {
       ScheduleRule::ApplyCustomRule(),
@@ -243,7 +202,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   };
 }
 
-ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
+ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(Target target, const int vlen) {
   ffi::Array<ScheduleRule> rules;
   rules.push_back(ScheduleRule::ApplyCustomRule());
   rules.push_back(ScheduleRule::InlineConstantScalars());
@@ -258,15 +217,14 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
   rules.push_back(ScheduleRule::AddRFactor(
       /*max_jobs_per_core=*/16,
       /*max_innermost_factor=*/static_cast<int64_t>(64)));
-  auto current_target = tvm::Target::Current();
   const auto reg_rvv_intrinsics =
       tvm::ffi::Function::GetGlobalRequired("tirx.tensor_intrin.register_rvv_isa_intrinsics");
-  const auto rvv_kernels_inventory = reg_rvv_intrinsics(current_target, /* inventory_only */ true)
-                                         .cast<ffi::Map<ffi::String, int>>();
+  const auto rvv_kernels_inventory =
+      reg_rvv_intrinsics(target, /* inventory_only */ true).cast<ffi::Map<ffi::String, int>>();
   for (const auto& intrin : rvv_kernels_inventory) {
     if (!TensorIntrin::Get(intrin.first, /*allow_missing*/ true)) {
       // on demand intrinsic register
-      reg_rvv_intrinsics(current_target, /* inventory_only */ false);
+      reg_rvv_intrinsics(target, /* inventory_only */ false);
     }
     rules.push_back(ScheduleRule::MultiLevelTilingWithIntrin(
         /*intrin_name=*/intrin.first,
@@ -405,8 +363,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.ScheduleRulePyScheduleRule", ScheduleRule::PyScheduleRule)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultLLVM", ScheduleRule::DefaultLLVM)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDA", ScheduleRule::DefaultCUDA)
-      .def("s_tir.meta_schedule.ScheduleRuleDefaultCUDATensorCore",
-           ScheduleRule::DefaultCUDATensorCore)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultHexagon", ScheduleRule::DefaultHexagon)
       .def("s_tir.meta_schedule.ScheduleRuleDefaultARM", ScheduleRule::DefaultARM);
 }

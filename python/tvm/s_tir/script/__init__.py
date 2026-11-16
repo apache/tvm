@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""S-TIR construction namespace, exposed as ``tvm.script.s_tir``."""
+"""S-TIR construction namespace, exposed as ``tvm_tirx.script.s_tir``."""
 
 import importlib as _importlib
 import sys as _sys
@@ -29,8 +29,8 @@ def _initialize():
         return
     _initializing = True
     try:
-        from tvm.script.parser import entry, protocol_registry, register_namespace
-        from tvm.tirx import script as shared
+        from tvm_tirx.script.parser import entry, protocol_registry, register_namespace
+        from tvm_tirx.tirx import script as shared
 
         from . import ir_builder as builder
 

@@ -24,8 +24,10 @@
 #ifndef TVM_S_TIR_TRANSFORM_H_
 #define TVM_S_TIR_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/transform.h>
@@ -142,7 +144,7 @@ TVM_DLL Pass LowerMatchTensor();
 TVM_DLL Pass InjectPermutedLayout();
 
 /*!
- * \brief Transform Mma scope (m16n8k8.matrixA/B/C) to local scope with layout transformation.
+ * \brief Transform Mma scope (mma.matrixA/B/C) to local scope with layout transformation.
  * \return The pass.
  */
 TVM_DLL Pass TransformMmaTensorLayout();
@@ -246,7 +248,7 @@ TVM_DLL Pass LowerVtcmAlloc();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(tvm::ffi::String storage_scope);
+TVM_DLL Pass ThreadSync(runtime::MemoryScope storage_scope);
 
 /*!
  * \brief Lower asynchronous queue operations and remove synchronization regions.
@@ -260,12 +262,6 @@ TVM_DLL Pass LowerSynchronization();
  * \return The pass.
  */
 TVM_DLL Pass InferFragment();
-
-/*!
- * \brief Lower cross thread allreduce.
- * \return The pass.
- */
-TVM_DLL Pass LowerThreadAllreduce();
 
 /*!
  * \brief Rewrite global to shared memory copy on CUDA with asynchronous copy.
@@ -283,7 +279,7 @@ TVM_DLL Pass MergeSharedMemoryAllocations();
  * \brief Set default thread bindings for GPU Functions.
  * \return The pass.
  */
-TVM_DLL Pass DefaultGPUSchedule();
+TVM_DLL Pass DefaultGPUSchedule(ffi::Optional<Target> target = std::nullopt);
 
 /*!
  * \brief Remove weight layout rewrite block before benchmark.

@@ -23,14 +23,15 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -38,7 +39,7 @@ from tvm.script import tirx as T
 
 
 @Ts.function
-def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -53,7 +54,8 @@ def elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 @Ts.function
 def elementwise_shape_int64(
-    A: T.Tensor((T.int64(128), T.int64(128))), C: T.Tensor((T.int64(128), T.int64(128)))
+    A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    C: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
     B = Ts.sblock_alloc_tensor((T.int64(128), T.int64(128)))
 
@@ -202,7 +204,7 @@ def reduce_reindex_cache_write_1(
 
 
 @Ts.function
-def func_nested_seq(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def func_nested_seq(B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     for i, j in T.grid(128, 128):
@@ -227,7 +229,9 @@ def func_nested_seq(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def access_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def access_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     for i0, j0 in T.grid(8, 8):
@@ -247,6 +251,10 @@ def access_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0
+
+
+opaque_access_a0_offset = T.dynamic("opaque_access_a0_offset", "int32")
+opaque_access_c0_offset = T.dynamic("opaque_access_c0_offset", "int32")
 
 
 @Ts.function
@@ -291,8 +299,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (opaque_access_a0_offset)),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -301,8 +308,7 @@ def opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(T.S[(16, 16) : [128, 1]] + (opaque_access_c0_offset)),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -491,7 +497,9 @@ def nested_tensor_access(
 
 
 @Ts.function
-def cache_read_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_read_elementwise(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     A_global = Ts.sblock_alloc_tensor((128, 128))
     B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
@@ -514,7 +522,9 @@ def cache_read_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> 
 
 
 @Ts.function
-def cache_read_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_read_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     A_global = Ts.sblock_alloc_tensor((128, 128))
@@ -546,6 +556,10 @@ def cache_read_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> 
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = A_global[vi, vj] * 2.0
+
+
+cache_read_opaque_access_a0_offset = T.dynamic("cache_read_opaque_access_a0_offset", "int32")
+cache_read_opaque_access_c0_offset = T.dynamic("cache_read_opaque_access_c0_offset", "int32")
 
 
 @Ts.function
@@ -598,8 +612,9 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_read_opaque_access_a0_offset)
+                ),
             )
             C0 = Ts.match_tensor(
                 C[
@@ -608,8 +623,9 @@ def cache_read_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_read_opaque_access_c0_offset)
+                ),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -678,7 +694,9 @@ def cache_read_multi_consumer_target() -> None:
 
 
 @Ts.function
-def continuous_cache_read(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def continuous_cache_read(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     B_shared = Ts.sblock_alloc_tensor((128, 128), scope="shared")
     B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
@@ -838,7 +856,9 @@ def cache_read_nested_tensor_access(
 
 
 @Ts.function
-def cache_write_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_write_elementwise(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     B_global = Ts.sblock_alloc_tensor((128, 128), scope="local")
     C_local = Ts.sblock_alloc_tensor((128, 128))
@@ -861,7 +881,9 @@ def cache_write_elementwise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) ->
 
 
 @Ts.function
-def cache_write_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def cache_write_under_scope(
+    B: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     A = Ts.sblock_alloc_tensor((128, 128))
 
     A_global = Ts.sblock_alloc_tensor((128, 128))
@@ -899,6 +921,10 @@ def cache_write_under_scope(B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) ->
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0
+
+
+cache_write_opaque_access_a0_offset = T.dynamic("cache_write_opaque_access_a0_offset", "int32")
+cache_write_opaque_access_c0_offset = T.dynamic("cache_write_opaque_access_c0_offset", "int32")
 
 
 @Ts.function
@@ -947,8 +973,9 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_write_opaque_access_a0_offset)
+                ),
             )
             C0 = Ts.match_tensor(
                 C_global[
@@ -957,8 +984,9 @@ def cache_write_opaque_access(
                 ],
                 (16, 16),
                 "float16",
-                strides=[128, 1],
-                offset_factor=1,
+                layout=T.TileLayout(
+                    T.S[(16, 16) : [128, 1]] + (cache_write_opaque_access_c0_offset)
+                ),
             )
             T.evaluate(
                 T.gpu_load_matrix_sync(
@@ -1089,7 +1117,9 @@ def cache_write_multi_consumer_all_consume_cache():
 
 
 @Ts.function
-def continuous_cache_write(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def continuous_cache_write(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
 
     B_shared = Ts.sblock_alloc_tensor((128, 128), scope="shared")
@@ -1156,9 +1186,9 @@ def block_predicate_cache_write_output_buf() -> None:
 
 @Ts.function
 def symbolic_matmul_blocked(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1184,9 +1214,9 @@ def symbolic_matmul_blocked(
 
 @Ts.function
 def symbolic_matmul_blocked_cache_read(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1220,9 +1250,9 @@ def symbolic_matmul_blocked_cache_read(
 
 @Ts.function
 def symbolic_matmul_blocked_cache_write(
-    A: T.Tensor(((n + 31) // 32 * 32, 4)),  # noqa: F821
-    B: T.Tensor((4, (n + 31) // 32 * 32)),  # noqa: F821
-    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32)),  # noqa: F821
+    A: T.Tensor(((n + 31) // 32 * 32, 4), "float32"),  # noqa: F821
+    B: T.Tensor((4, (n + 31) // 32 * 32), "float32"),  # noqa: F821
+    C: T.Tensor(((n + 31) // 32 * 32, (n + 31) // 32 * 32), "float32"),  # noqa: F821
     n: T.int32,
 ):
     for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
@@ -1256,7 +1286,13 @@ def symbolic_matmul_blocked_cache_write(
 
 ########## Testcases for cache_read ##########
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_cache_read_elementwise(use_block_name):
@@ -1784,4 +1820,4 @@ def test_cache_read_sibling_nested_block_predicates_use_union():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

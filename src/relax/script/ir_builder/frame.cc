@@ -88,6 +88,7 @@ void FunctionFrameObj::ExitWithScope() {
     block_builder->EndScope();
     function = tvm::relax::Function::CreateEmpty(params, ret_ty.value_or(tvm::AnyType()),
                                                  is_pure.value_or(true), DictAttrs(attrs), loc);
+    function = WithAttr(function.value(), tvm::attr::kDeclaration.name, true);
     if (local) {
       auto ty = tvm::relax::GetType(function.value());
       local_var = CheckBindingBlockFrameExistAndUnended()->is_dataflow
@@ -108,8 +109,9 @@ void FunctionFrameObj::ExitWithScope() {
   Expr body =
       this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value(), loc));
   // if the function is not private, add a global symbol to its attributes
-  if (!is_private.value_or(false) && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
-    attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+  if (!is_private.value_or(false) && name.has_value() &&
+      !attrs.count(tvm::attr::kGlobalSymbol.name)) {
+    attrs.Set(tvm::attr::kGlobalSymbol.name, name.value());
   }
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
@@ -147,7 +149,7 @@ void FunctionFrameObj::ExitWithScope() {
             tvm::relax::FuncType(signature->params.value().Map(bind_param),
                                  bind_param(signature->ret), signature->purity, signature->loc);
       }
-      if (local_var.value()->IsInstance<tvm::relax::DataflowVarNode>()) {
+      if (local_var.value()->IsInstance<tvm::relax::DataflowVarObj>()) {
         // The self-reference is captured by the nested function, so it must
         // survive the dataflow region.  Region finalization rewrites every use
         // together, including recursive calls, to the same ordinary Var.
@@ -171,10 +173,10 @@ void FunctionFrameObj::ExitWithScope() {
     if (!frame->global_var_map.count(func_name)) {
       // First time visiting the function.
       ir::DeclFunction(func_name, func);
+    } else {
+      // Complete the previously declared signature without permitting redefinition.
+      ir::DefFunction(func_name, func);
     }
-    // Define the function.
-    // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
-    ir::DefFunction(func_name, func);
     global_var = frame->global_var_map[func_name];
   } else {
     TVM_FFI_THROW(ValueError) << "Cannot find where to insert Relax.Function";
@@ -326,7 +328,7 @@ void IfFrameObj::ExitWithScope() {
   auto binding_var = Emit(body, std::nullopt);
   var = binding_var;
   // Finalization uses the frame's already-composed location, never the exit context.
-  if (!loc.as<UnknownLocNode>()) {
+  if (!loc.as<UnknownLocObj>()) {
     CheckBindingBlockFrameExistAndUnended()->binding_locs.Set(binding_var, loc);
   }
   binding_var->loc = loc;

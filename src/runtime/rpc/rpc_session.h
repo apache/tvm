@@ -177,7 +177,7 @@ class RPCSession {
   virtual void SetDevice(Device dev) = 0;
   virtual ffi::Any GetAttr(Device dev, const ffi::String& name) = 0;
   virtual void* AllocTensor(Device dev, ffi::ShapeView shape, DLDataType dtype,
-                            ffi::Optional<ffi::String> mem_scope) = 0;
+                            ffi::Optional<MemoryScope> mem_scope) = 0;
   virtual void FreeTensor(Device dev, void* handle) = 0;
   virtual void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) = 0;
   virtual TVMStreamHandle CreateStream(Device dev) = 0;

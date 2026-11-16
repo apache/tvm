@@ -26,6 +26,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -36,17 +37,17 @@
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
-#include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-std::string GetStorageScope(const Var& var) {
-  auto* ptr = var->ty.as<PtrTypeNode>();
+runtime::MemoryScope GetStorageScope(const Var& var) {
+  auto* ptr = var->ty.as<PtrTypeObj>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
-  return ptr->storage_scope;
+  return ptr->scope;
 }
 
 /*!
@@ -60,24 +61,24 @@ class AllocTensorCalculator : public StmtExprVisitor {
     this->Visit(func->body);
     tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
-      res.Set(ffi::String(k), v);
+      res.Set(k.name(), v);
     }
     return res;
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    if (const auto* call = op->value.as<CallNode>();
+  ffi::Optional<VisitInterrupt> Visit_(const BindObj* op) final {
+    if (const auto* call = op->value.as<CallObj>();
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindObj* op, const CallObj* call) {
     tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
     DLDataType dtype = call->ty_args[0].as_or_throw<TensorType>()->dtype->dtype;
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
       _current_size[scope] = 0;
@@ -85,7 +86,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
     }
     int64_t size = 1;
     for (const Expr& e : shape->fields) {
-      if (auto* imm = e.as<IntImmNode>()) {
+      if (auto* imm = e.as<IntImmObj>()) {
         size = static_cast<int64_t>(size * imm->value);
       } else {
         size = 0;
@@ -97,26 +98,28 @@ class AllocTensorCalculator : public StmtExprVisitor {
     _max_size[scope] = std::max(_current_size[scope], _max_size[scope]);
     return StmtExprVisitor::Visit_(op);
   }
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const ForObj* op) override {
     auto snapshot = _current_size;
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const IfObj* op) override {
     auto snapshot = _current_size;
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtObj* op) override {
     auto snapshot = _current_size;
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
     return std::nullopt;
   }
-  std::unordered_map<std::string, int64_t> _max_size;
-  std::unordered_map<std::string, int64_t> _current_size;
+  std::unordered_map<runtime::MemoryScope, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      _max_size;
+  std::unordered_map<runtime::MemoryScope, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      _current_size;
 };
 
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
@@ -181,7 +184,6 @@ bool VerifyVTCMLimit(const Function& func, int64_t limit) {
 }
 
 int64_t GetVTCMCapacity(ffi::Optional<Target> target, const tvm::transform::PassContext& pass_ctx) {
-  if (!target.has_value()) target = Target::Current(/*allow_not_defined=*/true);
   if (target.has_value() && target.value()->kind->name == "hexagon") {
     auto value = target.value()->GetAttr<int64_t>("vtcm-capacity").value();
     if (value > 0) return value;
@@ -221,7 +223,7 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
         auto func = opt.value();
 
         std::optional<int64_t> limit = std::nullopt;
-        if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+        if (auto func_target = func->GetAttr(tvm::attr::kTarget)) {
           limit = GetVTCMCapacity(func_target.value(), ctx);
         } else if (default_target) {
           limit = GetVTCMCapacity(default_target.value(), ctx);

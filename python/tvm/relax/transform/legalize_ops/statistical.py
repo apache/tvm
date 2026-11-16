@@ -19,8 +19,10 @@
 
 from collections.abc import Callable
 
-from tvm import te, tirx, topi
-from tvm.ir import Call
+import tvm_tirx
+from tvm import te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr, ShapeExpr
@@ -33,7 +35,7 @@ def _normalize_reduction_axes(axis: list[int] | None, ndim: int) -> list[int]:
 
     axes = []
     for dim in axis:
-        if isinstance(dim, tirx.IntImm):
+        if isinstance(dim, tvm_tirx.ir.IntImm):
             dim = dim.value
         dim = int(dim)
         axes.append(dim + ndim if dim < 0 else dim)
@@ -47,7 +49,7 @@ def _has_const_zero_reduction_dim(call: Call) -> bool:
 
     axes = _normalize_reduction_axes(call.attrs.axis, len(input_shape.values))
     return any(
-        isinstance(input_shape.values[dim], tirx.IntImm) and input_shape.values[dim] == 0
+        isinstance(input_shape.values[dim], tvm_tirx.ir.IntImm) and input_shape.values[dim] == 0
         for dim in axes
     )
 

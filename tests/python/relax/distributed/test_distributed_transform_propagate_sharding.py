@@ -20,15 +20,15 @@
 
 from __future__ import annotations
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax
-from tvm.ir import TupleType as _TupleType
-from tvm.ir import assert_structural_equal
-from tvm.script import s_tir as Ts
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def test_mlp():
@@ -246,10 +246,10 @@ def test_mlp_const():
 
 
 def test_mlp_dynamic_shape():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k0 = T.dynamic("k0")
-    k1 = T.dynamic("k1")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k0 = T.dynamic("k0", "int64")
+    k1 = T.dynamic("k1", "int64")
 
     @I.ir_module
     class MLPDynamicShape:
@@ -275,10 +275,10 @@ def test_mlp_dynamic_shape():
             lv3 = R.matmul(lv2, weight2)
             return lv3
 
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k0 = T.dynamic("k0")
-    k1 = T.dynamic("k1")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k0 = T.dynamic("k0", "int64")
+    k1 = T.dynamic("k1", "int64")
 
     @I.ir_module
     class ShardedMLPDynamicShape:
@@ -1555,10 +1555,10 @@ def test_decoder_layer_tir():
 
 
 def test_decoder_layer_dynamic_shape():
-    rms_norm_n = T.dynamic("n")
-    rotary_embedding_n = T.dynamic("n")
-    foo_n = T.dynamic("n")
-    m = T.dynamic("m")
+    rms_norm_n = T.dynamic("n", "int64")
+    rotary_embedding_n = T.dynamic("n", "int64")
+    foo_n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class LlamaAttentionLayerDynamicShape:
@@ -1767,10 +1767,10 @@ def test_decoder_layer_dynamic_shape():
 
             return gv
 
-    rms_norm_n = T.dynamic("n")
-    rotary_embedding_n = T.dynamic("n")
-    foo_n = T.dynamic("n")
-    m = T.dynamic("m")
+    rms_norm_n = T.dynamic("n", "int64")
+    rotary_embedding_n = T.dynamic("n", "int64")
+    foo_n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
 
     @I.ir_module
     class ShardedLlamaAttentionLayerDynamicShape:
@@ -1979,4 +1979,4 @@ def test_decoder_layer_dynamic_shape():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

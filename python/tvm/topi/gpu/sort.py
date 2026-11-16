@@ -19,10 +19,11 @@
 """Sort related operators"""
 
 import tvm
+import tvm_tirx
 from tvm import te
 from tvm.s_tir.script import ir_builder as Ts
-from tvm.script.ir_builder import IRBuilder
-from tvm.tirx.script import ir_builder as T
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from ..math import cast, ceil_log2
 from ..searchsorted import binary_search
@@ -30,8 +31,7 @@ from ..transform import strided_slice, transpose
 from ..utils import ceil_div, prod, swap
 
 
-def _thread_launches(nthread_tx, nthread_bx, nthread_by):
-    target = tvm.target.Target.current(allow_none=True)
+def _thread_launches(nthread_tx, nthread_bx, nthread_by, *, target=None):
     is_cuda = target is not None and target.kind.name == "cuda"
     return [
         T.launch_thread("threadIdx.x", nthread_tx),
@@ -40,7 +40,9 @@ def _thread_launches(nthread_tx, nthread_bx, nthread_by):
     ]
 
 
-def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
+def _sort_init(
+    shape, axis, keys_in, keys_out, values_out=None, value_init_func=None, *, target=None
+):
     """Initialize the output buffers by copying from inputs"""
     axis_mul_before = 1
     axis_mul_after = 1
@@ -53,13 +55,17 @@ def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=
             axis_mul_after *= value
 
     # Set up threading
-    max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
+    max_threads = int(target.attrs["max_num_threads"])
     nthread_tx = max_threads
     nthread_bx = ceil_div(shape[axis], max_threads)
     nthread_by = axis_mul_before * axis_mul_after
 
     # Copy the keys_in to initial output
-    with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by)) as (tx, bx, by):
+    with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by, target=target)) as (
+        tx,
+        bx,
+        by,
+    ):
         tid = bx * nthread_tx + tx
         by_val = by % axis_mul_before
         bz = by // axis_mul_before
@@ -94,6 +100,8 @@ def _odd_even_sort(
     keys_swap,
     values=None,
     values_swap=None,
+    *,
+    target=None,
 ):
     nthread_tx = block_size // 2
     nthread_bx = ceil_div(size, block_size)
@@ -102,7 +110,7 @@ def _odd_even_sort(
     with T.frame_scope(
         [
             Ts.manual_sync(),
-            *_thread_launches(nthread_tx, nthread_bx, nthread_by),
+            *_thread_launches(nthread_tx, nthread_bx, nthread_by, target=target),
         ]
     ) as (_, tx, bx, by):
         by_val = by % axis_mul_before
@@ -111,17 +119,21 @@ def _odd_even_sort(
         start = bx * block_size
 
         # Tensor declarations without data allocate their storage.
-        tmp_keys_swap = T.bind(
+        tmp_keys_swap = T.bind_(
             T.alloc_tensor(ty_args=[T.Tensor([block_size], keys_swap.dtype, scope="shared")])
         )
-        temp_keys = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")]))
-        temp_cond1 = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")]))
-        temp_cond2 = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")]))
+        temp_keys = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")]))
+        temp_cond1 = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
+        )
+        temp_cond2 = T.bind_(
+            T.alloc_tensor(ty_args=[T.Tensor([1], keys_swap.dtype, scope="local")])
+        )
         if values_swap is not None:
-            tmp_values_swap = T.bind(
+            tmp_values_swap = T.bind_(
                 T.alloc_tensor(ty_args=[T.Tensor([block_size], values_swap.dtype, scope="shared")])
             )
-            temp_values = T.bind(
+            temp_values = T.bind_(
                 T.alloc_tensor(ty_args=[T.Tensor([1], values_swap.dtype, scope="local")])
             )
 
@@ -148,11 +160,17 @@ def _odd_even_sort(
                             ],
                         )
 
-        T.evaluate(tvm.ir.Call("tirx.gpu_storage_sync", [tvm.ir.StringImm("shared")], ty="void"))
+        T.evaluate(
+            tvm_tirx.ir.Call(
+                "tirx.gpu_storage_sync",
+                [tvm_tirx.ir.StringImm("shared")],
+                ty="void",
+            )
+        )
 
-        idxm = tvm.tirx.indexmod
+        idxm = tvm_tirx.tirx.indexmod
         # OddEvenTransposeSort
-        current_sort_num = tvm.tirx.min(block_size, size - start)
+        current_sort_num = tvm_tirx.tirx.min(block_size, size - start)
         with T.serial(0, current_sort_num) as k:
             n = idxm(tid + k, 2)
             with T.if_(tid + n < current_sort_num - 1):
@@ -177,7 +195,11 @@ def _odd_even_sort(
                                 )
                                 T.tensor_store(tmp_values_swap, [tid + n + 1], temp_values[0])
             T.evaluate(
-                tvm.ir.Call("tirx.gpu_storage_sync", [tvm.ir.StringImm("shared")], ty="void")
+                tvm_tirx.ir.Call(
+                    "tirx.gpu_storage_sync",
+                    [tvm_tirx.ir.StringImm("shared")],
+                    ty="void",
+                )
             )
 
         ## Copy sorted data to output
@@ -209,6 +231,8 @@ def _sort_common(
     keys_swap,
     values=None,
     values_swap=None,
+    *,
+    target=None,
 ):
     """Either sort only values or sort values by keys."""
 
@@ -223,7 +247,6 @@ def _sort_common(
     ##    finds the start/end locations of the inner mergepath so that we can split
     ##    the merge into more blocks
 
-    target = tvm.target.Target.current(allow_none=False)
     max_threads = int(target.attrs["max_num_threads"])
     is_webgpu = "webgpu" in str(target)
     target_dtype = "int32" if is_webgpu else "int64"
@@ -240,7 +263,7 @@ def _sort_common(
         return out
 
     # Sort the lower levels of the merge using odd-even sort, it's fast for small inputs
-    lower_lim = ceil_log2(block_size)
+    lower_lim = ceil_log2(block_size, target=target)
 
     _odd_even_sort(
         size,
@@ -251,9 +274,10 @@ def _sort_common(
         keys_swap,
         values,
         values_swap,
+        target=target,
     )
 
-    upper_lim = ceil_log2(size)
+    upper_lim = ceil_log2(size, target=target)
 
     def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, first, last):
         max_val = tvm.te.max(0, diag - bCount)
@@ -307,7 +331,7 @@ def _sort_common(
             k_idx = base_idx + (kStart + diag + count)
 
             with T.if_(
-                tvm.tirx.all(
+                tvm_tirx.tirx.all(
                     i_buf[T.tensor_indices(i_buf, 0)] < aStart + aCount,
                     j_buf[T.tensor_indices(j_buf, 0)] < bStart + bCount,
                 )
@@ -405,10 +429,10 @@ def _sort_common(
         step_count,
         even,
     ):
-        first_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        last_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        i_buf_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        j_buf_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        first_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        last_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        i_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        j_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
         first = first_buf
         last = last_buf
         i_buf = i_buf_buf
@@ -472,16 +496,16 @@ def _sort_common(
         step_count,
         even,
     ):
-        outer_first_buf = T.bind(
+        outer_first_buf = T.bind_(
             T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
         )
-        outer_last_buf = T.bind(
+        outer_last_buf = T.bind_(
             T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")])
         )
-        first_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        last_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        i_buf_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
-        j_buf_buf = T.bind(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        first_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        last_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        i_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
+        j_buf_buf = T.bind_(T.alloc_tensor(ty_args=[T.Tensor([1], target_dtype, scope="local")]))
         outer_first = outer_first_buf
         outer_last = outer_last_buf
         first = first_buf
@@ -571,7 +595,6 @@ def _sort_common(
     with T.serial(0, cast(upper_lim - lower_lim, target_dtype)) as l2_width:
         width = 2 << (l2_width + lower_lim)
         # Define and launch the CUDA kernel
-        target = tvm.target.Target.current()
         if "vulkan" in str(target):
             ntx = max_threads
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
@@ -599,20 +622,22 @@ def _sort_common(
             tx = bindings[0]
             if target.kind.name == "webgpu":
                 bxz, by = bindings[1:]
-                bx = tvm.tirx.indexmod(bxz, nbx)
-                bz = tvm.tirx.indexdiv(bxz, nbx)
+                bx = tvm_tirx.tirx.indexmod(bxz, nbx)
+                bz = tvm_tirx.tirx.indexdiv(bxz, nbx)
             else:
                 bx, by, bz = bindings[1:]
             base_idx = by * size
 
             # calculate the start, mid, and end points of this section
             start_pos = width * bz
-            middle = cast(tvm.te.min(start_pos + tvm.tirx.indexdiv(width, 2), size), target_dtype)
+            middle = cast(
+                tvm.te.min(start_pos + tvm_tirx.tirx.indexdiv(width, 2), size), target_dtype
+            )
             end = cast(tvm.te.min(start_pos + width, size), target_dtype)
 
             with T.if_(start_pos < size):
                 with T.then_():
-                    even = tvm.tirx.indexmod(l2_width, 2) == 0
+                    even = tvm_tirx.tirx.indexmod(l2_width, 2) == 0
                     with T.if_(nbx == 1):
                         with T.then_():
                             ## merge the start->middle and middle->end arrays
@@ -652,10 +677,14 @@ def _sort_common(
     ## if the final sorted data ended up in the swap, copy it to the real output
     nthread_bx = ceil_div(size, nthread_tx)
     with T.if_(
-        tvm.tirx.all(upper_lim > lower_lim, tvm.tirx.indexmod(upper_lim - lower_lim, 2) == 1)
+        tvm_tirx.tirx.all(
+            upper_lim > lower_lim, tvm_tirx.tirx.indexmod(upper_lim - lower_lim, 2) == 1
+        )
     ):
         with T.then_():
-            with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by)) as (
+            with T.frame_scope(
+                _thread_launches(nthread_tx, nthread_bx, nthread_by, target=target)
+            ) as (
                 tx2,
                 bx2,
                 by2,
@@ -678,7 +707,15 @@ def _sort_common(
 
 
 def sort_ir(
-    data, values_out, values_out_swap, axis, is_ascend, indices_out=None, indices_out_swap=None
+    data,
+    values_out,
+    values_out_swap,
+    axis,
+    is_ascend,
+    indices_out=None,
+    indices_out_swap=None,
+    *,
+    target=None,
 ):
     """Low level IR to do sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
 
@@ -730,6 +767,7 @@ def sort_ir(
                             cast(tid, indices_out_orig.dtype) if indices_out is not None else None
                         )
                     ),
+                    target=target,
                 )
 
                 _sort_common(
@@ -741,12 +779,13 @@ def sort_ir(
                     values_out_swap,
                     values=indices_out,
                     values_swap=indices_out_swap,
+                    target=target,
                 )
 
         return ib.get()
 
 
-def sort(data, axis=-1, is_ascend=1):
+def sort(data, axis=-1, is_ascend=1, *, target=None):
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
 
@@ -773,17 +812,18 @@ def sort(data, axis=-1, is_ascend=1):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+    value_buf = tvm_tirx.tirx.Var(
+        "value_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
-    value_buf_swap = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "value_buf_swap", data_alignment=8, layout=None
+    value_buf_swap = tvm_tirx.tirx.Var(
+        "value_buf_swap",
+        tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
     )
 
     out = te.extern(
         [data.shape, data.shape],
         [data],
-        lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend),
+        lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend, target=target),
         out_tensors=[value_buf, value_buf_swap],
         name="sort_gpu",
         tag="sort_gpu",
@@ -796,7 +836,7 @@ def sort(data, axis=-1, is_ascend=1):
     return out
 
 
-def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
+def sort_thrust(data, axis=-1, is_ascend=1, workspace=None, *, target=None):
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
 
@@ -831,16 +871,21 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+    value_buf = tvm_tirx.tirx.Var(
+        "value_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
-    indices_buf = tvm.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_buf = tvm_tirx.tirx.Var(
+        "out_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+        ),
+    )
 
     def f_compute(ins, outs):
         args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
         if workspace is not None:
             args.append(ins[1])
-        return tvm.tirx.call_packed(*args)
+        return tvm_tirx.tirx.call_packed(*args)
 
     out = te.extern(
         [data.shape, data.shape],
@@ -860,7 +905,7 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
     return out
 
 
-def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
+def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices", *, target=None):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
 
@@ -895,15 +940,24 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
+    value_buf = tvm_tirx.tirx.Var(
+        "value_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
-    value_swap_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "value_swap_buf", data_alignment=8, layout=None
+    value_swap_buf = tvm_tirx.tirx.Var(
+        "value_swap_buf",
+        tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
     )
-    indices_buf = tvm.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
-    indices_swap_buf = tvm.tirx.decl_tensor(
-        data.shape, dtype, "out_swap_buf", data_alignment=8, layout=None
+    indices_buf = tvm_tirx.tirx.Var(
+        "out_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+        ),
+    )
+    indices_swap_buf = tvm_tirx.tirx.Var(
+        "out_swap_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+        ),
     )
 
     outs = te.extern(
@@ -917,6 +971,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
             is_ascend,
             indices_out=outs[1],
             indices_out_swap=outs[3],
+            target=target,
         ),
         out_tensors=[value_buf, indices_buf, value_swap_buf, indices_swap_buf],
         name="argsort_gpu",
@@ -933,7 +988,9 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
     return outs[0], outs[1]
 
 
-def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices", workspace=None):
+def argsort_thrust(
+    data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices", workspace=None, *, target=None
+):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
 
@@ -966,10 +1023,10 @@ def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indice
     out : tvm.te.Tensor
         The output of this function.
     """
-    return topk_thrust(data, 0, axis, ret_type, is_ascend, dtype, workspace)
+    return topk_thrust(data, 0, axis, ret_type, is_ascend, dtype, workspace, target=target)
 
 
-def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64", *, target=None):
     """Get the top k elements in an input tensor along the given axis.
 
     Parameters
@@ -1009,24 +1066,32 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    values_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "values_buf", data_alignment=8, layout=None
+    values_buf = tvm_tirx.tirx.Var(
+        "values_buf",
+        tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
     )
-    values_swap_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "values_swap_buf", data_alignment=8, layout=None
+    values_swap_buf = tvm_tirx.tirx.Var(
+        "values_swap_buf",
+        tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
     )
-    indices_buf = tvm.tirx.decl_tensor(
-        data.shape, dtype, "indices_buf", data_alignment=8, layout=None
+    indices_buf = tvm_tirx.tirx.Var(
+        "indices_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+        ),
     )
-    indices_swap_buf = tvm.tirx.decl_tensor(
-        data.shape, dtype, "indies_swap_buf", data_alignment=8, layout=None
+    indices_swap_buf = tvm_tirx.tirx.Var(
+        "indies_swap_buf",
+        tvm_tirx.tirx.TensorType(
+            data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+        ),
     )
 
     if ret_type == "values":
         output = te.extern(
             [data.shape, data.shape],
             [data],
-            lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend),
+            lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], -1, is_ascend, target=target),
             out_tensors=[values_buf, values_swap_buf],
             name="topk_gpu",
             tag="topk_gpu",
@@ -1038,7 +1103,9 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         output = te.extern(
             [data.shape, data.shape, data.shape, data.shape],
             [data],
-            lambda ins, outs: sort_ir(ins[0], outs[0], outs[2], -1, is_ascend, outs[1], outs[3]),
+            lambda ins, outs: sort_ir(
+                ins[0], outs[0], outs[2], -1, is_ascend, outs[1], outs[3], target=target
+            ),
             out_tensors=[values_buf, indices_buf, values_swap_buf, indices_swap_buf],
             name="topk_gpu",
             tag="topk_gpu",
@@ -1074,7 +1141,15 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
 
 
 def topk_thrust(
-    data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64", workspace=None
+    data,
+    k=1,
+    axis=-1,
+    ret_type="both",
+    is_ascend=False,
+    dtype="int64",
+    workspace=None,
+    *,
+    target=None,
 ):
     """Get the top k elements in an input tensor along the given axis.
 
@@ -1120,25 +1195,36 @@ def topk_thrust(
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    data_buf = tvm.tirx.decl_tensor(
-        data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
+    data_buf = tvm_tirx.tirx.Var(
+        "data_buf", tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None)
     )
     if workspace is not None:
-        workspace_buf = tvm.tirx.decl_tensor(
-            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
+        workspace_buf = tvm_tirx.tirx.Var(
+            "workspace_buf",
+            tvm_tirx.tirx.TensorType(
+                workspace.shape, workspace.dtype, data_alignment=8, layout=None
+            ),
         )
     else:
         workspace_buf = None
     out_bufs = [
-        tvm.tirx.decl_tensor(data.shape, data.dtype, "value_buf", data_alignment=8, layout=None),
-        tvm.tirx.decl_tensor(data.shape, dtype, "indices_buf", data_alignment=8, layout=None),
+        tvm_tirx.tirx.Var(
+            "value_buf",
+            tvm_tirx.tirx.TensorType(data.shape, data.dtype, data_alignment=8, layout=None),
+        ),
+        tvm_tirx.tirx.Var(
+            "indices_buf",
+            tvm_tirx.tirx.TensorType(
+                data.shape, "float32" if dtype is None else dtype, data_alignment=8, layout=None
+            ),
+        ),
     ]
 
     def f_compute(ins, outs):
         args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
         if workspace is not None:
             args.append(ins[1])
-        return tvm.tirx.call_packed(*args)
+        return tvm_tirx.tirx.call_packed(*args)
 
     is_ascend = 1 if is_ascend else 0
 
@@ -1152,7 +1238,7 @@ def topk_thrust(
         tag="topk_gpu",
     )
 
-    if isinstance(k, tvm.tirx.IntImm):
+    if isinstance(k, tvm_tirx.ir.IntImm):
         k = k.value
 
     if not isinstance(k, int) or k > 0:
@@ -1173,7 +1259,7 @@ def topk_thrust(
     return out
 
 
-def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
+def searchsorted(sorted_sequence, values, right=False, out_dtype="int64", *, target=None):
     """Find indices where elements should be inserted to maintain order.
        If `sorted_sequence` is N-dimensional, the innermost dimension of
        `values` are searched in the corresponding dimension of `sorted_sequence`.
@@ -1222,7 +1308,7 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             values_ptr = values_buf
             indices_ptr = indices_buf
 
-            max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
+            max_threads = int(target.attrs["max_num_threads"])
             nthread_tx = max_threads
             nthread_bx = ceil_div(num_search, nthread_tx)
             with T.frame_scope(

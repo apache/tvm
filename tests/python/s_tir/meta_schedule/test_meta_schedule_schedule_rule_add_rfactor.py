@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
 from tvm.te import create_function
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_cpu_matmul():
@@ -138,7 +138,7 @@ def test_cpu_argmax():
                 Ts.writes(argmax_v0[i], argmax_v1[i])
                 with Ts.init():
                     argmax_v0[i] = -1
-                    argmax_v1[i] = T.min_value("float32")
+                    argmax_v1[i] = T.min_value(ty="float32")
                 v_argmax_v0: T.let[T.int32] = T.Select(
                     argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k]
                 )

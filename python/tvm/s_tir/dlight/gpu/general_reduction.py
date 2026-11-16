@@ -19,12 +19,17 @@
 
 import tvm_ffi
 
-from tvm import s_tir, sym, tirx
-from tvm.target import Target
+from tvm import s_tir
+from tvm_tirx import sym, tirx
+from tvm_tirx.ir import Range
+from tvm_tirx.runtime import MemoryScope
+from tvm_tirx.target import Target
 
 from ..analysis import get_root_block, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
+
+_SCOPE_GLOBAL = MemoryScope("global")
 
 
 class GeneralReduction(GPUScheduleRule):
@@ -76,7 +81,13 @@ class GeneralReduction(GPUScheduleRule):
                 analyzer = sym.Analyzer()
                 for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
                     loops = sch.get_loops(info.block_rv)
-                    if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
+                    if not all(
+                        analyzer.can_prove_equal(
+                            Range.get_extent_from_begin_end(sch.get(loop).begin, sch.get(loop).end),
+                            1,
+                        )
+                        for loop in loops
+                    ):
                         continue
 
                     other_block_tensors = [
@@ -89,7 +100,7 @@ class GeneralReduction(GPUScheduleRule):
                         tensor = write.source
                         is_allocated = any(tensor.same_as(other) for other in alloc_tensors)
                         is_cross_block = any(tensor.same_as(other) for other in other_block_tensors)
-                        if tensor.scope() == "global" and is_allocated and not is_cross_block:
+                        if tensor.scope() == _SCOPE_GLOBAL and is_allocated and not is_cross_block:
                             sch.set_scope(block_infos[block_index].block_rv, tensor_index, "local")
 
                 # Put every block (both the running reductions and the final
@@ -159,7 +170,7 @@ class GeneralReduction(GPUScheduleRule):
             block_var_to_loop_var = {}
             loops = sch.get_loops(block_infos[-1].block_rv)
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
-                block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
+                block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).var
 
             def _visit_expr(e: tirx.Var):
                 if e in block_var_to_loop_var:
@@ -170,17 +181,22 @@ class GeneralReduction(GPUScheduleRule):
                 if tensor in reduced_tensors:
                     for read_range in tensor_read.region:
                         tvm_ffi.structural_walk(
-                            read_range.min, (tirx.Var, _visit_expr), order="post"
+                            read_range.begin, (tirx.Var, _visit_expr), order="post"
                         )
                         tvm_ffi.structural_walk(
-                            read_range.extent, (tirx.Var, _visit_expr), order="post"
+                            read_range.extent,
+                            (tirx.Var, _visit_expr),
+                            order="post",
                         )
 
             s_loops = []
             other_loops = []
             for loop_rv in loops:
                 loop = sch.get(loop_rv)
-                if loop.loop_var in spatial_loops or loop.extent == 1:
+                if (
+                    loop.var in spatial_loops
+                    or Range.get_extent_from_begin_end(loop.begin, loop.end) == 1
+                ):
                     s_loops.append(loop_rv)
                 else:
                     other_loops.append(loop_rv)
@@ -192,8 +208,8 @@ class GeneralReduction(GPUScheduleRule):
         sch.reorder(tx, r_loop)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
+        sch.annotate(r_loop, ann_key="tirx.auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(r_loop, ann_key="tirx.unroll_explicit", ann_val=1)
 
         for block in reversed(block_infos[:-1]):
             block = block.block_rv
@@ -204,11 +220,11 @@ class GeneralReduction(GPUScheduleRule):
             r_loop, tx = sch.split(r_loop, [None, len_tx])
             sch.reorder(tx, r_loop)
             sch.bind(tx, "threadIdx.x")
-            sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
-            sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
+            sch.annotate(r_loop, ann_key="tirx.auto_unroll_max_step", ann_val=unroll_depth)
+            sch.annotate(r_loop, ann_key="tirx.unroll_explicit", ann_val=1)
 
         # TODO: It's just a workaround to avoid unroll spatial loops, because of the bug of
         # the pass lower-thread-allreduce. We should fix it in the future.
-        # sch.annotate(bx, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
-        # sch.annotate(bx, ann_key="unroll_explicit", ann_val=1)
+        # sch.annotate(bx, ann_key="tirx.auto_unroll_max_step", ann_val=unroll_depth)
+        # sch.annotate(bx, ann_key="tirx.unroll_explicit", ann_val=1)
         return sch

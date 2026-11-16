@@ -18,22 +18,24 @@
 import numpy as np
 
 import tvm
-import tvm.testing
-from tvm import s_tir, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm.s_tir import script as Ts
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    mod = tvm_tirx.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.PlanAndUpdateTensorAllocationLocation()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
+    tvm_tirx.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 @Ts.function
-def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
+def element_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
     B = Ts.sblock_alloc_tensor((16, 16))
     for i0 in range(0, 16):
         for j0 in range(0, 16):
@@ -47,7 +49,9 @@ def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
 
 
 @Ts.function
-def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> None:
+def transformed_element_func(
+    A: T.Tensor([16, 16], "float32"), C: T.Tensor([16, 16], "float32")
+) -> None:
     for i_0 in range(0, 16):
         with Ts.sblock():
             Ts.reads([A[i_0, 0:16]])
@@ -158,7 +162,7 @@ def transformed_match_tensor_func() -> None:
 
 
 @Ts.function
-def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
+def opaque_access(A: T.Tensor([1024], "float32"), B: T.Tensor([1024], "float32")) -> None:
     A_cache = Ts.sblock_alloc_tensor([1024])
     for i in T.serial(0, 8):
         with Ts.sblock():
@@ -188,7 +192,9 @@ def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
 
 
 @Ts.function
-def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
+def transformed_opaque_access(
+    A: T.Tensor([1024], "float32"), B: T.Tensor([1024], "float32")
+) -> None:
     for i in T.serial(0, 8):
         with Ts.sblock():
             vi = Ts.axis.S(8, i)
@@ -357,7 +363,7 @@ def test_tensor_conditional_lowering():
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
-            A_1 = T.decl_tensor(A, ty_args=[T.Tensor((1,), data=A)])
+            A_1 = T.decl_tensor(A, ty_args=[T.Tensor((1,), "float32", data=A)])
             A_1[i] = 0
 
     after = before
@@ -449,4 +455,4 @@ def test_reduce_tensor_dominate_reduce_loops():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/s_tir/function.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
@@ -62,19 +62,19 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
   const auto& arg = call->args[0];
   const auto& axis = call->args[1];
 
-  auto tensor_ty = arg->ty.as<TensorTypeNode>();
+  auto tensor_ty = arg->ty.as<TensorTypeObj>();
   TVM_FFI_CHECK(tensor_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the first argument " << arg << " in expression " << call << " has type " << arg->ty;
 
-  auto axis_ty = axis->ty.as<PrimTypeNode>();
+  auto axis_ty = axis->ty.as<PrimTypeObj>();
   TVM_FFI_CHECK(axis_ty, TypeError)
       << "Operator " << call->op << " expects arguments (tensor, axis), "
       << "but the second argument " << arg << " in expression " << call << " has type " << axis->ty;
 
   ffi::Optional<int64_t> int_imm_axis = std::nullopt;
   if (auto prim_value = axis.as<PrimExpr>()) {
-    if (const auto* int_imm = prim_value->as<IntImmNode>()) {
+    if (const auto* int_imm = prim_value->as<IntImmObj>()) {
       int_imm_axis = static_cast<int64_t>(int_imm->value);
     }
   }
@@ -103,7 +103,8 @@ tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
                             .as_or_throw<PrimExpr>()),
        tvm::Return(value)});
 
-  DictAttrs attrs({{tvm::s_tir::attr::kIsScheduled, true}, {tvm::tirx::attr::kIsHostFunc, true}});
+  DictAttrs attrs(
+      {{tvm::s_tir::attr::kIsScheduled.name, true}, {tvm::tirx::attr::kIsHostFunc.name, true}});
 
   tirx::Function func(ffi::Array<tvm::Var>{dlpack_handle}, body, field_ty, attrs);
 
@@ -134,12 +135,11 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_code")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorDtypeCode)
-      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeCode)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorDtypeCode)
+      .set_attr(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeCode)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_dtype_bits
@@ -164,12 +164,11 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_bits")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorDtypeBits)
-      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeBits)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorDtypeBits)
+      .set_attr(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeBits)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_dtype_lanes
@@ -194,12 +193,11 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_lanes")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorDtypeLanes)
-      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeLanes)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorDtypeLanes)
+      .set_attr(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeLanes)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_ndim
@@ -224,12 +222,11 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_ndim")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorNDim)
-      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorNDim)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorNDim)
+      .set_attr(tvm::relax::op_attr::kLegalize, LegalizeTensorNDim)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_shape_i
@@ -263,7 +260,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tvm::Var ndim("ndim", PrimType::Int(32));
 
     tirx::TensorVar shape_buffer =
-        tirx::decl_tensor({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
+        tirx::TensorVar("shape", tirx::TensorType({ndim.as_or_throw<PrimExpr>()}, field_ty));
 
     tvm::Var extent("extent", field_ty);
 
@@ -276,20 +273,20 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                              .as_or_throw<PrimExpr>()),
          tvm::AssertStmt(
              axis.as_or_throw<PrimExpr>() <
-                 tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
+                 tvm::prim::cast(ndim.as_or_throw<PrimExpr>(), axis->ty.as_or_throw<PrimType>()),
              StringImm("RuntimeError"),
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
-         tvm::Bind(
-             shape_buffer,
-             tvm::Call(shape_buffer.type(), tvm::tirx::decl_tensor_op(),
-                       {tvm::Call(shape_buffer.type()->DataPtrType(), tirx::abi_field_get_op(),
-                                  {dlpack_handle, IntImm::Int32(0),
-                                   IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)})},
-                       {}, {shape_buffer.type()})),
-         tvm::Bind(extent, tirx::MakeTensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
+         tvm::Bind(shape_buffer,
+                   tvm::Call(shape_buffer.ty(), tvm::tirx::decl_tensor_op(),
+                             {tvm::Call(shape_buffer.ty()->DataPtrType(), tirx::abi_field_get_op(),
+                                        {dlpack_handle, IntImm::Int32(0),
+                                         IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)})},
+                             {}, {shape_buffer.ty()})),
+         tvm::Bind(extent, TensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tvm::Return(extent)});
 
-    DictAttrs attrs({{tvm::s_tir::attr::kIsScheduled, true}, {tvm::tirx::attr::kIsHostFunc, true}});
+    DictAttrs attrs(
+        {{tvm::s_tir::attr::kIsScheduled.name, true}, {tvm::tirx::attr::kIsHostFunc.name, true}});
 
     tirx::Function func({dlpack_handle, axis}, body, field_ty, attrs);
 
@@ -304,12 +301,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_shape_i")
       .signature(sig::arg("tensor", "The tensor to be inspected"),
                  sig::arg<IntExpr>("axis", "The axis whose extent should be returned"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorShape)
-      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorShape)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorShape)
+      .set_attr(tvm::relax::op_attr::kLegalize, LegalizeTensorShape)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_stride_i
@@ -354,11 +350,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_stride_i")
       .signature(sig::arg("tensor", "The tensor to be inspected"),
                  sig::arg<IntExpr>("axis", "The axis whose extent should be returned"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorStride)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorStride)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_byte_offset
@@ -387,11 +382,10 @@ Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_byte_offset")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorByteOffset)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorByteOffset)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 //// relax.tensor_elem_offset
@@ -420,11 +414,10 @@ Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_elem_offset")
       .signature(sig::arg("tensor", "The tensor to be inspected"))
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeTensorElemOffset)
-      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
-      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeTensorElemOffset)
+      .set_attr(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace inspect

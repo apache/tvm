@@ -28,11 +28,11 @@ while keeping the same underlying data.
 
 from collections.abc import Sequence
 
-from tvm.ir import Call as _Call
-from tvm.ir import DataTypeImm, GenericConst
-from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax import Expr, ShapeExpr, Tuple
 from tvm.relax.expr import prim_value
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir import DataTypeImm, GenericConst
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..base import null_value
 
@@ -111,8 +111,8 @@ def view(
             dtype,
             Tuple([]) if relative_byte_offset is None else relative_byte_offset,
         ],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore
 
 
@@ -133,6 +133,6 @@ def ensure_zero_offset(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> E
     return _Call(
         "relax.memory.ensure_zero_offset",
         [data],
-        ty=ty,
         loc=loc,
+        ty=ty,
     )  # type: ignore

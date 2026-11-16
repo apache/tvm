@@ -21,7 +21,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 
 #include <utility>
 
@@ -97,9 +97,9 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
   diag_dim(q_ty, "query");
   diag_dim(k_ty, "key");
   diag_dim(v_ty, "value");
-  const ShapeExprNode* q_shape = q_ty->shape.as<ShapeExprNode>();
-  const ShapeExprNode* k_shape = k_ty->shape.as<ShapeExprNode>();
-  const ShapeExprNode* v_shape = v_ty->shape.as<ShapeExprNode>();
+  const ShapeExprObj* q_shape = q_ty->shape.as<ShapeExprObj>();
+  const ShapeExprObj* k_shape = k_ty->shape.as<ShapeExprObj>();
+  const ShapeExprObj* v_shape = v_ty->shape.as<ShapeExprObj>();
   PrimExpr num_batches = q_shape->values[0];
   PrimExpr num_queries = q_shape->values[1];
   PrimExpr num_heads = q_shape->values[2];
@@ -134,7 +134,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
 
   if (input_ty.size() == 4) {
     TensorType bias_ty = input_ty[3];
-    const ShapeExprNode* bias_shape = bias_ty->shape.as<ShapeExprNode>();
+    const ShapeExprObj* bias_shape = bias_ty->shape.as<ShapeExprObj>();
     if (bias_ty->ndim != 4) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The bias should have 4 dimensions."
@@ -170,26 +170,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("query", "The input queries tensor."),
                  sig::arg("key", "The input keys tensor."),
                  sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   OpDef("relax.nn.attention_bias")
       .signature(sig::arg("query", "The input queries tensor."),
                  sig::arg("key", "The input keys tensor."),
                  sig::arg("value", "The input values tensor."),
                  sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   OpDef("relax.nn.attention_var_len")
       .signature(sig::arg("query", "The input queries tensor."),
@@ -200,13 +194,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("max_seqlen_q", "The maximum query sequence length in the batch."),
                  sig::arg("max_seqlen_k", "The maximum key sequence length in the batch."),
                  sig::call_attrs<AttentionAttrs>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionAttention)
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
-                                       InferTypeAttention)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionAttention)
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeAttention)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 
   AttentionAttrs::RegisterReflection();
 }

@@ -83,7 +83,8 @@ class PostOrderApplyObj : public SpaceGeneratorObj {
           continue;
         }
         if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
-          if (s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), tvm::s_tir::attr::kScheduleRule)
+          if (s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv),
+                                         tvm::s_tir::attr::kScheduleRule.name)
                   .has_value()) {
             stack.emplace_back(sch, blocks);
             continue;

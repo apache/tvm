@@ -20,12 +20,13 @@ import sys
 
 import pytest
 
-import tvm.testing
-from tvm.ir import IRModule
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.analysis import estimate_tir_flops
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx.ir import IRModule
+from tvm_tirx.script import tirx as T
 
 
 @pytest.mark.parametrize(
@@ -80,7 +81,7 @@ def test_flops_with_if():
 
 
 @Ts.function
-def flops_with_forloop_as_expression(A: T.Tensor(1)):
+def flops_with_forloop_as_expression(A: T.Tensor(1, "float32")):
     for i in T.serial(0, 16):
         for k in T.serial(0, i):
             A[0] = A[0] + 1
@@ -137,4 +138,4 @@ def test_flops_with_variable_extent():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -201,8 +201,8 @@ class RuntimeContext implements Disposable {
     );
     this.moduleGetFunction = getGlobalFunc("ffi.ModuleGetFunction");
     this.moduleImport = getGlobalFunc("ffi.ModuleImportModule");
-    this.tensorEmpty = getGlobalFunc("runtime.TVMTensorAllocWithScope");
-    this.tensorCopyFromTo = getGlobalFunc("runtime.TVMTensorCopyFromTo");
+    this.tensorEmpty = getGlobalFunc("runtime.TensorAllocWithScope");
+    this.tensorCopyFromTo = getGlobalFunc("runtime.TensorCopyFromTo");
     this.tensorCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyFromBytes");
     this.tensorCopyToJSBytes = getGlobalFunc("tvmjs.runtime.TensorCopyToBytes");
     this.arrayGetItem = getGlobalFunc("ffi.ArrayGetItem");
@@ -219,7 +219,7 @@ class RuntimeContext implements Disposable {
     this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
     this.paramModuleFromCacheByName = getGlobalFunc("vm.builtin.param_module_from_cache_by_name");
     this.makeShapeTuple = getGlobalFunc("ffi.Shape");
-    this.tensorCreateView = getGlobalFunc("runtime.TVMTensorCreateView");
+    this.tensorCreateView = getGlobalFunc("runtime.TensorCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
     this.sampleTopPFromProb = getGlobalFunc("vm.builtin.sample_top_p_from_prob");
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");

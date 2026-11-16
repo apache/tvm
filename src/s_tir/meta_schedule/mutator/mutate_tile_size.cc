@@ -127,8 +127,8 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
       TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
       if (inst->attrs[0].as_or_throw<ffi::String>() ==
-          tvm::s_tir::attr::kMetaScheduleCooperativeFetch) {
-        const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
+          tvm::s_tir::attr::kMetaScheduleCooperativeFetch.name) {
+        const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVObj>();
         TVM_FFI_ICHECK(ann_val);
         annotated.insert(ann_val);
       }
@@ -220,7 +220,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     if (y != n_splits - 1) {
       divide_factor = factors[s_tir::SampleInt(rand_state, 1, factors.size())];
     } else {
-      ffi::BigInt limit = inst->attrs[1].as_or_throw<IntImm>()->value;
+      ffi::BigInt limit = inst->attrs[1].cast<int64_t>();
       int max_factor_index = static_cast<int>(factors.size()) - 1;
       for (; max_factor_index >= 1; max_factor_index--) {
         if (factors[max_factor_index] * tiles[y] <= limit) {

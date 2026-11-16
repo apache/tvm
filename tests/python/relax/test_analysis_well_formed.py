@@ -21,15 +21,16 @@ from __future__ import annotations
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
-from tvm import tirx
-from tvm.ir import TupleType as _TupleType
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir import TupleType as _TupleType
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 m = T.dynamic("m", "int64")
 n = T.dynamic("n", "int64")
@@ -54,8 +55,9 @@ def test_var():
     bindings = [rx.VarBinding(gv1, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # Error: Var gv0 is defined more than once
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
@@ -64,8 +66,9 @@ def test_var():
     bindings = [rx.VarBinding(gv0, call_node), rx.VarBinding(gv0, call_node2)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_dataflow_var():
@@ -76,8 +79,9 @@ def test_dataflow_var():
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.DataflowBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # Error: DataflowVar gv0 is defined more than once
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -86,8 +90,9 @@ def test_dataflow_var():
     bindings = [rx.VarBinding(lv0, call_node), rx.VarBinding(lv0, call_node2)]
     blocks = [rx.DataflowBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # Error: DataflowVar lv0 is defined outside DataflowBlock
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -95,8 +100,9 @@ def test_dataflow_var():
     bindings = [rx.VarBinding(lv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # Error: DataflowVar lv0 is used outside DataflowBlock
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -105,34 +111,35 @@ def test_dataflow_var():
     bindings = [rx.VarBinding(lv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_nested_tir_call_in_dependent_type_is_well_formed():
-    p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
+    p = rx.Var("p", tvm_tirx.ir.PrimType("int64"))
+    inner = tirx.call_intrin("tirx.gpu_thread_invariant", p, ty="int64")
+    outer = tirx.call_intrin("tirx.gpu_thread_invariant", inner, ty="int64")
     x = rx.Var("x", rx.TensorType([outer], "float32"))
     bb = rx.BlockBuilder()
 
     with bb.function("main", [p, x]):
         bb.emit_func_output(x)
 
-    rx.analysis.well_formed(bb.get())
+    assert rx.analysis.check_well_formed(bb.get()) is None
 
 
 def test_nested_tir_call_in_shape_expr_is_well_formed():
-    p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
+    p = rx.Var("p", tvm_tirx.ir.PrimType("int64"))
+    inner = tirx.call_intrin("tirx.gpu_thread_invariant", p, ty="int64")
+    outer = tirx.call_intrin("tirx.gpu_thread_invariant", inner, ty="int64")
     bb = rx.BlockBuilder()
 
     with bb.function("main", [p]):
         shape = bb.emit(rx.ShapeExpr([outer]))
         bb.emit_func_output(shape)
 
-    rx.analysis.well_formed(bb.get())
+    rx.analysis.check_well_formed(bb.get())
 
 
 def test_param_var():
@@ -147,7 +154,8 @@ def test_param_var():
         gv0 = bb.emit(rx.op.add(v2, v1))
         bb.emit_func_output(gv0)
     mod = bb.get()
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_global_var():
@@ -155,33 +163,41 @@ def test_global_var():
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     globalvar = rx.GlobalVar("GlobalVar0")
     call_node = rx.Call(
-        op=tvm.ir.Op.get("relax.call_tir"),
-        ty=tvm.ir.Type.missing(),
+        op=tvm_tirx.ir.Op.get("relax.call_tir"),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
+        ty=tvm_tirx.ir.Type.missing(),
     )
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_provisional_call_constructor():
-    op = tvm.ir.Op.get("relax.add")
+    op = tvm_tirx.ir.Op.get("relax.add")
     with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
-        tvm.ir.Call(op, [x]).validate()
+        tvm_tirx.ir.Call(op, [x]).validate()
 
-    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("provisional.py"), 1, 0, 1, 1)
-    call = tvm.ir.Call("relax.add", [x], attrs={"key": 1}, loc=loc)
-    assert isinstance(call, tvm.ir.Call)
+    loc = tvm_tirx.ir.SourceLoc(tvm_tirx.ir.SourceName("provisional.py"), 1, 0, 1, 1)
+    call = tvm_tirx.ir.Call("relax.add", [x], attrs={"key": 1}, loc=loc)
+    assert isinstance(call, tvm_tirx.ir.Call)
     assert call.op.same_as(op)
-    assert isinstance(call.ty, tvm.ir.MissingType)
+    assert isinstance(call.ty, tvm_tirx.ir.MissingType)
     assert call.loc.same_as(loc)
-    assert isinstance(call.attrs, tvm.ir.DictAttrs)
+    assert isinstance(call.attrs, tvm_tirx.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PtrType)
+    assert isinstance(
+        tvm_tirx.ir.Call(
+            op,
+            [x],
+            ty="handle",
+        ).ty,
+        tvm_tirx.ir.PtrType,
+    )
     with pytest.raises(TypeError, match="skip_validate"):
-        tvm.ir.Call(op, [x], skip_validate=True)
+        tvm_tirx.ir.Call(op, [x], skip_validate=True)
 
 
 def test_symbolic_var():
@@ -192,8 +208,9 @@ def test_symbolic_var():
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_symbolic_var_across_functions():
@@ -207,7 +224,8 @@ def test_symbolic_var_across_functions():
     with bb.function("func2", [v1]):
         bb.emit_func_output(v1)
     mod = bb.get()
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_symbolic_var_invalid_type():
@@ -219,8 +237,9 @@ def test_symbolic_var_invalid_type():
         bindings = [rx.VarBinding(gv0, call_node)]
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks, [y])
-        mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        assert not rx.analysis.check_well_formed(mod, check_ty=False)
+        mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+        with pytest.raises((ValueError, TypeError)):
+            rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_seq_expr():
@@ -236,8 +255,9 @@ def test_seq_expr():
     bindings = [rx.VarBinding(gv0, _seq_expr)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_recursive():
@@ -262,9 +282,9 @@ def test_recursive():
         ]
     )
     func = rx.Function([], rx.SeqExpr([outer_block], gv0), scalar_ty)
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     normalized = rx.transform.Normalize()(mod)
-    rx.analysis.well_formed(normalized)
+    rx.analysis.check_well_formed(normalized)
 
 
 def test_if():
@@ -295,8 +315,9 @@ def test_if():
     bindings = [rx.VarBinding(gv0, if_node), rx.VarBinding(gv1, v_in_if)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=True)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=True)
 
 
 def test_if_non_seq_body():
@@ -313,8 +334,9 @@ def test_if_non_seq_body():
         )
     ]
     func = build_function(blocks)
-    mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule.from_expr(func)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # on the other hand, if they're wrapped in a seq node, it's fine
     seq = rx.SeqExpr([], x)
@@ -330,10 +352,10 @@ def test_if_non_seq_body():
         )
     ]
     new_func = build_function(new_blocks)
-    new_mod = tvm.IRModule.from_expr(new_func)
+    new_mod = tvm_tirx.IRModule.from_expr(new_func)
     # apply normalization to fill in ty
     normalized = rx.transform.Normalize()(new_mod)
-    rx.analysis.well_formed(normalized, check_ty=True)
+    rx.analysis.check_well_formed(normalized, check_ty=True)
 
 
 def test_if_complex_condition():
@@ -352,8 +374,9 @@ def test_if_complex_condition():
         )
     ]
     func = build_function(blocks)
-    mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule.from_expr(func)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     cond_var = rx.Var("q", R.Tensor([], "bool"))
     new_if = rx.IfExpr(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
@@ -369,10 +392,10 @@ def test_if_complex_condition():
         )
     ]
     func = build_function(blocks)
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     # apply normalization to fill in ty
     normalized = rx.transform.Normalize()(mod)
-    rx.analysis.well_formed(normalized, check_ty=True)
+    rx.analysis.check_well_formed(normalized, check_ty=True)
 
 
 def test_tuple_get_item_nested():
@@ -386,8 +409,9 @@ def test_tuple_get_item_nested():
         ret_ty=R.Tensor(ndim=0, dtype="int32"),
     )
     f = f.with_attr("global_symbol", "f")
-    mod = tvm.IRModule.from_expr(f)
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule.from_expr(f)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # okay with an intermediate binding
     first_idx = rx.TupleGetItem(nested_tup, 0)
@@ -406,10 +430,10 @@ def test_tuple_get_item_nested():
         ret_ty=R.Tensor(ndim=0, dtype="int32"),
     )
     new_f = new_f.with_attr("global_symbol", "new_f")
-    mod = tvm.IRModule.from_expr(new_f)
+    mod = tvm_tirx.IRModule.from_expr(new_f)
     # normalize in order to fill in checked type
     normalized = rx.transform.Normalize()(mod)
-    rx.analysis.well_formed(normalized, check_ty=True)
+    rx.analysis.check_well_formed(normalized, check_ty=True)
 
 
 def test_complex_seq_body():
@@ -421,8 +445,9 @@ def test_complex_seq_body():
         rx.SeqExpr([], rx.op.add(x, y)),
         R.Tensor(ndim=0, dtype="int32"),
     ).with_attr("global_symbol", "foo")
-    mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule.from_expr(func)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # but if the result is bound, then it's okay
     z = rx.Var("z", R.Tensor([], "int32"))
@@ -443,10 +468,10 @@ def test_complex_seq_body():
         ),
         R.Tensor(ndim=0, dtype="int32"),
     ).with_attr("global_symbol", "foo")
-    new_mod = tvm.IRModule.from_expr(new_func)
+    new_mod = tvm_tirx.IRModule.from_expr(new_func)
     # normalize in order to fill in checked type
     normalized = rx.transform.Normalize()(new_mod)
-    rx.analysis.well_formed(normalized, check_ty=True)
+    rx.analysis.check_well_formed(normalized, check_ty=True)
 
 
 def test_inline_function():
@@ -461,18 +486,18 @@ def test_inline_function():
                     [
                         rx.VarBinding(
                             var=x,
-                            value=tirx.Function([], tvm.ir.Evaluate(0)),
+                            value=tirx.Function([], tvm_tirx.ir.Evaluate(0)),
                         ),
                         rx.VarBinding(
                             var=y,
                             value=rx.Call(
-                                op=tvm.ir.Op.get("relax.call_tir"),
-                                ty=tvm.ir.Type.missing(),
+                                op=tvm_tirx.ir.Op.get("relax.call_tir"),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
-                                    rx.Tuple([x, tirx.Function([], tvm.ir.Evaluate(0))]),
+                                    rx.Tuple([x, tirx.Function([], tvm_tirx.ir.Evaluate(0))]),
                                     rx.ShapeExpr([]),
                                 ],
+                                ty=tvm_tirx.ir.Type.missing(),
                             ),
                         ),
                     ]
@@ -482,8 +507,9 @@ def test_inline_function():
         ),
         R.Tensor(ndim=0, dtype="int32"),
     ).with_attr("global_symbol", "foo")
-    new_mod = tvm.IRModule.from_expr(new_func)
-    assert not rx.analysis.check_well_formed(new_mod, check_ty=False)
+    new_mod = tvm_tirx.IRModule.from_expr(new_func)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(new_mod, check_ty=False)
 
 
 def test_ANF():
@@ -493,16 +519,18 @@ def test_ANF():
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
     # Error: Call Node in Tuple
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     bindings = [rx.VarBinding(gv0, rx.Tuple((x, rx.op.add(x, x))))]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("foo"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_global_var_vs_gsymbol():
@@ -515,8 +543,9 @@ def test_global_var_vs_gsymbol():
         rx.SeqExpr(blocks, gv0),
         R.Tensor(ndim=2, dtype="float32"),
     ).with_attr("global_symbol", "main1")
-    mod = tvm.IRModule({rx.GlobalVar("main"): func})
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = tvm_tirx.IRModule({rx.GlobalVar("main"): func})
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_nested_dataflow():
@@ -538,9 +567,9 @@ def test_nested_dataflow():
         ]
     )
     func = rx.Function([], rx.SeqExpr([outer_block], gv0), scalar_ty)
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm_tirx.IRModule.from_expr(func)
     normalized = rx.transform.Normalize()(mod)
-    rx.analysis.well_formed(normalized)
+    rx.analysis.check_well_formed(normalized)
 
 
 def test_ty_args_tir_var_used_before_define_call_packed():
@@ -549,8 +578,9 @@ def test_ty_args_tir_var_used_before_define_call_packed():
     n1 = tirx.Var("n1", "int64")
     call = R.call_packed("my_func", x, ty_args=R.Tensor((m1, n1), "float32"))
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_ty_args_tir_var_used_before_define_call_tir():
@@ -559,15 +589,16 @@ def test_ty_args_tir_var_used_before_define_call_tir():
     n1 = tirx.Var("n1", "int64")
     call = R.call_dps_packed(_ExternFunc("my_func"), x, ty_args=[R.Tensor((m1, n1), "float32")])
     func = build_function([rx.BindingBlock([rx.VarBinding(rx.Var("gv"), call)])])
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod, check_ty=False)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod, check_ty=False)
 
 
 def test_ty_erase_to_well_formed():
     # Error: The return ty contains undefined symbolic vars
     """
-    m, n = T.dynamic("m"), T.dynamic("n")
-    m1, n1 = T.dynamic("m1"), T.dynamic("n1")
+    m, n = T.dynamic("m", "int64"), T.dynamic("n", "int64")
+    m1, n1 = T.dynamic("m1", "int64"), T.dynamic("n1", "int64")
 
     @R.function
     def foo(x: R.Tensor((m, n), dtype="float32")) -> R.Tensor((m1, n1), dtype="float32"):
@@ -584,8 +615,9 @@ def test_ty_erase_to_well_formed():
     func = rx.Function([x], seq_expr, R.Tensor((m1, n1), "float32")).with_attr(
         "global_symbol", "foo"
     )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
 
 
 def test_func_ty_well_formed():
@@ -597,8 +629,8 @@ def test_func_ty_well_formed():
 
         return local
 
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(foo))
-    rx.analysis.well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(foo))
+    rx.analysis.check_well_formed(mod)
 
 
 def test_conditional_in_dataflow_block():
@@ -609,8 +641,9 @@ def test_conditional_in_dataflow_block():
     func = rx.Function([x], rx.SeqExpr([block], y), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
     )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
 
 
 def test_unlabeled_impure():
@@ -621,8 +654,9 @@ def test_unlabeled_impure():
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
     )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
 
 
 def test_labeled_impure():
@@ -634,8 +668,8 @@ def test_labeled_impure():
     func = rx.Function(
         [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), is_pure=False
     ).with_attrs({"global_symbol": "foo"})
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    rx.analysis.well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    rx.analysis.check_well_formed(mod)
 
 
 def test_force_pure():
@@ -646,8 +680,8 @@ def test_force_pure():
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
         {"global_symbol": "foo", "relax.force_pure": True}
     )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    rx.analysis.well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    rx.analysis.check_well_formed(mod)
 
 
 def test_force_pure_improper():
@@ -657,8 +691,9 @@ def test_force_pure_improper():
     func = rx.Function(
         [x], rx.SeqExpr([], x), R.Tensor((), dtype="int32"), is_pure=False
     ).with_attrs({"global_symbol": "foo", "relax.force_pure": True})
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
 
 
 def test_impure_in_dataflow_block():
@@ -669,12 +704,13 @@ def test_impure_in_dataflow_block():
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
         {"global_symbol": "foo", "relax.force_pure": True}
     )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert not rx.analysis.check_well_formed(mod)
+    mod = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(mod)
 
     # The throwing form surfaces the offending impure call in its message.
     with pytest.raises(Exception) as excinfo:
-        rx.analysis.well_formed(mod)
+        rx.analysis.check_well_formed(mod)
     assert 'R.print("{}", x)' in str(excinfo.value)
 
 
@@ -685,7 +721,7 @@ def test_well_formed_function():
     def func(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
         return R.matmul(A, B)
 
-    rx.analysis.well_formed(func)
+    rx.analysis.check_well_formed(func)
 
 
 def test_well_formed_function_referencing_global_var():
@@ -706,9 +742,9 @@ def test_well_formed_function_referencing_global_var():
         def subroutine(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
             return R.matmul(A, B)
 
-    rx.analysis.well_formed(Module)
-    rx.analysis.well_formed(Module["main"])
-    rx.analysis.well_formed(Module["subroutine"])
+    rx.analysis.check_well_formed(Module)
+    rx.analysis.check_well_formed(Module["main"])
+    rx.analysis.check_well_formed(Module["subroutine"])
 
 
 def test_pass_dltensor_arg_to_tir():
@@ -731,7 +767,7 @@ def test_pass_dltensor_arg_to_tir():
         @R.function
         def main(A: R.Tensor) -> T.bool:
             return R.call_pure_packed(
-                tvm.ir.Op.get("relax.call_tir_packed"), Module.is_bfloat16_dtype, (A,)
+                tvm_tirx.ir.Op.get("relax.call_tir_packed"), Module.is_bfloat16_dtype, (A,)
             )
 
         @Ts.function(private=True)
@@ -755,7 +791,7 @@ def test_pass_dltensor_arg_to_tir():
             )
             return is_bfloat16
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_matching_arguments():
@@ -775,7 +811,7 @@ def test_call_tir_with_matching_arguments():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_interspersed_primitive_argument():
@@ -802,7 +838,7 @@ def test_call_tir_with_interspersed_primitive_argument():
             for i in range(T.int64(16)):
                 B[i] = A[i] + T.Cast("float16", scale) * C[i]
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_incorrect_primitive_argument_dtype():
@@ -824,7 +860,8 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
             for i in range(T.int64(16)):
                 B[i] = A[i] * T.Cast("float16", scale)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
     with pytest.raises(ValueError, match="Argument 1 type mismatch"):
         rx.transform.Normalize()(Module)
 
@@ -847,7 +884,8 @@ def test_call_tir_shape_expr_is_not_a_primitive_argument():
         def make_tensor(m: T.int64, n: T.int64, B: T.Tensor([T.int64(1)], "float32")):
             B[0] = T.Cast("float32", m + n)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_input_ndim():
@@ -872,7 +910,8 @@ def test_call_tir_input_ndim():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_output_ndim():
@@ -896,7 +935,8 @@ def test_call_tir_output_ndim():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_input_shape():
@@ -921,7 +961,8 @@ def test_call_tir_input_shape():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_output_shape():
@@ -945,7 +986,8 @@ def test_call_tir_output_shape():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_input_dtype():
@@ -971,7 +1013,8 @@ def test_call_tir_input_dtype():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_output_dtype():
@@ -997,7 +1040,8 @@ def test_call_tir_output_dtype():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_correct_dynamic_output_shape():
@@ -1012,8 +1056,8 @@ def test_call_tir_with_correct_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:
@@ -1029,7 +1073,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 @pytest.mark.xfail(reason="Not supported")
@@ -1044,8 +1088,8 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1061,7 +1105,8 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_incorrect_dimensionality_of_output_shape():
@@ -1078,8 +1123,8 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1095,7 +1140,8 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 @pytest.mark.xfail(reason="Not yet supported")
@@ -1115,8 +1161,8 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1132,7 +1178,8 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
                     vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi * N * M + vj * N + vk]
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_correct_inferred_dynamic_output_shape():
@@ -1146,8 +1193,8 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:
@@ -1163,7 +1210,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
@@ -1182,8 +1229,8 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
 
     """
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module(check_well_formed=False)
     class Module:
@@ -1199,7 +1246,8 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_with_dtensor_arguments():
@@ -1214,8 +1262,8 @@ def test_call_tir_with_dtensor_arguments():
 
     # from tvm.script.parser import relax as R
 
-    M = T.dynamic("M")
-    N = T.dynamic("N")
+    M = T.dynamic("M", "int64")
+    N = T.dynamic("N", "int64")
 
     @I.ir_module
     class Module:
@@ -1236,7 +1284,7 @@ def test_call_tir_with_dtensor_arguments():
                     vi = Ts.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_inplace_with_correct_shapes():
@@ -1261,7 +1309,7 @@ def test_call_tir_inplace_with_correct_shapes():
                     vi = Ts.axis.remap("S", [i])
                     A[vi] = A[vi] + T.float16(1.0)
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_inplace_with_incorrect_shapes():
@@ -1286,7 +1334,8 @@ def test_call_tir_inplace_with_incorrect_shapes():
                     vi = Ts.axis.remap("S", [i])
                     A[vi] = A[vi] + T.float16(1.0)
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_inplace_with_some_allocated_outputs():
@@ -1320,7 +1369,7 @@ def test_call_tir_inplace_with_some_allocated_outputs():
                     vi = Ts.axis.remap("S", [i])
                     C[vi] = A[vi] + T.float16(1.0)
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_var_binding_must_have_compatible_ty():
@@ -1351,7 +1400,8 @@ def test_var_binding_must_have_compatible_ty():
     tvm.relax.expr._update_type(body, var.ty)
     main = tvm.relax.Function([param], body)
 
-    assert not rx.analysis.check_well_formed(main)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(main)
 
 
 def test_var_binding_may_have_less_constrained_ty():
@@ -1376,7 +1426,7 @@ def test_var_binding_may_have_less_constrained_ty():
         "Validity of this test requires a variable with R.Any type"
     )
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_var_binding_with_incomplete_ty_must_be_consistent():
@@ -1407,7 +1457,8 @@ def test_var_binding_with_incomplete_ty_must_be_consistent():
     tvm.relax.expr._update_type(body, var.ty)
     main = tvm.relax.Function([param], body)
 
-    assert not rx.analysis.check_well_formed(main)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(main)
 
 
 def test_incomplete_ty_must_be_consistent():
@@ -1428,7 +1479,8 @@ def test_incomplete_ty_must_be_consistent():
             C: R.Tensor(ndim=3) = R.add(A, B)
             return C
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_ty_annotations_must_be_correct():
@@ -1449,7 +1501,8 @@ def test_ty_annotations_must_be_correct():
             C: R.Tensor(shape=[128, 32], dtype="int32") = R.add(A, B)
             return C
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_ty_may_be_incomplete():
@@ -1471,7 +1524,7 @@ def test_ty_may_be_incomplete():
             C: R.Any = R.add(A, B)
             return C
 
-    rx.analysis.well_formed(Module)
+    rx.analysis.check_well_formed(Module)
 
 
 def test_incomplete_ty_must_be_consistent():
@@ -1492,18 +1545,19 @@ def test_incomplete_ty_must_be_consistent():
             C: R.Tensor(ndim=3) = R.add(A, B)
             return C
 
-    assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises((ValueError, TypeError)):
+        rx.analysis.check_well_formed(Module)
 
 
 def test_stop_lift_params_optional_type_arg():
     x = rx.Var("x", rx.TensorType((4,), "float32"))
     out_ty = rx.TensorType((4,), "float32", rx.VDevice("llvm"))
     for ty_args in ([], [out_ty]):
-        call = tvm.ir.Call("relax.builtin.stop_lift_params", [x], ty_args=ty_args)
+        call = tvm_tirx.ir.Call("relax.builtin.stop_lift_params", [x], ty_args=ty_args)
         func = rx.Function([x], call, ty_args[0] if ty_args else x.ty)
-        normalized = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-        rx.analysis.well_formed(normalized)
+        normalized = rx.transform.Normalize()(tvm_tirx.IRModule.from_expr(func))
+        rx.analysis.check_well_formed(normalized)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

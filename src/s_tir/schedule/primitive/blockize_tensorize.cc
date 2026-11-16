@@ -99,12 +99,12 @@ ffi::Array<ffi::Array<sym::IterMark>> TrivialSubspaceDivision(const ffi::Array<I
                                                               const ffi::Array<Var>& inner_iters) {
   if (!IsOne(predicate)) return {};
   ffi::Array<ffi::Array<sym::IterMark>> res;
-  std::unordered_set<const VarNode*> outer_loop_vars;
-  std::unordered_set<const VarNode*> inner_loop_vars;
+  std::unordered_set<const VarObj*> outer_loop_vars;
+  std::unordered_set<const VarObj*> inner_loop_vars;
 
   auto make_uses_var =
       [](const ffi::Array<Var>& vars) -> std::function<bool(const PrimExpr& expr)> {
-    std::unordered_set<const VarNode*> var_set;
+    std::unordered_set<const VarObj*> var_set;
     var_set.reserve(vars.size());
     for (const Var& var : vars) {
       var_set.insert(var.get());
@@ -167,7 +167,7 @@ ffi::Array<ffi::Array<sym::IterMark>> TrivialSubspaceDivision(const ffi::Array<I
 ffi::Array<ffi::Array<sym::IterMark>> SubspaceDivide(const SBlockRealize& realize,
                                                      const StmtSRef& block_sref,  //
                                                      const StmtSRef& loop_sref,   //
-                                                     std::vector<const ForNode*>* loops,
+                                                     std::vector<const ForObj*>* loops,
                                                      sym::AnalyzerObj* analyzer,
                                                      bool preserve_unit_iters,
                                                      bool loop_sref_as_outer = false) {
@@ -176,18 +176,18 @@ ffi::Array<ffi::Array<sym::IterMark>> SubspaceDivide(const SBlockRealize& realiz
   ffi::Array<PrimVar> primitive_inner_vars;
   ffi::Map<PrimVar, Range> primitive_loop_var_domain;
   bool inner = true;
-  for (StmtSRefObj* sref = block_sref->parent;     //
-       sref && sref->stmt->IsInstance<ForNode>();  //
+  for (StmtSRefObj* sref = block_sref->parent;    //
+       sref && sref->stmt->IsInstance<ForObj>();  //
        sref = sref->parent) {
-    const ForNode* loop = static_cast<const ForNode*>(sref->stmt);
+    const ForObj* loop = static_cast<const ForObj*>(sref->stmt);
     if (inner) {
       loops->push_back(loop);
-      inner_vars.push_back(loop->loop_var);
-      primitive_inner_vars.push_back(loop->loop_var);
+      inner_vars.push_back(loop->var);
+      primitive_inner_vars.push_back(loop->var);
     } else {
-      outer_vars.push_back(loop->loop_var);
+      outer_vars.push_back(loop->var);
     }
-    primitive_loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    primitive_loop_var_domain.Set(loop->var, Range(loop->begin, loop->end));
     if ((loop_sref_as_outer && sref->parent == loop_sref.get()) || sref == loop_sref.get()) {
       inner = false;
     }
@@ -225,7 +225,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
     ffi::Array<PrimExpr>* inner_bindings,                   //
     bool preserve_unit_iters, bool reuse_outer = false) {
   using sym::IterMapExpr;
-  using sym::IterMapExprNode;
+  using sym::IterMapExprObj;
   using sym::NormalizeIterMapToExpr;
   ffi::Map<Var, PrimExpr> block_var_subst;
   TVM_FFI_ICHECK_EQ(iter_vars.size() + 1, division.size());
@@ -301,7 +301,7 @@ SBlockRealize GenerateInner(bool is_write_reduction,
                             const ffi::Array<PrimExpr>& iter_values,  //
                             const PrimExpr& predicate,                //
                             SBlock block) {
-  SBlockNode* n = block.CopyOnWrite();
+  SBlockObj* n = block.CopyOnWrite();
   n->iter_vars = iter_vars;
   n->init = std::nullopt;
   if (is_write_reduction) {
@@ -323,7 +323,7 @@ SBlockRealize GenerateInner(bool is_write_reduction,
  * \return The subtree of the init block and its outer loops.
  */
 Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realize,
-                       const std::vector<const ForNode*>& loops, ffi::String block_name) {
+                       const std::vector<const ForObj*>& loops, ffi::String block_name) {
   const SBlock& inner_block = inner_realize->block;
   ffi::Map<Var, Var> subst_map;
   // Step 1: Create new block vars for the block inside the init stmt of outer block
@@ -346,7 +346,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
     };
     if (old_iter_var->iter_type == IterVarType::kDataPar &&
         ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(block_init, walkfn).has_value()) {
-      ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*old_iter_var.get());
+      ffi::ObjectPtr<IterVarObj> new_iter_var = ffi::make_object<IterVarObj>(*old_iter_var.get());
       new_iter_var->var = new_iter_var->var.CopyWithSuffix("_init");
       subst_map.Set(old_iter_var->var, new_iter_var->var);
       iter_vars.push_back(IterVar(new_iter_var));
@@ -365,10 +365,9 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
              /*body=*/block_init,
              /*init=*/std::nullopt));
   // Step 3. Create the loop nest on top of the block
-  for (const ForNode* loop : loops) {
+  for (const ForObj* loop : loops) {
     bool is_init_loop = false;
-    auto walkfn = [target =
-                       loop->loop_var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [target = loop->var.get()](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return var.get() == target ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                  : ffi::WalkResult::Advance();
     };
@@ -379,10 +378,10 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
       }
     }
     if (is_init_loop) {
-      ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
-      new_loop->loop_var = loop->loop_var.CopyWithSuffix("");
+      ffi::ObjectPtr<ForObj> new_loop = ffi::make_object<ForObj>(*loop);
+      new_loop->var = loop->var.CopyWithSuffix("");
       new_loop->body = std::move(stmt);
-      subst_map.Set(loop->loop_var, new_loop->loop_var);
+      subst_map.Set(loop->var, new_loop->var);
       stmt = For(new_loop);
     }
   }
@@ -420,7 +419,7 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
 
     UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
       auto result = StmtExprMutator::Mutate(value, inplace_mode);
-      if (!value.as<ExprNode>() || result.UnchangedOrSameAs(value)) return result;
+      if (!value.as<ExprObj>() || result.UnchangedOrSameAs(value)) return result;
       auto replacement = std::move(result).ValueOrUnchanged(value);
       if (auto prim_result = replacement.as<PrimExpr>()) {
         return ffi::Any(analyzer_->Simplify(prim_result.value()));
@@ -428,7 +427,7 @@ Stmt ReplaceAndSimplify(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
       return replacement;
     }
 
-    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+    UnchangedOr<Stmt> Mutate_(const SBlockObj* op, InplaceMode inplace_mode) final {
       SBlock src = ffi::GetRef<SBlock>(op);
       SBlock tgt = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -460,12 +459,12 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<sym::IntSet> relaxed = sym::EvalSet(tensor_region->region, dom_map);
-    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor->shape.size());
-    int ndim = tensor->shape.size();
+    TVM_FFI_ICHECK_EQ(relaxed.size(), tensor.shape().size());
+    int ndim = tensor.shape().size();
     ffi::Array<Range> new_region;
     new_region.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor->shape[i])).value());
+      new_region.push_back(relaxed[i].CoverRange(RangeFromExtent(tensor.shape()[i])).value());
     }
     results.push_back(TensorRegion(tensor, new_region, TensorRegionType()));
   }
@@ -483,10 +482,11 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const TensorRegion& tensor_region : regions) {
     const TensorVar& tensor = tensor_region->source.as_or_throw<tvm::tirx::TensorVar>();
     if (intset_map.find(tensor) == intset_map.end()) {
-      intset_map[tensor] = {tensor->shape.size(), ffi::Array<sym::IntSet>()};
+      intset_map[tensor] = {tensor.shape().size(), ffi::Array<sym::IntSet>()};
     }
-    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor->shape.size(), ffi::Array<sym::IntSet>());
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    std::vector<ffi::Array<sym::IntSet>> dim_range(tensor.shape().size(),
+                                                   ffi::Array<sym::IntSet>());
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       intset_map[tensor][dim].push_back(sym::IntSet::FromRange(tensor_region->region[dim]));
     }
   }
@@ -494,7 +494,7 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   for (const auto& it : intset_map) {
     const TensorVar& tensor = it.first;
     ffi::Array<Range> regions;
-    for (size_t dim = 0; dim < tensor->shape.size(); ++dim) {
+    for (size_t dim = 0; dim < tensor.shape().size(); ++dim) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
       regions.push_back({intset.min(), intset.max() + 1});
     }
@@ -509,9 +509,9 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
  * \param loops The loop nests
  * \return The wrapped stmt.
  */
-Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
-  for (const ForNode* loop : loops) {
-    ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForObj*>& loops) {
+  for (const ForObj* loop : loops) {
+    ffi::ObjectPtr<ForObj> new_loop = ffi::make_object<ForObj>(*loop);
     new_loop->body = std::move(stmt);
     stmt = For(new_loop);
   }
@@ -527,7 +527,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   SBlock block = block_realize->block;
   StmtSRef block_sref = self->stmt2ref.at(block.get());
   // Step 2: Derive subspace division
-  std::vector<const ForNode*> loops;
+  std::vector<const ForObj*> loops;
   ffi::Array<ffi::Array<sym::IterMark>> division =
       SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer, preserve_unit_iters);
   if (division.empty()) {
@@ -550,7 +550,11 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   ffi::Map<Var, sym::IntSet> inner_iter_dom;
   for (const IterVar& iter : inner_iter_vars) {
     inner_iter_dom.Set(iter->var, sym::IntSet::FromRange(iter->dom.value()));
-    analyzer->Bind(iter->var, iter->dom.value());
+    {
+      auto context = analyzer->GetConstraintContext();
+      context->Append(sym::RangeConstraint(iter->var, iter->dom.value()));
+      analyzer->SyncConstraintContext(context);
+    }
   }
   SBlock block_subst =
       ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer).as_or_throw<SBlock>();
@@ -620,7 +624,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     auto block_realize = GetSBlockRealize(self, block_sref);
     auto block = block_realize->block;
     // Step 1: Derive subspace division
-    std::vector<const ForNode*> loops;
+    std::vector<const ForObj*> loops;
     ffi::Array<ffi::Array<sym::IterMark>> division = SubspaceDivide(
         block_realize, block_sref, lca, &loops, analyzer.get(), preserve_unit_iters, true);
     if (division.empty()) {
@@ -651,14 +655,18 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     ffi::Map<Var, sym::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
       PrimExpr min =
-          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->min, f_substitute)
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->begin, f_substitute)
               .as_or_throw<PrimExpr>();
       PrimExpr extent =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(iter->dom.value()->extent, f_substitute)
               .as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(min, extent);
       inner_iter_dom.Set(iter->var, sym::IntSet::FromRange(dom));
-      analyzer->Bind(iter->var, dom);
+      {
+        auto context = analyzer->GetConstraintContext();
+        context->Append(sym::RangeConstraint(iter->var, dom));
+        analyzer->SyncConstraintContext(context);
+      }
     }
     SBlock block_subst =
         ReplaceAndSimplify(block, block_var_subst, block_sref_reuse, analyzer.get())
@@ -687,11 +695,13 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
                                                 /*block=*/block_subst);
     block_sref_reuse->Set(block, inner_realize->block);
     Stmt stmt = inner_realize;
-    for (const ForNode* loop : loops) {
-      ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
+    for (const ForObj* loop : loops) {
+      ffi::ObjectPtr<ForObj> new_loop = ffi::make_object<ForObj>(*loop);
       new_loop->body = std::move(stmt);
-      new_loop->extent =
-          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_loop->extent, f_substitute)
+      new_loop->end =
+          new_loop->begin +
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+              Range::GetExtentFromBeginEnd(new_loop->begin, new_loop->end), f_substitute)
               .as_or_throw<PrimExpr>();
       stmt = For(new_loop);
     }
@@ -715,7 +725,7 @@ class BlockizeRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
-    if (value.as<ExprNode>()) return ffi::Unchanged();
+    if (value.as<ExprObj>()) return ffi::Unchanged();
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
@@ -732,7 +742,7 @@ class BlockizeRewriter : public StmtExprMutator {
 
  private:
   Stmt RewriteSeq(const Stmt& stmt) {
-    const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
+    const SeqStmtObj* seq = stmt.as<SeqStmtObj>();
     TVM_FFI_ICHECK(seq) << "Target blocks must not be nested with each other!";
     int idx_start = -1;
     int last_found_idx = -1;
@@ -759,15 +769,15 @@ class BlockizeRewriter : public StmtExprMutator {
     return SeqStmt(new_seq, seq->loc);
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
-      return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->annotations, loop->step, loop->loc);
+      return For(loop->var, loop->begin, loop->end, loop->step, loop->kind, RewriteSeq(loop->body),
+                 loop->annotations, loop->loc);
     }
     return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockObj* block, InplaceMode inplace_mode) final {
     if (block == lca_->stmt) {
       return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
                     RewriteSeq(block->body), block->init, block->alloc_tensors,
@@ -807,11 +817,11 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   // Step 1: Blockize the subtree rooted at the given loop if needed
   ffi::Optional<SBlock> old_block = std::nullopt;
   SBlockRealize block_realize = [&]() -> SBlockRealize {
-    if (sref->stmt->IsInstance<SBlockNode>()) {
+    if (sref->stmt->IsInstance<SBlockObj>()) {
       SBlockRealize result = GetSBlockRealize(self, sref);
       old_block = result->block;
       return result;
-    } else if (sref->stmt->IsInstance<ForNode>()) {
+    } else if (sref->stmt->IsInstance<ForObj>()) {
       sym::Analyzer analyzer;
       ffi::Map<SBlock, SBlock> block_sref_reuse;
       return BlockizeImpl(self, sref, &block_sref_reuse, analyzer.get(), preserve_unit_iters);
@@ -830,7 +840,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& tensor_regions) {
     for (const TensorRegion& tensor_region : tensor_regions) {
       for (const auto& range : tensor_region->region) {
-        index_dtype_bits = std::max(index_dtype_bits, range->min.ty().bits());
+        index_dtype_bits = std::max(index_dtype_bits, range->begin.ty().bits());
       }
     }
   };
@@ -841,11 +851,11 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
                     ->Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
-  TVM_FFI_CHECK(intrin_desc->body.has_value(), ValueError)
+  TVM_FFI_CHECK(!intrin_desc->GetAttr(tvm::attr::kDeclaration).value_or(false), ValueError)
       << "A tensor intrinsic description must have a body";
-  TVM_FFI_CHECK_EQ(intrin_desc->body.value()->size(), 1, ValueError)
+  TVM_FFI_CHECK_EQ(intrin_desc->body->size(), 1, ValueError)
       << "A tensor intrinsic description must contain a single root block";
-  comparator.Dispatch(block_realize, intrin_desc->body.value()->seq[0]);
+  comparator.Dispatch(block_realize, intrin_desc->body->seq[0]);
   // Step 3: Prepare necessary mapping
   // 1) TensorVar mapping from intrin impl tensors to intrin desc tensors.
   // 2) TensorVar mapping from intrin impl tensors to tensors in the current AST.
@@ -866,9 +876,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
-  TVM_FFI_ICHECK(intrin_impl->body.has_value());
-  TVM_FFI_ICHECK_EQ(intrin_impl->body.value()->size(), 1);
-  SBlock impl_block = intrin_impl->body.value()->seq[0].as_or_throw<SBlockRealize>()->block;
+  TVM_FFI_ICHECK(!intrin_impl->GetAttr(tvm::attr::kDeclaration).value_or(false));
+  TVM_FFI_ICHECK_EQ(intrin_impl->body->size(), 1);
+  SBlock impl_block = intrin_impl->body->seq[0].as_or_throw<SBlockRealize>()->block;
   for (const TensorRegion& read : impl_block->reads) {
     impl2region.emplace(read->source.as_or_throw<tvm::tirx::TensorVar>(), read->region);
   }
@@ -887,7 +897,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     TVM_FFI_ICHECK(offset >= 0);
     ffi::Array<Range> new_region;
-    new_region.reserve(cur->shape.size());
+    new_region.reserve(cur.shape().size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
       PrimExpr extent = IntImm(min.ty(), 1);
@@ -895,7 +905,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = cast(min.ty(), old_region[i]->extent);
+      PrimExpr extent = cast(old_region[i]->extent, min.ty());
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_tensor_regions.push_back(
@@ -903,7 +913,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   {
-    SBlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
+    SBlockObj* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
     block->body = impl_block->body;
     block->match_tensors = std::move(match_tensor_regions);
     for (const auto& [key, val] : impl_block->annotations) {
@@ -924,7 +934,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   // Step 6: Update the cached flags.
   StmtSRef result = self->stmt2ref.at(block_realize->block.get());
   StmtSRef scope_root = GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
-  self->UpdateScopeSBlockInfo(scope_root->StmtAs<SBlockNode>()->body);
+  self->UpdateScopeSBlockInfo(scope_root->StmtAs<SBlockObj>()->body);
 }
 
 /******** InstructionKind Registration ********/
@@ -939,21 +949,21 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef target,
-                                          IntImm preserve_unit_iters) {
+                                          bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
-      return sch->Blockize(loop.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(loop.value(), preserve_unit_iters);
     } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
-      return sch->Blockize(blocks.value(), preserve_unit_iters->value != 0);
+      return sch->Blockize(blocks.value(), preserve_unit_iters);
     }
     TVM_FFI_THROW(TypeError) << "expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::ObjectRef target,
-                                      IntImm preserve_unit_iters) {
+  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::Any target,
+                                      bool preserve_unit_iters) {
     PythonAPICall py("blockize");
     py.Input("target", target);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -972,11 +982,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, ffi::ObjectRef block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     if (auto block = block_or_loop_rv.as<SBlockRV>()) {
-      sch->Tensorize(block.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(block.value(), intrin, preserve_unit_iters);
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
-      sch->Tensorize(loop.value(), intrin, preserve_unit_iters->value != 0);
+      sch->Tensorize(loop.value(), intrin, preserve_unit_iters);
     } else {
       TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
                                << block_or_loop_rv->GetTypeKey();
@@ -984,11 +994,11 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_or_loop_rv,
-                                      ffi::String intrin, IntImm preserve_unit_iters) {
+                                      ffi::String intrin, bool preserve_unit_iters) {
     PythonAPICall py("tensorize");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("tensor_intrin", intrin);
-    py.Input("preserve_unit_iters", preserve_unit_iters->value != 0);
+    py.Input("preserve_unit_iters", preserve_unit_iters);
     return py.Str();
   }
 

@@ -27,7 +27,7 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -126,8 +126,8 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   }
   int output_ndim = std::max(x1_ndim, x2_ndim) - x1_prepended - x2_appended;
 
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprObj>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprObj>();
   if (x1_shape == nullptr || x2_shape == nullptr) {
     if (vdev.has_value()) {
       return TensorType(out_dtype, output_ndim, vdev);
@@ -181,12 +181,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
-      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeMatmul)
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
-                                      InferMixedPrecisionMatmul)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_attr(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeMatmul)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kInferMixedPrecision, InferMixedPrecisionMatmul)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.einsum */
@@ -204,7 +202,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.einsum", einsum);
 }
 
-Type InferTypeEinsum(const CallNode* call_node) {
+Type InferTypeEinsum(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Einsum op should take 1 argument";
@@ -251,7 +249,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
     }
 
     // Get input shapes
-    const auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
+    const auto* shape_expr = tensor_ty->shape.as<ShapeExprObj>();
     if (shape_expr != nullptr) {
       input_shapes.push_back(shape_expr->values);
     } else {
@@ -273,8 +271,8 @@ Type InferTypeEinsum(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
       .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeEinsum>())
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeEinsum>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.outer */
@@ -289,7 +287,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.outer", outer);
 }
 
-Type InferTypeOuter(const CallNode* call_node) {
+Type InferTypeOuter(const CallObj* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   auto input_ty = GetInputTensorType(call);
   auto x1_ty = input_ty[0];
@@ -301,8 +299,8 @@ Type InferTypeOuter(const CallNode* call_node) {
   }
 
   // Determine output shape
-  auto x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  auto x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  auto x1_shape = x1_ty->shape.as<ShapeExprObj>();
+  auto x2_shape = x2_ty->shape.as<ShapeExprObj>();
   if (!x1_shape || !x2_shape) {
     return TensorType(x1_ty->dtype, 2);
   }
@@ -314,10 +312,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeOuter>())
-      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
-                                       MixedPrecisionPolicyKind::kAlways)
-      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
+      .set_native_fn_attr<&InferTypeOuter>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kMixedPrecisionPolicy, MixedPrecisionPolicyKind::kAlways)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

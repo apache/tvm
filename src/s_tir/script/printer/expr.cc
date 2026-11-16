@@ -20,22 +20,20 @@
 #include <tvm/s_tir/iter_var.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
-
-#include "../../../script/printer/ir/utils.h"
-#include "../../../script/printer/utils.h"
+#include <tvm/script/printer/support.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() { RegisterScriptRepr<s_tir::IterVarNode>(); }
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterScriptRepr<s_tir::IterVarObj>(); }
 namespace {
 
 ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                            const ffi::Object*) {
   const auto* iter =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::IterVarNode>(input);
+      ffi::detail::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::IterVarObj>(input);
   ExprDoc domain = d->Translate(iter->dom).value();
   if (iter->dom.has_value()) {
     domain.as_or_throw<CallDoc>()->callee = NamespaceDoc("tirx")->Attr("Range");
@@ -48,8 +46,8 @@ ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<s_tir::IterVarNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+  ffi::reflection::TypeAttrDef<s_tir::IterVarObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 

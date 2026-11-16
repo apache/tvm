@@ -29,7 +29,7 @@ Loading and registration
 backend can register the following target-owned behavior:
 
 #. TVMScript namespaces such as ``Tx.cuda``, ``Tx.ptx``, and ``Tx.nki``;
-#. tile-primitive dispatch implementations for that target kind;
+#. tile-op dispatch implementations for that target kind;
 #. target tags and, when the target owns one, compilation-pipeline entry
    points; and
 #. code-generation helpers that translate backend calls to target source.

@@ -20,6 +20,7 @@
 #include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/runtime/memory_scope.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op/abi.h>
@@ -30,8 +31,9 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-inline bool IsVtcmStorage(std::string scope) {
-  return scope.find("global.vtcm") != std::string::npos;
+inline bool IsVtcmStorage(runtime::MemoryScope scope) {
+  static const auto vtcm = runtime::MemoryScope::Get("global.vtcm");
+  return scope == vtcm;
 }
 
 class VtcmAllocator : public StmtExprMutator {
@@ -41,39 +43,39 @@ class VtcmAllocator : public StmtExprMutator {
 
   VtcmAllocator() {}
 
-  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    if (const auto* call = op->value.as<CallNode>();
+  UnchangedOr<Stmt> Mutate_(const BindObj* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallObj>();
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindObj* op, const CallObj* call,
                                        InplaceMode inplace_mode) {
-    ffi::String scope = call->ty_args[0].as_or_throw<TensorType>()->storage_scope;
+    runtime::MemoryScope scope = call->ty_args[0].as_or_throw<TensorType>()->scope;
     if (IsVtcmStorage(scope)) {
       tvm::Tuple shape = tvm::Tuple(call->ty_args[0].as_or_throw<TensorType>()->shape);
       ffi::Array<Expr> args;
-      args.push_back(StringImm(scope));
+      args.push_back(StringImm(scope.name()));
       args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PtrType(PrimType::Int(64)), tirx::stack_make_shape_op(), shape->fields));
       TensorVar tensor = op->var.as_or_throw<TensorVar>();
       return Bind(tensor,
-                  Call(tensor.type(), tirx::decl_tensor_op(),
-                       {Call(tensor.type()->DataPtrType(),
+                  Call(tensor.ty(), tirx::decl_tensor_op(),
+                       {Call(tensor.ty()->DataPtrType(),
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args)},
-                       {}, {tensor.type()}, call->loc),
+                       {}, {tensor.ty()}, call->loc),
                   op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  protected:
-  std::string GetStorageScope(const Var& var) {
-    auto* ptr = var->ty.as<PtrTypeNode>();
+  runtime::MemoryScope GetStorageScope(const Var& var) {
+    auto* ptr = var->ty.as<PtrTypeObj>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PtrType";
-    return ptr->storage_scope;
+    return ptr->scope;
   }
 };
 

@@ -17,8 +17,8 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Relax unary arithmetic operators."""
 
-from tvm.ir import Call as _Call
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm_tirx.ir import Call as _Call
+from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..utils import convert_to_expr
@@ -39,7 +39,7 @@ def abs(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.abs", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.abs", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def acos(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -59,7 +59,7 @@ def acos(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.acos", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.acos", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def acosh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -79,7 +79,7 @@ def acosh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.acosh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.acosh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def asin(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -99,7 +99,7 @@ def asin(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.asin", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.asin", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def asinh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -119,7 +119,7 @@ def asinh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.asinh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.asinh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def atan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -139,7 +139,7 @@ def atan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.atan", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.atan", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def atanh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -159,7 +159,7 @@ def atanh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.atanh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.atanh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def bitwise_not(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -175,7 +175,7 @@ def bitwise_not(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) 
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.bitwise_not", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.bitwise_not", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def ceil(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -191,7 +191,7 @@ def ceil(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.ceil", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.ceil", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def cos(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -211,7 +211,7 @@ def cos(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.cos", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.cos", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def cosh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -231,7 +231,7 @@ def cosh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.cosh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.cosh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def exp(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -251,7 +251,7 @@ def exp(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.exp", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.exp", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def floor(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -267,7 +267,7 @@ def floor(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.floor", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.floor", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def log(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -287,7 +287,7 @@ def log(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.log", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.log", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def logical_not(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -303,7 +303,7 @@ def logical_not(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) 
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.logical_not", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.logical_not", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def negative(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -319,7 +319,7 @@ def negative(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> 
     result : relax.Expr
         The computed result
     """
-    return _Call("relax.negative", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.negative", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def round(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -335,7 +335,7 @@ def round(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.round", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.round", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def rsqrt(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -359,7 +359,7 @@ def rsqrt(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.rsqrt", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.rsqrt", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def sigmoid(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -379,7 +379,7 @@ def sigmoid(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> E
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.sigmoid", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.sigmoid", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def sign(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -395,7 +395,7 @@ def sign(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.sign", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.sign", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def sin(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -415,7 +415,7 @@ def sin(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.sin", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.sin", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def sinh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -435,7 +435,7 @@ def sinh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.sinh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.sinh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def square(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -451,7 +451,7 @@ def square(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Ex
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.square", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.square", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def sqrt(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -471,7 +471,7 @@ def sqrt(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.sqrt", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.sqrt", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def tan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -491,7 +491,7 @@ def tan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.tan", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.tan", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def tanh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -511,7 +511,7 @@ def tanh(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.tanh", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.tanh", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def trunc(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -525,7 +525,7 @@ def trunc(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.trunc", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.trunc", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def clip(x: Expr, min: Expr, max: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -549,7 +549,7 @@ def clip(x: Expr, min: Expr, max: Expr, *, ty=None, loc: Location = UNKNOWN_LOC)
     """
     min = convert_to_expr(min)
     max = convert_to_expr(max)
-    return _Call("relax.clip", [x, min, max], ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.clip", [x, min, max], loc=loc, ty=ty)  # type: ignore
 
 
 def erf(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -565,7 +565,7 @@ def erf(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     result : relax.Expr
         Computed error function for each element.
     """
-    return _Call("relax.erf", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.erf", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 ###################### Check operators ######################
@@ -584,7 +584,7 @@ def isfinite(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> 
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.isfinite", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.isfinite", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def isinf(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -600,7 +600,7 @@ def isinf(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.isinf", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.isinf", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore
 
 
 def isnan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
@@ -616,4 +616,4 @@ def isnan(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Exp
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.isnan", [x], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
+    return _Call("relax.isnan", [x], ty_args=ty_args, loc=loc, ty=ty)  # type: ignore

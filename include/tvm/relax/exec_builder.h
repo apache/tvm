@@ -23,6 +23,7 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
@@ -131,7 +132,7 @@ class ExecBuilderObj : public ffi::Object {
    * \param idx Index of the constant
    * \param scope The memory scope.
    */
-  void SaveMemoryScope(vm::Instruction::Arg idx, ffi::String scope);
+  void SaveMemoryScope(vm::Instruction::Arg idx, runtime::MemoryScope scope);
   /*!
    * \brief Raw access to underlying executable build in progress.
    */

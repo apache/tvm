@@ -1001,7 +1001,7 @@ void RPCDevAllocDataWithScope(RPCSession* handler, ffi::PackedArgs args, ffi::An
   int ndim = arr->ndim;
   int64_t* shape = arr->shape;
   DLDataType dtype = arr->dtype;
-  auto mem_scope = args[1].cast<ffi::Optional<ffi::String>>();
+  auto mem_scope = args[1].cast<ffi::Optional<MemoryScope>>();
   void* data = handler->AllocTensor(dev, ffi::ShapeView(shape, ndim), dtype, mem_scope);
   *rv = data;
 }
@@ -1185,7 +1185,7 @@ class RPCClientSession : public RPCSession {
   }
 
   void* AllocTensor(Device dev, ffi::ShapeView shape, DLDataType dtype,
-                    ffi::Optional<ffi::String> mem_scope) final {
+                    ffi::Optional<MemoryScope> mem_scope) final {
     DLTensor temp;
     temp.data = nullptr;
     temp.device = dev;
@@ -1197,7 +1197,7 @@ class RPCClientSession : public RPCSession {
     if (mem_scope.has_value()) {
       return endpoint_
           ->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
-                          static_cast<std::string>(mem_scope.value()))
+                          static_cast<std::string>(mem_scope.value().name()))
           .cast<void*>();
     } else {
       return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp, nullptr)

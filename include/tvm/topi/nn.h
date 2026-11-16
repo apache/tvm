@@ -172,10 +172,10 @@ inline tvm::te::Tensor pad(
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   tvm::ffi::Array<tvm::PrimExpr> output_shape;
@@ -498,14 +498,14 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   tvm::ffi::Array<tvm::PrimExpr> pad_after_int32;
 
   // pad size for batch dimension is 0
-  pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
-  pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), 0));
+  pad_before_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
+  pad_after_int32.push_back(tvm::prim::cast(0, tvm::PrimType::Int(32)));
   // insert pad sizes given for spatial dimensions
   for (const auto& ele : pad_before) {
-    pad_before_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_before_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
   for (const auto& ele : pad_after) {
-    pad_after_int32.push_back(tvm::prim::cast(tvm::PrimType::Int(32), ele));
+    pad_after_int32.push_back(tvm::prim::cast(ele, tvm::PrimType::Int(32)));
   }
 
   // pad the input with paddings provided
@@ -636,11 +636,11 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
     strides.push_back(IntImm(index_ty, 1));
     if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
-      const auto* begin_i_imm = crop_begin_list[i - 1].as<IntImmNode>();
+      const auto* begin_i_imm = crop_begin_list[i - 1].as<IntImmObj>();
       ffi::BigInt begin_i = begin_i_imm ? begin_i_imm->value : GetConstInt(crop_begin_list[i - 1]);
-      const auto* end_i_imm = crop_end_list[i - 1].as<IntImmNode>();
+      const auto* end_i_imm = crop_end_list[i - 1].as<IntImmObj>();
       ffi::BigInt end_i = end_i_imm ? end_i_imm->value : GetConstInt(crop_end_list[i - 1]);
-      const auto* out_i_imm = r_p_shape[i].as<IntImmNode>();
+      const auto* out_i_imm = r_p_shape[i].as<IntImmObj>();
       ffi::BigInt out_i = out_i_imm ? out_i_imm->value : GetConstInt(r_p_shape[i]);
       TVM_FFI_ICHECK_GT(out_i, (begin_i + end_i))
           << "Incorrect crop sizes for (" << i << ")th dim, can not crop more than"
@@ -650,7 +650,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
     } else {
       // ignore the batch and remaining dimension
       begin_idx.push_back(IntImm(index_ty, 0));
-      const auto* extent = r_p_shape[i].as<IntImmNode>();
+      const auto* extent = r_p_shape[i].as<IntImmObj>();
       end_idx.push_back(IntImm(index_ty, extent ? extent->value : GetConstInt(r_p_shape[i])));
     }
   }

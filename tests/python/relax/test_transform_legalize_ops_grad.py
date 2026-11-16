@@ -16,18 +16,18 @@
 # under the License.
 # ruff: noqa: E501, F841
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_nll_loss_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLossBackward:
         @R.function
         def main(output_grad: R.Tensor((), "float32"), predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
@@ -85,7 +85,7 @@ def test_nll_loss_backward():
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_loss_backward_no_weight():
@@ -155,12 +155,12 @@ def test_nll_loss_backward_no_weight():
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_nll_loss_backward_no_batch():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class NLLLossBackward:
         @R.function
         def main(output_grad: R.Tensor((), "float32"), predictions: R.Tensor((4,), "float32"), targets: R.Tensor((), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
@@ -206,12 +206,12 @@ def test_nll_loss_backward_no_batch():
     # fmt: on
 
     mod = LegalizeOps()(NLLLossBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_max_pool2d_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class MaxPool2DBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), "float32"), data: R.Tensor((3, 2, 10, 10), "float32")):
@@ -262,12 +262,12 @@ def test_max_pool2d_backward():
     # fmt: on
 
     mod = LegalizeOps()(MaxPool2DBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_avg_pool2d_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class AvgPool2DBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 6, 5), "float32"), data: R.Tensor((3, 2, 10, 10), "float32")):
@@ -297,22 +297,26 @@ def test_avg_pool2d_backward():
     # fmt: on
 
     mod = LegalizeOps()(AvgPool2DBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_take_backward():
     # fmt: off
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TakeBackward:
         @R.function
         def main(output_grad: R.Tensor((3, 2, 5), "float32"), x: R.Tensor((3, 4, 5), "float32"), indices: R.Tensor((2,), "int32")):
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
+    expected_rxplaceholder_offset = T.dynamic("expected_rxplaceholder_offset", "int64")
+    expected_rxplaceholder_1_offset = T.dynamic("expected_rxplaceholder_1_offset", "int64")
+    expected_rxplaceholder_2_offset = T.dynamic("expected_rxplaceholder_2_offset", "int64")
+
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), "float32",  layout=T.TileLayout(T.S[(T.int64(3), T.int64(2), T.int64(5))] + (expected_rxplaceholder_offset))), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32",  layout=T.TileLayout(T.S[(T.int64(3), T.int64(4), T.int64(5))] + (expected_rxplaceholder_1_offset))), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32',  layout=T.TileLayout(T.S[(T.int64(2),)] + (expected_rxplaceholder_2_offset))), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
@@ -329,33 +333,37 @@ def test_take_backward():
     # fmt: on
 
     mod = LegalizeOps()(TakeBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 def test_take_backward_symbolic():
     # fmt: off
-    m = T.dynamic("m")
-    i = T.dynamic("i")
-    n = T.dynamic("n")
+    m = T.dynamic("m", "int64")
+    i = T.dynamic("i", "int64")
+    n = T.dynamic("n", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class TakeBackward:
         @R.function
         def main(output_grad: R.Tensor((m, i), "float32"), x: R.Tensor((m, n), "float32"), indices: R.Tensor((i,), "int32")):
             gv = R.grad.take_backward(output_grad, x, indices, axis=1)
             return gv
 
-    m_take_backward = T.dynamic("m")
-    i_take_backward = T.dynamic("i")
-    n_take_backward = T.dynamic("n")
-    m_main = T.dynamic("m")
-    n_main = T.dynamic("n")
-    i_main = T.dynamic("i")
+    m_take_backward = T.dynamic("m", "int64")
+    i_take_backward = T.dynamic("i", "int64")
+    n_take_backward = T.dynamic("n", "int64")
+    m_main = T.dynamic("m", "int64")
+    n_main = T.dynamic("n", "int64")
+    i_main = T.dynamic("i", "int64")
+
+    expected_rxplaceholder_offset_1 = T.dynamic("expected_rxplaceholder_offset_1", "int64")
+    expected_rxplaceholder_1_offset_1 = T.dynamic("expected_rxplaceholder_1_offset_1", "int64")
+    expected_rxplaceholder_2_offset_1 = T.dynamic("expected_rxplaceholder_2_offset_1", "int64")
 
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Tensor((m_take_backward, n_take_backward))):
+        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), "float32",  layout=T.TileLayout(T.S[(m_take_backward, i_take_backward)] + (expected_rxplaceholder_offset_1))), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), "float32",  layout=T.TileLayout(T.S[(m_take_backward, n_take_backward)] + (expected_rxplaceholder_1_offset_1))), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32',  layout=T.TileLayout(T.S[(i_take_backward,)] + (expected_rxplaceholder_2_offset_1))), out_buf: T.Tensor((m_take_backward, n_take_backward), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
@@ -372,8 +380,8 @@ def test_take_backward_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(TakeBackward)
-    tvm.ir.assert_structural_equal(mod, Expected)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

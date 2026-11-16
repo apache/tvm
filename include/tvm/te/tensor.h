@@ -24,11 +24,12 @@
 #ifndef TVM_TE_TENSOR_H_
 #define TVM_TE_TENSOR_H_
 
+#include <tvm/base.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/iter_var.h>
-#include <tvm/sym/bound.h>
+#include <tvm/sym/int_set.h>
 #include <tvm/tirx/expr.h>
 
 #include <string>
@@ -39,7 +40,7 @@
 namespace tvm {
 namespace te {
 using s_tir::IterVar;
-using s_tir::IterVarNode;
+using s_tir::IterVarObj;
 using s_tir::IterVarType;
 using s_tir::IterVarType2String;
 using s_tir::kCommReduce;
@@ -56,7 +57,7 @@ using sym::IntSet;
 using namespace tvm::tirx;
 
 // internal node container for Operation
-class OperationNode;
+class OperationObj;
 class Tensor;
 
 /*! \brief Operation that produces tensors */
@@ -68,7 +69,7 @@ class Operation : public ffi::ObjectRef {
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  inline const OperationNode* operator->() const;
+  inline const OperationObj* operator->() const;
   /*!
    * \brief get the i-th output of the operation.
    * \param i the output index.
@@ -76,11 +77,11 @@ class Operation : public ffi::ObjectRef {
    */
   TVM_DLL Tensor output(size_t i) const;
   /*! \brief specify container node */
-  using ContainerType = OperationNode;
+  using ContainerType = OperationObj;
 };
 
 /*! \brief Opaque construction-time node that represents a tensor. */
-class TensorNode : public OpaqueExprNode {
+class TensorObj : public OpaqueExprObj {
  public:
   /*! \brief The shape of the tensor */
   ffi::Array<PrimExpr> shape;
@@ -101,7 +102,7 @@ class TensorNode : public OpaqueExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorNode, OpaqueExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("te.Tensor", TensorObj, OpaqueExprObj);
 };
 
 /*!
@@ -218,9 +219,9 @@ class Tensor : public OpaqueExpr {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  explicit Tensor(ffi::ObjectPtr<TensorNode> node) : OpaqueExpr(std::move(node)) {}
+  explicit Tensor(ffi::ObjectPtr<TensorObj> node) : OpaqueExpr(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tensor, OpaqueExpr, TensorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tensor, OpaqueExpr, TensorObj);
 };
 
 /*! \brief Return whether an expression calls the registered te.tensor_load operator. */

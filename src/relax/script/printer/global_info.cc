@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 
-#include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -69,16 +68,16 @@ namespace {
 ffi::Optional<ExprDoc> VDeviceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                            const ffi::Object*) {
   const auto* device =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::VDeviceNode>(input);
+      ffi::detail::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::VDeviceObj>(input);
   return NamespaceDoc("relax")->Attr("vdevice")->Call(
       {d->Translate(device->target).value()}, {"vdevice_id", "memory_scope"},
       {LiteralDoc::Int(device->vdevice_id, std::nullopt),
-       LiteralDoc::Str(device->memory_scope, std::nullopt)});
+       LiteralDoc::Str(device->memory_scope.name(), std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::VDeviceNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+  ffi::reflection::TypeAttrDef<relax::VDeviceObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&VDeviceDocTranslate>());
 }
 
@@ -88,8 +87,8 @@ ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyVi
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::DummyGlobalInfoNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
+  ffi::reflection::TypeAttrDef<relax::DummyGlobalInfoObj>().attr(
+      tvm::script::printer::type_attr::kDocTranslate.name,
       FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
 }
 

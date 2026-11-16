@@ -80,7 +80,7 @@ ffi::Array<ffi::Optional<ExprRV>> TracedScheduleObj::SamplePerfectTile(
       /*inst=*/Instruction(
           /*kind=*/kind,  //
           /*inputs=*/{loop_rv},
-          /*attrs=*/{IntImm::Int32(n), IntImm::Int32(max_innermost_factor)},
+          /*attrs=*/{n, max_innermost_factor},
           /*outputs=*/results),
       /*decision=*/decision);
   return results;
@@ -98,7 +98,7 @@ ffi::Array<ExprRV> TracedScheduleObj::SamplePartitionedTile(
           /*kind=*/kind,  //
           /*inputs=*/{loop_rv},
           /*attrs=*/
-          {IntImm::Int32(n), IntImm::Int32(partition_pos), IntImm::Int32(innerpart_factor)},
+          {n, partition_pos, innerpart_factor},
           /*outputs=*/results),
       /*decision=*/decision);
   return results;
@@ -227,7 +227,7 @@ LoopRV TracedScheduleObj::Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserve
   static const InstructionKind& kind = InstructionKind::Get("Fuse");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/loop_rvs,
-                                      /*attrs=*/{IntImm::Int32(preserve_unit_loops)},
+                                      /*attrs=*/{preserve_unit_loops},
                                       /*outputs=*/{result}));
   return result;
 }
@@ -270,7 +270,7 @@ ffi::Array<LoopRV> TracedScheduleObj::LoopPartition(
   static const InstructionKind& kind = InstructionKind::Get("LoopPartition");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/inputs,
-                                      /*attrs=*/{IntImm::Int32(preserve_unit_iters)},
+                                      /*attrs=*/{preserve_unit_iters},
                                       /*outputs=*/results));
   return results;
 }
@@ -369,7 +369,7 @@ SBlockRV TracedScheduleObj::CacheRead(const SBlockRV& block_rv, int read_tensor_
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv, consumer_blocks},
-                           /*attrs=*/{IntImm::Int32(read_tensor_index), storage_scope},
+                           /*attrs=*/{read_tensor_index, storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -384,7 +384,7 @@ SBlockRV TracedScheduleObj::CacheWrite(const SBlockRV& block_rv, int write_tenso
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv, consumer_blocks},
-                           /*attrs=*/{IntImm::Int32(write_tensor_index), storage_scope},
+                           /*attrs=*/{write_tensor_index, storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -400,7 +400,7 @@ SBlockRV TracedScheduleObj::ReindexCacheRead(const SBlockRV& block_rv, int read_
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
-          /*attrs=*/{IntImm::Int32(read_tensor_index), storage_scope},
+          /*attrs=*/{read_tensor_index, storage_scope},
           /*outputs=*/{result}));
   return result;
 }
@@ -416,7 +416,7 @@ SBlockRV TracedScheduleObj::ReindexCacheWrite(const SBlockRV& block_rv, int writ
       /*inst=*/Instruction(
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
-          /*attrs=*/{IntImm::Int32(write_tensor_index), storage_scope},
+          /*attrs=*/{write_tensor_index, storage_scope},
           /*outputs=*/{result}));
   return result;
 }
@@ -434,7 +434,7 @@ ffi::Array<SBlockRV> TracedScheduleObj::CacheInplace(const SBlockRV& block_rv,
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv},
-                           /*attrs=*/{IntImm::Int32(read_tensor_index), storage_scope},
+                           /*attrs=*/{read_tensor_index, storage_scope},
                            /*outputs=*/results));
   return result;
 }
@@ -452,7 +452,7 @@ ffi::Array<SBlockRV> TracedScheduleObj::CacheIndex(const SBlockRV& block_rv,
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{block_rv},
-                           /*attrs=*/{storage_scope, IntImm::Int32(cse_thresh)},
+                           /*attrs=*/{storage_scope, cse_thresh},
                            /*outputs=*/outputs));
   return result;
 }
@@ -467,7 +467,7 @@ SBlockRV TracedScheduleObj::ReIndex(const SBlockRV& block_rv, int tensor_index,
           /*kind=*/kind,
           /*inputs=*/{block_rv},
           /*attrs=*/
-          {IntImm::Int32(tensor_index), IntImm::Int32(static_cast<int>(tensor_index_type))},
+          {tensor_index, static_cast<int>(tensor_index_type)},
           /*outputs=*/{result}));
   return result;
 }
@@ -483,7 +483,7 @@ SBlockRV TracedScheduleObj::ReadAt(const LoopRV& loop_rv, const SBlockRV& block_
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{loop_rv, block_rv},
-                           /*attrs=*/{IntImm::Int32(read_tensor_index), storage_scope},
+                           /*attrs=*/{read_tensor_index, storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -497,7 +497,7 @@ SBlockRV TracedScheduleObj::WriteAt(const LoopRV& loop_rv, const SBlockRV& block
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/{loop_rv, block_rv},
-                           /*attrs=*/{IntImm::Int32(write_tensor_index), storage_scope},
+                           /*attrs=*/{write_tensor_index, storage_scope},
                            /*outputs=*/{result}));
   return result;
 }
@@ -514,7 +514,7 @@ void TracedScheduleObj::ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_r
           /*kind=*/kind,
           /*inputs=*/{block_rv, loop_rv},
           /*attrs=*/
-          {IntImm::Int32(preserve_unit_loops), IntImm::Int32(index)},
+          {preserve_unit_loops, index},
           /*outputs=*/{}));
 }
 
@@ -526,7 +526,7 @@ void TracedScheduleObj::ReverseComputeAt(const SBlockRV& block_rv, const LoopRV&
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv, loop_rv},
-      /*attrs=*/{IntImm::Int32(preserve_unit_loops), IntImm::Int32(index)},
+      /*attrs=*/{preserve_unit_loops, index},
       /*outputs=*/{}));
 }
 
@@ -578,7 +578,7 @@ SBlockRV TracedScheduleObj::RFactor(const LoopRV& loop_rv, int factor_axis) {
   static const InstructionKind& kind = InstructionKind::Get("RFactor");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{loop_rv},
-                                      /*attrs=*/{IntImm::Int32(factor_axis)},
+                                      /*attrs=*/{factor_axis},
                                       /*outputs=*/{result}));
   return result;
 }
@@ -593,8 +593,7 @@ void TracedScheduleObj::StorageAlign(const SBlockRV& block_rv, int tensor_index,
       /*kind=*/kind,
       /*inputs=*/{block_rv},
       /*attrs=*/
-      {IntImm::Int32(tensor_index), IntImm::Int32(axis), IntImm::Int32(factor),
-       IntImm::Int32(offset)},
+      {tensor_index, axis, factor, offset},
       /*outputs=*/{}));
 }
 
@@ -605,7 +604,7 @@ void TracedScheduleObj::SetScope(const SBlockRV& block_rv, int tensor_index,
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm::Int32(tensor_index), storage_scope},
+      /*attrs=*/{tensor_index, storage_scope},
       /*outputs=*/{}));
 }
 
@@ -616,7 +615,7 @@ void TracedScheduleObj::UnsafeSetDType(const SBlockRV& block_rv, int tensor_inde
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm::Int32(tensor_index), dtype},
+      /*attrs=*/{tensor_index, dtype},
       /*outputs=*/{}));
 }
 
@@ -628,7 +627,7 @@ SBlockRV TracedScheduleObj::Blockize(const LoopRV& loop_rv, bool preserve_unit_i
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{IntImm::Bool(preserve_unit_iters)},
+      /*attrs=*/{preserve_unit_iters},
       /*outputs=*/{new_block}));
   return new_block;
 }
@@ -639,7 +638,7 @@ SBlockRV TracedScheduleObj::Blockize(const ffi::Array<SBlockRV>& blocks, bool pr
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{blocks},
-      /*attrs=*/{IntImm::Bool(preserve_unit_iters)},
+      /*attrs=*/{preserve_unit_iters},
       /*outputs=*/{new_block}));
   return new_block;
 }
@@ -651,7 +650,7 @@ void TracedScheduleObj::Tensorize(const LoopRV& loop_rv, const ffi::String& intr
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{loop_rv},
-      /*attrs=*/{intrin, IntImm::Bool(preserve_unit_iters)},
+      /*attrs=*/{intrin, preserve_unit_iters},
       /*outputs=*/{}));
 }
 
@@ -662,7 +661,7 @@ void TracedScheduleObj::Tensorize(const SBlockRV& block_rv, const ffi::String& i
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{intrin, IntImm::Bool(preserve_unit_iters)},
+      /*attrs=*/{intrin, preserve_unit_iters},
       /*outputs=*/{}));
 }
 
@@ -721,8 +720,8 @@ void TracedScheduleObj::TransformLayout(const SBlockRV& block_rv, int tensor_ind
           /*kind=*/kind,
           /*inputs=*/{block_rv, index_map},
           /*attrs=*/
-          {IntImm::Int32(tensor_index), IntImm::Int32(static_cast<int>(tensor_index_type)),
-           pad_value, IntImm::Bool(assume_injective_transform)},
+          {tensor_index, static_cast<int>(tensor_index_type), pad_value,
+           assume_injective_transform},
           /*outputs=*/{}));
 }
 
@@ -766,7 +765,7 @@ void TracedScheduleObj::RollingBuffer(const SBlockRV& block_rv, int write_tensor
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv},
-      /*attrs=*/{IntImm::Int32(write_tensor_index)},
+      /*attrs=*/{write_tensor_index},
       /*outputs=*/{}));
 }
 
@@ -783,7 +782,7 @@ void TracedScheduleObj::EnterPostproc() {
 
 void TracedScheduleObj::UnsafeHideTensorAccess(const SBlockRV& block_rv,
                                                const ffi::String& tensor_type,
-                                               const ffi::Array<IntImm>& tensor_index_array) {
+                                               const ffi::Array<int64_t>& tensor_index_array) {
   ConcreteScheduleObj::UnsafeHideTensorAccess(block_rv, tensor_type, tensor_index_array);
   static const InstructionKind& kind = InstructionKind::Get("UnsafeHideTensorAccess");
   trace_->Append(/*inst=*/Instruction(
@@ -801,8 +800,7 @@ void TracedScheduleObj::AnnotateTensorAccess(const SBlockRV& block_rv, int tenso
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/
-      {block_rv, IntImm::Int32(tensor_index), IntImm::Int32(static_cast<int>(tensor_index_type)),
-       index_map},
+      {block_rv, tensor_index, static_cast<int>(tensor_index_type), index_map},
       /*attrs=*/{},
       /*outputs=*/{}));
 }

@@ -68,8 +68,12 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   // fuse all data parallel loops
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
-  if (sch->Get(fused)->extent->IsInstance<IntImmNode>()) {
-    product = static_cast<int64_t>(sch->Get(fused)->extent.as<IntImmNode>()->value);
+  if (Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+          ->IsInstance<IntImmObj>()) {
+    product = static_cast<int64_t>(
+        Range::GetExtentFromBeginEnd(sch->Get(fused)->begin, sch->Get(fused)->end)
+            .as<IntImmObj>()
+            ->value);
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
@@ -92,10 +96,10 @@ IRModule MarkScheduled(const IRModule& mod) {
   ffi::Map<GlobalVar, BaseFunc> result;
 
   for (const auto& [gv, base_func] : mod->functions) {
-    if (const auto* function_node = base_func.as<tirx::FunctionNode>()) {
+    if (const auto* function_node = base_func.as<tirx::FunctionObj>()) {
       tirx::Function function = ffi::GetRef<tirx::Function>(function_node);
       tirx::Function new_function =
-          WithAttr(std::move(function), tvm::s_tir::attr::kIsScheduled, true);
+          WithAttr(std::move(function), tvm::s_tir::attr::kIsScheduled.name, true);
       result.Set(gv, new_function);
     } else {
       result.Set(gv, base_func);
@@ -103,7 +107,6 @@ IRModule MarkScheduled(const IRModule& mod) {
   }
 
   return IRModule(result,              // functions
-                  mod->source_map,     // map
                   mod->attrs,          // attrs
                   mod->global_infos);  // global_infos
 }
@@ -123,9 +126,8 @@ IRModule MarkScheduled(const IRModule& mod) {
  * iter_values/iter_vars counts consistent for downstream checks.
  */
 tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
-  const auto* realize = func->body.has_value() && func->body.value()->size() == 1
-                            ? func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()
-                            : nullptr;
+  const auto* realize =
+      func->body->size() == 1 ? func->body->seq[0].as<s_tir::SBlockRealizeObj>() : nullptr;
   if (realize == nullptr || !realize->block->iter_vars.empty()) {
     return func;
   }
@@ -134,8 +136,8 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   // whose block body is a For loop (or a nested SBlockRealize) — that case
   // already has somewhere to put thread bindings, so leave it alone.
   const SeqStmt& inner = realize->block->body;
-  if (inner->size() == 1 && (inner->seq[0]->IsInstance<ForNode>() ||
-                             inner->seq[0]->IsInstance<s_tir::SBlockRealizeNode>())) {
+  if (inner->size() == 1 && (inner->seq[0]->IsInstance<ForObj>() ||
+                             inner->seq[0]->IsInstance<s_tir::SBlockRealizeObj>())) {
     return func;
   }
   tvm::IntImm zero(tvm::PrimType::Int(32), 0);
@@ -149,7 +151,8 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   s_tir::SBlockRealize inner_realize(
       /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
       /*predicate=*/realize->predicate, inner_block);
-  Stmt for_stmt = For(loop_var.as_or_throw<PrimVar>(), zero, one, ForKind::kDefault, inner_realize);
+  Stmt for_stmt =
+      For(loop_var.as_or_throw<PrimVar>(), zero, one, one, ForKind::kDefault, inner_realize);
   s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<s_tir::IterVar>{},
                            /*reads=*/ffi::Array<tvm::TensorRegion>{},
                            /*writes=*/ffi::Array<tvm::TensorRegion>{},
@@ -161,14 +164,9 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   return result;
 }
 
-bool IsScheduledOnGPU(const BaseFunc& func) {
-  // the target from context.
-  ffi::Optional<tvm::Target> target = tvm::Target::Current();
-  // the Target in kTarget attribute of Function
-  ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-  if (func_target.has_value()) {
-    target = func_target.value();
-  }
+bool IsScheduledOnGPU(const BaseFunc& func, ffi::Optional<Target> default_target) {
+  ffi::Optional<tvm::Target> target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget.name);
+  if (!target.has_value()) target = default_target;
 
   if (target.has_value()) {
     int dev_type = target.value()->GetTargetDeviceType();
@@ -180,7 +178,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
   return true;
 }
 
-Pass DefaultGPUSchedule() {
+Pass DefaultGPUSchedule(ffi::Optional<Target> default_target) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         // Wrap any GPU-bound Function whose body is a bare SBlockRealize
@@ -188,9 +186,9 @@ Pass DefaultGPUSchedule() {
         ffi::Map<GlobalVar, BaseFunc> wrapped;
         bool any_wrapped = false;
         for (const auto& [gv, base_func] : m->functions) {
-          if (const auto* function_node = base_func.as<tirx::FunctionNode>();
-              function_node != nullptr && IsScheduledOnGPU(base_func) &&
-              !base_func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled)) {
+          if (const auto* function_node = base_func.as<tirx::FunctionObj>();
+              function_node != nullptr && IsScheduledOnGPU(base_func, default_target) &&
+              !base_func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled.name)) {
             tirx::Function func = ffi::GetRef<tirx::Function>(function_node);
             tirx::Function new_func = WrapBareSBlockBody(func);
             if (!new_func.same_as(func)) {
@@ -202,24 +200,18 @@ Pass DefaultGPUSchedule() {
           wrapped.Set(gv, base_func);
         }
         if (any_wrapped) {
-          m = IRModule(wrapped, m->source_map, m->attrs, m->global_infos);
+          m = IRModule(wrapped, m->attrs, m->global_infos);
         }
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tirx::FunctionNode>() &&
-              !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
-            // get the target from context.
-            ffi::Optional<tvm::Target> target = tvm::Target::Current();
-            // get the target from kTarget attribute
-            ffi::Optional<tvm::Target> func_target =
-                func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-            if (func_target.has_value()) {
-              target = func_target.value();
-            }
-            TVM_FFI_ICHECK(target.has_value())
-                << "The target is missing either in the current context or in "
-                   "the function's attribute.";
+          if (func->IsInstance<tirx::FunctionObj>() &&
+              !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled.name) &&
+              IsScheduledOnGPU(func, default_target)) {
+            ffi::Optional<tvm::Target> target =
+                func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget.name);
+            if (!target.has_value()) target = default_target;
+            TVM_FFI_ICHECK(target.has_value()) << "The function is missing its target attribute.";
             // get the max thread per block from target.
             ffi::Optional<int64_t> opt_max_thread_per_block =
                 target.value()->GetAttr<int64_t>("max_num_threads");

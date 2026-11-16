@@ -29,4 +29,4 @@ launch, and generated-source inspection.
    ../native_basics/cuda/first_kernel
 
 Continue with the :doc:`programming guide <../programming/index>` for the core
-language, CUDA intrinsics, layouts, and tile primitives.
+language, CUDA intrinsics, layouts, and tile ops.

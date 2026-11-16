@@ -32,7 +32,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
   using StmtExprVisitor::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
-    if (value.as<ExprNode>()) return std::nullopt;
+    if (value.as<ExprObj>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
 
@@ -42,10 +42,10 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* function = base_func.as<FunctionNode>()) {
+      if (const auto* function = base_func.as<FunctionObj>()) {
         auto finder = ffi::make_object<ReductionBlockFinder>();
         finder->Visit(function->body);
-        for (const SBlockNode* block : finder->results_) {
+        for (const SBlockObj* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
         }
       }
@@ -54,31 +54,31 @@ struct ReductionBlockFinder : public StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForObj* loop) final {
     support::GPUThreadTag thread_scope = GetThreadBindingTag(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
-      thread_bound_loop_vars_.insert(loop->loop_var.get());
+      thread_bound_loop_vars_.insert(loop->var.get());
     }
     return StmtExprVisitor::Visit_(loop);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeObj* realize) final {
     if (realize->block->init.has_value() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
     return StmtExprVisitor::Visit_(realize);
   }
 
-  bool AllReductionIterVarAreUnbound(const SBlockRealizeNode* realize) const {
+  bool AllReductionIterVarAreUnbound(const SBlockRealizeObj* realize) const {
     if (thread_bound_loop_vars_.empty()) {
       return true;
     }
-    auto f_find = [this](const VarNode* var) -> bool { return thread_bound_loop_vars_.count(var); };
+    auto f_find = [this](const VarObj* var) -> bool { return thread_bound_loop_vars_.count(var); };
     auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
       return f_find(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                : ffi::WalkResult::Advance();
     };
-    const SBlockNode* block = realize->block.get();
+    const SBlockObj* block = realize->block.get();
     TVM_FFI_ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n = block->iter_vars.size();
     for (int i = 0; i < n; ++i) {
@@ -94,9 +94,9 @@ struct ReductionBlockFinder : public StmtExprVisitor {
   }
 
   /*! \brief The results of the collection */
-  std::vector<const SBlockNode*> results_;
+  std::vector<const SBlockObj*> results_;
   /*! \brief Loop variables that are bound to threads */
-  std::unordered_set<const VarNode*> thread_bound_loop_vars_;
+  std::unordered_set<const VarObj*> thread_bound_loop_vars_;
 };
 
 /*!
@@ -162,20 +162,20 @@ bool RewriteReductionBlockObj::Apply(const s_tir::Schedule& sch) {
       s_tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
-      if (s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize)
+      if (s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name)
               .has_value()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
-        sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize);
+        sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name);
         ffi::Optional<ffi::String> tensorize_init = s_tir::GetAnn<ffi::String>(
-            block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
+            block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
         // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.
-        sch->Annotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
+        sch->Annotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize.name,
                       tensorize_init.value_or(""));
         if (tensorize_init.has_value()) {
-          sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
-          sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit);
+          sch->Unannotate(block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
+          sch->Unannotate(init_block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit.name);
         }
       }
       ++rewritten;

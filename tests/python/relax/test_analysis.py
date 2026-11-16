@@ -18,10 +18,11 @@
 
 import pytest
 
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import relax as rx
 from tvm.relax import ExternFunc as _ExternFunc
+from tvm.relax import script as R
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -33,10 +34,9 @@ from tvm.relax.analysis import (
     udchain,
     used_vars,
 )
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
@@ -86,7 +86,7 @@ def test_used_vars(expr_fn, expected_var_names):
 
 
 def test_chained_remove_all_unused():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -105,7 +105,7 @@ def test_chained_remove_all_unused():
 
     optimized = remove_all_unused(IdentityUnused["main"])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroundTruth:
         @R.function
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -114,7 +114,7 @@ def test_chained_remove_all_unused():
                 R.output(lv0)
             return lv0
 
-    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
 def test_binding_block_remove_all_unused():
@@ -125,7 +125,7 @@ def test_binding_block_remove_all_unused():
     effects, they may be removed if unused.
     """
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -145,7 +145,7 @@ def test_binding_block_remove_all_unused():
 
     optimized = remove_all_unused(IdentityUnused["main"])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroundTruth:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -155,7 +155,7 @@ def test_binding_block_remove_all_unused():
             z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
-    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
 def test_binding_block_remove_unused_pure_without_dataflow():
@@ -183,7 +183,7 @@ def test_binding_block_remove_unused_pure_without_dataflow():
         return x
 
     after = remove_all_unused(before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_binding_block_keep_impure_without_dataflow():
@@ -204,7 +204,7 @@ def test_binding_block_keep_impure_without_dataflow():
     expected = before
 
     after = remove_all_unused(before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_binding_block_keep_pure_func_used_only_for_impure():
@@ -234,11 +234,11 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
     expected = before
 
     after = remove_all_unused(before)
-    tvm.ir.assert_structural_equal(expected, after)
+    tvm_tirx.ir.assert_structural_equal(expected, after)
 
 
 def test_binding_block_remove_all_unused_func_without_dataflow():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -253,7 +253,7 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
 
     optimized = remove_all_unused(IdentityUnused["main"])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroundTruth:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -261,11 +261,11 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
             z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return z
 
-    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
 def test_binding_block_fake_unused_remove_all_unused():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -277,7 +277,7 @@ def test_binding_block_fake_unused_remove_all_unused():
 
     optimized = remove_all_unused(IdentityUnused["main"])
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class GroundTruth:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
@@ -288,11 +288,11 @@ def test_binding_block_fake_unused_remove_all_unused():
             z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
             return lv0
 
-    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
 def test_edge_binding_block_fake_unused_remove_all_unused():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
@@ -300,15 +300,15 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
             return x
 
     optimized = remove_all_unused(IdentityUnused["main"])
-    tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, IdentityUnused["main"])
 
 
 def test_edge_binding_block_fake_unused_remove_all_unused2():
-    m = T.dynamic("m")
-    n = T.dynamic("n")
-    k = T.dynamic("k")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+    k = T.dynamic("k", "int64")
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class IdentityUnused:
         @R.function
         def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor(dtype="int32", ndim=3):
@@ -324,7 +324,7 @@ def test_edge_binding_block_fake_unused_remove_all_unused2():
             return gv
 
     optimized = remove_all_unused(IdentityUnused["main"])
-    tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
+    tvm_tirx.ir.assert_structural_equal(optimized, IdentityUnused["main"])
 
 
 def test_remove_all_unused_from_dataflow_block():
@@ -353,7 +353,7 @@ def test_remove_all_unused_from_dataflow_block():
         return lv0
 
     after = remove_all_unused(before.body)
-    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
 
 
 def test_remove_all_unused_from_binding_block():
@@ -376,7 +376,7 @@ def test_remove_all_unused_from_binding_block():
         return lv0
 
     after = remove_all_unused(before.body)
-    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
 
 
 def test_retain_impure_calls_unused_in_binding_block():
@@ -398,11 +398,11 @@ def test_retain_impure_calls_unused_in_binding_block():
         return lv0
 
     after = remove_all_unused(before.body)
-    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
 
 
 def test_retain_calls_to_impure_builtin_ops():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class Module:
@@ -423,7 +423,7 @@ def test_retain_calls_to_impure_builtin_ops():
             return x
 
     after = remove_all_unused(Module["main"])
-    tvm.ir.assert_structural_equal(after, Module["main"], map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(after, Module["main"], map_free_vars=True)
 
 
 def test_name_to_binding_var_shadowing():
@@ -449,7 +449,7 @@ def test_name_to_binding_var_shadowing():
     assert len(n2binding["lv0"]) == 2
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class VarExample:
     @R.function
     def func(a: R.Tensor) -> R.Tensor:
@@ -559,7 +559,7 @@ def test_free_vars_primitive_definition_sites(definition_site):
         bb.emit_func_output(output)
 
     inner = bb.get()["inner"]
-    assert rx.analysis.check_well_formed(inner)
+    rx.analysis.check_well_formed(inner)
     assert not free_vars(inner)
 
 
@@ -673,7 +673,7 @@ def test_reshape_pattern_expand_dims():
 
 
 def test_reshape_pattern_dyn_1():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -701,7 +701,7 @@ def test_reshape_pattern_dyn_1():
 
 
 def test_reshape_pattern_dyn_2():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(A: T.Tensor((T.int64(1), n), "int32"), T_reshape: T.Tensor((n,), "int32")):
@@ -716,7 +716,7 @@ def test_reshape_pattern_dyn_2():
 
 
 def test_reshape_pattern_dyn_3():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -738,7 +738,7 @@ def test_reshape_pattern_dyn_3():
 
 
 def test_reshape_pattern_dyn_4():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -768,7 +768,7 @@ def test_reshape_pattern_dyn_4():
 
 
 def test_reshape_pattern_dyn_5():
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function
     def reshape(
@@ -878,4 +878,4 @@ def test_reshape_pattern_reject_reduction():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

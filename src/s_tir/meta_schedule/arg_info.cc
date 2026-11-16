@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
@@ -31,21 +32,21 @@ namespace meta_schedule {
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only Function.
+ * `tirx::attr::kIsEntryFunc.name`, whose name is `main` or being the only Function.
  * \param mod The IRModule to find the entry function.
  * \return The entry function.
  */
 inline tirx::Function FindEntryFunc(const IRModule& mod) {
-  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc`
+  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc.name`
   int num_function = 0;
-  const tirx::FunctionNode* main_func = nullptr;
-  const tirx::FunctionNode* last_func = nullptr;
+  const tirx::FunctionObj* main_func = nullptr;
+  const tirx::FunctionObj* last_func = nullptr;
   for (const auto& kv : mod->functions) {
     GlobalVar gv = kv.first;
     BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tirx::FunctionNode>()) {
+    if (const auto* func = base_func.as<tirx::FunctionObj>()) {
       last_func = func;
-      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc.name)) {
         return ffi::GetRef<tirx::Function>(func);
       }
       if (gv->name_hint == "main") {
@@ -98,8 +99,8 @@ ffi::Array<ArgInfo> ArgInfo::FromFunction(const tirx::Function& func) {
   result.reserve(func->params.size());
   for (const tvm::Var& arg : func->params) {
     if (auto tensor = arg.as<tirx::TensorVar>()) {
-      result.push_back(TensorInfo(/*dtype=*/tensor.value()->dtype->dtype,
-                                  /*shape=*/AsVector<PrimExpr, int64_t>(tensor.value()->shape)));
+      result.push_back(TensorInfo(/*dtype=*/tensor.value().dtype()->dtype,
+                                  /*shape=*/AsVector<PrimExpr, int64_t>(tensor.value().shape())));
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
     }
@@ -127,7 +128,7 @@ TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorInfoObj::RegisterReflection();
-  refl::TypeAttrDef<TensorInfoObj>().def(refl::type_attr::kRepr,
+  refl::TypeAttrDef<TensorInfoObj>().def(ffi::type_attr::kRepr.name,
                                          [](TensorInfo ti, ffi::Function fn_repr) -> ffi::String {
                                            std::ostringstream os;
                                            os << "TensorInfo(\"" << ti->dtype << "\", [";

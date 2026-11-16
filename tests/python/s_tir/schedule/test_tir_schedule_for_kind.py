@@ -21,20 +21,21 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
 @Ts.function
-def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def element_wise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -42,7 +43,9 @@ def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
 @Ts.function
-def element_wise_parallelized(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def element_wise_parallelized(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
+) -> None:
     for i0 in T.parallel(0, 128):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -51,7 +54,9 @@ def element_wise_parallelized(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) 
 
 
 @Ts.function
-def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+def element_wise_i_bound(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
+) -> None:
     for i0 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -60,7 +65,9 @@ def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> No
 
 
 @Ts.function
-def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def element_wise_compute_at_split(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
         for j0 in T.serial(0, 128):
@@ -76,7 +83,7 @@ def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128
 
 @Ts.function
 def element_wise_compute_at_split_vectorized(
-    A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
@@ -93,7 +100,9 @@ def element_wise_compute_at_split_vectorized(
 
 
 @Ts.function
-def element_wise_split_predicate(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
+def element_wise_split_predicate(
+    A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32")
+) -> None:
     for i, j_0, j_1 in T.grid(128, 13, 10):
         with Ts.sblock("B"):
             Ts.where(j_0 * 10 + j_1 < 128)
@@ -104,7 +113,7 @@ def element_wise_split_predicate(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]
 
 @Ts.function
 def element_wise_split_predicate_parallelized(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32")
 ) -> None:
     for i in T.serial(0, 128):
         for j_0 in T.parallel(0, 13):
@@ -118,7 +127,7 @@ def element_wise_split_predicate_parallelized(
 
 @Ts.function
 def element_wise_split_predicate_vectorized(
-    A: T.Tensor([128, 128]), B: T.Tensor([128, 128])
+    A: T.Tensor([128, 128], "float32"), B: T.Tensor([128, 128], "float32")
 ) -> None:
     for i in T.vectorized(0, 128):
         for j_0, j_1 in T.grid(13, 10):
@@ -131,7 +140,7 @@ def element_wise_split_predicate_vectorized(
 
 @Ts.function
 def element_wise_compute_at_split_j0_j1o_bound(
-    A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
 ) -> None:
     B = Ts.sblock_alloc_tensor((128, 128))
     for i in T.serial(0, 128):
@@ -148,7 +157,11 @@ def element_wise_compute_at_split_j0_j1o_bound(
 
 
 @Ts.function
-def matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+def matmul(
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
+) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -158,7 +171,7 @@ def matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 1
 
 
 @Ts.function
-def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -168,7 +181,7 @@ def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_unrolled(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_unrolled(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
     for i0 in T.unroll(0, 128):
         for i1 in T.serial(0, 128):
             with Ts.sblock("B"):
@@ -179,7 +192,9 @@ def rowsum_unrolled(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
 
 
 @Ts.function
-def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_quasi_affine(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi = Ts.axis.S(128, i)
@@ -190,7 +205,9 @@ def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> Non
 
 
 @Ts.function
-def rowsum_not_compact_data_flow(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_not_compact_data_flow(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -200,7 +217,9 @@ def rowsum_not_compact_data_flow(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.function
-def rowsum_cross_thread_reduction(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_cross_thread_reduction(
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")
+) -> None:
     for i0 in T.serial(0, 128):
         for i1 in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
             with Ts.sblock("B"):
@@ -211,7 +230,7 @@ def rowsum_cross_thread_reduction(A: T.Tensor((128, 128)), B: T.Tensor((128,))) 
 
 
 @Ts.function
-def opaque_block(A: T.Tensor((16,))) -> None:
+def opaque_block(A: T.Tensor((16,), "float32")) -> None:
     for i in T.serial(0, 15):
         with Ts.sblock("opaque"):
             A[i + 1] = A[i + 1] + A[i]
@@ -646,8 +665,8 @@ def test_scatter_parallelize():
 def test_bind_thread_iter_var_dtype():
     @Ts.function(private=True)
     def before(
-        A: T.Tensor((T.int64(128), T.int64(128))),
-        B: T.Tensor((T.int64(128), T.int64(128))),
+        A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+        B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i, j in T.grid(T.int64(128), T.int64(128)):
             with Ts.sblock("B"):
@@ -656,8 +675,8 @@ def test_bind_thread_iter_var_dtype():
 
     @Ts.function(private=True)
     def expected(
-        A: T.Tensor((T.int64(128), T.int64(128))),
-        B: T.Tensor((T.int64(128), T.int64(128))),
+        A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+        B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i0 in T.parallel(T.int64(128), annotations={"thread_binding": "threadIdx.x"}):
             # Use T.serial with explicit int64 min so the inner sblock iter_var dom
@@ -676,4 +695,4 @@ def test_bind_thread_iter_var_dtype():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -24,19 +24,21 @@ import sys
 import pytest
 
 import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax, tirx
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax import ExternFunc as _ExternFunc
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
-M = I.dynamic("M")
+M = T.dynamic("M", "int64")
 
 
-UNUSED_GENERIC = I.dynamic("UNUSED_GENERIC")
+UNUSED_GENERIC = T.dynamic("UNUSED_GENERIC", "int64")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -49,41 +51,48 @@ def test_type_vars_roundtrip():
 
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
-    assert "def main[M](" in script
+    assert "def main[M: T.int64](" in script
     assert 'R.Tensor((M, M * 2), dtype="float32")' in script
     assert "M = T.int64()" not in script
-    typed = tvm.script.from_source(
+    typed = tvm_tirx.script.from_source(
         """
 @R.function(private=True)
-def func[M: int](x: R.Tensor((M, M * 2), "float32")):
+def func[M: T.int64](x: R.Tensor((M, M * 2), "float32")):
     return x
 """,
-        extra_vars={"I": tvm.script.ir, "R": tvm.script.relax},
+        extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
     )
-    tvm.ir.assert_structural_equal(func, typed)
-    assert 'M = I.dynamic("M", dtype="int64")' not in script
+    tvm_tirx.ir.assert_structural_equal(func, typed)
+    assert 'M = T.dynamic("M", dtype="int64")' not in script
 
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
-    assert "def main[M](" in repeated
+    assert "def main[M: T.int64](" in repeated
     assert 'R.Tensor((M, M * 2), dtype="float32")' in repeated
     assert "M = T.int64()" not in repeated
     assert "UNUSED_GENERIC" not in script
     assert [param.name for param in func.params] == ["x"]
     assert not hasattr(func, "type_params")
     assert func.attrs.get("relax.type_vars") is None
-    tvm.ir.assert_structural_equal(
-        func, tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax})
-    )
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}),
+        tvm_tirx.script.from_source(
+            script,
+            extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
+        ),
+    )
+    tvm_tirx.ir.assert_structural_equal(
+        func,
+        tvm_tirx.script.from_source(
+            repeated,
+            extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
+        ),
     )
 
 
 def test_dynamic_module_symbol_identity():
-    shared = I.dynamic("n")
-    independent = I.dynamic("n")
+    shared = T.dynamic("n", "int64")
+    independent = T.dynamic("n", "int64")
 
     @R.function(private=True)
     def first(x: R.Tensor((shared,), "float32")):
@@ -93,18 +102,20 @@ def test_dynamic_module_symbol_identity():
     def second(x: R.Tensor((shared, independent), "float32")):
         return x
 
-    mod = tvm.IRModule({"first": first, "second": second})
+    mod = tvm_tirx.IRModule({"first": first, "second": second})
     source = mod.script()
-    assert source.count('I.dynamic("n", dtype="int64")') == 2
-    restored = tvm.script.from_source(
-        source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "R": tvm.script.relax}
+    assert source.count('T.dynamic("n", dtype="int64")') == 2
+    restored = tvm_tirx.script.from_source(
+        source,
+        check_well_formed=False,
+        extra_vars={"I": tvm_tirx.script.ir, "R": tvm.relax.script, "T": tvm_tirx.script.tirx},
     )
     first_n = restored["first"].params[0].ty.shape.values[0]
     second_shape = restored["second"].params[0].ty.shape.values
     assert first_n.same_as(second_shape[0])
     assert not first_n.same_as(second_shape[1])
     assert str(second_shape[1].ty.dtype) == "int64"
-    tvm.ir.assert_structural_equal(mod, restored)
+    tvm_tirx.ir.assert_structural_equal(mod, restored)
 
 
 def _check(
@@ -112,21 +123,21 @@ def _check(
     expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script.from_source(
+    roundtrip_mod = tvm_tirx.script.from_source(
         test,
         extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
+            "I": tvm_tirx.script.ir,
+            "R": tvm.relax.script,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
         },
     )
-    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    tvm_tirx.ir.assert_structural_equal(parsed, roundtrip_mod)
     if isinstance(parsed, IRModule) and isinstance(roundtrip_mod, IRModule):
-        relax.analysis.well_formed(parsed)
-        relax.analysis.well_formed(roundtrip_mod)
+        relax.analysis.check_well_formed(parsed)
+        relax.analysis.check_well_formed(roundtrip_mod)
     if expect:
-        tvm.ir.assert_structural_equal(parsed, expect)
+        tvm_tirx.ir.assert_structural_equal(parsed, expect)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -151,7 +162,7 @@ def test_symbolic_shape():
         )
         return gv0
 
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(RuntimeError):
         m = T.dynamic("m", "int64")
         n = T.dynamic("n", "int32")
 
@@ -236,15 +247,15 @@ def test_call_tir_with_tir_var():
 
     _check(Module)
     repeated = Module.script(show_meta=True)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         Module,
-        tvm.script.from_source(
+        tvm_tirx.script.from_source(
             repeated,
             extra_vars={
-                "I": tvm.script.ir,
-                "R": tvm.script.relax,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
+                "I": tvm_tirx.script.ir,
+                "R": tvm.relax.script,
+                "T": tvm_tirx.script.tirx,
+                "Ts": tvm.s_tir.script,
             },
         ),
     )
@@ -288,7 +299,7 @@ def test_if_branch_with_match_cast():
     # If the `R.match_cast` were removed, the function would infer the
     # return value as `R.Tensor([16,16])`, with an unknown dtype.
     # With the `R.match_cast` retained, the output dtype is known.
-    tvm.ir.assert_structural_equal(func.ret_ty, R.Tensor([16, 16], "float16"))
+    tvm_tirx.ir.assert_structural_equal(func.ret_ty, R.Tensor([16, 16], "float16"))
 
 
 def test_erase_to_well_defined_removes_internal_vars():
@@ -302,7 +313,7 @@ def test_erase_to_well_defined_removes_internal_vars():
         w = z
         return w
 
-    tvm.ir.assert_structural_equal(foo.ret_ty, R.Tensor(ndim=2))
+    tvm_tirx.ir.assert_structural_equal(foo.ret_ty, R.Tensor(ndim=2))
     assert foo.ret_ty.shape is None
     _check(foo)
 
@@ -372,7 +383,7 @@ def test_erase_to_well_defined_infers_from_shape_expr():
 def test_symbolic_vars_in_tensor_shape_with_usage_first():
     """A captured symbol can first appear inside a compound dimension."""
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @R.function
     def foo(x: R.Tensor((m + 1,), "float32"), y: R.Tensor((m, 1), "float32")):
@@ -459,7 +470,7 @@ def test_bound_prim_param_reused_in_declared_function_signature():
 
 
 def test_non_int64_prim_param_rejected_in_shape_annotation():
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(RuntimeError):
 
         @R.function
         def main(n: T.int32, x: R.Tensor([n], "float32")):  # noqa: F821
@@ -487,7 +498,7 @@ def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
     current, value = recursive_func.params
     assert value.ty.shape[0].same_as(current)
     assert recursive_func.ret_ty.shape[0].same_as(current)
-    relax.analysis.well_formed(func)
+    relax.analysis.check_well_formed(func)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
@@ -550,14 +561,14 @@ def test_function_symbolic_variables_are_annotated():
         output: R.Tensor([extent - 1]) = R.strided_slice(A, [0], [0], [extent - 1])
         return output
 
-    tvm.ir.assert_structural_equal(inferred_ty, expected)
+    tvm_tirx.ir.assert_structural_equal(inferred_ty, expected)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_non_declaration_prim_expr_emits_binding():
     """Dtype casts emit ordinary bindings without replacing shape symbols."""
 
-    symbol = T.dynamic("extent")
+    symbol = T.dynamic("extent", "int64")
 
     @R.function(private=True)
     def func(A: R.Tensor([symbol], "float32")):
@@ -568,10 +579,10 @@ def test_non_declaration_prim_expr_emits_binding():
     symbolic_extent = func.params[0].ty.shape[0]
     extent_binding = func.body.blocks[0].bindings[0]
     assert isinstance(extent_binding, relax.VarBinding)
-    assert tvm.ir.is_prim_var(symbolic_extent)
-    assert tvm.ir.is_prim_var(extent_binding.var)
+    assert tvm_tirx.ir.is_prim_var(symbolic_extent)
+    assert tvm_tirx.ir.is_prim_var(extent_binding.var)
     assert not symbolic_extent.same_as(extent_binding.var)
-    tvm.ir.assert_structural_equal(extent_binding.value, T.int64(4))
+    tvm_tirx.ir.assert_structural_equal(extent_binding.value, T.int64(4))
     _check(func)
 
 
@@ -618,7 +629,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
 
         return out
 
-    tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
+    tvm_tirx.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
 def relax_symbolic_var():
@@ -637,17 +648,17 @@ def relax_symbolic_var():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_roundtrip_dynamic_shape(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
+    after_roundtrip = tvm_tirx.script.from_source(
         original.script(show_meta=True),
         check_well_formed=False,
         extra_vars={
-            "I": tvm.script.ir,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-            "R": tvm.script.relax,
+            "I": tvm_tirx.script.ir,
+            "T": tvm_tirx.script.tirx,
+            "Ts": tvm.s_tir.script,
+            "R": tvm.relax.script,
         },
     )
-    tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+    tvm_tirx.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
 def test_later_prim_param_reuses_shape_symbol():
@@ -661,4 +672,4 @@ def test_later_prim_param_reuses_shape_symbol():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

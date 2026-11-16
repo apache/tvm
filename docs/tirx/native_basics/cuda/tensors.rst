@@ -57,11 +57,8 @@ The tensor descriptors share these parameters:
    * - ``shape``
      - logical shape (a tuple of extents)
    * - ``layout``
-     - physical mapping (:doc:`TileLayout <../../layout>`); ``"default"`` = dense
-       row-major
-   * - ``elem_offset``
-     - ``elem_offset`` (or ``byte_offset``) places a *view* at an offset into
-       ``data``
+     - physical mapping, including strides and element origin
+       (:doc:`TileLayout <../../layout>`); ``"default"`` = dense row-major
    * - ``align``
      - alignment of the data pointer, in bytes
 
@@ -103,21 +100,23 @@ The ``scope`` argument selects the memory space:
 **A ptr-based tensor is just metadata over a pointer.** For any non-tmem tensor,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
 
-    addr(tensor[coord]) = tensor.data + elem_offset + layout.apply(coord, shape=shape)["m"]
+    addr(tensor[coord]) = tensor.data + layout.apply(coord, shape=shape)["m"]
 
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
-element offset.) So the *same* logical access compiles to different address
-arithmetic depending purely on the tensor's metadata. Writing
+element offset, including the layout's origin.) Pointer arithmetic here is in
+elements. Strides and origins are represented only by the layout, not by separate
+tensor arguments or properties. So the *same* logical access compiles to different
+address arithmetic depending purely on the tensor's metadata. Writing
 ``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` annotated four ways in
 the function signature:
 
 .. code-block:: python
 
-    from tvm.tirx.layout import TileLayout, S
+    from tvm_tirx.tirx.layout import TileLayout, S
 
     B: Tx.Tensor((4, 8), "float32")  # row-major
     B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (1, 4)]))  # column-major
-    B: Tx.Tensor((4, 8), "float32", elem_offset=64)  # shifted view
+    B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8)] + 64))  # shifted view
     B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (16, 1)]))  # row stride 16
 
 each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
@@ -127,8 +126,13 @@ each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
 
     B_ptr[((i * 8) + j)]        = ...;   // row-major:        i*8 + j
     B_ptr[((j * 4) + i)]        = ...;   // column-major:     j*4 + i
-    B_ptr[(((i * 8) + j) + 64)] = ...;   // elem_offset=64:   i*8 + j + 64
+    B_ptr[(((i * 8) + j) + 64)] = ...;   // layout origin 64:   i*8 + j + 64
     B_ptr[((i * 16) + j)]       = ...;   // row stride 16:    i*16 + j
+
+Layouts must describe the actual tensor domain; lowering does not resize or
+extend mismatched tile extents. For nonzero shapes and non-negative strides,
+allocation footprints cover the maximum mapped memory address. A declaration
+over a borrowed pointer remains responsible for the storage that pointer addresses.
 
 Shared memory
 -------------
@@ -176,7 +180,7 @@ Dynamic
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
 each tensor as a view into it: ``Tx.decl_tensor`` with the arena pointer as its
-first argument and an ``elem_offset``:
+first argument and a memory-axis origin in its layout:
 
 .. code-block:: python
 
@@ -187,7 +191,10 @@ first argument and an ``elem_offset``:
         arena.data, ty_args=[Tx.Tensor((64,), "float32", scope="shared.dyn")]
     )  # offset 0
     Bs = Tx.decl_tensor(
-        arena.data, ty_args=[Tx.Tensor((64,), "float32", elem_offset=64, scope="shared.dyn")]
+        arena.data,
+        ty_args=[Tx.Tensor(
+            (64,), "float32", scope="shared.dyn", layout=Tx.TileLayout(Tx.S[(64,)] + 64)
+        )],
     )  # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
@@ -390,7 +397,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
 You add any column offsets to ``addr[0]`` and manage the ``tmem_layout`` (the
 matching datapath A–G layout) yourself.
 
-See the :doc:`../../tile_primitives` walkthroughs for full examples.
+See the :doc:`../../tile_ops` walkthroughs for full examples.
 
 Tensor variable APIs
 --------------------
@@ -404,9 +411,9 @@ or hand you a pointer — they emit no runtime op of their own.
 through an expression: ``B.view(...)`` binds the operand exactly as
 ``B.ty.view(B, ...)``. ``TensorType.__expr_properties__`` maps property names
 to getters taking the type and original expression. It preserves conveniences
-such as ``B.shape``, ``B.strides``, ``B.dtype``, ``B.byte_offset``, ``B.sub`` and
-``B.data`` without modifying the shared ``Var`` class. ``B.dtype`` returns a
-runtime ``DataType``; ``B.ty.dtype`` stores a ``PrimType``.
+such as ``B.shape``, ``B.dtype``, ``B.layout``, ``B.sub`` and ``B.data`` without
+modifying the shared ``Var`` class. ``B.dtype`` returns a runtime ``DataType``;
+``B.ty.dtype`` stores a ``PrimType``.
 
 Existing expression attributes and reflected fields take precedence, followed
 by declared properties and then declared methods. Declared properties are
@@ -431,9 +438,6 @@ The common methods and properties:
      - a vectorized load / store; prints as ``*(float4*)(B_ptr + …)``
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
-   * - ``B.local(*shape, layout=…)``
-     - the calling thread's private storage slice of a ``local`` tensor,
-       in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
    * - ``T.ptr_byte_offset(B.data, byte_offset, ty=B.data.ty)``
@@ -481,19 +485,10 @@ sees the 256-element tensor as ``64×4``; ``A.permute(1, 0)`` transposes the axe
     A2_ptr[tx * 4]  /* +3 */                 // view: row-major 64x4 index
     At_ptr[(j * 4) + i]                       // permute: swapped strides
 
-**Per-thread view — ``local``.** Decomposes a thread-axis ``local`` layout into the
-calling thread's storage bundle (used pervasively by the tile primitives).
-Both forms expose the raw physical storage span by default, including layout
-gaps and offsets: ``R.local()`` infers a flat 1-D span, while
-``R.local(d0, d1, ...)`` is a row-major reshape whose product must equal that
-span.  Pass an explicit ``layout=`` only when storage-iterator coordinates are
-required.  This mediated form is an escape hatch: the supplied layout
-interprets the requested shape, so that shape is not constrained to the raw
-span.  Without ``layout=``, omitting the shape always infers a one-dimensional
-physical storage span.  Only the explicit-``layout=`` compatibility form with
-no shape infers a one-dimensional shape from the logical storage size:
-
-.. code-block:: python
+**Per-thread storage — explicit ``view``.** A thread-distributed register
+layout describes both the owning thread and its local slot. To index only
+the calling thread's slots, provide a memory-only layout and the physical
+shape explicitly. For a tensor with eight contiguous slots per lane::
 
     R = Tx.alloc_tensor(
         ty_args=[
@@ -502,9 +497,12 @@ no shape infers a one-dimensional shape from the logical storage size:
             )
         ]
     )
-    R_flat = R.local()       # this lane's 8 local elements, physical order
-    R_2d = R.local(2, 4)     # the same elements, row-major 2x4 reshape
+    R_flat = R.view(8, layout="default")   # this lane's eight physical slots
+    R_2d = R.view(2, 4, layout="default")  # the same slots as a compact 2x4 tensor
 
-.. code-block:: c++
-
-    alignas(64) float R_flat_ptr[8];          // the lane's private local elements
+The explicit layout replaces the thread distribution in the view; it does
+not infer a storage shape or move data. If a register layout contains gaps,
+choose a shape covering its physical span to expose those gaps, or supply
+a strided memory layout to address only its occupied slots. Offsets must
+also be represented explicitly. A reshape without ``layout=`` preserves
+the existing logical mapping, including thread axes.

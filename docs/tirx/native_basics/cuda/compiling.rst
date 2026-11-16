@@ -211,11 +211,11 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
     exe(a, out)  # out[0] == 32640.0
 
 The full tile-level GEMM/attention ladder (sync → TMA → warp specialization →
-2-CTA cluster) is built on top of these and the dispatchable tile primitives in
-:doc:`../../tile_primitives`.
+2-CTA cluster) is built on top of these and the dispatchable tile ops in
+:doc:`../../tile_ops`.
 
 Next steps
 ----------
 
 - :doc:`../../layout` — how tensors map to physical resources (``TileLayout``).
-- :doc:`../../tile_primitives` — the dispatchable ops these native idioms lower to.
+- :doc:`../../tile_ops` — the dispatchable ops these native idioms lower to.

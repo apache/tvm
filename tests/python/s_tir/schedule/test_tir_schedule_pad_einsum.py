@@ -19,14 +19,15 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -159,10 +160,10 @@ def test_pad_matmul_2():
 
     @Ts.function
     def before(
-        A: T.Tensor((1, n, 4096)),
-        B: T.Tensor((11008, 4096)),
-        M: T.Tensor((1, n, 11008)),
-        D: T.Tensor((1, n, 11008)),
+        A: T.Tensor((1, n, 4096), "float32"),
+        B: T.Tensor((11008, 4096), "float32"),
+        M: T.Tensor((1, n, 11008), "float32"),
+        D: T.Tensor((1, n, 11008), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -184,10 +185,10 @@ def test_pad_matmul_2():
 
     @Ts.function
     def after(
-        A: T.Tensor((1, n, 4096)),
-        B: T.Tensor((11008, 4096)),
-        M: T.Tensor((1, n, 11008)),
-        D: T.Tensor((1, n, 11008)),
+        A: T.Tensor((1, n, 4096), "float32"),
+        B: T.Tensor((11008, 4096), "float32"),
+        M: T.Tensor((1, n, 11008), "float32"),
+        D: T.Tensor((1, n, 11008), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -230,7 +231,7 @@ def test_pad_rms():
 
     @Ts.function
     def before(
-        A: T.Tensor((1, n, 4096)),
+        A: T.Tensor((1, n, 4096), "float32"),
         W: T.Tensor((4096,), "float32"),
         Result: T.Tensor((1, n, 4096), "float32"),
     ):
@@ -257,7 +258,9 @@ def test_pad_rms():
 
     @Ts.function
     def after(
-        A: T.Tensor((1, n, 4096)), W: T.Tensor((4096,), "float32"), Result: T.Tensor((1, n, 4096))
+        A: T.Tensor((1, n, 4096), "float32"),
+        W: T.Tensor((4096,), "float32"),
+        Result: T.Tensor((1, n, 4096), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 

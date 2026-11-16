@@ -20,11 +20,12 @@ import numpy as np
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -36,14 +37,14 @@ def check_decompose_padding(origin, scheduled, expected, check_run=False):
         out_tensor = origin.params[1]
         in_shape = [int(_) for _ in in_tensor.shape]
         out_shape = [int(_) for _ in out_tensor.shape]
-        x = tvm.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_tensor.dtype))
-        y0 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
-        y1 = tvm.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
+        x = tvm_tirx.runtime.tensor(np.random.uniform(0, 64, in_shape).astype(in_tensor.dtype))
+        y0 = tvm_tirx.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
+        y1 = tvm_tirx.runtime.tensor(np.zeros(out_shape).astype(out_tensor.dtype))
         f_origin = tvm.compile(origin)
         f_scheduled = tvm.compile(scheduled)
         f_origin(x, y0)
         f_scheduled(x, y1)
-        tvm.testing.assert_allclose(y0.numpy(), y1.numpy())
+        tvm_tirx.testing.assert_allclose(y0.numpy(), y1.numpy())
 
 
 def test_int64_indices_batch_decompose_padding():
@@ -419,4 +420,4 @@ def test_not_to_decompose_trivial_predicate():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

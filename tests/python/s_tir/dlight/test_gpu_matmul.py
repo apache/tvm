@@ -16,20 +16,20 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
-import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.s_tir import dlight as dl
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 
 def test_matmul():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
-    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -38,10 +38,10 @@ def test_matmul():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -53,7 +53,7 @@ def test_matmul():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -110,10 +110,9 @@ def test_matmul():
                                             matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_int32():
@@ -121,7 +120,7 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def func(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
+    def func(inp0: T.Tensor((1, m, 4096), "float32"), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096), "float32")):
 
         for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
             with Ts.sblock("matmul"):
@@ -133,7 +132,7 @@ def test_matmul_int32():
     m = T.dynamic("m", "int32")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((1, m, 4096)), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096))):
+    def expected(inp0: T.Tensor((1, m, 4096), "float32"), inp1: T.Tensor((4096, 4096), "float32"), matmul: T.Tensor((1, m, 4096), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -145,7 +144,7 @@ def test_matmul_int32():
                 for ax2_1 in T.parallel(1, annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(1, annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(16, annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(8, annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("matmul_init"):
@@ -202,10 +201,9 @@ def test_matmul_int32():
                                             matmul[0, v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": func})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": func})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_fused_matmul():
@@ -247,7 +245,7 @@ def test_fused_matmul():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -304,10 +302,9 @@ def test_fused_matmul():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_skip_gemv():
@@ -342,15 +339,14 @@ def test_skip_gemv():
 
     expected = before
 
-    mod = tvm.IRModule({"main": before})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_output_fp32():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def before(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
@@ -401,7 +397,7 @@ def test_output_fp32():
                 Ts.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_ax2]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
     def expected(lv13: T.Tensor((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Tensor((T.int64(4096), T.int64(128)), "float16"), lv48: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), lv13_1: T.Tensor((T.int64(4096),), "float16"), lv3: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
@@ -416,7 +412,7 @@ def test_output_fp32():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -474,18 +470,17 @@ def test_output_fp32():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_inline_consumer_chain():
     # fmt: off
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
-    def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
+    def before(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -533,10 +528,10 @@ def test_inline_consumer_chain():
                 Ts.writes(var_T_multiply_intermediate[v_ax0, v_ax1])
                 var_T_multiply_intermediate[v_ax0, v_ax1] = var_compute_intermediate[v_ax0, v_ax1] * var_T_multiply_intermediate_1[v_ax0, v_ax1]
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @Ts.function(private=True)
-    def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048))), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
+    def expected(lv26: T.Tensor((n, T.int64(2048)), 'float16'), lv9: T.Tensor((T.int64(2048), T.int64(2048)), "float16"), lv52: T.Tensor((T.int64(1), n, T.int64(2048)), "float32"), var_T_multiply_intermediate: T.Tensor((n, T.int64(2048)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -548,7 +543,7 @@ def test_inline_consumer_chain():
                 for ax2_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.y"}):
                     for ax1_1 in T.parallel(T.int64(1), annotations={"thread_binding": "vthread.x"}):
                         for ax2_2 in T.parallel(T.int64(16), annotations={"thread_binding": "threadIdx.y"}):
-                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "auto_unroll_max_step": 256, "unroll_explicit": 1}):
+                            for ax1_2 in T.parallel(T.int64(8), annotations={"thread_binding": "threadIdx.x", "tirx.auto_unroll_max_step": 256, "tirx.unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("NT_matmul_init"):
@@ -606,18 +601,17 @@ def test_inline_consumer_chain():
 
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("nvidia/geforce-gtx-1080-ti"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target("nvidia/geforce-gtx-1080-ti"))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_android():
     # fmt: off
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
-    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def before(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
 
         for i0, i1, i2, k in T.grid(T.int64(1), m, T.int64(4096), T.int64(4096)):
             with Ts.sblock("matmul"):
@@ -626,10 +620,10 @@ def test_matmul_android():
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    m = T.dynamic("m")
+    m = T.dynamic("m", "int64")
 
     @Ts.function(private=True)
-    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
+    def expected(inp0: T.Tensor((T.int64(1), m, T.int64(4096)), "float32"), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)), "float32")):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -699,15 +693,14 @@ def test_matmul_android():
                                     Ts.writes(matmul[v0, v1, v2])
                                     matmul[v0, v1, v2] = matmul_pad_local[v0, v1, v2]
 
-    mod = tvm.IRModule({"main": before})
-    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul(), target=Target('opencl', host={'kind': 'llvm', 'mtriple': 'aarch64-linux-android'}))(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_fused_dequant_matmul_android():
     # fmt: off
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def before(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):
@@ -744,7 +737,7 @@ def test_fused_dequant_matmul_android():
                 Ts.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                 T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
 
-    seq_len = T.dynamic("seq_len")
+    seq_len = T.dynamic("seq_len", "int64")
 
     @Ts.function(private=True)
     def expected(lv452: T.Tensor((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Tensor((T.int64(128), T.int64(12288)), "float16"), rms_norm130: T.Tensor((T.int64(1), seq_len, T.int64(4096)), 'float16'), transformer_h_0_attn_c_attn_bias3: T.Tensor((T.int64(12288),), "float16"), T_add_intermediate_intermediate: T.Tensor((T.int64(1), seq_len, T.int64(12288)), 'float16')):
@@ -845,11 +838,13 @@ def test_fused_dequant_matmul_android():
                                     T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate_pad_local[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
     # fmt: on
 
-    mod = tvm.IRModule({"main": before})
-    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    mod = tvm_tirx.IRModule({"main": before})
+    mod = dl.ApplyDefaultSchedule(
+        dl.gpu.Matmul(),
+        target=Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}),
+    )(mod)
+    tvm_tirx.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

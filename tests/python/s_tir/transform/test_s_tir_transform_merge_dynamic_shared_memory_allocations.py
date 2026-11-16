@@ -18,12 +18,13 @@
 import numpy as np
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm import s_tir
-from tvm.script import ir as I
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
 from tvm.topi.math import cast
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_matmul_t_tensor():
@@ -46,7 +47,9 @@ def test_matmul_t_tensor():
         ):
             A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(1048576, "float16", data=A.data)])
             B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor(1048576, "float16", data=B.data)])
-            matmul_flat = T.decl_tensor(matmul.data, ty_args=[T.Tensor(1048576, data=matmul.data)])
+            matmul_flat = T.decl_tensor(
+                matmul.data, ty_args=[T.Tensor(1048576, "float32", data=matmul.data)]
+            )
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
             C_local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
@@ -91,11 +94,13 @@ def test_matmul_t_tensor():
         ):
             A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(1048576, "float16", data=A.data)])
             B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor(1048576, "float16", data=B.data)])
-            matmul_flat = T.decl_tensor(matmul.data, ty_args=[T.Tensor(1048576, data=matmul.data)])
+            matmul_flat = T.decl_tensor(
+                matmul.data, ty_args=[T.Tensor(1048576, "float32", data=matmul.data)]
+            )
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
 
-            buf_dyn_shmem = T.alloc_tensor(ty_args=[T.Tensor((1024,), "uint8", scope="shared.dyn")])
+            buf_dyn_shmem = T.alloc_tensor(ty_args=[T.Tensor((1024,), T.uint8, scope="shared.dyn")])
 
             C_local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
             A_sh = T.decl_tensor(
@@ -135,7 +140,7 @@ def test_matmul_t_tensor():
     script = After["main"].script()
     # Verify merged allocation: one shared.dyn tensor of 1024 bytes (256*2 float16 + 256 float32)
     assert "alloc_tensor(ty_args=[T.Tensor((1024,)" in script
-    assert '"uint8"' in script
+    assert "T.uint8" in script
     assert '"shared.dyn"' in script
     # Verify storage sync calls preserved
     assert "gpu_storage_sync" in script
@@ -163,7 +168,9 @@ def test_matmul_decl_tensor():
         ):
             A_flat = T.decl_tensor(A.data, ty_args=[T.Tensor(1048576, "float16", data=A.data)])
             B_flat = T.decl_tensor(B.data, ty_args=[T.Tensor(1048576, "float16", data=B.data)])
-            matmul_flat = T.decl_tensor(matmul.data, ty_args=[T.Tensor(1048576, data=matmul.data)])
+            matmul_flat = T.decl_tensor(
+                matmul.data, ty_args=[T.Tensor(1048576, "float32", data=matmul.data)]
+            )
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
             C_local = T.alloc_tensor(ty_args=[T.Tensor((1,), "float32", scope="local")])
@@ -202,7 +209,7 @@ def test_matmul_decl_tensor():
     script = After["main"].script()
     # Verify merged allocation: one shared.dyn tensor of 1024 bytes
     assert "alloc_tensor(ty_args=[T.Tensor((1024,)" in script
-    assert '"uint8"' in script
+    assert "T.uint8" in script
     assert '"shared.dyn"' in script
     assert "gpu_storage_sync" in script
     assert "+ 256" in script
@@ -217,15 +224,15 @@ def test_simple_alloc_no_reuse():
         @Ts.function
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
             B_sh[threadIdx_x] = A_sh[threadIdx_x]
 
     After = transform(Before)
     script = After["main"].script()
     # Verify merged allocation: 1024 bytes (128*4 + 128*4)
     assert "alloc_tensor(ty_args=[T.Tensor((1024,)" in script
-    assert '"uint8"' in script
+    assert "T.uint8" in script
     assert '"shared.dyn"' in script
     # Verify offset indexing
     assert "+ 128" in script
@@ -240,8 +247,8 @@ def test_simple_alloc_reuse():
         @Ts.function
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
             A_sh[threadIdx_x] = 0
             B_sh[threadIdx_x] = 0
 
@@ -249,7 +256,7 @@ def test_simple_alloc_reuse():
     script = After["main"].script()
     # Verify merged allocation: 512 bytes (128*4, reusable)
     assert "alloc_tensor(ty_args=[T.Tensor((512,)" in script
-    assert '"uint8"' in script
+    assert "T.uint8" in script
     assert '"shared.dyn"' in script
 
 
@@ -262,8 +269,8 @@ def test_async_copy():
         @Ts.function
         def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
             T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, A.data, threadIdx_x, 512, ty="float32")
             T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, B.data, threadIdx_x, 512, ty="float32")
 
@@ -274,25 +281,25 @@ def test_async_copy():
     # (= 128 elements * 4 bytes).
     script = After["main"].script()
     # Verify merged allocation (512 bytes - A_sh and B_sh can be reused)
-    assert '"uint8"' in script and '"shared.dyn"' in script and "(512,)" in script
+    assert "T.uint8" in script and '"shared.dyn"' in script and "(512,)" in script
     # Verify cp_async uses typed views of the merged byte allocation.  Its
     # offsets remain in float32 elements and are scaled by the intrinsic
     # lowering, rather than being pre-scaled as byte offsets here.
     assert (
         "A_sh = T.decl_tensor(buf_dyn_shmem.data, ty_args=[T.Tensor((128,), "
-        '"float32", scope="shared.dyn")])' in script
+        'T.float32, scope="shared.dyn")])' in script
     )
     assert (
         "B_sh = T.decl_tensor(buf_dyn_shmem.data, ty_args=[T.Tensor((128,), "
-        '"float32", scope="shared.dyn")])' in script
+        'T.float32, scope="shared.dyn")])' in script
     )
     assert (
         "T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, "
-        'A.data, threadIdx_x, 512, ty="float32")' in script
+        "A.data, threadIdx_x, 512, ty=T.float32)" in script
     )
     assert (
         "T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, "
-        'B.data, threadIdx_x, 512, ty="float32")' in script
+        "B.data, threadIdx_x, 512, ty=T.float32)" in script
     )
 
 
@@ -305,13 +312,13 @@ def test_decl_tensor_alias_extends_allocation_lifetime():
         @Ts.function
         def main(C: T.Tensor((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+            A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+            B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
             A_view = T.decl_tensor(
-                A_sh.data, ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")]
+                A_sh.data, ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")]
             )
             B_view = T.decl_tensor(
-                B_sh.data, ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")]
+                B_sh.data, ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")]
             )
             A_view[threadIdx_x] = T.float32(1)
             B_view[threadIdx_x] = T.float32(2)
@@ -319,7 +326,7 @@ def test_decl_tensor_alias_extends_allocation_lifetime():
 
     After = transform(Before)
     script = After["main"].script()
-    assert 'alloc_tensor(ty_args=[T.Tensor((1024,), "uint8", scope="shared.dyn")])' in script
+    assert 'alloc_tensor(ty_args=[T.Tensor((1024,), T.uint8, scope="shared.dyn")])' in script
     assert "B_view[threadIdx_x + 128]" in script
     assert "A_view[threadIdx_x]" in script
 
@@ -341,21 +348,21 @@ def test_multi_thread_extent_blocks():
             X: T.Tensor((128,), "float32"),
             Y: T.Tensor((128,), "float32"),
         ):
-            X_flat = T.decl_tensor(X.data, ty_args=[T.Tensor(128, data=X.data)])
-            Y_flat = T.decl_tensor(Y.data, ty_args=[T.Tensor(128, data=Y.data)])
+            X_flat = T.decl_tensor(X.data, ty_args=[T.Tensor(128, "float32", data=X.data)])
+            Y_flat = T.decl_tensor(Y.data, ty_args=[T.Tensor(128, "float32", data=Y.data)])
 
             # First kernel launch
             with T.launch_thread("threadIdx.x", 128) as tx0:
-                A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-                B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+                A_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+                B_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
                 A_sh[tx0] = X_flat[tx0]
                 B_sh[tx0] = A_sh[tx0]
                 X_flat[tx0] = B_sh[tx0]
 
             # Second kernel launch — must NOT see kernel #0's merged tensor.
             with T.launch_thread("threadIdx.x", 128) as tx1:
-                C_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
-                D_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), "float32", scope="shared.dyn")])
+                C_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
+                D_sh = T.alloc_tensor(ty_args=[T.Tensor((128,), T.float32, scope="shared.dyn")])
                 C_sh[tx1] = Y_flat[tx1]
                 D_sh[tx1] = C_sh[tx1]
                 Y_flat[tx1] = D_sh[tx1]
@@ -384,13 +391,13 @@ def test_multi_thread_extent_blocks():
     # End-to-end: post-merge IR must remain well-formed through
     # the host/device split — this is the exact ordering from
     # PR #19605 that triggers the scoping bug.
-    target = tvm.target.Target("llvm")
-    mod_with_target = tvm.IRModule({"main": After["main"].with_attr({"target": target})})
-    split = tvm.tirx.transform.SplitHostDevice()
+    target = tvm_tirx.target.Target("llvm")
+    mod_with_target = tvm_tirx.IRModule({"main": After["main"].with_attr({"target": target})})
+    split = tvm_tirx.tirx.transform.SplitHostDevice()
     # If kernel #1 referenced an undefined buf_dyn_shmem, this
     # would raise during well-formedness checking inside SplitHostDevice.
     split(mod_with_target)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
