@@ -6259,6 +6259,17 @@ class DFT(OnnxOpConverter):
         C = relax.const(C_np, dtype)
         S = relax.const(S_np, dtype)
 
+        # For float16 inputs, the unnormalized matmul intermediates can overflow before inverse
+        # normalization (e.g. two float16 samples of 40000 sum to 80000 == inf).  Promote to
+        # float32 for all matmuls and complex arithmetic; cast back to float16 at the end.
+        compute_dtype = "float32" if dtype == "float16" else dtype
+        if compute_dtype != dtype:
+            x_re_t = relax.op.astype(x_re_t, compute_dtype)
+            if x_im_t is not None:
+                x_im_t = relax.op.astype(x_im_t, compute_dtype)
+            C = relax.const(C_np.astype("float32"), compute_dtype)
+            S = relax.const(S_np.astype("float32"), compute_dtype)
+
         term_re1 = relax.op.matmul(x_re_t, C)
         term_im1 = relax.op.matmul(x_re_t, S)
 
@@ -6269,7 +6280,7 @@ class DFT(OnnxOpConverter):
                 y_re_t = relax.op.add(term_re1, term_re2)
                 y_im_t = relax.op.subtract(term_im2, term_im1)
             else:
-                inv_scale = relax.const(1.0 / float(N), dtype)
+                inv_scale = relax.const(1.0 / float(N), compute_dtype)
                 y_re_t = relax.op.multiply(relax.op.subtract(term_re1, term_re2), inv_scale)
                 y_im_t = relax.op.multiply(relax.op.add(term_im1, term_im2), inv_scale)
         else:
@@ -6277,9 +6288,14 @@ class DFT(OnnxOpConverter):
                 y_re_t = term_re1
                 y_im_t = relax.op.negative(term_im1)
             else:
-                inv_scale = relax.const(1.0 / float(N), dtype)
+                inv_scale = relax.const(1.0 / float(N), compute_dtype)
                 y_re_t = relax.op.multiply(term_re1, inv_scale)
                 y_im_t = relax.op.multiply(term_im1, inv_scale)
+
+        # Cast back to the original dtype if we promoted to float32 for overflow safety
+        if compute_dtype != dtype:
+            y_re_t = relax.op.astype(y_re_t, dtype)
+            y_im_t = relax.op.astype(y_im_t, dtype)
 
         if axis != rank_no_c - 1:
             y_re = relax.op.permute_dims(y_re_t, perm)

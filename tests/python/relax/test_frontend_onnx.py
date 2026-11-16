@@ -14742,5 +14742,36 @@ def test_dft_float16_precision():
     assert res.dtype == np.float16
 
 
+def test_dft_float16_inverse_overflow():
+    """Verify float16 inverse DFT does not overflow before normalization.
+
+    Two real float16 samples of 40000 have an unnormalized sum of 80000, which is
+    infinity in float16 (max representable ~65504).  The inverse normalization
+    divides by N=2 to recover 40000, but only if the intermediate arithmetic is kept
+    in float32.  Without the fix this test produces inf in the output.
+    """
+    # Build a minimal inverse DFT: N=2, complex input representing two 40000 samples
+    N = 2
+    # Complex representation: [[40000+0j, 40000+0j]] shaped [1, N, 2]
+    x_cplx = np.zeros((1, N, 2), dtype=np.float16)
+    x_cplx[0, 0, 0] = 40000.0  # real
+    x_cplx[0, 1, 0] = 40000.0  # real
+
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], inverse=1, axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_idft_overflow",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    # The output should be finite and representable in float16
+    assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
+    assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
+    assert res.dtype == np.float16
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
