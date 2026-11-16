@@ -724,19 +724,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
             def call_binary_op(op, lhs, rhs):
                 lhs, rhs = promote_binary_op_args(lhs, rhs)
+                if scale_rhs_by_alpha and alpha != 1:
+                    assert isinstance(rhs.ty, relax.TensorType)
+                    rhs = self.block_builder.emit(
+                        relax.op.multiply(rhs, relax.const(alpha, rhs.ty.dtype))
+                    )
                 return self.block_builder.emit(op(lhs, rhs))
 
-            lhs, rhs = self.retrieve_args(node)
+            args = self.retrieve_args(node)
+            lhs, rhs = args[:2]
+            alpha = args[2] if len(args) > 2 else node.kwargs.get("alpha", 1)
             if reverse:
                 lhs, rhs = rhs, lhs
-
-            if scale_rhs_by_alpha:
-                alpha = node.kwargs.get("alpha", 1)
-                if alpha != 1:
-                    if isinstance(rhs, relax.Expr):
-                        rhs = call_binary_op(relax.op.multiply, rhs, alpha)
-                    else:
-                        rhs *= alpha
+            if scale_rhs_by_alpha and alpha != 1 and not isinstance(rhs, relax.Expr):
+                rhs *= alpha
+                alpha = 1
 
             if (isinstance(lhs, tvm_tirx.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
                 isinstance(rhs, tvm_tirx.ir.Var) and isinstance(rhs.ty, relax.TensorType)
@@ -750,6 +752,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 lhs, tvm_tirx.ir.GenericConst
             ):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.ty.dtype), rhs)
+            if scale_rhs_by_alpha and alpha != 1:
+                rhs *= alpha
             return intrinsic_op(lhs, rhs)
 
         return convert

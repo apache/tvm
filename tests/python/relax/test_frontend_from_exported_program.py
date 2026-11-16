@@ -1466,6 +1466,64 @@ def test_add_sub_alpha():
     verify_model(AddSubAlpha(), example_args, {}, expected)
 
 
+def test_add_alpha_promotes_before_scaling():
+    class AddAlpha(Module):
+        def forward(self, lhs, rhs):
+            return torch.add(lhs, rhs, alpha=2)
+
+    @I.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((2, 3), dtype="float32"),
+            rhs: R.Tensor((2, 3), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                rhs_float32: R.Tensor((2, 3), dtype="float32") = R.astype(rhs, dtype="float32")
+                scaled_rhs: R.Tensor((2, 3), dtype="float32") = R.multiply(
+                    rhs_float32, R.const(2.0, "float32")
+                )
+                result: R.Tensor((2, 3), dtype="float32") = R.add(lhs, scaled_rhs)
+                gv: R.Tensor((2, 3), dtype="float32") = result
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.tensor([[64, 65, 66], [67, 68, 69]], dtype=torch.int8),
+    )
+    verify_model(AddAlpha(), example_args, {}, expected, unwrap_unit_return_tuple=True)
+
+
+def test_rsub_scalar_positional_alpha():
+    class RSubAlpha(Module):
+        def forward(self, x):
+            return torch.rsub(x, 3.0, alpha=2)
+
+    @I.ir_module
+    class expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                scaled_x: R.Tensor((2, 3), dtype="float32") = R.multiply(x, R.const(2.0, "float32"))
+                result: R.Tensor((2, 3), dtype="float32") = R.subtract(
+                    R.const(3.0, "float32"), scaled_x
+                )
+                gv: R.Tensor((2, 3), dtype="float32") = result
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+    verify_model(
+        RSubAlpha(),
+        example_args,
+        {},
+        expected,
+        run_ep_decomposition=False,
+        unwrap_unit_return_tuple=True,
+    )
+
+
 operator_binary_promote = [
     (operator.add, R.add),
     (operator.sub, R.subtract),
