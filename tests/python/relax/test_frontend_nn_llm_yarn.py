@@ -59,8 +59,7 @@ def _build_rope(kernel, target):
             return tvm_tirx.target.Target.from_device(tvm_tirx.device_from_target(target))
 
         target = tvm_tirx.testing.run_with_gpu_lock(get_target)
-        with target:
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback(), target=target)(mod)
     return tvm_tirx.tirx.compile(mod["main"], target=target).mod
 
 
