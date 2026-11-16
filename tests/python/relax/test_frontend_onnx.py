@@ -6239,14 +6239,25 @@ def test_layer_norm_broadcast_parameters(dtype, axis, scale_shape, bias_shape, n
         helper.make_graph([node], "layer_norm_broadcast_parameters", input_infos, output_infos),
         opset_imports=[helper.make_opsetid("", 17)],
     )
-    check_correctness(
-        model,
-        inputs=inputs,
-        opset=17,
-        check_dtypes=True,
-        rtol=1e-3 if dtype == "float16" else 1e-5,
-        atol=1e-3 if dtype == "float16" else 1e-5,
-    )
+    # Some ONNX Runtime versions reject valid broadcasted scale and bias shapes.
+    x = inputs["input"].astype("float32")
+    axes = tuple(range(axis % x.ndim, x.ndim))
+    mean = np.mean(x, axis=axes, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=axes, keepdims=True) + np.float32(1e-5))
+    expected_y = ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"]
+    if bias_shape is not None:
+        expected_y += inputs["bias"]
+    expected = [expected_y, mean, inv_std_dev][:num_outputs]
+
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if num_outputs == 1 else actual
+    assert len(actual) == num_outputs
+    tol = 1e-3 if dtype == "float16" else 1e-5
+    for value, reference in zip(actual, expected):
+        value = value.numpy()
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
 
 
 def test_layer_norm_y_only_keeps_fused_path():
