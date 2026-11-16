@@ -2266,7 +2266,9 @@ class QLinearConv(OnnxOpConverter):
 
         weight_norm = bb.normalize(weight)
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = [int(dim) for dim in weight_norm.ty.shape[2:]]
+            # Use .shape.values to avoid TypeError from ShapeExpr.__getitem__ with slices;
+            # keep values as-is (may be symbolic PrimExprs) so symbolic kernels stay supported.
+            attr["kernel_shape"] = weight_norm.ty.shape.values[2:]
         else:
             attr["kernel_shape"] = [int(dim) for dim in attr["kernel_shape"]]
 
@@ -2377,7 +2379,16 @@ class QLinearConv(OnnxOpConverter):
         if hasattr(y_z_norm.ty, "shape") and len(y_z_norm.ty.shape) == 1:
             y_zp_f = bb.normalize(relax.op.reshape(y_zp_f, [1, -1] + [1] * (ndim - 2)))
 
-        scale_mult = relax.op.divide(relax.op.multiply(x_scale_f, w_scale_f), y_scale_f)
+        # Compute the combined scale multiplier in float64 to avoid overflow when
+        # x_scale * w_scale is very large (e.g. 2**65 * 2**65 = 2**130 >> float32 max).
+        # Cast back to float32 before the multiply with the int32 conv output.
+        x_scale_f64 = relax.op.astype(x_scale_f, "float64")
+        w_scale_f64 = relax.op.astype(w_scale_f, "float64")
+        y_scale_f64 = relax.op.astype(y_scale_f, "float64")
+        scale_mult_f64 = relax.op.divide(
+            relax.op.multiply(x_scale_f64, w_scale_f64), y_scale_f64
+        )
+        scale_mult = relax.op.astype(scale_mult_f64, "float32")
         scaled = relax.op.multiply(conv_float, scale_mult)
         rounded = relax.op.round(scaled)
         y_val = relax.op.add(rounded, y_zp_f)
