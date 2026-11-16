@@ -936,7 +936,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     // If the loop extent is 1, do not create the loop anymore
     auto f_substitute =
         [loop_var = for_node->var](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (var.same_as(loop_var)) return ffi::Any(IntImm::Int32(0));
+      if (var.same_as(loop_var)) return ffi::Any(IntImm(var->ty.as_or_throw<PrimType>(), 0));
       return ffi::Unchanged();
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
