@@ -567,7 +567,68 @@ def test_closure_called_through_alias():
 
     after = transform.LambdaLift()(Before)
     relax.analysis.check_well_formed(after, check_ty=True)
-    assert "R.invoke_pure_closure" in after.script()
+    calls = []
+    relax.analysis.post_order_visit(
+        after["main"].body,
+        lambda expr: calls.append(expr) if isinstance(expr, relax.Call) else None,
+    )
+    assert sum(call.op == tvm_tirx.ir.Op.get("relax.invoke_pure_closure") for call in calls) == 1
+    assert all(call.op != tvm_tirx.ir.Op.get("relax.invoke_closure") for call in calls)
+
+
+def test_impure_closure_calls_preserve_purity():
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(x: R.Tensor((2,), "float32"), y: R.Tensor((2,), "float32")):
+            @R.function(pure=False)
+            def inner(z: R.Tensor((2,), "float32")):
+                R.print(z)
+                return R.add(z, x)
+
+            direct = inner(y)
+            alias = inner
+            alias2 = alias
+            indirect = alias2(y)
+            return direct, indirect
+
+    after = transform.LambdaLift()(Before)
+    relax.analysis.check_well_formed(after, check_ty=True)
+    calls = []
+    relax.analysis.post_order_visit(
+        after["main"].body,
+        lambda expr: calls.append(expr) if isinstance(expr, relax.Call) else None,
+    )
+    assert sum(call.op == tvm_tirx.ir.Op.get("relax.invoke_closure") for call in calls) == 2
+    assert all(call.op != tvm_tirx.ir.Op.get("relax.invoke_pure_closure") for call in calls)
+
+
+def test_noncapturing_function_called_through_alias():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((2,), "float32")) -> R.Tensor((2,), "float32"):
+            @R.function
+            def inner(z: R.Tensor((2,), "float32")) -> R.Tensor((2,), "float32"):
+                return R.add(z, z)
+
+            alias = inner
+            return alias(x)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2,), "float32")) -> R.Tensor((2,), "float32"):
+            alias = Expected.main_inner
+            return alias(x)
+
+        @R.function(private=True)
+        def main_inner(z: R.Tensor((2,), "float32")) -> R.Tensor((2,), "float32"):
+            return R.add(z, z)
+
+    after = transform.LambdaLift()(Before)
+    relax.analysis.check_well_formed(after, check_ty=True)
+    assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":

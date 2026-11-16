@@ -388,6 +388,9 @@ class LambdaLifter : public ExprMutator {
             return GetType(var).as_or_throw<FuncType>()->purity;
           }
           Call orig_call = bound_value.value().as_or_throw<Call>();
+          if (orig_call->op.same_as(make_closure_op_)) {
+            return GetType(orig_call->args[0]).as_or_throw<FuncType>()->purity;
+          }
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap(tvm::relax::op_attr::kPurity);
             return purity_map.get(op.value(), false);
@@ -440,7 +443,7 @@ class LambdaLifter : public ExprMutator {
         return true;
       }
       if (auto bound_value = LookupBinding(opt_var.value())) {
-        val = bound_value.value();
+        return IsClosure(bound_value.value());
       }
     }
 
