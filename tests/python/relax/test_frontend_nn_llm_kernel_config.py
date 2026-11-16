@@ -297,7 +297,9 @@ def test_wide_fp32_head_prefill_fits_metal_shared_memory(sliding_window):
         _attention_prefill_ragged(2, 4, 512, 512, "float32", {}, target),
     ):
         assert _get_allocated_shared_memory(func) == 24_688
-        assert _get_allocated_shared_memory(func) <= int(target.attrs["max_shared_memory_per_block"])
+        assert _get_allocated_shared_memory(func) <= int(
+            target.attrs["max_shared_memory_per_block"]
+        )
         module = tvm_tirx.tirx.compile(func.with_attr("global_symbol", "main"), target=target).mod
         assert module.imports[0].inspect_source()
 
