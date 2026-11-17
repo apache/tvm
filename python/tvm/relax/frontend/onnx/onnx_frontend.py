@@ -3797,7 +3797,7 @@ class RotaryEmbedding(OnnxOpConverter):
 
         input_shape = data.ty.shape
         if not isinstance(input_shape, relax.ShapeExpr) or not isinstance(
-            input_shape.values[-1], tirx.IntImm
+            input_shape.values[-1], tvm_tirx.ir.IntImm
         ):
             raise ValueError("RotaryEmbedding requires a statically known last dimension.")
 
