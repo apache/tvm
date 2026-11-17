@@ -2114,22 +2114,27 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         tensors = args[0]
 
+        # Rejects mixed dtype from filtering
+        if tensors and any(t.ty.dtype != tensors[0].ty.dtype for t in tensors[1:]):
+            return self.block_builder.emit(relax.op.concat(tensors, axis=axis))
+
         filtered = []
         for t in tensors:
             shape = self.shape_of(t)
-            if shape is not None and len(shape) == 1:
-                dim0 = self._static_dim(shape[0])
-                if dim0 == 0:
-                    continue
+            if shape is not None and len(shape) == 1 and self._static_dim(shape[0]) == 0:
+                continue
             filtered.append(t)
 
+        # Handles singleton with rank and axis bounds validation
         if not filtered:
-            # Passes args[0] to relax.op.concat
-            filtered = tensors 
+            filtered = tensors
 
         if len(filtered) == 1:
-            # Returns the only tensor that is not a 1D empty tensor
-            return filtered[0] 
+            tensor = filtered[0]
+            ndim = tensor.ty.ndim
+            if ndim >= 0 and not -ndim <= axis < ndim:
+                raise ValueError(f"cat dim {axis} is out of range for a tensor of rank {ndim}")
+            return tensor
 
         return self.block_builder.emit(relax.op.concat(filtered, axis=axis))
 
