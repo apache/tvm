@@ -6141,9 +6141,30 @@ class QLinearMatMul(OnnxOpConverter):
     """Converts an onnx QLinearMatMul node into an equivalent Relax expression."""
 
     @classmethod
+    def _squeeze_singleton(cls, bb, param):
+        """Squeeze singleton tensors (all dimensions equal to 1, e.g. [1], [1, 1]) to 0D scalars.
+
+        Per-tensor scales and zero points in ONNX can be provided as scalars (0D) or singleton
+        tensors (1D [1], 2D [1, 1], etc.). Normalizing them to scalars prevents them from
+        accidentally expanding output ranks during matrix-vector and vector-matrix multiplications.
+        """
+        if param is None:
+            return None
+        param_norm = bb.normalize(param)
+        if not hasattr(param_norm.ty, "shape"):
+            return param
+        p_shape = param_norm.ty.shape
+        if len(p_shape) > 0 and all(
+            isinstance(d, int | tvm_tirx.ir.IntImm) and int(d) == 1 for d in p_shape
+        ):
+            return relax.op.squeeze(param)
+        return param
+
+    @classmethod
     def _align_output_param(cls, bb, param, a_norm, b_norm):
         if param is None:
             return None
+        param = cls._squeeze_singleton(bb, param)
         param_norm = bb.normalize(param)
         if not hasattr(param_norm.ty, "shape"):
             return param
@@ -6156,6 +6177,10 @@ class QLinearMatMul(OnnxOpConverter):
         b_shape = b_norm.ty.shape if hasattr(b_norm.ty, "shape") else None
         a_rank = len(a_shape) if a_shape is not None else 2
         b_rank = len(b_shape) if b_shape is not None else 2
+
+        # When both a and b are 1D vectors, matmul output is scalar (0D)
+        if a_rank == 1 and b_rank == 1:
+            return relax.op.squeeze(param)
 
         # When b_rank == 1, output of matmul is [..., M], no trailing column axis
         if b_rank == 1:
@@ -6221,6 +6246,16 @@ class QLinearMatMul(OnnxOpConverter):
                         "are currently not supported in QLinearMatMul."
                     )
 
+        # Normalize singleton [1]-shape and [1, 1]-shape parameters to 0D scalars
+        # BEFORE any rank expansion or alignment, so they do not accidentally
+        # increase the output rank in vector-matrix, matrix-vector, or dot products.
+        a_scale = cls._squeeze_singleton(bb, a_scale)
+        a_zero_point = cls._squeeze_singleton(bb, a_zero_point)
+        b_scale = cls._squeeze_singleton(bb, b_scale)
+        b_zero_point = cls._squeeze_singleton(bb, b_zero_point)
+        y_scale = cls._squeeze_singleton(bb, y_scale)
+        y_zero_point = cls._squeeze_singleton(bb, y_zero_point)
+
         a_norm = bb.normalize(a)
         b_norm = bb.normalize(b)
         a_shape = a_norm.ty.shape if hasattr(a_norm.ty, "shape") else None
@@ -6249,11 +6284,11 @@ class QLinearMatMul(OnnxOpConverter):
         # 32-bit integer accumulation
         matmul_int32 = relax.op.matmul(a, b, out_dtype="int32")
 
-        # Broadcast a_scale: for rank >= 2, expand row dimension to broadcast over columns
+        # Broadcast a_scale: when both a and b are rank >= 2, expand row dimension to broadcast over columns
         a_scale_norm = bb.normalize(a_scale)
         if hasattr(a_scale_norm.ty, "shape"):
             as_shape = a_scale_norm.ty.shape
-            if b_rank >= 2:
+            if a_rank >= 2 and b_rank >= 2:
                 if len(as_shape) == 1:
                     a_scale = relax.op.expand_dims(a_scale, axis=-1)
             elif b_rank == 1:
@@ -6264,11 +6299,11 @@ class QLinearMatMul(OnnxOpConverter):
                 ):
                     a_scale = relax.op.squeeze(a_scale, axis=[-1])
 
-        # Broadcast b_scale: for rank >= 2, expand column dimension to broadcast over rows
+        # Broadcast b_scale: when both a and b are rank >= 2, expand column dimension to broadcast over rows
         b_scale_norm = bb.normalize(b_scale)
         if hasattr(b_scale_norm.ty, "shape"):
             bs_shape = b_scale_norm.ty.shape
-            if a_rank >= 2:
+            if a_rank >= 2 and b_rank >= 2:
                 if len(bs_shape) == 1:
                     b_scale = relax.op.expand_dims(b_scale, axis=0)
             elif a_rank == 1:
@@ -6279,25 +6314,11 @@ class QLinearMatMul(OnnxOpConverter):
                 ):
                     b_scale = relax.op.squeeze(b_scale, axis=[-2])
 
-        # Normalize singleton [1]-shape parameters to scalars so that _align_output_param
-        # and later broadcasting do not accidentally add a rank-1 axis to the output.
-        def _squeeze_singleton(bb, param):
-            if param is None:
-                return None
-            p_norm = bb.normalize(param)
-            if (
-                hasattr(p_norm.ty, "shape")
-                and len(p_norm.ty.shape) == 1
-                and isinstance(p_norm.ty.shape[0], int | tvm_tirx.ir.IntImm)
-                and int(p_norm.ty.shape[0]) == 1
-            ):
-                return relax.op.squeeze(param, axis=[0])
-            return param
-
-        a_scale = _squeeze_singleton(bb, a_scale)
-        b_scale = _squeeze_singleton(bb, b_scale)
-        y_scale = _squeeze_singleton(bb, y_scale)
-        y_zero_point = _squeeze_singleton(bb, y_zero_point)
+        # Ensure any resulting singleton scale or output parameter is squeezed
+        a_scale = cls._squeeze_singleton(bb, a_scale)
+        b_scale = cls._squeeze_singleton(bb, b_scale)
+        y_scale = cls._squeeze_singleton(bb, y_scale)
+        y_zero_point = cls._squeeze_singleton(bb, y_zero_point)
 
         y_scale = cls._align_output_param(bb, y_scale, a_norm, b_norm)
         y_zero_point = cls._align_output_param(bb, y_zero_point, a_norm, b_norm)

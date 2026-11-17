@@ -14930,6 +14930,104 @@ def test_qlinearmatmul_singleton_scales_output_shape():
     ).astype(np.uint8)
     np.testing.assert_array_equal(tvm_val, ref)
 
+    # Matrix-vector case: [4, 3] @ [3] -> [4]
+    a_mv = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [1, 0, 1]], dtype=np.uint8)
+    b_mv = np.array([2, 1, 0], dtype=np.uint8)
+    node_mv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_mv = helper.make_graph(
+        [node_mv],
+        "singleton_mv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [4, 3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model_mv = helper.make_model(graph_mv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_mv = {
+        "a": a_mv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_mv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_mv = run_in_tvm(model_mv, inputs=inputs_mv, opset=10)
+    tvm_val_mv = (
+        tvm_out_mv[0].numpy() if isinstance(tvm_out_mv, list | tuple) else tvm_out_mv.numpy()
+    )
+    assert tvm_val_mv.shape == (4,), f"Expected shape (4,) but got {tvm_val_mv.shape}"
+    ref_mv = np.clip(
+        np.round(
+            np.matmul(a_mv.astype(np.int32), b_mv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_mv, ref_mv)
+
+    # Vector-vector dot product case: [3] @ [3] -> ()
+    a_vv = np.array([2, 3, 4], dtype=np.uint8)
+    b_vv = np.array([1, 2, 1], dtype=np.uint8)
+    node_vv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_vv = helper.make_graph(
+        [node_vv],
+        "singleton_vv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [])],
+    )
+    model_vv = helper.make_model(graph_vv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_vv = {
+        "a": a_vv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_vv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_vv = run_in_tvm(model_vv, inputs=inputs_vv, opset=10)
+    tvm_val_vv = (
+        tvm_out_vv[0].numpy() if isinstance(tvm_out_vv, list | tuple) else tvm_out_vv.numpy()
+    )
+    assert tvm_val_vv.shape == (), f"Expected scalar shape () but got {tvm_val_vv.shape}"
+    ref_vv = np.clip(
+        np.round(
+            np.matmul(a_vv.astype(np.int32), b_vv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_vv, ref_vv)
+
 
 if __name__ == "__main__":
     tvm_tirx.testing.main()
