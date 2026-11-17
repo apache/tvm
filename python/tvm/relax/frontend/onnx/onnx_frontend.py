@@ -4699,7 +4699,11 @@ class LayerNormalization(OnnxOpConverter):
         dtype = str(data.ty.dtype)
 
         # Relax's fused operator requires affine parameters to match the normalized shape.
-        if num_outputs == 1 and dtype == "float32" and isinstance(data.ty.shape, relax.ShapeExpr):
+        if (
+            num_outputs == 1
+            and dtype in ("float16", "float32")
+            and isinstance(data.ty.shape, relax.ShapeExpr)
+        ):
             normalized_shape = relax.ShapeExpr(data.ty.shape.values[axis:])
             if tvm_ffi.structural_equal(scale.ty.shape, normalized_shape) and (
                 bias is None or tvm_ffi.structural_equal(bias.ty.shape, normalized_shape)
@@ -6585,6 +6589,13 @@ class ONNXGraphImporter:
             msg += ", ".join(unsupported_ops)
             raise NotImplementedError(msg)
 
+    @staticmethod
+    def _get_node_outputs(node):
+        outputs = list(node.output)
+        while outputs and not outputs[-1]:
+            outputs.pop()
+        return outputs
+
     def _construct_nodes(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
@@ -6598,7 +6609,7 @@ class ONNXGraphImporter:
                 else:
                     inputs.append(None)
             i_name = self._parse_value_proto(node)
-            outputs = node.output
+            outputs = self._get_node_outputs(node)
             attr["tvm_custom"] = {}
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(outputs)
@@ -6614,7 +6625,8 @@ class ONNXGraphImporter:
                     self._nodes[outputs[0]] = if_result
                 else:
                     for i, k in enumerate(outputs):
-                        self._nodes[k] = self.bb.emit(relax.TupleGetItem(if_result, i))
+                        if k:
+                            self._nodes[k] = self.bb.emit(relax.TupleGetItem(if_result, i))
                 continue
 
             # Perform special handling for shape expressions. If an input is a
@@ -6681,7 +6693,8 @@ class ONNXGraphImporter:
                 self._nodes[outputs[0]] = op
             else:
                 for i, k in enumerate(outputs):
-                    self._nodes[k] = op[i]
+                    if k:
+                        self._nodes[k] = op[i]
 
     def _parse_value_proto(self, value_proto: onnx.onnx_ml_pb2.GraphProto):
         """Parse ValueProto or raw str."""
@@ -6785,7 +6798,8 @@ class ONNXGraphImporter:
 
                 attr["tvm_custom"] = {}
                 attr["tvm_custom"]["name"] = node.name
-                attr["tvm_custom"]["num_outputs"] = len(node.output)
+                outputs = self._get_node_outputs(node)
+                attr["tvm_custom"]["num_outputs"] = len(outputs)
 
                 # Handle nested If recursively.
                 if op_name == "If":
@@ -6795,12 +6809,12 @@ class ONNXGraphImporter:
                     then_seq = relax.SeqExpr(blocks=[], body=then_expr)
                     else_seq = relax.SeqExpr(blocks=[], body=else_expr)
                     op = bb.emit(relax.IfExpr(cond, then_seq, else_seq))
-                    outputs = node.output
                     if len(outputs) == 1:
                         self._nodes[outputs[0]] = op
                     else:
                         for i, k in enumerate(outputs):
-                            self._nodes[k] = bb.emit(relax.TupleGetItem(op, i))
+                            if k:
+                                self._nodes[k] = bb.emit(relax.TupleGetItem(op, i))
                     continue
 
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
@@ -6810,12 +6824,12 @@ class ONNXGraphImporter:
                         tuple_items = [relax.TupleGetItem(op, i) for i in range(len(op.ty.fields))]
                         op = relax.Tuple(tuple_items)
 
-                outputs = node.output
                 if len(outputs) == 1:
                     self._nodes[outputs[0]] = op
                 else:
                     for i, k in enumerate(outputs):
-                        self._nodes[k] = op[i]
+                        if k:
+                            self._nodes[k] = op[i]
 
             branch_outputs = [self._nodes[o.name] for o in graph.output]
             result = branch_outputs[0] if len(branch_outputs) == 1 else relax.Tuple(branch_outputs)

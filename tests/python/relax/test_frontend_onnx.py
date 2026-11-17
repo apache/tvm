@@ -6260,24 +6260,71 @@ def test_layer_norm_broadcast_parameters(dtype, axis, scale_shape, bias_shape, n
         np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
 
 
-def test_layer_norm_y_only_keeps_fused_path():
-    node = helper.make_node("LayerNormalization", ["input", "scale"], ["Y"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "outputs", [["Y"], ["Y", "", ""], ["Y", "Mean", ""], ["Y", "", "InvStdDev"]]
+)
+@pytest.mark.parametrize("in_subgraph", [False, True])
+def test_layer_norm_optional_output_names(dtype, outputs, in_subgraph):
+    tensor_type = TensorProto.FLOAT if dtype == "float32" else TensorProto.FLOAT16
+    input_infos = [
+        helper.make_tensor_value_info("input", tensor_type, [2, 4]),
+        helper.make_tensor_value_info("scale", tensor_type, [4]),
+    ]
+    output_infos = [
+        helper.make_tensor_value_info(
+            name,
+            tensor_type if name == "Y" else TensorProto.FLOAT,
+            [2, 4] if name == "Y" else [2, 1],
+        )
+        for name in outputs
+        if name
+    ]
+    node = helper.make_node("LayerNormalization", ["input", "scale"], outputs)
+    inputs = {
+        "input": np.array([[1, 2, 4, 8], [10000, 10016, 10032, 10048]], dtype=dtype),
+        "scale": np.array([0.5, 1.5, 2.0, 0.75], dtype=dtype),
+    }
+    if in_subgraph:
+        branch = helper.make_graph([node], "branch", [], output_infos)
+        node = helper.make_node(
+            "If",
+            ["cond"],
+            [info.name for info in output_infos],
+            then_branch=branch,
+            else_branch=branch,
+        )
+        input_infos.append(helper.make_tensor_value_info("cond", TensorProto.BOOL, []))
+        inputs["cond"] = np.array(True)
     model = helper.make_model(
-        helper.make_graph(
-            [node],
-            "layer_norm_y_only",
-            [
-                helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 4]),
-                helper.make_tensor_value_info("scale", TensorProto.FLOAT, [4]),
-            ],
-            [helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 4])],
-        ),
+        helper.make_graph([node], "layer_norm_optional_outputs", input_infos, output_infos),
         opset_imports=[helper.make_opsetid("", 17)],
     )
+    onnx.checker.check_model(model)
     ops = collect_relax_call_ops(from_onnx(model)["main"])
-    assert "relax.nn.layer_norm" in ops
-    assert "relax.mean" not in ops
-    assert "relax.rsqrt" not in ops
+    if len(output_infos) == 1:
+        assert "relax.nn.layer_norm" in ops
+        assert "relax.mean" not in ops
+        assert "relax.rsqrt" not in ops
+
+    x = inputs["input"].astype("float32")
+    mean = np.mean(x, axis=-1, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=-1, keepdims=True) + np.float32(1e-5))
+    expected = {
+        "Y": ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"],
+        "Mean": mean,
+        "InvStdDev": inv_std_dev,
+    }
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if len(output_infos) == 1 else actual
+    assert len(actual) == len(output_infos)
+    for value, info in zip(actual, output_infos):
+        value = value.numpy()
+        reference = expected[info.name]
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        tol = 1e-3 if reference.dtype == np.float16 else 1e-5
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
 
 
 def test_layer_norm_with_nd_gamma_beta():

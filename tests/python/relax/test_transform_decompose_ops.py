@@ -18,6 +18,9 @@
 
 from typing import Union
 
+import numpy as np
+import pytest
+
 import tvm
 import tvm_tirx
 import tvm_tirx.script
@@ -384,6 +387,61 @@ def test_layer_norm():
 
     After = relax.transform.DecomposeOpsForTraining()(Before)
     tvm_tirx.ir.assert_structural_equal(Expected, After)
+
+
+@pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is required")
+def test_layer_norm_fp16_training():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float16"),
+            gamma: R.Tensor((4,), "float16"),
+            beta: R.Tensor((4,), "float16"),
+        ):
+            with R.dataflow():
+                output = R.nn.layer_norm(x, gamma, beta, axes=[-1], epsilon=1e-5)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float16"),
+            gamma: R.Tensor((4,), "float16"),
+            beta: R.Tensor((4,), "float16"),
+        ):
+            with R.dataflow():
+                stats_data = R.astype(x, "float32")
+                mean = R.mean(stats_data, axis=[-1], keepdims=True)
+                centered = R.subtract(stats_data, mean)
+                variance = R.variance(stats_data, axis=[-1], keepdims=True)
+                adjusted = R.add(variance, R.const(1e-5, "float32"))
+                stddev = R.sqrt(adjusted)
+                normalized = R.divide(centered, stddev)
+                normalized_fp16 = R.astype(normalized, "float16")
+                scaled = R.multiply(normalized_fp16, gamma)
+                output = R.add(scaled, beta)
+                R.output(output)
+            return output
+
+    after = relax.transform.DecomposeOpsForTraining()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
+
+    x = np.array([[1, 2, 4, 8], [30000, 30016, 30032, 30048]], dtype="float16")
+    gamma = np.array([0.5, 1.5, 2.0, 0.75], dtype="float16")
+    beta = np.array([0.25, -0.5, 0.75, -1.0], dtype="float16")
+    stats_data = x.astype("float32")
+    mean = np.mean(stats_data, axis=-1, keepdims=True)
+    stddev = np.sqrt(np.var(stats_data, axis=-1, keepdims=True) + np.float32(1e-5))
+    expected = ((stats_data - mean) / stddev).astype("float16") * gamma + beta
+    args = [tvm_tirx.runtime.tensor(value) for value in (x, gamma, beta)]
+    for mod in (Before, after):
+        vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+        actual = vm["main"](*args).numpy()
+        assert actual.dtype == np.float16
+        np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
 
 
 def test_op_tensor_to_shape():
