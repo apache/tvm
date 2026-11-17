@@ -2551,6 +2551,50 @@ class CumSum(OnnxOpConverter):
         return data
 
 
+class CumProd(OnnxOpConverter):
+    """Converts an onnx CumProd node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        exclusive = attr.get("exclusive", 0) != 0
+
+        axis = 0
+        if len(inputs) > 1 and inputs[1] is not None:
+            axis_input = get_constant(inputs[1], params)
+            if isinstance(axis_input, tvm_tirx.ir.GenericConst):
+                axis_data = axis_input.value.numpy()
+                if axis_data.ndim == 0:
+                    axis = int(axis_data.item())
+                elif axis_data.ndim == 1 and axis_data.shape[0] == 1:
+                    axis = int(axis_data.item())
+                else:
+                    raise ValueError(
+                        "CumProd axis input must be a scalar (0-D) or a single-element 1-D tensor, "
+                        f"got shape {axis_data.shape}"
+                    )
+            elif isinstance(axis_input, relax.Var):
+                axis_shape = axis_input.ty.shape if hasattr(axis_input.ty, "shape") else None
+                raise ValueError(
+                    "CumProd with non-constant axis input is not supported yet. "
+                    "ONNX permits runtime axis tensors, but Relax/TE currently requires a compile-time "
+                    f"constant axis for cumprod/flip. Got axis shape {axis_shape}"
+                )
+            else:
+                raise TypeError("CumProd axis input must be a Constant or Var")
+
+        if attr.get("reverse", 0) != 0:
+            data = bb.emit_te(topi.flip, data, axis=axis)
+
+        data = relax.op.cumprod(data, axis, exclusive=exclusive)
+        data = bb.normalize(data)
+
+        if attr.get("reverse", 0) != 0:
+            data = bb.emit_te(topi.flip, data, axis=axis)
+
+        return data
+
+
 class Squeeze(OnnxOpConverter):
     """Converts an onnx Squeeze node into an equivalent Relax expression."""
 
@@ -5576,7 +5620,7 @@ class OneHot(OnnxOpConverter):
         assert isinstance(depth, tvm_tirx.ir.GenericConst), (
             "Only constant depth currently supported."
         )
-        depth = depth.value.numpy().tolist()
+        depth = int(depth.value.numpy().item())
         assert isinstance(values, tvm_tirx.ir.GenericConst), (
             "Only constant values currently supported."
         )
@@ -6302,6 +6346,178 @@ class MatMulInteger(OnnxOpConverter):
         return relax.op.matmul(a, b, out_dtype="int32")  # Output is int32 per ONNX spec
 
 
+class DFT(OnnxOpConverter):
+    """Converts an onnx DFT node into an equivalent Relax expression."""
+
+    MAX_DFT_LENGTH = 4096
+
+    @classmethod
+    def _impl_v17(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        inverse = int(attr.get("inverse", 0))
+        onesided = int(attr.get("onesided", 0))
+        axis = int(attr.get("axis", 1))
+
+        dft_length = inputs[1] if len(inputs) > 1 and inputs[1] is not None else None
+        return cls._dft(bb, data, dft_length, axis, inverse, onesided, params)
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        inverse = int(attr.get("inverse", 0))
+        onesided = int(attr.get("onesided", 0))
+
+        dft_length = inputs[1] if len(inputs) > 1 and inputs[1] is not None else None
+
+        axis = -2
+        if len(inputs) > 2 and inputs[2] is not None:
+            axis_c = get_constant(inputs[2], params)
+            if isinstance(axis_c, tvm_tirx.ir.GenericConst):
+                axis = int(axis_c.value.numpy().item())
+            elif isinstance(axis_c, int | tvm_tirx.ir.IntImm):
+                axis = int(axis_c)
+            else:
+                raise NotImplementedError(
+                    "Dynamic or non-constant axis is currently not supported for DFT."
+                )
+        else:
+            axis = int(attr.get("axis", -2))
+
+        return cls._dft(bb, data, dft_length, axis, inverse, onesided, params)
+
+    @classmethod
+    def _dft(cls, bb, data, dft_length, axis, inverse, onesided, params):
+        data_norm = bb.normalize(data)
+        if hasattr(data_norm.ty, "ndim"):
+            ndim = data_norm.ty.ndim
+        else:
+            ndim = len(data_norm.ty.shape)
+
+        if axis < 0:
+            axis = ndim + axis
+
+        if axis < 0 or axis > ndim - 2:
+            raise ValueError(
+                f"DFT axis {axis} is out of valid range [0, {ndim - 2}] for input with rank {ndim}."
+            )
+
+        orig_len = int(data_norm.ty.shape[axis])
+
+        dft_len = orig_len
+        if dft_length is not None:
+            dft_len_c = get_constant(dft_length, params)
+            if isinstance(dft_len_c, tvm_tirx.ir.GenericConst):
+                dft_len = int(dft_len_c.value.numpy().item())
+            elif isinstance(dft_len_c, int | tvm_tirx.ir.IntImm):
+                dft_len = int(dft_len_c)
+            else:
+                raise NotImplementedError(
+                    "Dynamic or non-constant dft_length is currently not supported for DFT."
+                )
+
+            if dft_len <= 0:
+                raise ValueError(f"dft_length must be positive, but got {dft_len}")
+
+        if dft_len > cls.MAX_DFT_LENGTH:
+            raise ValueError(
+                f"DFT transform length {dft_len} exceeds maximum supported length "
+                f"{cls.MAX_DFT_LENGTH} for table-based DFT conversion."
+            )
+
+        if dft_len < orig_len:
+            data = relax.op.strided_slice(data, axes=[axis], begin=[0], end=[dft_len])
+        elif dft_len > orig_len:
+            pad_before = [0] * ndim
+            pad_after = [0] * ndim
+            pad_after[axis] = dft_len - orig_len
+            data = bb.emit_te(topi.nn.pad, data, pad_before, pad_after, 0.0)
+
+        data = bb.normalize(data)
+        dtype = data.ty.dtype.dtype
+        is_complex = int(data.ty.shape[-1]) == 2
+
+        if is_complex:
+            x_re = bb.normalize(relax.op.strided_slice(data, axes=[-1], begin=[0], end=[1]))
+            x_im = bb.normalize(relax.op.strided_slice(data, axes=[-1], begin=[1], end=[2]))
+            x_re = relax.op.squeeze(x_re, axis=[-1])
+            x_im = relax.op.squeeze(x_im, axis=[-1])
+        else:
+            x_re = relax.op.squeeze(data, axis=[-1])
+            x_im = None
+
+        rank_no_c = ndim - 1
+        perm = list(range(rank_no_c))
+        if axis != rank_no_c - 1:
+            perm[axis], perm[-1] = perm[-1], perm[axis]
+            x_re_t = relax.op.permute_dims(x_re, perm)
+            x_im_t = relax.op.permute_dims(x_im, perm) if is_complex else None
+        else:
+            x_re_t = x_re
+            x_im_t = x_im if is_complex else None
+
+        N = dft_len
+        K = (N // 2 + 1) if onesided else N
+
+        # Compute DFT coefficient phases in float64 to avoid overflow and phase rounding errors
+        n_arr = _np.arange(N, dtype=_np.float64)
+        k_arr = _np.arange(K, dtype=_np.float64)
+        W_arr = (2.0 * _np.pi / float(N)) * _np.outer(n_arr, k_arr)
+        C_np = _np.cos(W_arr).astype(dtype)
+        S_np = _np.sin(W_arr).astype(dtype)
+
+        C = relax.const(C_np, dtype)
+        S = relax.const(S_np, dtype)
+
+        # For float16 inputs, the unnormalized matmul intermediates can overflow before inverse
+        # normalization (e.g. two float16 samples of 40000 sum to 80000 == inf).  Promote to
+        # float32 for all matmuls and complex arithmetic; cast back to float16 at the end.
+        compute_dtype = "float32" if dtype == "float16" else dtype
+        if compute_dtype != dtype:
+            x_re_t = relax.op.astype(x_re_t, compute_dtype)
+            if x_im_t is not None:
+                x_im_t = relax.op.astype(x_im_t, compute_dtype)
+            C = relax.const(C_np.astype("float32"), compute_dtype)
+            S = relax.const(S_np.astype("float32"), compute_dtype)
+
+        term_re1 = relax.op.matmul(x_re_t, C)
+        term_im1 = relax.op.matmul(x_re_t, S)
+
+        if is_complex:
+            term_re2 = relax.op.matmul(x_im_t, S)
+            term_im2 = relax.op.matmul(x_im_t, C)
+            if not inverse:
+                y_re_t = relax.op.add(term_re1, term_re2)
+                y_im_t = relax.op.subtract(term_im2, term_im1)
+            else:
+                inv_scale = relax.const(1.0 / float(N), compute_dtype)
+                y_re_t = relax.op.multiply(relax.op.subtract(term_re1, term_re2), inv_scale)
+                y_im_t = relax.op.multiply(relax.op.add(term_im1, term_im2), inv_scale)
+        else:
+            if not inverse:
+                y_re_t = term_re1
+                y_im_t = relax.op.negative(term_im1)
+            else:
+                inv_scale = relax.const(1.0 / float(N), compute_dtype)
+                y_re_t = relax.op.multiply(term_re1, inv_scale)
+                y_im_t = relax.op.multiply(term_im1, inv_scale)
+
+        # Cast back to the original dtype if we promoted to float32 for overflow safety
+        if compute_dtype != dtype:
+            y_re_t = relax.op.astype(y_re_t, dtype)
+            y_im_t = relax.op.astype(y_im_t, dtype)
+
+        if axis != rank_no_c - 1:
+            y_re = relax.op.permute_dims(y_re_t, perm)
+            y_im = relax.op.permute_dims(y_im_t, perm)
+        else:
+            y_re = y_re_t
+            y_im = y_im_t
+
+        y_re = relax.op.expand_dims(y_re, axis=-1)
+        y_im = relax.op.expand_dims(y_im, axis=-1)
+        return relax.op.concat([y_re, y_im], axis=-1)
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -6393,6 +6609,7 @@ def _get_convert_map():
         "Clip": Clip,
         "Shape": Shape,
         "Pow": Pow,
+        "CumProd": CumProd,
         "CumSum": CumSum,
         "Squeeze": Squeeze,
         "Constant": Constant,
@@ -6452,6 +6669,7 @@ def _get_convert_map():
         "Dropout": Dropout,
         "Resize": Resize,
         "Einsum": Einsum,
+        "DFT": DFT,
         "Range": Range,
         "OneHot": OneHot,
         "Unique": Unique,
