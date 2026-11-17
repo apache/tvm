@@ -14674,7 +14674,9 @@ def test_qlinearconv():
             inputs=graph_inputs,
             outputs=[helper.make_tensor_value_info("y", proto, None)],
         )
-        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=8)
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=8
+        )
         check_correctness(model, inputs=feed_inputs, opset=opset)
 
     # 1. 2D Conv with bias (in-range uint8)
@@ -14687,7 +14689,11 @@ def test_qlinearconv():
     verify_qlinearconv([1, 1, 8], [1, 1, 3], strides=[1], dilations=[1], pads=[0, 0])
     # 5. 3D Conv
     verify_qlinearconv(
-        [1, 1, 4, 4, 4], [1, 1, 2, 2, 2], strides=[1, 1, 1], dilations=[1, 1, 1], pads=[0, 0, 0, 0, 0, 0]
+        [1, 1, 4, 4, 4],
+        [1, 1, 2, 2, 2],
+        strides=[1, 1, 1],
+        dilations=[1, 1, 1],
+        pads=[0, 0, 0, 0, 0, 0],
     )
     # 6. SAME_UPPER automatic padding
     verify_qlinearconv([1, 1, 4, 4], [1, 1, 3, 3], auto_pad="SAME_UPPER")
@@ -14696,14 +14702,21 @@ def test_qlinearconv():
     # 8. VALID automatic padding
     verify_qlinearconv([1, 1, 4, 4], [1, 1, 3, 3], auto_pad="VALID")
     # 9. Non-unit strides and dilations
-    verify_qlinearconv([1, 1, 8, 8], [1, 1, 3, 3], strides=[2, 2], dilations=[2, 2], pads=[0, 0, 0, 0])
+    verify_qlinearconv(
+        [1, 1, 8, 8], [1, 1, 3, 3], strides=[2, 2], dilations=[2, 2], pads=[0, 0, 0, 0]
+    )
     # 10. Grouped Conv
     verify_qlinearconv([1, 4, 4, 4], [4, 2, 2, 2], group=2, pads=[0, 0, 0, 0])
     # 11. Signed int8 quantization
     verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], dtype="int8", pads=[0, 0, 0, 0], with_bias=True)
     # 12. Distinct per-output-channel weight scales and zero-points
     verify_qlinearconv(
-        [1, 2, 4, 4], [4, 2, 2, 2], w_scale_shape=(4,), w_zp_shape=(4,), pads=[0, 0, 0, 0], with_bias=True
+        [1, 2, 4, 4],
+        [4, 2, 2, 2],
+        w_scale_shape=(4,),
+        w_zp_shape=(4,),
+        pads=[0, 0, 0, 0],
+        with_bias=True,
     )
     # 13. Unequal input/output channels with bias
     verify_qlinearconv([1, 3, 5, 5], [5, 3, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
@@ -14759,7 +14772,7 @@ def test_qlinearconv_precision_cancellation():
         "B": bias,
     }
     tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
-    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     assert tvm_val[0, 0, 0, 0] == 1
     check_correctness(model, inputs=feed_inputs, opset=10)
 
@@ -14770,7 +14783,9 @@ def test_qlinearconv_no_kernel_shape_attr():
     Uses a 2D conv without supplying kernel_shape in the ONNX node attributes to
     exercise the weight_norm.ty.shape.values[2:] inference path.
     """
-    x = np.array([[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.uint8)
+    x = np.array(
+        [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.uint8
+    )
     w = np.ones((1, 1, 2, 2), dtype=np.uint8)
     x_scale = np.array(1.0, dtype=np.float32)
     x_zp = np.array(0, dtype=np.uint8)
@@ -14865,7 +14880,7 @@ def test_qlinearconv_scale_overflow():
         "y_zp": y_zp,
     }
     tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
-    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     # x=1, w=1 (no zero-point), matmul=1, scale=2^65*2^65/2^124 = 2^130/2^124 = 2^6 = 64
     # Expected output: clip(round(1 * 64), 0, 255) = 64
     assert tvm_val[0, 0, 0, 0] == 64, (

@@ -2327,7 +2327,9 @@ class QLinearConv(OnnxOpConverter):
             elif auto_pad == "NOTSET":
                 pass
             else:
-                msg = f'Value {auto_pad} in attribute "auto_pad" of operator QLinearConv is invalid.'
+                msg = (
+                    f'Value {auto_pad} in attribute "auto_pad" of operator QLinearConv is invalid.'
+                )
                 raise AttributeError(msg)
             attr.pop("auto_pad")
 
@@ -2385,9 +2387,7 @@ class QLinearConv(OnnxOpConverter):
         x_scale_f64 = relax.op.astype(x_scale_f, "float64")
         w_scale_f64 = relax.op.astype(w_scale_f, "float64")
         y_scale_f64 = relax.op.astype(y_scale_f, "float64")
-        scale_mult_f64 = relax.op.divide(
-            relax.op.multiply(x_scale_f64, w_scale_f64), y_scale_f64
-        )
+        scale_mult_f64 = relax.op.divide(relax.op.multiply(x_scale_f64, w_scale_f64), y_scale_f64)
         scale_mult = relax.op.astype(scale_mult_f64, "float32")
         scaled = relax.op.multiply(conv_float, scale_mult)
         rounded = relax.op.round(scaled)
