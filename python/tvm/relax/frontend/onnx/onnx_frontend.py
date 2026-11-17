@@ -58,7 +58,6 @@ import tvm_ffi
 
 import tvm_tirx
 from tvm import relax, topi
-from tvm.topi.utils import get_const_tuple
 from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
@@ -4379,7 +4378,7 @@ class BatchNormalization(OnnxOpConverter):
             moving_var=cast_for_compute(var, var_dtype),
             axis=1,
             epsilon=epsilon,
-            momentum=momentum,
+            momentum=1 - momentum,
             training=bool(training_mode),
         )
 
@@ -4712,25 +4711,48 @@ class LayerNormalization(OnnxOpConverter):
         bias = inputs[2]
         axis = attr.get("axis", -1)
         epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
 
-        gamma_shape = get_const_tuple(scale.ty.shape)
+        if stash_type != 1:
+            raise ValueError("LayerNormalization currently only supports stash_type=1 (FLOAT).")
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("LayerNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "LayerNormalization")[0]
+        axes = list(range(axis, ndim))
+        num_outputs = attr["tvm_custom"]["num_outputs"]
+        dtype = str(data.ty.dtype)
 
-        if bias is None:
-            bias = relax.const(_np.zeros(gamma_shape), dtype=scale.ty.dtype)
-        else:
-            beta_shape = get_const_tuple(bias.ty.shape)
-            if gamma_shape != beta_shape:
-                raise ValueError("gamma and beta shapes do not match")
+        # Relax's fused operator requires affine parameters to match the normalized shape.
+        if (
+            num_outputs == 1
+            and dtype in ("float16", "float32")
+            and isinstance(data.ty.shape, relax.ShapeExpr)
+        ):
+            normalized_shape = relax.ShapeExpr(data.ty.shape.values[axis:])
+            if tvm_ffi.structural_equal(scale.ty.shape, normalized_shape) and (
+                bias is None or tvm_ffi.structural_equal(bias.ty.shape, normalized_shape)
+            ):
+                if bias is None:
+                    bias = relax.op.zeros_like(scale)
+                return relax.op.nn.layer_norm(data, scale, bias, axes, epsilon)
 
-        axis = list(axis) if isinstance(axis, list | tuple) else [axis]
-        if len(axis) < len(gamma_shape):
-            axis.extend(range(axis[-1] + 1, axis[-1] + 1 + len(gamma_shape) - len(axis)))
-
-        output = relax.op.nn.layer_norm(data, scale, bias, axis, epsilon)
-        # Onnx layernorm has 3 outputs but only the first is used.
-        # We construct two empty constants for this.
-        placeholder = relax.const(0, dtype="float32")
-        return relax.Tuple([output, placeholder, placeholder])
+        stats_data = data if dtype == "float32" else bb.emit(relax.op.astype(data, "float32"))
+        mean = bb.emit(relax.op.mean(stats_data, axis=axes, keepdims=True))
+        centered = bb.emit(relax.op.subtract(stats_data, mean))
+        variance = relax.op.mean(relax.op.multiply(centered, centered), axis=axes, keepdims=True)
+        inv_std_dev = bb.emit(
+            relax.op.rsqrt(relax.op.add(variance, relax.const(epsilon, dtype="float32")))
+        )
+        normalized = relax.op.multiply(centered, inv_std_dev)
+        if dtype != "float32":
+            normalized = relax.op.astype(normalized, dtype)
+        output = relax.op.multiply(normalized, scale)
+        if bias is not None:
+            output = relax.op.add(output, bias)
+        if num_outputs == 1:
+            return output
+        return relax.Tuple([output, mean, inv_std_dev])
 
 
 class RMSNormalization(OnnxOpConverter):
@@ -6982,6 +7004,13 @@ class ONNXGraphImporter:
             msg += ", ".join(unsupported_ops)
             raise NotImplementedError(msg)
 
+    @staticmethod
+    def _get_node_outputs(node):
+        outputs = list(node.output)
+        while outputs and not outputs[-1]:
+            outputs.pop()
+        return outputs
+
     def _construct_nodes(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
@@ -6995,7 +7024,7 @@ class ONNXGraphImporter:
                 else:
                     inputs.append(None)
             i_name = self._parse_value_proto(node)
-            outputs = node.output
+            outputs = self._get_node_outputs(node)
             attr["tvm_custom"] = {}
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(outputs)
@@ -7011,7 +7040,8 @@ class ONNXGraphImporter:
                     self._nodes[outputs[0]] = if_result
                 else:
                     for i, k in enumerate(outputs):
-                        self._nodes[k] = self.bb.emit(relax.TupleGetItem(if_result, i))
+                        if k:
+                            self._nodes[k] = self.bb.emit(relax.TupleGetItem(if_result, i))
                 continue
 
             # Perform special handling for shape expressions. If an input is a
@@ -7078,7 +7108,8 @@ class ONNXGraphImporter:
                 self._nodes[outputs[0]] = op
             else:
                 for i, k in enumerate(outputs):
-                    self._nodes[k] = op[i]
+                    if k:
+                        self._nodes[k] = op[i]
 
     def _parse_value_proto(self, value_proto: onnx.onnx_ml_pb2.GraphProto):
         """Parse ValueProto or raw str."""
@@ -7182,7 +7213,8 @@ class ONNXGraphImporter:
 
                 attr["tvm_custom"] = {}
                 attr["tvm_custom"]["name"] = node.name
-                attr["tvm_custom"]["num_outputs"] = len(node.output)
+                outputs = self._get_node_outputs(node)
+                attr["tvm_custom"]["num_outputs"] = len(outputs)
 
                 # Handle nested If recursively.
                 if op_name == "If":
@@ -7192,12 +7224,12 @@ class ONNXGraphImporter:
                     then_seq = relax.SeqExpr(blocks=[], body=then_expr)
                     else_seq = relax.SeqExpr(blocks=[], body=else_expr)
                     op = bb.emit(relax.IfExpr(cond, then_seq, else_seq))
-                    outputs = node.output
                     if len(outputs) == 1:
                         self._nodes[outputs[0]] = op
                     else:
                         for i, k in enumerate(outputs):
-                            self._nodes[k] = bb.emit(relax.TupleGetItem(op, i))
+                            if k:
+                                self._nodes[k] = bb.emit(relax.TupleGetItem(op, i))
                     continue
 
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
@@ -7207,12 +7239,12 @@ class ONNXGraphImporter:
                         tuple_items = [relax.TupleGetItem(op, i) for i in range(len(op.ty.fields))]
                         op = relax.Tuple(tuple_items)
 
-                outputs = node.output
                 if len(outputs) == 1:
                     self._nodes[outputs[0]] = op
                 else:
                     for i, k in enumerate(outputs):
-                        self._nodes[k] = op[i]
+                        if k:
+                            self._nodes[k] = op[i]
 
             branch_outputs = [self._nodes[o.name] for o in graph.output]
             result = branch_outputs[0] if len(branch_outputs) == 1 else relax.Tuple(branch_outputs)
