@@ -14731,5 +14731,196 @@ def test_quantizelinear_output_dtype_mismatch(opset):
         from_onnx(model, opset=opset, keep_params_in_input=True)
 
 
+def test_dft():
+    """Verify numerical correctness of DFT against ONNX Runtime."""
+
+    def verify_dft(
+        x,
+        dft_length=None,
+        axis=1,
+        inverse=0,
+        onesided=0,
+        opset=17,
+    ):
+        inputs_list = ["x"]
+        graph_inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))]
+        feed_inputs = {"x": x}
+
+        attrs = {"inverse": inverse, "onesided": onesided}
+        initializers = []
+        if opset < 20:
+            attrs["axis"] = axis
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+        else:
+            # opset 20: axis is 3rd input
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+            else:
+                inputs_list.append("")
+            inputs_list.append("axis")
+            initializers.append(helper.make_tensor("axis", TensorProto.INT64, [], [axis]))
+
+        node = helper.make_node("DFT", inputs=inputs_list, outputs=["y"], **attrs)
+
+        # Calculate expected output shape
+        y_shape = list(x.shape)
+        actual_axis = axis if axis >= 0 else len(x.shape) + axis
+        N = x.shape[actual_axis] if dft_length is None else dft_length
+        y_shape[actual_axis] = (N // 2 + 1) if onesided else N
+        y_shape[-1] = 2
+
+        graph = helper.make_graph(
+            [node],
+            "dft_test",
+            inputs=graph_inputs,
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, y_shape)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=10
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, atol=1e-4)
+
+    # 1. Real input, forward, full
+    x_real = np.random.randn(2, 6, 1).astype(np.float32)
+    verify_dft(x_real, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 2. Real input, forward, onesided
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 3. Complex input, inverse
+    x_comp = np.random.randn(2, 6, 2).astype(np.float32)
+    verify_dft(x_comp, axis=1, inverse=1, onesided=0, opset=17)
+
+    # 4. dft_length padding
+    verify_dft(x_real, dft_length=8, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 5. dft_length truncating
+    verify_dft(x_real, dft_length=4, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 6. Axis = 0
+    x_axis0 = np.random.randn(4, 3, 1).astype(np.float32)
+    verify_dft(x_axis0, axis=0, inverse=0, onesided=0, opset=17)
+
+    # 7. Opset 20
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=20)
+
+
+def test_dft_validation_and_errors():
+    """Verify DFT parameter validation and unsupported dynamic inputs."""
+    # 1. Non-constant axis in opset 20
+    node = helper.make_node("DFT", inputs=["x", "", "axis"], outputs=["y"])
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_axis",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3, 1]),
+            helper.make_tensor_value_info("axis", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 3, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant axis"):
+        from_onnx(model, opset=20, keep_params_in_input=True)
+
+    # 2. Non-constant dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_len",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1]),
+            helper.make_tensor_value_info("dft_length", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant dft_length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 3. Non-positive dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_neg_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="dft_length must be positive"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 4. dft_length exceeding MAX_DFT_LENGTH (4096)
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_large_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 5000, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [5000])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 5000, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="exceeds maximum supported length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+
+def test_dft_float16_precision():
+    """Verify that 512-point float16 DFT phases do not overflow or produce NaNs."""
+    N = 512
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_dft",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    x_val = np.ones((1, N, 1), dtype=np.float16) * 0.01
+    tvm_out = run_in_tvm(model, inputs={"x": x_val}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert not np.isnan(res).any()
+    assert not np.isinf(res).any()
+    assert res.dtype == np.float16
+
+
+def test_dft_float16_inverse_overflow():
+    """Verify float16 inverse DFT does not overflow before normalization.
+
+    Two real float16 samples of 40000 have an unnormalized sum of 80000, which is
+    infinity in float16 (max representable ~65504).  The inverse normalization
+    divides by N=2 to recover 40000, but only if the intermediate arithmetic is kept
+    in float32.  Without the fix this test produces inf in the output.
+    """
+    # Build a minimal inverse DFT: N=2, complex input representing two 40000 samples
+    N = 2
+    # Complex representation: [[40000+0j, 40000+0j]] shaped [1, N, 2]
+    x_cplx = np.zeros((1, N, 2), dtype=np.float16)
+    x_cplx[0, 0, 0] = 40000.0  # real
+    x_cplx[0, 1, 0] = 40000.0  # real
+
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], inverse=1, axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_idft_overflow",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # The output should be finite and representable in float16
+    assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
+    assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
+    assert res.dtype == np.float16
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
