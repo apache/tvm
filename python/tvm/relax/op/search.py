@@ -173,7 +173,19 @@ def bucketize(
     return _ffi_api.bucketize(input_tensor, boundaries, out_int32, right)
 
 
-def searchsorted(sorted_sequence, values, out_int32=False, right=False):
+@tvm_ffi.register_object("relax.attrs.SearchSortedAttrs")
+class SearchSortedAttrs(Attrs):
+    """Attributes for searchsorted operator"""
+
+def searchsorted(
+    sorted_sequence: Expr,
+    values: Expr,
+    out_int32: bool = False,
+    right: bool = False,
+    *,
+    ty=None,
+    loc: Location = UNKNOWN_LOC,
+) -> Expr:
     """Find indices where elements should be inserted to maintain order. 
     Similar to torch.searchsorted.
 
@@ -196,4 +208,10 @@ def searchsorted(sorted_sequence, values, out_int32=False, right=False):
     result : relax.Expr
         The computed result with same shape as values.
     """
-    return _ffi_api.searchsorted(sorted_sequence, values, out_int32, right)
+    return _Call(
+        "relax.searchsorted",
+        [sorted_sequence, values],
+        attrs=_make_attrs("relax.attrs.SearchSortedAttrs", out_int32=out_int32, right=right),
+        loc=loc,
+        ty=ty,
+    ) # type: ignore

@@ -6065,7 +6065,7 @@ def test_searchsorted():
         def forward(self, sorted_sequence, values):
             return torch.searchsorted(sorted_sequence, values)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(

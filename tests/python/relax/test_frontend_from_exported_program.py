@@ -7703,7 +7703,7 @@ def test_searchsorted():
         def forward(self, sorted_sequence, values):
             return torch.searchsorted(sorted_sequence, values)
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -7727,20 +7727,24 @@ def test_searchsorted():
 @pytest.mark.parametrize("right, side", [(False, "left"), (True, "right")])
 def test_searchsorted_numerically(right, out_int32, side):
     class SearchSorted(Module):
-        def forward(self, s, v):
+        def forward(self, s, v=1.5):
             return torch.searchsorted(s, v, right=right, out_int32=out_int32, side=side)
 
     # Case 1: Tests scalar value
+    s3 = torch.tensor([1, 2, 3, 4], dtype=torch.int64)
+    verify_model_numerically(SearchSorted(), (s3,))
+
+    # Case 2: Tests 1D tensor value
     s3 = torch.tensor([1.0, 2.0, 2.0, 4.0], dtype=torch.float32)
     v3 = torch.tensor([2.0], dtype=torch.float32)
     verify_model_numerically(SearchSorted(), (s3, v3))
 
-    # Case 2: Tests different ranks of sorted_sequence and values
+    # Case 3: Tests different ranks of sorted_sequence and values
     s1 = torch.tensor([-0.5, 1.0, 3.0, 3.0, 5.0], dtype=torch.float32)
     v1 = torch.tensor([[0.0, 3.0, 6.0], [1.0, 4.0, 9.0]], dtype=torch.float32)
     verify_model_numerically(SearchSorted(), (s1, v1))
 
-    # Case 3: Tests matching outer batch dimension with dynamic shapes
+    # Case 4: Tests matching outer batch dimension with dynamic shapes
     batch = torch.export.Dim("batch", min=2)
     dynamic_shapes = {"s": {0: batch}, "v": {0: batch}}
 
