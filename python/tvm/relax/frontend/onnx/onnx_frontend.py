@@ -4258,6 +4258,31 @@ class Range(OnnxOpConverter):
         return relax.op.add(relax.op.multiply(positions, delta_value), start_value)
 
 
+class LpNormalization(OnnxOpConverter):
+    """Converts an onnx LpNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        axis = attr.get("axis", -1)
+        p = attr.get("p", 2)
+        if p not in (1, 2):
+            raise ValueError(f"LpNormalization only supports p=1 or 2, got {p}")
+
+        dtype = data.ty.dtype
+        compute_dtype = "float32" if dtype in ("float16", "bfloat16") else dtype
+        if compute_dtype != dtype:
+            data = bb.emit(relax.op.astype(data, compute_dtype))
+        terms = bb.emit(relax.op.abs(data) if p == 1 else relax.op.multiply(data, data))
+        norm = bb.emit(relax.op.sum(terms, axis=[axis], keepdims=True))
+        if p == 2:
+            norm = bb.emit(relax.op.sqrt(norm))
+        is_zero = bb.emit(relax.op.equal(norm, relax.const(0, compute_dtype)))
+        safe_norm = bb.emit(relax.op.where(is_zero, relax.const(1, compute_dtype), norm))
+        result = bb.emit(relax.op.divide(data, safe_norm))
+        return relax.op.astype(result, dtype) if compute_dtype != dtype else result
+
+
 class InstanceNormalization(OnnxOpConverter):
     """Converts an onnx InstanceNormalization node into an equivalent Relax expression."""
 
@@ -6458,6 +6483,7 @@ def _get_convert_map():
         "Size": Size,
         "EyeLike": EyeLike,
         # Normalization
+        "LpNormalization": LpNormalization,
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
         "RMSNormalization": RMSNormalization,
