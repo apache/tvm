@@ -14779,20 +14779,28 @@ def test_qlinearmatmul():
             "y_zp": y_zp,
         }
         tvm_out = run_in_tvm(model, inputs=inputs, opset=opset)
-        tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+        tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
         assert tvm_val.shape == ref_out.shape
         np.testing.assert_allclose(tvm_val, ref_out, atol=1e-5)
 
     # 2D uint8 with in-range output
-    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
     # 2D int8
     verify_qlinearmatmul([3, 4], [4, 2], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10)
     # 3D batched int8
-    verify_qlinearmatmul([2, 3, 4], [2, 4, 5], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10)
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10
+    )
     # 3D batched uint8
-    verify_qlinearmatmul([2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
     # Opset 21 uint8
-    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=21)
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=21
+    )
     # Opset 21 int8
     verify_qlinearmatmul([2, 3], [3, 4], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=21)
     # Mixed signedness uint8/int8
@@ -14802,18 +14810,34 @@ def test_qlinearmatmul():
     # Vector-matrix (1D x 2D -> 1D)
     verify_qlinearmatmul([3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
     # Batched matrix-vector (3D x 1D -> 2D)
-    verify_qlinearmatmul([2, 3, 4], [4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    verify_qlinearmatmul(
+        [2, 3, 4], [4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
     # Per-column parameter on B
-    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", b_scale_shape=(4,))
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", b_scale_shape=(4,)
+    )
     # Batched per-column parameter on B
     verify_qlinearmatmul(
-        [2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", b_scale_shape=(2, 1, 5)
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        b_scale_shape=(2, 1, 5),
     )
 
     # Reference tests for cases unsupported by ORT (per-row A and int8/uint8)
-    verify_qlinearmatmul_ref([2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", a_scale_shape=(2,))
     verify_qlinearmatmul_ref(
-        [2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", a_scale_shape=(2, 3, 1)
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", a_scale_shape=(2,)
+    )
+    verify_qlinearmatmul_ref(
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(2, 3, 1),
     )
     verify_qlinearmatmul_ref([2, 3], [3, 4], a_dtype="int8", b_dtype="uint8", y_dtype="int8")
 
@@ -14893,14 +14917,13 @@ def test_qlinearmatmul_singleton_scales_output_shape():
         "y_zp": y_zp,
     }
     tvm_out = run_in_tvm(model, inputs=inputs, opset=10)
-    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     # Output must be rank-1, shape [4], not rank-2 [1,4]
     assert tvm_val.shape == (4,), f"Expected shape (4,) but got {tvm_val.shape}"
     # Reference: (a - a_zp) @ (b - b_zp) * (a_scale * b_scale / y_scale) + y_zp
     ref = np.clip(
         np.round(
-            np.matmul(a.astype(np.int32), b.astype(np.int32)).astype(np.float32)
-            * (0.5 * 0.5 / 1.0)
+            np.matmul(a.astype(np.int32), b.astype(np.int32)).astype(np.float32) * (0.5 * 0.5 / 1.0)
         ),
         0,
         255,

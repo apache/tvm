@@ -6159,13 +6159,21 @@ class QLinearMatMul(OnnxOpConverter):
 
         # When b_rank == 1, output of matmul is [..., M], no trailing column axis
         if b_rank == 1:
-            if p_ndim >= 2 and isinstance(p_shape[-1], (int, tvm_tirx.ir.IntImm)) and int(p_shape[-1]) == 1:
+            if (
+                p_ndim >= 2
+                and isinstance(p_shape[-1], int | tvm_tirx.ir.IntImm)
+                and int(p_shape[-1]) == 1
+            ):
                 return relax.op.squeeze(param, axis=[-1])
             return param
 
         # When a_rank == 1, output of matmul is [..., N], no leading row axis
         if a_rank == 1:
-            if p_ndim >= 2 and isinstance(p_shape[-2], (int, tvm_tirx.ir.IntImm)) and int(p_shape[-2]) == 1:
+            if (
+                p_ndim >= 2
+                and isinstance(p_shape[-2], int | tvm_tirx.ir.IntImm)
+                and int(p_shape[-2]) == 1
+            ):
                 return relax.op.squeeze(param, axis=[-2])
             return param
 
@@ -6174,17 +6182,15 @@ class QLinearMatMul(OnnxOpConverter):
             # Check if it corresponds to row dimension M
             if a_shape is not None and a_rank >= 2:
                 row_dim = a_shape[-2]
-                if (
-                    isinstance(row_dim, (int, tvm_tirx.ir.IntImm))
-                    and int(row_dim) == int(p_shape[0])
+                if isinstance(row_dim, int | tvm_tirx.ir.IntImm) and int(row_dim) == int(
+                    p_shape[0]
                 ):
                     return relax.op.expand_dims(param, axis=-1)
             # Check if it corresponds to col dimension N
             if b_shape is not None and b_rank >= 2:
                 col_dim = b_shape[-1]
-                if (
-                    isinstance(col_dim, (int, tvm_tirx.ir.IntImm))
-                    and int(col_dim) == int(p_shape[0])
+                if isinstance(col_dim, int | tvm_tirx.ir.IntImm) and int(col_dim) == int(
+                    p_shape[0]
                 ):
                     return relax.op.expand_dims(param, axis=0)
 
@@ -6251,7 +6257,11 @@ class QLinearMatMul(OnnxOpConverter):
                 if len(as_shape) == 1:
                     a_scale = relax.op.expand_dims(a_scale, axis=-1)
             elif b_rank == 1:
-                if len(as_shape) >= 2 and isinstance(as_shape[-1], (int, tvm_tirx.ir.IntImm)) and int(as_shape[-1]) == 1:
+                if (
+                    len(as_shape) >= 2
+                    and isinstance(as_shape[-1], int | tvm_tirx.ir.IntImm)
+                    and int(as_shape[-1]) == 1
+                ):
                     a_scale = relax.op.squeeze(a_scale, axis=[-1])
 
         # Broadcast b_scale: for rank >= 2, expand column dimension to broadcast over rows
@@ -6262,7 +6272,11 @@ class QLinearMatMul(OnnxOpConverter):
                 if len(bs_shape) == 1:
                     b_scale = relax.op.expand_dims(b_scale, axis=0)
             elif a_rank == 1:
-                if len(bs_shape) >= 2 and isinstance(bs_shape[-2], (int, tvm_tirx.ir.IntImm)) and int(bs_shape[-2]) == 1:
+                if (
+                    len(bs_shape) >= 2
+                    and isinstance(bs_shape[-2], int | tvm_tirx.ir.IntImm)
+                    and int(bs_shape[-2]) == 1
+                ):
                     b_scale = relax.op.squeeze(b_scale, axis=[-2])
 
         # Normalize singleton [1]-shape parameters to scalars so that _align_output_param
@@ -6274,7 +6288,7 @@ class QLinearMatMul(OnnxOpConverter):
             if (
                 hasattr(p_norm.ty, "shape")
                 and len(p_norm.ty.shape) == 1
-                and isinstance(p_norm.ty.shape[0], (int, tvm_tirx.ir.IntImm))
+                and isinstance(p_norm.ty.shape[0], int | tvm_tirx.ir.IntImm)
                 and int(p_norm.ty.shape[0]) == 1
             ):
                 return relax.op.squeeze(param, axis=[0])
