@@ -209,14 +209,14 @@ bool IsNestedTensor(const Expr& expr);
  * \return A boolean indicating the given type contains shape values that are all known.
  */
 inline bool KnowAllShapeValues(const Type& ty) {
-  if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
-  } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
+  if (const auto* tensor_ty = ty.as<TensorTypeObj>()) {
+    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprObj>();
+  } else if (const auto* shape_ty = ty.as<ShapeTypeObj>()) {
     return shape_ty->values.has_value();
-  } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+  } else if (const auto* tuple_ty = ty.as<TupleTypeObj>()) {
     return std::all_of(tuple_ty->fields.begin(), tuple_ty->fields.end(),
                        [](Type field_ty) { return KnowAllShapeValues(field_ty); });
-  } else if (ty.as<PrimTypeNode>()) {
+  } else if (ty.as<PrimTypeObj>()) {
     return true;
   } else {
     return false;
