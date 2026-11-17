@@ -170,7 +170,13 @@ def bucketize(
     result : relax.Expr
         The computed result with same shape as input_tensor.
     """
-    return _ffi_api.bucketize(input_tensor, boundaries, out_int32, right)
+    return _Call(
+        "relax.bucketize",
+        [input_tensor, boundaries],
+        attrs=_make_attrs("relax.attrs.BucketizeAttrs", out_int32=out_int32, right=right),
+        loc=loc,
+        ty=ty,
+    )
 
 
 @tvm_ffi.register_object("relax.attrs.SearchSortedAttrs")
