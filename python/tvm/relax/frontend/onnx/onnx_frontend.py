@@ -4273,16 +4273,13 @@ class LpNormalization(OnnxOpConverter):
         compute_dtype = "float32" if dtype in ("float16", "bfloat16") else dtype
         if compute_dtype != dtype:
             data = bb.emit(relax.op.astype(data, compute_dtype))
-        terms = relax.op.abs(data) if p == 1 else relax.op.multiply(data, data)
+        terms = bb.emit(relax.op.abs(data) if p == 1 else relax.op.multiply(data, data))
         norm = bb.emit(relax.op.sum(terms, axis=[axis], keepdims=True))
         if p == 2:
             norm = bb.emit(relax.op.sqrt(norm))
-        safe_norm = relax.op.where(
-            relax.op.equal(norm, relax.const(0, compute_dtype)),
-            relax.const(1, compute_dtype),
-            norm,
-        )
-        result = relax.op.divide(data, safe_norm)
+        is_zero = bb.emit(relax.op.equal(norm, relax.const(0, compute_dtype)))
+        safe_norm = bb.emit(relax.op.where(is_zero, relax.const(1, compute_dtype), norm))
+        result = bb.emit(relax.op.divide(data, safe_norm))
         return relax.op.astype(result, dtype) if compute_dtype != dtype else result
 
 
