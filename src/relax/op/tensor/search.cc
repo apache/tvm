@@ -61,6 +61,7 @@ void BucketizeAttrs::RegisterReflection() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   ArgmaxArgminAttrs::RegisterReflection();
   BucketizeAttrs::RegisterReflection();
+  SearchSortedAttrs::RegisterReflection();
 }
 
 /* relax.bucketize */
@@ -114,6 +115,53 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::call_attrs<BucketizeAttrs>())
       .set_native_fn_attr<&InferTypeBucketize>(tvm::op_attr::kInferType)
       .set_attr(tvm::relax::op_attr::kPurity, true);
+}
+
+/* relax.searchsorted */
+
+Expr searchsorted(Expr sorted_sequence, Expr values, bool out_int32, bool right) {
+  auto attrs = ffi::make_object<SearchSortedAttrs>();
+  attrs->out_int32 = std::move(out_int32);
+  attrs->right = std::move(right);
+  static const Op op = Op::Get("relax.searchsorted");
+  return Call::Unchecked(Type::Missing(), op, {std::move(sorted_sequence), std::move(values)},
+                         Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.searchsorted", searchsorted);
+}
+
+Type InferTypeSearchSorted(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
+  TensorType sorted_sequence_info = input_ty[0];
+  TensorType values_info = input_ty[1];
+
+  auto attrs = call->attrs.as<SearchSortedAttrs>();
+  PrimType out_dtype = PrimType::Int(64);
+  if (attrs->out_int32) {
+    out_dtype = PrimType::Int(32);
+  }
+
+  // Output shape is identical to values.shape
+  const auto* data_shape = values_info->shape.as<ShapeExprNode>();
+  if (data_shape) {
+    return TensorType(ShapeExpr(data_shape->values), out_dtype, values_info->vdevice);
+  }
+  return TensorType(out_dtype, values_info->ndim, values_info->vdevice);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.searchsorted")
+      .signature(sig::arg("sorted_sequence",
+                          "N-D or 1-D tensor, containing monotonically increasing sequence on the "
+                          "innermost dimension."),
+                 sig::arg("values", "N-D tensor containing the search values."),
+                 sig::call_attrs<SearchSortedAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSearchSorted>())
+      .set_attr<bool>("FPurity", true);
 }
 
 /* relax.where */
