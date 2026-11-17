@@ -5373,6 +5373,154 @@ def test_cumsum_axis_shape_validation():
         from_onnx(model, opset=14, keep_params_in_input=True)
 
 
+def _np_cumprod(x, axis=0, reverse=False, exclusive=False):
+    if reverse:
+        x = np.flip(x, axis=axis)
+    if exclusive:
+        slices = [slice(None)] * x.ndim
+        pad_shape = list(x.shape)
+        pad_shape[axis] = 1
+        ones = np.ones(pad_shape, dtype=x.dtype)
+        slices[axis] = slice(0, -1)
+        x_shifted = np.concatenate([ones, x[tuple(slices)]], axis=axis)
+        res = np.cumprod(x_shifted, axis=axis)
+    else:
+        res = np.cumprod(x, axis=axis)
+    if reverse:
+        res = np.flip(res, axis=axis)
+    return res
+
+
+def _verify_cumprod(model, inputs, expected, opset=26, rtol=1e-5, atol=1e-5):
+    # ONNX Runtime 1.23.2 in TVM CI does not support opset 26 models,
+    # so we compile the imported Relax model and verify against NumPy reference.
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    np.testing.assert_allclose(tvm_output, expected, rtol=rtol, atol=atol)
+
+
+@pytest.mark.parametrize("reverse", [True, False])
+@pytest.mark.parametrize("exclusive", [True, False])
+def test_cumprod(reverse, exclusive):
+    cumprod_node = helper.make_node(
+        "CumProd", ["x", "axis"], ["y"], reverse=reverse, exclusive=exclusive
+    )
+    shape = [4, 4]
+    graph = helper.make_graph(
+        [cumprod_node],
+        "cumprod_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=[helper.make_tensor("axis", TensorProto.INT64, (), [1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+    )
+
+    model = helper.make_model(
+        graph, producer_name="cumprod_test", opset_imports=[helper.make_opsetid("", 26)]
+    )
+    x = np.array(
+        [
+            [1.0, 1.2, 0.9, 1.1],
+            [0.8, 1.5, 0.7, 1.3],
+            [1.1, 0.9, 1.2, 0.8],
+            [1.4, 0.6, 1.0, 1.1],
+        ],
+        dtype=np.float32,
+    )
+    expected = _np_cumprod(x, axis=1, reverse=reverse, exclusive=exclusive)
+    _verify_cumprod(model, inputs={"x": x}, expected=expected)
+
+
+def test_cumprod_int32_1d_axis_initializer():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT32, [1], [0])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph, producer_name="cumprod_graph", opset_imports=[helper.make_opsetid("", 26)]
+    )
+    x = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float64)
+    expected = _np_cumprod(x, axis=0)
+    _verify_cumprod(model, inputs={"X": x}, expected=expected)
+
+
+def test_cumprod_dynamic_axis_not_supported():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_dynamic_axis_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+            helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="cumprod_dynamic_axis_graph",
+        opset_imports=[helper.make_opsetid("", 26)],
+    )
+    with pytest.raises(ValueError, match="non-constant axis input is not supported"):
+        from_onnx(model, opset=26, keep_params_in_input=True)
+
+
+def test_cumprod_axis_shape_validation():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_invalid_axis_shape_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT64, [2], [0, 1])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="cumprod_invalid_axis_shape_graph",
+        opset_imports=[helper.make_opsetid("", 26)],
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"axis input must be a scalar \(0-D\) or a single-element 1-D tensor",
+    ):
+        from_onnx(model, opset=26, keep_params_in_input=True)
+
+
 def test_squeeze():
     def verify_squeeze(axis, expected):
         if axis:
@@ -5770,6 +5918,87 @@ def test_const():
             return gv
 
     tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [13, 22])
+@pytest.mark.parametrize("symbolic", [False, True])
+@pytest.mark.parametrize("dtype", ["float16", "float32", "float64"])
+@pytest.mark.parametrize("axis", [0, 1, -1, None])
+@pytest.mark.parametrize("p", [1, 2, None])
+def test_lp_normalization(opset, symbolic, dtype, axis, p):
+    attrs = {}
+    if axis is not None:
+        attrs["axis"] = axis
+    if p is not None:
+        attrs["p"] = p
+    tensor_type = helper.np_dtype_to_tensor_dtype(np.dtype(dtype))
+    model = make_unary_model(
+        "LpNormalization",
+        ["N", "C", "W"] if symbolic else [2, 3, 4],
+        attrs=attrs,
+        input_dtype=tensor_type,
+        output_dtype=tensor_type,
+    )
+    model.ir_version = 8
+    model.opset_import[0].version = opset
+    onnx.checker.check_model(model, full_check=True)
+
+    values = (np.arange(24).reshape(2, 3, 4) % 7 - 3).astype(dtype)
+    values[0, 0, :] = 0
+    values[:, 0, 0] = 0
+    values[0, :, 0] = 0
+    if dtype == "float16":
+        values *= 256
+    reference_values = values.astype("float64")
+    norm = np.linalg.norm(
+        reference_values,
+        ord=2 if p is None else p,
+        axis=-1 if axis is None else axis,
+        keepdims=True,
+    )
+    expected = np.divide(
+        reference_values, norm, out=np.zeros_like(reference_values), where=norm != 0
+    ).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=opset).numpy()
+    assert actual.dtype == values.dtype
+    tolerance = 2e-3 if dtype == "float16" else 1e-6
+    tvm_tirx.testing.assert_allclose(actual, expected, rtol=tolerance, atol=1e-7)
+    # The CI ONNX Runtime supports the equivalent opset 13 kernel for these dtypes.
+    reference_model = ModelProto()
+    reference_model.CopyFrom(model)
+    reference_model.opset_import[0].version = 13
+    ort_output = onnxruntime.InferenceSession(
+        reference_model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run(None, {"x": values})[0]
+    tvm_tirx.testing.assert_allclose(actual, ort_output, rtol=tolerance, atol=1e-7)
+
+
+@pytest.mark.parametrize("p", [0, 3])
+def test_lp_normalization_invalid_p(p):
+    model = make_unary_model("LpNormalization", [2, 3], attrs={"p": p})
+    model.opset_import[0].version = 13
+    with pytest.raises(ValueError, match="LpNormalization.*p.*1 or 2"):
+        from_onnx(model, opset=13)
+
+
+@pytest.mark.parametrize("p", [1, 2])
+def test_lp_normalization_bfloat16(p):
+    dtype = helper.tensor_dtype_to_np_dtype(TensorProto.BFLOAT16)
+    model = make_unary_model(
+        "LpNormalization",
+        [2, 3],
+        attrs={"p": p},
+        input_dtype=TensorProto.BFLOAT16,
+        output_dtype=TensorProto.BFLOAT16,
+    )
+    values = np.array([[1, -1, 0], [0, 0, 0]], dtype=dtype)
+    norm = np.linalg.norm(values.astype("float32"), ord=p, axis=-1, keepdims=True)
+    expected = (values.astype("float32") / np.where(norm == 0, 1, norm)).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=22).numpy()
+    assert actual.dtype == values.dtype
+    tvm_tirx.testing.assert_allclose(
+        actual.astype("float32"), expected.astype("float32"), rtol=1e-2, atol=1e-7
+    )
 
 
 def test_instance_norm():
@@ -10956,7 +11185,8 @@ def test_flatten_dynamic():
     verify_flatten_dynamic_ir(2, ExpectedDynamicAxis2)
 
 
-def test_onehot():
+@pytest.mark.parametrize("depth_dtype", [TensorProto.INT64, TensorProto.FLOAT])
+def test_onehot(depth_dtype):
     one_hot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["y"], axis=1)
     graph = helper.make_graph(
         [one_hot_node],
@@ -10965,7 +11195,7 @@ def test_onehot():
             helper.make_tensor_value_info("indices", TensorProto.INT64, [2, 2]),
         ],
         initializer=[
-            helper.make_tensor("depth", TensorProto.INT64, [], [10]),
+            helper.make_tensor("depth", depth_dtype, [], [10]),
             helper.make_tensor("values", TensorProto.FLOAT, [2], [3, 1]),
         ],
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 10, 2])],
@@ -15027,6 +15257,197 @@ def test_qlinearmatmul_singleton_scales_output_shape():
         255,
     ).astype(np.uint8)
     np.testing.assert_array_equal(tvm_val_vv, ref_vv)
+
+
+def test_dft():
+    """Verify numerical correctness of DFT against ONNX Runtime."""
+
+    def verify_dft(
+        x,
+        dft_length=None,
+        axis=1,
+        inverse=0,
+        onesided=0,
+        opset=17,
+    ):
+        inputs_list = ["x"]
+        graph_inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))]
+        feed_inputs = {"x": x}
+
+        attrs = {"inverse": inverse, "onesided": onesided}
+        initializers = []
+        if opset < 20:
+            attrs["axis"] = axis
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+        else:
+            # opset 20: axis is 3rd input
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+            else:
+                inputs_list.append("")
+            inputs_list.append("axis")
+            initializers.append(helper.make_tensor("axis", TensorProto.INT64, [], [axis]))
+
+        node = helper.make_node("DFT", inputs=inputs_list, outputs=["y"], **attrs)
+
+        # Calculate expected output shape
+        y_shape = list(x.shape)
+        actual_axis = axis if axis >= 0 else len(x.shape) + axis
+        N = x.shape[actual_axis] if dft_length is None else dft_length
+        y_shape[actual_axis] = (N // 2 + 1) if onesided else N
+        y_shape[-1] = 2
+
+        graph = helper.make_graph(
+            [node],
+            "dft_test",
+            inputs=graph_inputs,
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, y_shape)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=10
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, atol=1e-4)
+
+    # 1. Real input, forward, full
+    x_real = np.random.randn(2, 6, 1).astype(np.float32)
+    verify_dft(x_real, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 2. Real input, forward, onesided
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 3. Complex input, inverse
+    x_comp = np.random.randn(2, 6, 2).astype(np.float32)
+    verify_dft(x_comp, axis=1, inverse=1, onesided=0, opset=17)
+
+    # 4. dft_length padding
+    verify_dft(x_real, dft_length=8, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 5. dft_length truncating
+    verify_dft(x_real, dft_length=4, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 6. Axis = 0
+    x_axis0 = np.random.randn(4, 3, 1).astype(np.float32)
+    verify_dft(x_axis0, axis=0, inverse=0, onesided=0, opset=17)
+
+    # 7. Opset 20
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=20)
+
+
+def test_dft_validation_and_errors():
+    """Verify DFT parameter validation and unsupported dynamic inputs."""
+    # 1. Non-constant axis in opset 20
+    node = helper.make_node("DFT", inputs=["x", "", "axis"], outputs=["y"])
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_axis",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3, 1]),
+            helper.make_tensor_value_info("axis", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 3, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant axis"):
+        from_onnx(model, opset=20, keep_params_in_input=True)
+
+    # 2. Non-constant dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_len",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1]),
+            helper.make_tensor_value_info("dft_length", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant dft_length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 3. Non-positive dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_neg_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="dft_length must be positive"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 4. dft_length exceeding MAX_DFT_LENGTH (4096)
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_large_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 5000, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [5000])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 5000, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="exceeds maximum supported length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+
+def test_dft_float16_precision():
+    """Verify that 512-point float16 DFT phases do not overflow or produce NaNs."""
+    N = 512
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_dft",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    x_val = np.ones((1, N, 1), dtype=np.float16) * 0.01
+    tvm_out = run_in_tvm(model, inputs={"x": x_val}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert not np.isnan(res).any()
+    assert not np.isinf(res).any()
+    assert res.dtype == np.float16
+
+
+def test_dft_float16_inverse_overflow():
+    """Verify float16 inverse DFT does not overflow before normalization.
+
+    Two real float16 samples of 40000 have an unnormalized sum of 80000, which is
+    infinity in float16 (max representable ~65504).  The inverse normalization
+    divides by N=2 to recover 40000, but only if the intermediate arithmetic is kept
+    in float32.  Without the fix this test produces inf in the output.
+    """
+    # Build a minimal inverse DFT: N=2, complex input representing two 40000 samples
+    N = 2
+    # Complex representation: [[40000+0j, 40000+0j]] shaped [1, N, 2]
+    x_cplx = np.zeros((1, N, 2), dtype=np.float16)
+    x_cplx[0, 0, 0] = 40000.0  # real
+    x_cplx[0, 1, 0] = 40000.0  # real
+
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], inverse=1, axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_idft_overflow",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # The output should be finite and representable in float16
+    assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
+    assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
+    assert res.dtype == np.float16
 
 
 if __name__ == "__main__":
