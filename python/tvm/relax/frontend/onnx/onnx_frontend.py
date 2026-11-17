@@ -6165,7 +6165,7 @@ class DFT(OnnxOpConverter):
             axis_c = get_constant(inputs[2], params)
             if isinstance(axis_c, tvm_tirx.ir.GenericConst):
                 axis = int(axis_c.value.numpy().item())
-            elif isinstance(axis_c, (int, tvm_tirx.ir.IntImm)):
+            elif isinstance(axis_c, int | tvm_tirx.ir.IntImm):
                 axis = int(axis_c)
             else:
                 raise NotImplementedError(
@@ -6199,7 +6199,7 @@ class DFT(OnnxOpConverter):
             dft_len_c = get_constant(dft_length, params)
             if isinstance(dft_len_c, tvm_tirx.ir.GenericConst):
                 dft_len = int(dft_len_c.value.numpy().item())
-            elif isinstance(dft_len_c, (int, tvm_tirx.ir.IntImm)):
+            elif isinstance(dft_len_c, int | tvm_tirx.ir.IntImm):
                 dft_len = int(dft_len_c)
             else:
                 raise NotImplementedError(

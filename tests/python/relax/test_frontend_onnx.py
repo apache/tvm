@@ -14736,7 +14736,7 @@ def test_dft_float16_precision():
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
     x_val = np.ones((1, N, 1), dtype=np.float16) * 0.01
     tvm_out = run_in_tvm(model, inputs={"x": x_val}, opset=17)
-    res = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     assert not np.isnan(res).any()
     assert not np.isinf(res).any()
     assert res.dtype == np.float16
@@ -14766,7 +14766,7 @@ def test_dft_float16_inverse_overflow():
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
     tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
-    res = tvm_out[0].numpy() if isinstance(tvm_out, (list, tuple)) else tvm_out.numpy()
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
     # The output should be finite and representable in float16
     assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
     assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
