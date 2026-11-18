@@ -432,9 +432,14 @@ export class SampledTokenReadbackRing implements Disposable {
   }
 
   /**
-   * Submit sampled-token readback from a GPU pointer.
+   * Read raw 32-bit words from a WebGPU allocation without dtype conversion.
+   * This also supports floating-point probabilities and checkpoint bytes.
+   *
+   * Offsets and counts are in 32-bit words. The allocation bounds are checked.
+   * Callers must include any tensor byte offset and stay within its view.
+   * The destination array follows the same ownership rules as submit().
    */
-  private submitFromPointer(
+  submitFromPointer(
     fromPtr: Pointer,
     tokenCount: number,
     fromTokenOffset = 0,
