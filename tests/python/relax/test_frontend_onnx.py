@@ -15944,6 +15944,49 @@ def _microsoft_opset_imports(onnx_opset=13):
     return [helper.make_opsetid("", onnx_opset), helper.make_opsetid("com.microsoft", 1)]
 
 
+def _check_qlinear_binary_ms(op_name, a, b, shape):
+    """ORT check for com.microsoft QLinear binary ops (Add/Mul)."""
+    a_scale = np.array(0.5, dtype=np.float32)
+    b_scale = np.array(0.25, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    a_zp = np.array(128, dtype=np.uint8)
+    b_zp = np.array(120, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        op_name,
+        ["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        ["y"],
+        domain="com.microsoft",
+    )
+    graph = helper.make_graph(
+        [node],
+        f"{op_name.lower()}_test",
+        [
+            helper.make_tensor_value_info("a", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, shape)],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=inputs, opset=13)
+
 def test_qlinearadd():
     """Verify QLinearAdd (com.microsoft) against ONNX Runtime."""
     shape = [2, 3]

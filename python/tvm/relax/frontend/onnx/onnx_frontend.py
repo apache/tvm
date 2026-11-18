@@ -61,6 +61,7 @@ from tvm import relax, topi
 from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
+from tvm_tirx.ir.expr import Constant as RelaxConstant
 from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
 from tvm_tirx.runtime import DataTypeCode
 
@@ -344,6 +345,46 @@ class OnnxOpConverter:
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
 
+
+def _fold_dequantize_linear(x, scale, zp, out_dtype):
+    """Constant-fold 0-D DequantizeLinear (QDQ graphs may dequantize scalar initializers)."""
+    if not isinstance(x, RelaxConstant) or x.ty.ndim != 0:
+        return None
+    if not isinstance(scale, RelaxConstant):
+        return None
+    if zp is None:
+        zp_np = _np.array(0, dtype=x.data.numpy().dtype)
+    elif isinstance(zp, RelaxConstant):
+        zp_np = zp.data.numpy()
+    else:
+        return None
+    x_np = x.data.numpy()
+    scale_np = scale.data.numpy()
+    out = (x_np.astype(_np.float64) - _np.asarray(zp_np).astype(_np.float64)) * scale_np
+    return relax.const(out.astype(out_dtype), out_dtype)
+
+
+def _dequantize_linear(x, scale, zp, axis, out_dtype):
+    folded = _fold_dequantize_linear(x, scale, zp, out_dtype)
+    if folded is not None:
+        return folded
+    if hasattr(x.ty, "ndim") and x.ty.ndim == 0:
+        x = relax.op.reshape(x, (1,))
+        axis = 0
+    elif hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+        axis = 0
+    if zp is None:
+        zp = relax.const(0, x.ty.dtype.dtype)
+    return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+
+def _quantize_linear(x, scale, zp, out_dtype, axis=0):
+    """Quantize float tensor to integer type (QLinear / ORT contrib ops)."""
+    if zp is None:
+        zp = relax.const(0, out_dtype)
+    if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+        axis = 0
+    return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
 
 def _qlinear_dequantize(x, scale, zp):
     """Dequantize QLinear tensor inputs to float32 (ORT uses fp32 compute)."""
