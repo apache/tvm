@@ -593,29 +593,6 @@ def test_getitem():
     verify_dynamo_model(Select2(), [([1, 77, 1280], "float32")], {}, Expected2)
 
 
-@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
-@pytest.mark.parametrize(
-    "index, rhs_shape",
-    [
-        ((Ellipsis, 0), (3, 2)),
-        (1, (2, 4)),
-        ((Ellipsis, -1), (3, 2)),
-        ((1, None, slice(None), -2, None), (1, 2, 1)),
-        ((None, 2, Ellipsis, 0), (1, 2)),
-        ((1, 0, -1), ()),
-        ((Ellipsis, slice(0, 1)), (3, 2, 1)),
-    ],
-)
-def test_getitem_integer_index_cpu(index, rhs_shape):
-    def model(x, rhs):
-        return x[index] + rhs
-
-    x = torch.arange(24, dtype=torch.float32).reshape(3, 2, 4)
-    rhs = torch.full(rhs_shape, 0.25, dtype=torch.float32)
-    compiled = torch.compile(model, backend=relax_dynamo(), fullgraph=True, dynamic=False)
-    torch.testing.assert_close(compiled(x, rhs), model(x, rhs), rtol=0, atol=0)
-
-
 @pytest.mark.skipif(
     version.parse(torch_version) >= version.parse("2.6.0"),
     reason="Need to support dynamic arange in Relax",

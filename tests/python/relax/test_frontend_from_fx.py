@@ -2739,6 +2739,69 @@ operator_basic_unary = [
 ]
 
 
+@pytest.mark.parametrize(
+    "index, output_shape",
+    [
+        ((Ellipsis, 0), (3, 2)),
+        (1, (2, 4)),
+        ((Ellipsis, -1), (3, 2)),
+        ((1, None, slice(None), -2, None), (1, 2, 1)),
+        ((None, 2, Ellipsis, 0), (1, 2)),
+        ((1, 0, -1), ()),
+        ((Ellipsis, slice(0, 1)), (3, 2, 1)),
+        ([1], (1, 2, 4)),
+        ((None, []), (1, 0, 2, 4)),
+        (True, (1, 3, 2, 4)),
+        (False, (0, 3, 2, 4)),
+    ],
+)
+def test_getitem_output_shape(index, output_shape):
+    class Index(Module):
+        def forward(self, x):
+            return x[index]
+
+    mod = from_fx(fx.symbolic_trace(Index()), [([3, 2, 4], "float32")])
+    tvm_tirx.ir.assert_structural_equal(
+        mod["main"].ret_ty, relax.TensorType(output_shape, "float32")
+    )
+
+
+def test_getitem_scalar_tensor_and_new_axis():
+    class Index(Module):
+        def forward(self, x, j):
+            return x[0, j, None]
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32"), j: R.Tensor((), "int64")) -> R.Tensor(
+            (1,), "float32"
+        ):
+            with R.dataflow():
+                taken = R.take(x, j, axis=1)
+                sliced = R.strided_slice(taken, axes=[0], begin=[0], end=[1], strides=[1])
+                scalar = R.squeeze(sliced, axis=[0])
+                expanded = R.expand_dims(scalar, axis=[0])
+                out = expanded
+                R.output(out)
+            return out
+
+    verify_model(Index(), [([2, 3], "float32"), ([], "int64")], {}, Expected)
+
+
+def test_getitem_dynamic_extent_guard():
+    class Index(Module):
+        def forward(self, x):
+            return x[3,]
+
+    n = tvm_tirx.tirx.Var("n", "int64")
+    mod = from_fx(fx.symbolic_trace(Index()), [([n], "float32")])
+    value, guard, *_ = mod["main"].body.blocks[0].bindings
+    assert isinstance(guard, relax.MatchCast)
+    tvm_tirx.ir.assert_structural_equal(guard.ty, relax.ShapeType([4]))
+    tvm_tirx.ir.assert_structural_equal(value.value, relax.ShapeExpr([tvm_tirx.tirx.min(n, 4)]))
+
+
 @pytest.mark.parametrize("pytorch_op, relax_op", operator_basic_unary)
 def test_basic_unary_ops(pytorch_op, relax_op):
     input_info = [([1, 3, 10, 10], "float32")]

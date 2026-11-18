@@ -3508,6 +3508,30 @@ def test_instancenorm2d():
     verify_model(model, example_args, binding, expected1)
 
 
+def test_native_layer_norm_tuple_projection():
+    class LayerNorm(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.native_layer_norm.default(x, [3], None, None, 1e-5)[0]
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tuple(R.Tensor((2, 3), "float32")):
+            with R.dataflow():
+                result = R.nn.layer_norm(
+                    x,
+                    R.const([1.0, 1.0, 1.0], "float32"),
+                    R.const([0.0, 0.0, 0.0], "float32"),
+                    axes=[-1],
+                )
+                out = (result,)
+                R.output(out)
+            return out
+
+    args = (torch.arange(6, dtype=torch.float32).reshape(2, 3),)
+    verify_model(LayerNorm(), args, {}, Expected, run_ep_decomposition=False)
+
+
 def test_layernorm():
     class LayerNorm(Module):
         def __init__(self):

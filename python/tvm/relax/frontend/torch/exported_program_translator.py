@@ -1714,6 +1714,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Others ##########
 
+    def _getitem(self, node: fx.Node) -> relax.Var:
+        producer, index = node.args
+        result = self.env[producer]
+        if (
+            isinstance(result, relax.Expr)
+            and isinstance(result.ty, relax.TensorType)
+            and isinstance(producer.meta.get("val"), tuple | list)
+        ):
+            # Some converters return only the first output of a tuple-valued operator.
+            if not node.users:
+                return result
+            if type(index) is not int or index != 0:
+                raise ValueError("Only the first output of this operator is supported")
+            return result
+        return super()._getitem(node)
+
     @staticmethod
     def _has_assert_async(graph_module) -> bool:
         return any(
