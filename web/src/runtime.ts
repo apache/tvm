@@ -386,6 +386,21 @@ export class DLDevice {
     }
   }
 
+  /**
+   * Submit pending WebGPU commands without waiting for completion.
+   *
+   * @returns Whether a command buffer was submitted.
+   */
+  submitPendingCommands(): boolean {
+    if (this.deviceType !== DeviceStrToEnum.webgpu) {
+      throw new Error(
+        "Nonblocking command submission is only available on WebGPU devices.",
+      );
+    }
+    assert(this.lib.webGPUContext !== undefined);
+    return this.lib.webGPUContext.submitPendingCommands();
+  }
+
   toString(): string {
     return (
       DeviceEnumToStr[this.deviceType] + ":" + this.deviceId.toString()
