@@ -2341,53 +2341,69 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 relax.op.index_tensor(data, [idx for _, idx in non_none_indices])
             )
 
-        # Check if all indices can be squeezed to 1D for sequential take
-        def is_squeezable(idx):
-            if idx.ty.ndim == 1:
-                return True
-            if idx.ty.ndim == 2:
-                shape = idx.ty.shape
-                for d in shape:
-                    if isinstance(d, int) and d == 1:
-                        return True
-                    # Check for ir.IntImm
-                    if hasattr(d, "value") and d.value == 1:
-                        return True
-            return False
+        # Some dimensions are sliced. PyTorch broadcasts the index tensors to a
+        # common shape B and applies them jointly. B replaces the indexed
+        # dimensions in place when they are adjacent (x[:, i, j]), and goes
+        # first otherwise (x[i, :, j]).
+        adv_axes = [axis for axis, _ in non_none_indices]
+        adv_indices = [idx for _, idx in non_none_indices]
+        num_adv = len(adv_axes)
+        adjacent = adv_axes == list(range(adv_axes[0], adv_axes[0] + num_adv))
 
-        all_squeezable = all(is_squeezable(idx) for _, idx in non_none_indices)
-        if all_squeezable:
+        def is_one(dim):
+            return isinstance(dim, int | tvm_tirx.ir.IntImm) and int(dim) == 1
+
+        # One take per index tensor computes the outer product of the indices.
+        # That equals PyTorch's result only when the indexed dimensions are
+        # adjacent and the index shapes are orthogonal, i.e. index k varies
+        # along broadcast axis k only, as in the decomposed interpolate
+        # pattern x[:, :, h_idx (H, 1), w_idx (W,)].
+        def own_extent_axis(k, idx):
+            """Axis of idx along which it varies, -1 if it is all ones, None if not orthogonal."""
+            shape = idx.ty.shape
+            if shape is None or idx.ty.ndim > num_adv:
+                return None
+            offset = num_adv - idx.ty.ndim
+            for axis, dim in enumerate(shape.values):
+                if axis + offset != k and not is_one(dim):
+                    return None
+            return k - offset if k >= offset else -1
+
+        own_axes = [own_extent_axis(k, idx) for k, idx in enumerate(adv_indices)]
+        if adjacent and all(axis is not None for axis in own_axes):
             result = data
-            for axis, idx in reversed(non_none_indices):
-                if idx.ty.ndim > 1:
-                    idx = self.block_builder.emit(relax.op.squeeze(idx))
+            for axis, idx, own_axis in reversed(list(zip(adv_axes, adv_indices, own_axes))):
+                if own_axis == -1:
+                    idx = self.block_builder.emit(relax.op.reshape(idx, [1]))
+                elif idx.ty.ndim > 1:
+                    if is_one(idx.ty.shape.values[own_axis]):
+                        squeeze_axes = [a for a in range(idx.ty.ndim) if a != own_axis]
+                        idx = self.block_builder.emit(relax.op.squeeze(idx, squeeze_axes))
+                    else:
+                        idx = self.block_builder.emit(relax.op.squeeze(idx))
                 result = self.block_builder.emit(relax.op.take(result, idx, axis=axis))
             return result
 
-        # General case: replace None with arange, reshaped for broadcasting
-        max_ndim = max((idx.ty.ndim for _, idx in non_none_indices), default=1)
-        processed_indices = []
-        data_shape = self.shape_of(data)
-
-        for i, idx in enumerate(indices):
-            if idx is None:
-                arange_idx = self.block_builder.emit(
-                    relax.op.arange(
-                        relax.prim_value(0),
-                        data_shape[i],
-                        relax.prim_value(1),
-                        "int64",
-                    )
-                )
-                # Reshape to [dim_size, 1, 1, ...] for broadcasting
-                arange_idx = self.block_builder.emit(
-                    relax.op.reshape(arange_idx, [data_shape[i]] + [1] * (max_ndim - 1))
-                )
-                processed_indices.append(arange_idx)
-            else:
-                processed_indices.append(idx)
-
-        return self.block_builder.emit(relax.op.index_tensor(data, processed_indices))
+        # General case: move the indexed dimensions to the front, gather them
+        # jointly with index_tensor (result shape B + remaining dims), then move
+        # B back to the first indexed dimension when the indexed dimensions are
+        # adjacent.
+        ndim = data.ty.ndim
+        rest_axes = [axis for axis in range(ndim) if axis not in adv_axes]
+        if adv_axes != list(range(num_adv)):
+            data = self.block_builder.emit(relax.op.permute_dims(data, adv_axes + rest_axes))
+        result = self.block_builder.emit(relax.op.index_tensor(data, adv_indices))
+        first = adv_axes[0]
+        if adjacent and first > 0:
+            out_ndim = result.ty.ndim
+            b_ndim = out_ndim - len(rest_axes)
+            perm = (
+                list(range(b_ndim, b_ndim + first))
+                + list(range(b_ndim))
+                + list(range(b_ndim + first, out_ndim))
+            )
+            result = self.block_builder.emit(relax.op.permute_dims(result, perm))
+        return result
 
     def _meshgrid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

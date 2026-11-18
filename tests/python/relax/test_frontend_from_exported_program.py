@@ -7479,6 +7479,41 @@ def test_take():
     verify_model(Take(), example_args, {}, Expected)
 
 
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
+@pytest.mark.parametrize(
+    "index_fn, data_shape, indices",
+    [
+        # adjacent index tensors after a slice: B replaces the indexed dims
+        (lambda x, i, j: x[:, i, j], (2, 3, 4), ([0, 2], [3, 1])),
+        (lambda x, i, j: x[:, :, i, j], (2, 3, 4, 5), ([0, 3], [1, 4])),
+        (lambda x, i, j, k: x[:, i, j, k], (2, 3, 4, 5), ([0, 2], [1, 3], [4, 0])),
+        # index tensors separated by a slice: B goes first
+        (lambda x, i, j: x[i, :, j], (3, 4, 5), ([0, 2], [1, 4])),
+        (lambda x, i, j: x[:, i, :, j], (2, 3, 4, 5), ([0, 2], [1, 4])),
+        (lambda x, i, j: x[i, :, j], (3, 4, 5), ([[0, 2], [1, 1]], [1, 4])),
+        # broadcast index shapes
+        (lambda x, i, j: x[:, i, j], (2, 3, 4), ([[0, 1, 2], [2, 1, 0]], [1, 3, 0])),
+        (lambda x, i, j: x[:, i, j], (2, 3, 4), ([[2, 0]], [1, 3])),
+        (
+            lambda x, a, b, c: x[:, :, a, b, c],
+            (2, 2, 4, 4, 4),
+            ([[[0]], [[1]], [[2]], [[3]]], [[3], [2], [1], [0]], [1, 1, 2, 2]),
+        ),
+        # orthogonal index shapes, as in decomposed interpolate
+        (lambda x, h, w: x[:, :, h, w], (1, 3, 4, 5), ([[0], [1], [3]], [4, 0])),
+        (lambda x, h, w: x[:, h, w], (2, 4, 5), ([[3]], [4, 0, 1])),
+    ],
+)
+def test_index_tensor_with_sliced_dims(index_fn, data_shape, indices):
+    class Index(Module):
+        def forward(self, x, *idx):
+            return index_fn(x, *idx)
+
+    x = torch.arange(int(np.prod(data_shape)), dtype=torch.float32).reshape(data_shape)
+    example_args = (x, *(torch.tensor(idx) for idx in indices))
+    verify_model_numerically(Index(), example_args)
+
+
 def test_any():
     class AnyAten(torch.nn.Module):
         def forward(self, x):
