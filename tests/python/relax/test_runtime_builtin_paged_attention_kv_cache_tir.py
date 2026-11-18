@@ -160,6 +160,74 @@ def test_paged_prefill_layer_sliding_window_mask(device_type):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.parametrize("device_type", ["cuda", "metal"])
+@pytest.mark.parametrize("causal", [0, 1])
+def test_paged_prefill_layer_sliding_window_long_append(device_type, causal):
+    """Appends longer than the window span many query and KV tiles, so most KV tiles
+    are invisible to whole query tiles under the sliding cross mask."""
+    if not device_enabled(device_type):
+        pytest.skip(f"{device_type} not enabled")
+
+    dev = tvm_ffi.device(device_type)
+    target = tvm_tirx.target.Target.from_device(dev)
+    h_kv, h_q, d, window = 2, 8, 64, 100
+    q_lens, kv_lens = [257, 50], [100, 30]
+    tir_func = _attention_prefill(
+        h_kv, h_q, d, "float16", True, {}, target, page_size=page_size, sliding_window_size=window
+    )
+    built = tvm_tirx.tirx.compile(tir_func, target=target).mod
+
+    rng = np.random.default_rng(0)
+    q = rng.normal(0, 0.5, (sum(q_lens), h_q, d)).astype("float16")
+    num_pages = [math.ceil(n / page_size) for n in kv_lens]
+    pages = rng.normal(0, 0.5, (sum(num_pages), 2, h_kv, page_size, d)).astype("float16")
+    q_indptr = np.cumsum([0, *q_lens]).astype("int32")
+    page_indptr = np.cumsum([0, *num_pages]).astype("int32")
+    last_page_len = [n - (p - 1) * page_size for n, p in zip(kv_lens, num_pages)]
+    length_info = np.array([last_page_len, [0, 0], [0, 0]], dtype="int32")
+    arrays = [
+        q,
+        q_indptr,
+        pages,
+        page_indptr,
+        np.arange(sum(num_pages), dtype="int32"),
+        length_info,
+        np.zeros(2, dtype="int32"),
+        np.zeros(sum(q_lens), dtype="int32"),
+        np.zeros_like(q),
+        np.zeros(q.shape[:2], dtype="float32"),
+    ]
+    args = [tvm_tirx.runtime.tensor(array, device=dev) for array in arrays]
+
+    def run_and_check():
+        built.main(*args, causal, 0, 1.0, 10000.0, 1 / math.sqrt(d))
+        output, lse = args[8].numpy().astype("float32"), args[9].numpy()
+        for b, (q_len, kv_len) in enumerate(zip(q_lens, kv_lens)):
+            kv = pages[page_indptr[b] : page_indptr[b + 1]].astype("float32")
+            k = kv[:, 0].transpose(1, 0, 2, 3).reshape(h_kv, -1, d)[:, :kv_len]
+            v = kv[:, 1].transpose(1, 0, 2, 3).reshape(h_kv, -1, d)[:, :kv_len]
+            for r in range(q_len):
+                lo = max(kv_len - max(window - r - 1, 0), 0) if causal else 0
+                row = q_indptr[b] + r
+                if lo == kv_len:
+                    # Merging with self-attention gives these rows zero weight.
+                    assert (lse[row] < -1e4).all()
+                    continue
+                for h in range(h_q):
+                    s = q[row, h].astype("float32") @ k[h // (h_q // h_kv), lo:].T / math.sqrt(d)
+                    p = np.exp(s - s.max())
+                    np.testing.assert_allclose(
+                        output[row, h], p @ v[h // (h_q // h_kv), lo:] / p.sum(), atol=2e-3
+                    )
+                    np.testing.assert_allclose(
+                        lse[row, h], (s.max() + np.log(p.sum())) / math.log(2), atol=1e-3
+                    )
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize("device_type", ["cuda", "metal"])
 def test_paged_attention_kv_cache_sliding_window_two_sequences(device_type):
     if not device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
