@@ -199,7 +199,7 @@ class LocalBuilder(PyBuilder):
                     )
                 )
             else:
-                raise ValueError("Unreachable: unexpected result: {map_result}")
+                raise ValueError(f"Unreachable: unexpected result: {map_result}")
         pool.shutdown()
         return results
 

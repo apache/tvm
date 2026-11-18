@@ -143,7 +143,7 @@ def extracted_tasks_to_tune_contexts(
         fork_seed(seed, n=len(extracted_tasks)),
     ):
         if task.mod.attrs.get("tirx.is_scheduled", False):
-            warnings.warn("The task {task.task_name} is already scheduled, skipping it.")
+            warnings.warn(f"The task {task.task_name} is already scheduled, skipping it.")
             continue
         tasks.append(
             TuneContext(
