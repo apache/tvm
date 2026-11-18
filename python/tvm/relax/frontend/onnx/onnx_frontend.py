@@ -2242,6 +2242,173 @@ class Conv(OnnxOpConverter):
         return conv_out
 
 
+class QLinearConv(OnnxOpConverter):
+    """Converts an onnx QLinearConv node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        x_scale = inputs[1]
+        x_zero_point = inputs[2]
+        weight = inputs[3]
+        w_scale = inputs[4]
+        w_zero_point = inputs[5]
+        y_scale = inputs[6]
+        y_zero_point = inputs[7]
+        bias = inputs[8] if len(inputs) > 8 and inputs[8] is not None else None
+
+        data_norm = bb.normalize(data)
+        if hasattr(data_norm.ty, "ndim"):
+            ndim = data_norm.ty.ndim
+        else:
+            ndim = len(data_norm.ty.shape)
+
+        weight_norm = bb.normalize(weight)
+        if "kernel_shape" not in attr:
+            # Use .shape.values to avoid TypeError from ShapeExpr.__getitem__ with slices;
+            # keep values as-is (may be symbolic PrimExprs) so symbolic kernels stay supported.
+            attr["kernel_shape"] = weight_norm.ty.shape.values[2:]
+        else:
+            attr["kernel_shape"] = [int(dim) for dim in attr["kernel_shape"]]
+
+        if ndim == 3:
+            op = relax.op.nn.conv1d
+            data_layout = "NCW"
+            kernel_layout = "OIW"
+        elif ndim == 4:
+            op = relax.op.nn.conv2d
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
+        elif ndim == 5:
+            op = relax.op.nn.conv3d
+            data_layout = "NCDHW"
+            kernel_layout = "OIDHW"
+        else:
+            raise NotImplementedError("Ndim > 5 not supported for QLinearConv.")
+
+        # Widen data and weight to int32 before centering and arithmetic to prevent overflow
+        data_i32 = relax.op.astype(data, "int32")
+        weight_i32 = relax.op.astype(weight, "int32")
+
+        if x_zero_point is None:
+            x_zero_point = relax.const(0, "int32")
+        x_zp_i32 = relax.op.astype(x_zero_point, "int32")
+        x_zp_norm = bb.normalize(x_zp_i32)
+        if hasattr(x_zp_norm.ty, "shape") and len(x_zp_norm.ty.shape) == 1:
+            x_zp_i32 = bb.normalize(relax.op.reshape(x_zp_i32, [1, -1] + [1] * (ndim - 2)))
+        x_centered = relax.op.subtract(data_i32, x_zp_i32)
+
+        if w_zero_point is None:
+            w_zero_point = relax.const(0, "int32")
+        w_zp_i32 = relax.op.astype(w_zero_point, "int32")
+        w_zp_norm = bb.normalize(w_zp_i32)
+        if hasattr(w_zp_norm.ty, "shape") and len(w_zp_norm.ty.shape) == 1:
+            w_zp_i32 = bb.normalize(relax.op.reshape(w_zp_i32, [-1, 1] + [1] * (ndim - 2)))
+        w_centered = relax.op.subtract(weight_i32, w_zp_i32)
+
+        if "auto_pad" in attr:
+            auto_pad = attr["auto_pad"]
+            if isinstance(auto_pad, bytes):
+                auto_pad = auto_pad.decode("utf-8")
+            if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+                x_centered = bb.normalize(x_centered)
+                x_centered = autopad(
+                    bb,
+                    x_centered,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    mode=auto_pad,
+                    deconv=False,
+                )
+            elif auto_pad == "VALID":
+                attr["pads"] = [0 for _ in range((ndim - 2) * 2)]
+            elif auto_pad == "NOTSET":
+                pass
+            else:
+                msg = (
+                    f'Value {auto_pad} in attribute "auto_pad" of operator QLinearConv is invalid.'
+                )
+                raise AttributeError(msg)
+            attr.pop("auto_pad")
+
+        x_centered = bb.normalize(x_centered)
+        w_centered = bb.normalize(w_centered)
+        conv_out = bb.normalize(
+            op(
+                data=x_centered,
+                weight=w_centered,
+                strides=attr.get("strides", 1),
+                padding=attr.get("pads", 0),
+                dilation=attr.get("dilations", 1),
+                groups=attr.get("group", 1),
+                data_layout=data_layout,
+                kernel_layout=kernel_layout,
+                out_dtype="int32",
+            )
+        )
+
+        if bias is not None:
+            b_i32 = bb.normalize(relax.op.astype(bias, "int32"))
+            b_bias = bb.normalize(relax.op.reshape(b_i32, [1, -1] + [1] * (ndim - 2)))
+            conv_out = bb.normalize(relax.op.add(conv_out, b_bias))
+
+        conv_float = relax.op.astype(conv_out, "float32")
+
+        if y_zero_point is None:
+            y_zero_point = relax.const(0, "uint8")
+        out_dtype = y_zero_point.ty.dtype.dtype
+
+        x_scale_f = relax.op.astype(x_scale, "float32")
+        w_scale_f = relax.op.astype(w_scale, "float32")
+        y_scale_f = relax.op.astype(y_scale, "float32")
+        y_zp_f = relax.op.astype(y_zero_point, "float32")
+
+        x_s_norm = bb.normalize(x_scale_f)
+        if hasattr(x_s_norm.ty, "shape") and len(x_s_norm.ty.shape) == 1:
+            x_scale_f = bb.normalize(relax.op.reshape(x_scale_f, [1, -1] + [1] * (ndim - 2)))
+
+        w_s_norm = bb.normalize(w_scale_f)
+        if hasattr(w_s_norm.ty, "shape") and len(w_s_norm.ty.shape) == 1:
+            w_scale_f = bb.normalize(relax.op.reshape(w_scale_f, [1, -1] + [1] * (ndim - 2)))
+
+        y_s_norm = bb.normalize(y_scale_f)
+        if hasattr(y_s_norm.ty, "shape") and len(y_s_norm.ty.shape) == 1:
+            y_scale_f = bb.normalize(relax.op.reshape(y_scale_f, [1, -1] + [1] * (ndim - 2)))
+
+        y_z_norm = bb.normalize(y_zero_point)
+        if hasattr(y_z_norm.ty, "shape") and len(y_z_norm.ty.shape) == 1:
+            y_zp_f = bb.normalize(relax.op.reshape(y_zp_f, [1, -1] + [1] * (ndim - 2)))
+
+        # Compute the combined scale multiplier and perform scaling in float64 to avoid overflow
+        # when x_scale * w_scale is very large (e.g. 2**65 * 2**65 = 2**130 >> float32 max).
+        # Keeping the product in float64 also ensures that zero accumulators (0.0 * scale_mult)
+        # evaluate cleanly to 0.0 rather than producing NaN if scale_mult overflows float32.
+        conv_f64 = relax.op.astype(conv_float, "float64")
+        x_scale_f64 = relax.op.astype(x_scale_f, "float64")
+        w_scale_f64 = relax.op.astype(w_scale_f, "float64")
+        y_scale_f64 = relax.op.astype(y_scale_f, "float64")
+        scale_mult_f64 = relax.op.divide(relax.op.multiply(x_scale_f64, w_scale_f64), y_scale_f64)
+        scaled_f64 = relax.op.multiply(conv_f64, scale_mult_f64)
+        scaled = relax.op.astype(scaled_f64, "float32")
+        rounded = relax.op.round(scaled)
+        y_val = relax.op.add(rounded, y_zp_f)
+
+        if out_dtype == "uint8":
+            min_val, max_val = 0, 255
+        elif out_dtype == "int8":
+            min_val, max_val = -128, 127
+        elif out_dtype == "uint16":
+            min_val, max_val = 0, 65535
+        elif out_dtype == "int16":
+            min_val, max_val = -32768, 32767
+        else:
+            min_val, max_val = 0, 255
+
+        clipped = relax.op.clip(y_val, min_val, max_val)
+        return relax.op.astype(clipped, out_dtype)
+
+
 class ConvTranspose(OnnxOpConverter):
     """Converts an onnx ConvTranspose node into an equivalent Relax expression."""
 
@@ -6762,6 +6929,7 @@ def _get_convert_map():
         "MaxUnpool": MaxUnpool,
         "Conv": Conv,
         "ConvTranspose": ConvTranspose,
+        "QLinearConv": QLinearConv,
         "Flatten": Flatten,
         "Identity": Identity,
         "Dropout": Dropout,
