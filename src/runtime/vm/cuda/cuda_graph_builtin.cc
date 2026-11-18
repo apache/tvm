@@ -121,22 +121,28 @@ class CUDACaptureStream {
     TVM_FFI_CHECK_SAFE_CALL(
         TVMFFIEnvSetStream(kDLCUDA, device_id_, capture_stream_,
                            reinterpret_cast<TVMFFIStreamHandle*>(&prev_default_stream_)));
+  }
+  void BeginCapture() {
     TVM_FFI_CHECK_CUDA_ERROR(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
+    capturing_ = true;
   }
   ~CUDACaptureStream() noexcept(false) {
-    cudaError_t capture_error = cudaStreamEndCapture(capture_stream_, output_graph_);
-    if (capture_error != cudaSuccess) {
-      // The capture may have been invalidated by the exception that is
-      // currently unwinding the stack.  Do not throw a second exception from
-      // this destructor, but clear CUDA's thread-local error so that it is not
-      // reported by an unrelated CUDA call later in the same host thread.
-      cudaGetLastError();
+    if (capturing_) {
+      cudaError_t capture_error = cudaStreamEndCapture(capture_stream_, output_graph_);
+      if (capture_error != cudaSuccess) {
+        // The capture may have been invalidated by the exception that is
+        // currently unwinding the stack.  Do not throw a second exception from
+        // this destructor, but clear CUDA's thread-local error so that it is not
+        // reported by an unrelated CUDA call later in the same host thread.
+        cudaGetLastError();
+      }
     }
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIEnvSetStream(kDLCUDA, device_id_, prev_default_stream_, nullptr));
   }
 
  private:
   int device_id_;
+  bool capturing_{false};
   cudaStream_t prev_default_stream_;
   ScopedCUDAStream capture_stream_;
 
@@ -182,16 +188,16 @@ class CUDAGraphExtensionObj : public VMExtensionObj {
     }
 
     ffi::Any capture_func_rv;
-    // Run the function without CUDA graph. This is a warm up step to do necessary initialization
-    // of the CUDA module such as loading module data, setting kernel attributes.
-    vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
-                            &capture_func_rv);
-
     // Run the graph in capture mode
     cudaGraph_t graph;
 
     {
       CUDACaptureStream capture_stream(&graph);
+      // Warm up on the capture stream so stream-local workspaces are available
+      // before capture begins, along with module data and kernel attributes.
+      vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
+                              &capture_func_rv);
+      capture_stream.BeginCapture();
       vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
                               &capture_func_rv);
     }
