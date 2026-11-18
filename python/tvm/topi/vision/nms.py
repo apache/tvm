@@ -17,7 +17,7 @@
 # pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 
-from functools import partial
+from functools import partial as _partial
 
 import tvm
 import tvm_tirx
@@ -1269,7 +1269,7 @@ def all_class_non_max_suppression(
         valid_count,
         max_output_boxes_per_class,
         iou_threshold,
-        partial(_nms_loop, strict_iou=(output_format == "onnx")),
+        _partial(_nms_loop, strict_iou=(output_format == "onnx")),
         return_scores=(output_format == "tensorflow"),
         score_threshold=score_threshold_tensor,  # Passed score_threshold as tensor
     )
