@@ -98,6 +98,10 @@ class GEMV(GPUScheduleRule):
     ):
         """Schedule the inner reduction block."""
 
+        matrix_input_tensor = next(
+            read.source for read in sch.get(block).reads if read.source not in vector_input_tensors
+        )
+
         def get_max_factor(n, factors):
             factors = sorted(factors, reverse=True)
             for factor in factors:
@@ -171,7 +175,9 @@ class GEMV(GPUScheduleRule):
                 and shared_mem_usage.value <= max_smem
             )
 
-            Aq_local = sch.cache_read(rf, read_tensor_index=1, storage_scope="local")
+            Aq_local = sch.cache_read(
+                rf, read_tensor_index=matrix_input_tensor, storage_scope="local"
+            )
             num_cache_loops = len(sch.get_loops(block=Aq_local))
             sch.compute_at(Aq_local, r, preserve_unit_loops=True)
             cache_loops = sch.get_loops(block=Aq_local)[-num_cache_loops:]
@@ -189,7 +195,9 @@ class GEMV(GPUScheduleRule):
             if LOAD_V_SHARED:
                 if len(vector_input_tensors) != 1:
                     return None
-                V_shared = sch.cache_read(rf, read_tensor_index=0, storage_scope="shared")
+                V_shared = sch.cache_read(
+                    rf, read_tensor_index=vector_input_tensors[0], storage_scope="shared"
+                )
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
                 loop: tvm_tirx.ir.For = sch.get(l)
