@@ -777,7 +777,7 @@ def test_data_dependent_reshape_without_decompose_ops_is_skipped():
             return gv
     # fmt: on
 
-    relax.analysis.well_formed(DDReshape)
+    relax.analysis.check_well_formed(DDReshape)
     out_mod = relax.transform.LegalizeOps()(DDReshape)
     tvm_tirx.ir.assert_structural_equal(out_mod, DDReshape)
 

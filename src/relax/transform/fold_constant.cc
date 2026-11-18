@@ -372,11 +372,11 @@ class ConstantFolder : public ExprMutator {
           const CallObj* call = legalized_expr.as<CallObj>();
           if (call && call->op.same_as(call_tir_op)) {
             return VisitCallTIR(ffi::GetRef<Call>(call)).value_or(post_call);
-          } else {
-            // Restore the original (well-formed) type instead of the `Missing` type set above.
-            return Call(original_ty, post_call->op, post_call->args, post_call->attrs,
-                        post_call->ty_args, post_call->loc);
           }
+        } else {
+          // Restore the original (well-formed) type instead of the `Missing` type set above.
+          return Call(original_ty, post_call->op, post_call->args, post_call->attrs,
+                      post_call->ty_args, post_call->loc);
         }
       } else if (op->name == "relax.tensor_to_shape") {
         // Special handling for composite op "relax.tensor_to_shape"
