@@ -384,6 +384,8 @@ export class ArtifactCache implements ArtifactCacheTemplate {
       return await response.json();
     } else if (storetype.toLowerCase() === "arraybuffer") {
       return await response.arrayBuffer();
+    } else if (storetype.toLowerCase() === "blob") {
+      return await response.blob();
     } else {
       console.error("Unknown storage type " + storetype + ", returning raw response");
       return response;
@@ -547,6 +549,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
         data = await response.json();
       } else if (storetype.toLocaleLowerCase() === "arraybuffer") {
         data = await response.arrayBuffer();
+      } else if (storetype.toLowerCase() === "blob") {
+        data = await response.blob();
       } else {
         throw Error("Unsupported storetyp for IndexedDB: " + storetype);
       }
@@ -673,6 +677,9 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
       return undefined;
+    }
+    if (storetype?.toLowerCase() === "blob") {
+      return cachedResponse.blob();
     }
     return this.responseToStoreType(cachedResponse, storetype);
   }
