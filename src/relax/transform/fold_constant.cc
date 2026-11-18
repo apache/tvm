@@ -31,6 +31,8 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
+#include <cstring>
+
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
@@ -387,9 +389,11 @@ class ConstantFolder : public ExprMutator {
           TVM_FFI_ICHECK_EQ(ndarray.ndim(), 1);
           int64_t num_elems = ndarray.shape()[0];
           ffi::Array<PrimExpr> shape_values;
-          auto append_values = [&](const auto* data) {
+          const auto* data = static_cast<const char*>(ndarray.data_ptr());
+          auto append_values = [&](auto value) {
             for (int64_t i = 0; i < num_elems; i++) {
-              shape_values.push_back(IntImm::Int64(data[i]));
+              std::memcpy(&value, data + i * sizeof(value), sizeof(value));
+              shape_values.push_back(IntImm::Int64(value));
             }
           };
           if (ndarray.dtype().code != kDLInt || ndarray.dtype().lanes != 1) {
@@ -397,13 +401,13 @@ class ConstantFolder : public ExprMutator {
           }
           switch (ndarray.dtype().bits) {
             case 16:
-              append_values(static_cast<const int16_t*>(ndarray.data_ptr()));
+              append_values(int16_t{});
               break;
             case 32:
-              append_values(static_cast<const int32_t*>(ndarray.data_ptr()));
+              append_values(int32_t{});
               break;
             case 64:
-              append_values(static_cast<const int64_t*>(ndarray.data_ptr()));
+              append_values(int64_t{});
               break;
             default:
               return post_call;
