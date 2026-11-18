@@ -585,12 +585,12 @@ def conv1d_transpose(
 
     This operator can be seen as the gradient operator of conv1d.
 
-    The output shape can be explained in the simple case when `data_layout == "NCW"` and
-    `kernel_layout == "IOW"`. Suppose `data` has shape `(N, in_channel, in_w)`, `weight` has
-    shape `(in_channel, out_channel, weight_w)`, we need to assure that `in_channel % groups == 0`.
-    The shape of the output will be `(N, out_channel * groups, out_w)`, where
+    The input and weight layouts are fixed to `NCW` and `IOW`. Suppose `x` has shape
+    `(N, in_channel, in_w)`, `weight` has shape `(in_channel, out_channel, weight_w)`, we need
+    to assure that `in_channel % groups == 0`. The shape of the output will be
+    `(N, out_channel * groups, out_w)`, where
 
-    - `out_w = ((in_w - 1) * strides[0] + weight_w - 2 * padding[0] + output_padding[0])`
+    - `out_w = ((in_w - 1) * stride[0] + weight_w - 2 * padding[0] + output_padding[0])`
 
     Parameters
     ----------
@@ -1067,7 +1067,7 @@ def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = 
 
     Parameters
     ----------
-    x : relax.Expr
+    x : Tensor
         The input data.
 
     beta : float, optional
@@ -1079,7 +1079,7 @@ def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = 
 
     Returns
     -------
-    result : relax.Expr
+    result : Tensor
         The computed result.
     """
     return wrap_nested(_op.nn.softplus(x._expr, beta=beta, threshold=threshold), name)
@@ -1919,7 +1919,7 @@ def ccl_allreduce(x: Tensor, op_type: str = "sum", in_group: bool = True, name="
 
     Parameters
     ----------
-    x : relax.Expr
+    x : Tensor
       The input tensor.
 
     op_type : str
@@ -1945,7 +1945,7 @@ def ccl_allgather(x: Tensor, num_workers: int, name="ccl_allgather"):
 
     Parameters
     ----------
-    x : relax.Expr
+    x : Tensor
       The input tensor.
 
     num_workers : int
