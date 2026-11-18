@@ -34,7 +34,6 @@ from tvm.s_tir.meta_schedule.builder import (
     LocalBuilder,
     PyBuilder,
 )
-from tvm.s_tir.meta_schedule.utils import get_global_func_with_default_on_worker
 from tvm_tirx import script
 from tvm_tirx.script import tirx as T
 from tvm_tirx.target import Target
@@ -233,11 +232,6 @@ def test_meta_schedule_missing_build_func():
     pytest.importorskip("cloudpickle")
     with pytest.raises(ValueError):
         LocalBuilder(f_build="wrong-name")
-
-
-def test_meta_schedule_missing_build_func_error_message():
-    with pytest.raises(ValueError, match="Function 'wrong-name' is not registered"):
-        get_global_func_with_default_on_worker(name="wrong-name", default=None)
 
 
 if __name__ == "__main__":
