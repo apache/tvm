@@ -2282,10 +2282,8 @@ class ConvTranspose(OnnxOpConverter):
             ]
             if auto_pad == "SAME_UPPER":
                 pads_begin = [value // 2 for value in total_padding]
-            elif auto_pad == "SAME_LOWER" or "pads" not in attr:
-                pads_begin = [value - value // 2 for value in total_padding]
             else:
-                pads_begin = list(attr.get("pads", [0] * (2 * spatial_dims)))[:spatial_dims]
+                pads_begin = [value - value // 2 for value in total_padding]
             pads_end = [total_padding[i] - pads_begin[i] for i in range(spatial_dims)]
             if any(value < 0 for value in pads_begin + pads_end):
                 raise ValueError("ConvTranspose output_shape requires negative padding.")
@@ -6647,21 +6645,16 @@ class ONNXGraphImporter:
             for f in ["f", "i", "s", "g"]:
                 if a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ["floats", "ints", "strings"]:
-                if list(getattr(a, f)):
-                    assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
             for f in ["t", "tp"]:
                 if hasattr(a, f) and a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ["tensors", "type_protos"]:
-                if hasattr(a, f) and list(getattr(a, f)):
+            for f in ["floats", "ints", "strings", "tensors", "type_protos", "graphs"]:
+                values = getattr(a, f, None)
+                if values is not None and (
+                    values or a.type == getattr(onnx.AttributeProto, f.upper(), None)
+                ):
                     assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
-            for f in ["graphs"]:
-                if list(getattr(a, f)):
-                    assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
+                    attrs[a.name] = tuple(values)
             if a.name not in attrs:
                 raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return attrs

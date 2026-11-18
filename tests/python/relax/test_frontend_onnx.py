@@ -5228,8 +5228,11 @@ def test_conv_transpose_numerical(nd, groups, auto_pad, stride, dilation, pad, b
     check_correctness(model, opset=14, atol=1e-4)
 
 
-def test_conv_transpose_output_shape():
-    node = helper.make_node("ConvTranspose", ["x", "w"], ["y"], strides=[2, 2], output_shape=[4, 4])
+@pytest.mark.parametrize("extra_attrs", [{}, {"pads": [0, 0, 0, 0]}])
+def test_conv_transpose_output_shape(extra_attrs):
+    node = helper.make_node(
+        "ConvTranspose", ["x", "w"], ["y"], strides=[2, 2], output_shape=[4, 4], **extra_attrs
+    )
     graph = helper.make_graph(
         [node],
         "conv_transpose_output_shape",
@@ -7457,11 +7460,18 @@ def test_expand_incompatible_broadcasting():
         ("value_floats", [2.0, 3.0], "float32", TensorProto.FLOAT),
         ("value_int", 2, "int64", TensorProto.INT64),
         ("value_ints", [2, 3], "int64", TensorProto.INT64),
+        ("value_floats", [], "float32", TensorProto.FLOAT),
+        ("value_ints", [], "int64", TensorProto.INT64),
     ],
 )
 def test_constant_value_attributes(attribute, value, dtype, tensor_type):
     expected = np.asarray(value, dtype=dtype)
-    node = helper.make_node("Constant", [], ["output"], **{attribute: value})
+    if value == []:
+        attr_type = onnx.AttributeProto.FLOATS if dtype == "float32" else onnx.AttributeProto.INTS
+        node = helper.make_node("Constant", [], ["output"])
+        node.attribute.append(helper.make_attribute(attribute, value, attr_type=attr_type))
+    else:
+        node = helper.make_node("Constant", [], ["output"], **{attribute: value})
     graph = helper.make_graph(
         [node],
         "constant_value_attribute",
@@ -12365,7 +12375,8 @@ def test_nms_max_output_boxes_per_class_zero():
     verify(True, ExpectedNMSFourBoxesWithMaxParam)
 
 
-def test_nms_default_iou_threshold():
+@pytest.mark.parametrize("second_box", [[1, 1, 3, 3], [3, 3, 5, 5]])
+def test_nms_default_iou_threshold(second_box):
     node = helper.make_node("NonMaxSuppression", ["boxes", "scores", "max_output"], ["selected"])
     graph = helper.make_graph(
         [node],
@@ -12381,7 +12392,7 @@ def test_nms_default_iou_threshold():
     check_correctness(
         model,
         inputs={
-            "boxes": np.array([[[0, 0, 2, 2], [1, 1, 3, 3]]], dtype="float32"),
+            "boxes": np.array([[[0, 0, 2, 2], second_box]], dtype="float32"),
             "scores": np.array([[[0.9, 0.8]]], dtype="float32"),
         },
         opset=11,

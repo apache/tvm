@@ -17,6 +17,8 @@
 # pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 
+from functools import partial
+
 import tvm
 import tvm_tirx
 from tvm import te
@@ -921,6 +923,8 @@ def _nms_loop(
     out_scores,
     num_valid_boxes,
     score_threshold=None,
+    *,
+    strict_iou=False,
 ):
     """NMS loop using modern IRBuilder. Must be called within IRBuilder context."""
 
@@ -949,7 +953,8 @@ def _nms_loop(
                 with T.then_():
                     iou = calc_overlap_func(i, j, k)
 
-                    with T.if_(iou >= iou_threshold):
+                    suppress = iou > iou_threshold if strict_iou else iou >= iou_threshold
+                    with T.if_(suppress):
                         with T.then_():
                             T.tensor_store(out_scores, (i, k), T.float32(-1.0))
                             on_new_invalidated_box_func(i, k)
@@ -1264,7 +1269,7 @@ def all_class_non_max_suppression(
         valid_count,
         max_output_boxes_per_class,
         iou_threshold,
-        _nms_loop,
+        partial(_nms_loop, strict_iou=(output_format == "onnx")),
         return_scores=(output_format == "tensorflow"),
         score_threshold=score_threshold_tensor,  # Passed score_threshold as tensor
     )
