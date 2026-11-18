@@ -42,6 +42,15 @@ def _get_allocated_shared_memory(func):
     return function_allocations["shared"]
 
 
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+@pytest.mark.parametrize("sliding_window", [False, True])
+def test_wide_head_prefill_fits_cuda_static_shared_memory(dtype, sliding_window):
+    target = tvm_tirx.target.Target({"kind": "cuda", "arch": "sm_120"})
+    func = _attention_prefill(1, 8, 512, dtype, sliding_window, {}, target)
+    assert func.attrs["tirx.is_scheduled"]
+    assert _get_allocated_shared_memory(func) <= 49152
+
+
 def test_wide_head_prefill_fits_metal_shared_memory():
     target = tvm_tirx.target.Target("metal")
     config = _get_prefill_kernel_config(
