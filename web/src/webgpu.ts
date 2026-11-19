@@ -19,10 +19,52 @@
 import { assert } from "./support";
 import { Pointer } from "./ctypes";
 import { Memory } from "./memory";
-import { Disposable } from "./types";
+import {
+  Disposable,
+  SampledTokenReadbackBatch,
+  SampledTokenReadbackRingOptions,
+} from "./types";
 
 /** A pointer to points to the raw address space. */
 export type GPUPointer = number;
+
+type ReadbackRingSlotState = "free" | "pending" | "ready";
+
+interface InternalSampledTokenReadbackSlot {
+  buffer: GPUBuffer;
+  state: ReadbackRingSlotState;
+  batchSeq: number;
+  tokenCount: number;
+  tokens?: Int32Array;
+  pendingPromise?: Promise<void>;
+  destroyAfterComplete: boolean;
+}
+
+interface InternalReadbackRingWaiter {
+  resolve: () => void;
+  reject: (reason: unknown) => void;
+}
+
+interface InternalSampledTokenReadbackRing {
+  id: number;
+  slotCount: number;
+  maxTokensPerBatch: number;
+  slotBytes: number;
+  slots: InternalSampledTokenReadbackSlot[];
+  nextSubmitCursor: number;
+  nextBatchSeq: number;
+  nextPollSeq: number;
+  readyByBatchSeq: Map<number, number>;
+  waiters: InternalReadbackRingWaiter[];
+  disposed: boolean;
+  fatalError?: Error;
+}
+
+interface SampledTokenReadbackSource {
+  from: GPUPointer;
+  fromTokenOffset: number;
+  tokenCount: number;
+}
 
 export interface GPUDeviceDetectOutput {
   adapter: GPUAdapter;
@@ -440,6 +482,12 @@ export class WebGPUContext {
   private pendingGPUToCPUCopy: Promise<void> | null = null;
   // Whether a pending GPU→CPU copy is still the last queue operation.
   private pendingGPUToCPUCopyIsQueueTail = false;
+  // Pending read promises from sampled-token readback rings.
+  // These are tracked separately from pendingGPUToCPUCopy because ring
+  // submissions can overlap and should be awaited collectively in sync().
+  private pendingSampledTokenReadbackReads: Set<Promise<void>> = new Set();
+  private sampledTokenReadbackRings: Map<number, InternalSampledTokenReadbackRing> = new Map();
+  private nextSampledTokenReadbackRingId = 1;
   // Batched command encoding: accumulate compute passes and GPU copies in a
   // single encoder, and submit only on flush to reduce JS-native transition overhead.
   private pendingEncoder: GPUCommandEncoder | null = null;
@@ -507,6 +555,9 @@ export class WebGPUContext {
    */
   dispose() {
     this.flushCommands();
+    for (const ringId of Array.from(this.sampledTokenReadbackRings.keys())) {
+      this.disposeSampledTokenReadbackRing(ringId);
+    }
     this.canvasRenderManager?.dispose();
     this.bufferTableFreeId = [];
     while (this.bufferTable.length != 0) {
@@ -545,6 +596,9 @@ export class WebGPUContext {
         await queueDone;
       }
     }
+    if (this.pendingSampledTokenReadbackReads.size > 0) {
+      await Promise.all(Array.from(this.pendingSampledTokenReadbackReads));
+    }
   }
 
   /**
@@ -555,6 +609,270 @@ export class WebGPUContext {
     info += ", all-memory=" + Math.ceil(this.allAllocatedBytes / (1 << 20)) + " MB";
     info += ", shader-submissions=" + this.shaderSubmitCounter;
     return info;
+  }
+
+  /**
+   * Create a sampled-token readback ring.
+   *
+   * Each submission copies a contiguous int32 token vector from a GPU buffer to a
+   * per-slot MAP_READ staging buffer and starts slot-local mapAsync.
+   */
+  createSampledTokenReadbackRing(options: SampledTokenReadbackRingOptions): number {
+    const slotCount = options.slotCount ?? 3;
+    const maxTokensPerBatch = options.maxTokensPerBatch;
+    if (!Number.isSafeInteger(slotCount) || slotCount <= 0) {
+      throw new Error(`slotCount must be a positive integer. Got ${slotCount}.`);
+    }
+    if (!Number.isSafeInteger(maxTokensPerBatch) || maxTokensPerBatch <= 0) {
+      throw new Error(
+        `maxTokensPerBatch must be a positive integer. Got ${maxTokensPerBatch}.`,
+      );
+    }
+    const slotBytes = maxTokensPerBatch * 4; // assume int32 tokens
+    const slots: InternalSampledTokenReadbackSlot[] = [];
+    for (let i = 0; i < slotCount; ++i) {
+      slots.push({
+        buffer: tryCreateBuffer(this.device, {
+          size: slotBytes,
+          usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+        }),
+        state: "free",
+        batchSeq: 0,
+        tokenCount: 0,
+        destroyAfterComplete: false,
+      });
+    }
+    const ringId = this.nextSampledTokenReadbackRingId++;
+    this.sampledTokenReadbackRings.set(ringId, {
+      id: ringId,
+      slotCount,
+      maxTokensPerBatch,
+      slotBytes,
+      slots,
+      nextSubmitCursor: 0,
+      nextBatchSeq: 1,
+      nextPollSeq: 1,
+      readyByBatchSeq: new Map<number, number>(),
+      waiters: [],
+      disposed: false,
+    });
+    return ringId;
+  }
+
+  /**
+   * Dispose a previously created sampled-token readback ring.
+   */
+  disposeSampledTokenReadbackRing(ringId: number): void {
+    const ring = this.sampledTokenReadbackRings.get(ringId);
+    if (ring === undefined) {
+      return;
+    }
+    ring.disposed = true;
+    this.sampledTokenReadbackRings.delete(ringId);
+    for (const slot of ring.slots) {
+      slot.tokens = undefined;
+      ring.readyByBatchSeq.delete(slot.batchSeq);
+      if (slot.state === "pending") {
+        slot.destroyAfterComplete = true;
+      } else {
+        slot.buffer.destroy();
+        this.resetSampledTokenReadbackSlot(slot);
+      }
+    }
+    this.notifySampledTokenReadbackRingWaiters(ring);
+  }
+
+  /**
+   * Submit a sampled-token readback batch from a GPU buffer.
+   *
+   * @param ringId Ring handle returned by createSampledTokenReadbackRing.
+   * @param from Source GPU pointer containing int32 tokens.
+   * @param fromTokenOffset Source token offset (in token units, not bytes).
+   * @param tokenCount Number of int32 token ids to copy.
+   * @param into Host array to copy the batch into instead of a new one; see
+   *   SampledTokenReadbackRing.submit.
+   * @returns Monotonic batch sequence id.
+   */
+  submitSampledTokenReadbackRing(
+    ringId: number,
+    from: GPUPointer,
+    fromTokenOffset: number,
+    tokenCount: number,
+    into?: Int32Array,
+  ): number {
+    return this.submitSampledTokenReadbackRingSources(
+      ringId,
+      [{ from, fromTokenOffset, tokenCount }],
+      into,
+    );
+  }
+
+  /** Submit token ranges, including offsets into their allocations. */
+  submitSampledTokenReadbackRingSources(
+    ringId: number,
+    sources: Array<SampledTokenReadbackSource>,
+    into?: Int32Array,
+  ): number {
+    const ring = this.requireSampledTokenReadbackRing(ringId);
+    this.throwIfSampledTokenReadbackRingFailed(ring);
+    if (sources.length === 0) {
+      throw new Error("At least one sampled-token source is required.");
+    }
+    let tokenCount = 0;
+    for (const source of sources) {
+      if (!Number.isSafeInteger(source.fromTokenOffset) || source.fromTokenOffset < 0) {
+        throw new Error(
+          `fromTokenOffset must be a non-negative integer. Got ${source.fromTokenOffset}.`,
+        );
+      }
+      if (!Number.isSafeInteger(source.tokenCount) || source.tokenCount <= 0) {
+        throw new Error(
+          `tokenCount must be a positive integer. Got ${source.tokenCount}.`,
+        );
+      }
+      tokenCount += source.tokenCount;
+    }
+    if (tokenCount > ring.maxTokensPerBatch) {
+      throw new Error(
+        `tokenCount ${tokenCount} exceeds maxTokensPerBatch ${ring.maxTokensPerBatch}.`,
+      );
+    }
+    if (into !== undefined && into.length < tokenCount) {
+      throw new Error(
+        `tokenCount ${tokenCount} exceeds the destination length ${into.length}.`,
+      );
+    }
+    // Resolve every source before a slot or batch sequence is consumed, so a
+    // bad pointer cannot leave a sequence number that never becomes ready.
+    const sourceBuffers = sources.map((source) => {
+      const buffer = this.gpuBufferFromPtr(source.from);
+      if (source.fromTokenOffset > buffer.size / 4 - source.tokenCount) {
+        throw new Error("Sampled-token readback exceeds the source buffer size.");
+      }
+      return buffer;
+    });
+    const slotIdx = this.findFreeSampledTokenReadbackSlot(ring);
+    if (slotIdx === -1) {
+      throw new Error(
+        `Sampled-token readback ring ${ring.id} is full. Drain or wait before submitting more batches.`,
+      );
+    }
+    const slot = ring.slots[slotIdx];
+    const nbytes = tokenCount * 4;
+
+    // A synchronous encoding/submission failure must also wake existing waiters.
+    try {
+      if (!this.pendingEncoder) {
+        this.pendingEncoder = this.device.createCommandEncoder();
+      }
+      let toByteOffset = 0;
+      for (const [i, source] of sources.entries()) {
+        const sourceBytes = source.tokenCount * 4;
+        this.pendingEncoder.copyBufferToBuffer(
+          sourceBuffers[i],
+          source.fromTokenOffset * 4,
+          slot.buffer,
+          toByteOffset,
+          sourceBytes,
+        );
+        toByteOffset += sourceBytes;
+      }
+      this.flushCommands();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      ring.fatalError = error;
+      this.notifySampledTokenReadbackRingWaiters(ring, error);
+      throw error;
+    }
+
+    const batchSeq = ring.nextBatchSeq++;
+    slot.state = "pending";
+    slot.batchSeq = batchSeq;
+    slot.tokenCount = tokenCount;
+    slot.tokens = undefined;
+
+    const readPromise = slot.buffer
+      .mapAsync(GPUMapMode.READ, 0, nbytes)
+      .then(() => {
+        // The owner of a disposed ring may already be reusing `into`.
+        if (ring.disposed) {
+          slot.buffer.unmap();
+          if (slot.destroyAfterComplete) {
+            slot.buffer.destroy();
+            slot.destroyAfterComplete = false;
+          }
+          this.resetSampledTokenReadbackSlot(slot);
+          return;
+        }
+        const tokens = (into ?? new Int32Array(tokenCount)).subarray(0, tokenCount);
+        tokens.set(new Int32Array(slot.buffer.getMappedRange(0, nbytes)));
+        slot.buffer.unmap();
+
+        slot.tokens = tokens;
+        slot.state = "ready";
+        ring.readyByBatchSeq.set(batchSeq, slotIdx);
+        this.notifySampledTokenReadbackRingWaiters(ring);
+      })
+      .catch((err) => {
+        slot.buffer.unmap();
+        if (ring.disposed) {
+          if (slot.destroyAfterComplete) {
+            slot.buffer.destroy();
+            slot.destroyAfterComplete = false;
+          }
+          this.resetSampledTokenReadbackSlot(slot);
+          return;
+        }
+        // The error is delivered to waiters and to the next ring call through
+        // fatalError. Rethrowing here would only make it an unhandled rejection.
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.resetSampledTokenReadbackSlot(slot);
+        ring.fatalError = error;
+        this.notifySampledTokenReadbackRingWaiters(ring, error);
+      })
+      .finally(() => {
+        slot.pendingPromise = undefined;
+      });
+    slot.pendingPromise = readPromise;
+    this.trackPendingSampledTokenReadbackRead(readPromise);
+    return batchSeq;
+  }
+
+  /**
+   * Poll ready batches in sequence order.
+   */
+  pollSampledTokenReadbackRing(ringId: number): Array<SampledTokenReadbackBatch> {
+    const ring = this.requireSampledTokenReadbackRing(ringId);
+    this.throwIfSampledTokenReadbackRingFailed(ring);
+    return this.drainReadySampledTokenReadbackBatches(ring);
+  }
+
+  /**
+   * Wait until at least one batch becomes ready, then return all currently
+   * contiguous ready batches.
+   */
+  async waitSampledTokenReadbackRing(
+    ringId: number,
+  ): Promise<Array<SampledTokenReadbackBatch>> {
+    const ring = this.requireSampledTokenReadbackRing(ringId);
+    this.throwIfSampledTokenReadbackRingFailed(ring);
+    const readyNow = this.drainReadySampledTokenReadbackBatches(ring);
+    if (readyNow.length > 0) {
+      return readyNow;
+    }
+    // Slots can finish mapping out of submission order, so a wake-up for a
+    // later batch is not enough: wait until the next batch in sequence is ready.
+    while (!ring.disposed && this.sampledTokenReadbackRingHasPending(ring)) {
+      await new Promise<void>((resolve, reject) => {
+        ring.waiters.push({ resolve, reject });
+      });
+      this.throwIfSampledTokenReadbackRingFailed(ring);
+      const ready = this.drainReadySampledTokenReadbackBatches(ring);
+      if (ready.length > 0) {
+        return ready;
+      }
+    }
+    return [];
   }
 
   /**
@@ -940,6 +1258,108 @@ export class WebGPUContext {
     } else {
       throw new Error("Unknown DeviceAPI function " + name);
     }
+  }
+
+  private requireSampledTokenReadbackRing(
+    ringId: number,
+  ): InternalSampledTokenReadbackRing {
+    const ring = this.sampledTokenReadbackRings.get(ringId);
+    if (ring === undefined || ring.disposed) {
+      throw new Error(`Cannot find sampled-token readback ring ${ringId}.`);
+    }
+    return ring;
+  }
+
+  private throwIfSampledTokenReadbackRingFailed(
+    ring: InternalSampledTokenReadbackRing,
+  ): void {
+    if (ring.fatalError !== undefined) {
+      throw ring.fatalError;
+    }
+  }
+
+  private findFreeSampledTokenReadbackSlot(
+    ring: InternalSampledTokenReadbackRing,
+  ): number {
+    for (let i = 0; i < ring.slotCount; ++i) {
+      const idx = (ring.nextSubmitCursor + i) % ring.slotCount;
+      if (ring.slots[idx].state === "free") {
+        ring.nextSubmitCursor = (idx + 1) % ring.slotCount;
+        return idx;
+      }
+    }
+    return -1;
+  }
+
+  private resetSampledTokenReadbackSlot(
+    slot: InternalSampledTokenReadbackSlot,
+  ): void {
+    slot.state = "free";
+    slot.batchSeq = 0;
+    slot.tokenCount = 0;
+    slot.tokens = undefined;
+    slot.pendingPromise = undefined;
+  }
+
+  private sampledTokenReadbackRingHasPending(
+    ring: InternalSampledTokenReadbackRing,
+  ): boolean {
+    for (const slot of ring.slots) {
+      if (slot.state === "pending") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private drainReadySampledTokenReadbackBatches(
+    ring: InternalSampledTokenReadbackRing,
+  ): Array<SampledTokenReadbackBatch> {
+    const ret: Array<SampledTokenReadbackBatch> = [];
+    while (true) {
+      const slotIdx = ring.readyByBatchSeq.get(ring.nextPollSeq);
+      if (slotIdx === undefined) {
+        break;
+      }
+      const slot = ring.slots[slotIdx];
+      if (slot.state !== "ready" || slot.tokens === undefined) {
+        break;
+      }
+      ret.push({
+        batchSeq: slot.batchSeq,
+        tokenCount: slot.tokenCount,
+        tokens: slot.tokens,
+      });
+      ring.readyByBatchSeq.delete(ring.nextPollSeq);
+      ring.nextPollSeq += 1;
+      this.resetSampledTokenReadbackSlot(slot);
+    }
+    return ret;
+  }
+
+  private notifySampledTokenReadbackRingWaiters(
+    ring: InternalSampledTokenReadbackRing,
+    error?: Error,
+  ): void {
+    if (ring.waiters.length === 0) {
+      return;
+    }
+    const waiters = ring.waiters.splice(0, ring.waiters.length);
+    for (const waiter of waiters) {
+      if (error !== undefined) {
+        waiter.reject(error);
+      } else {
+        waiter.resolve();
+      }
+    }
+  }
+
+  private trackPendingSampledTokenReadbackRead(readPromise: Promise<void>): void {
+    let trackedPromise: Promise<void>;
+    trackedPromise = readPromise.finally(() => {
+      this.pendingSampledTokenReadbackReads.delete(trackedPromise);
+    });
+    this.pendingSampledTokenReadbackReads.add(trackedPromise);
   }
 
   // DeviceAPI
