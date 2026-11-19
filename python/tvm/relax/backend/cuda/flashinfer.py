@@ -57,6 +57,47 @@ def _load_flashinfer_modules(object_files: list[Path]) -> list[tvm_ffi.Module]:
     ]
 
 
+def _wrap_prefill_plan(source_paths: list[Path]):
+    """Keep TVM's planning interface across FlashInfer's uniform-query extension."""
+    export = "TVM_FFI_DLL_EXPORT_TYPED_FUNC(plan, BatchPrefillWithKVCachePlan);"
+    wrapper = r"""
+#include <type_traits>
+
+template <typename Plan, typename... Args>
+static auto TVMPrefillPlanCall(Plan plan, Args... args) {
+  if constexpr (std::is_invocable_v<Plan, Args...>) {
+    return plan(args...);
+  } else {
+    return plan(args..., int64_t{0}, false);
+  }
+}
+
+static Array<int64_t> TVMPrefillPlan(
+    TensorView float_workspace_buffer, TensorView int_workspace_buffer,
+    TensorView page_locked_int_workspace_buffer, TensorView qo_indptr, TensorView kv_indptr,
+    TensorView kv_len_arr, int64_t total_num_rows, int64_t batch_size, int64_t num_qo_heads,
+    int64_t num_kv_heads, int64_t page_size, bool enable_cuda_graph, int64_t head_dim_qk,
+    int64_t head_dim_vo, bool causal, int64_t window_left, int64_t fixed_split_size,
+    bool disable_split_kv, int64_t num_colocated_ctas) {
+  return TVMPrefillPlanCall(
+      BatchPrefillWithKVCachePlan, float_workspace_buffer, int_workspace_buffer,
+      page_locked_int_workspace_buffer, qo_indptr, kv_indptr, kv_len_arr, total_num_rows,
+      batch_size, num_qo_heads, num_kv_heads, page_size, enable_cuda_graph, head_dim_qk,
+      head_dim_vo, causal, window_left, fixed_split_size, disable_split_kv, num_colocated_ctas);
+}
+
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(plan, TVMPrefillPlan);
+"""
+    for source_path in source_paths:
+        if not source_path.name.endswith("_binding.cu"):
+            continue
+        text = source_path.read_text(encoding="utf-8")
+        if export in text:
+            source_path.write_text(text.replace(export, wrapper), encoding="utf-8")
+            return
+    raise ValueError("FlashInfer prefill binding does not export its planner")
+
+
 def gen_flashinfer_prefill_module(
     dtype_q: str,
     dtype_kv: str,
@@ -125,7 +166,7 @@ def gen_flashinfer_prefill_module(
     )
     jit_spec = gen_customize_batch_prefill_module(
         backend=backend,
-        uri=f"batch_prefill_tvm_dtype_q_{dtype_q}_"
+        uri=f"batch_prefill_tvm_plan_v1_dtype_q_{dtype_q}_"
         + f"dtype_kv_{dtype_kv}_"
         + f"dtype_o_{dtype_o}_"
         + f"qk_head_dim_{qk_head_dim}_"
@@ -145,6 +186,7 @@ def gen_flashinfer_prefill_module(
         variant_name=variant_name,
         variant_decl=variant_decl,
     )
+    _wrap_prefill_plan(jit_spec.sources)
     _rename_exported_func_names(jit_spec.sources, "batch_prefill")
     if return_static_libs:
         jit_spec.build(verbose=False)
