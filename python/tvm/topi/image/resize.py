@@ -1202,7 +1202,7 @@ def _resize_3d(
         out = tvm_tirx.tirx.if_then_else(
             in_y < 0,
             extrapolation_value,
-            tvm_tirx.tirx.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+            tvm_tirx.tirx.if_then_else(in_y > image_height - 1, extrapolation_value, out),
         )
         # use extrapolation_value if in_x is out of boundary
         value = tvm_tirx.tirx.if_then_else(
