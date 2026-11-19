@@ -18,6 +18,8 @@
 """FlashInfer JIT compilation module for CUDA backend"""
 
 import re
+import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import tvm_ffi
@@ -335,11 +337,99 @@ def gen_flashinfer_mla_module(
         head_dim_kpe=head_dim_kpe,
         use_profiler=False,
     )
+    source_dir = jit_spec.sources[0].parent
+    name = f"{jit_spec.name}_tvm_v1"
+    destination = source_dir.with_name(name)
+    shutil.copytree(source_dir, destination, dirs_exist_ok=True)
+    overrides = {
+        "name": name,
+        "sources": [destination / source.name for source in jit_spec.sources],
+    }
+    if hasattr(jit_spec, "post_load_adapter"):
+        overrides["post_load_adapter"] = None
+    jit_spec = replace(jit_spec, **overrides)
+    _wrap_mla_functions(jit_spec.sources)
     _rename_exported_func_names(jit_spec.sources, "batch_mla")
     if return_static_libs:
         jit_spec.build(verbose=False)
         return _load_flashinfer_modules(jit_spec.get_object_paths())
     return [jit_spec.build_and_load()]
+
+
+def _wrap_mla_functions(source_paths: list[Path]):
+    """Adapt MLA planning and unit KV scales without changing the cache runtime ABI."""
+    plan_export = "TVM_FFI_DLL_EXPORT_TYPED_FUNC(plan, BatchMLAPagedAttentionPlan);"
+    run_export = "TVM_FFI_DLL_EXPORT_TYPED_FUNC(run, BatchMLAPagedAttentionRun);"
+    wrapper = r"""
+#include <type_traits>
+
+template <typename Plan, typename... Args>
+static Array<int64_t> TVMMLAPlanCall(
+    Plan plan, TensorView float_workspace, TensorView int_workspace,
+    TensorView pinned_workspace, Args... args) {
+  auto result = plan(float_workspace, int_workspace, pinned_workspace, args...);
+  if constexpr (std::is_same_v<decltype(result), Array<int64_t>>) {
+    return result;
+  } else {
+    int64_t bytes = result.template get<1>();
+    TVM_FFI_ICHECK_GE(bytes, 0);
+    TVM_FFI_ICHECK_LE(bytes, int_workspace.size(0) * get_element_size(int_workspace));
+    TVM_FFI_ICHECK_LE(bytes, pinned_workspace.size(0) * get_element_size(pinned_workspace));
+    if (bytes != 0) {
+      ffi::CUDADeviceGuard guard(float_workspace.device().device_id);
+      cudaError_t status = cudaMemcpyAsync(
+          int_workspace.data_ptr(), pinned_workspace.data_ptr(), bytes,
+          cudaMemcpyHostToDevice, get_stream(float_workspace.device()));
+      TVM_FFI_ICHECK(status == cudaSuccess) << cudaGetErrorString(status);
+    }
+    return result.template get<0>();
+  }
+}
+
+static Array<int64_t> TVMMLAPlan(
+    TensorView float_workspace, TensorView int_workspace, TensorView pinned_workspace,
+    TensorView qo_indptr, TensorView kv_indptr, TensorView kv_len,
+    int64_t num_heads, int64_t head_dim_o, bool causal) {
+  return TVMMLAPlanCall(BatchMLAPagedAttentionPlan, float_workspace, int_workspace,
+                       pinned_workspace, qo_indptr, kv_indptr, kv_len,
+                       num_heads, head_dim_o, causal);
+}
+
+template <typename Run, typename... Args>
+static void TVMMLARunCall(Run run, Args... args) {
+  if constexpr (std::is_invocable_v<Run, Args...>) {
+    run(args...);
+  } else if constexpr (std::is_invocable_v<Run, Args..., double, double>) {
+    run(args..., 1.0, 1.0);
+  } else {
+    run(args..., 1.0, 1.0, Optional<TensorView>{});
+  }
+}
+
+static void TVMMLARun(
+    TensorView float_workspace, TensorView int_workspace, Array<int64_t> plan_info,
+    TensorView q_nope, TensorView q_pe, TensorView ckv_cache, TensorView kpe_cache,
+    TensorView kv_indices, TensorView output, Optional<TensorView> lse,
+    int64_t mask_mode, int64_t num_heads, int64_t page_size, double sm_scale,
+    bool return_lse_base_on_e) {
+  TVMMLARunCall(BatchMLAPagedAttentionRun, float_workspace, int_workspace, plan_info,
+                q_nope, q_pe, ckv_cache, kpe_cache, kv_indices, output, lse,
+                mask_mode, num_heads, page_size, sm_scale, return_lse_base_on_e);
+}
+
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(plan, TVMMLAPlan);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(run, TVMMLARun);
+"""
+    for source_path in source_paths:
+        if not source_path.name.endswith("_binding.cu"):
+            continue
+        text = source_path.read_text(encoding="utf-8")
+        if plan_export in text and run_export in text:
+            source_path.write_text(
+                text.replace(plan_export, wrapper).replace(run_export, ""), encoding="utf-8"
+            )
+            return
+    raise ValueError("FlashInfer MLA binding does not export its planner and runner")
 
 
 def gen_grouped_gemm_module(
