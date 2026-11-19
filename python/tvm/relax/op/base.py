@@ -19,6 +19,7 @@
 
 from collections.abc import Callable
 
+import numpy as np
 import tvm_ffi
 
 import tvm
@@ -459,7 +460,7 @@ def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm_tirx.runtime.Tensor
     shape_tuple: tvm_ffi.Shape
         Shape tuple that we want to convert to Tensor at runtime
     """
-    return tvm_tirx.runtime.tensor([int(v) for v in shape_tuple])
+    return tvm_tirx.runtime.tensor(np.asarray([int(v) for v in shape_tuple], dtype="int64"))
 
 
 @tvm_ffi.register_global_func("relax.run.print")

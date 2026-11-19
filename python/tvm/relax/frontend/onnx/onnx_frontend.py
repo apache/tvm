@@ -7247,7 +7247,14 @@ class ONNXGraphImporter:
                     and isinstance(inp.ty, relax.ShapeType)
                     and op_name not in shape_compatible_ops
                 ):
-                    raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
+                    if op_name == "Add":
+                        tensor = self.bb.normalize(relax.op.shape_to_tensor(inp))
+                        if inp.ty.ndim < 0:
+                            rank = tirx.Var("shape_rank", "int64")
+                            tensor = self.bb.match_cast(tensor, relax.TensorType([rank], "int64"))
+                        inputs[i] = tensor
+                    else:
+                        raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
             try:
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
             except Exception as err:  # pylint: disable=broad-exception-caught

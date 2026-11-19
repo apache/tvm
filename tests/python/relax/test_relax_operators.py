@@ -308,6 +308,96 @@ def test_op_shape_to_tensor():
     assert np.array_equal(outs.numpy(), np.array([3, 2]))
 
 
+def test_shape_to_tensor_unknown_rank_has_unknown_length():
+    result_type = ShapeToTensorTest["const_shape"].body.ty
+    assert result_type.ndim == 1
+    assert result_type.shape is None
+
+
+def test_shape_to_tensor_empty_shape_dtype():
+    result = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([])).numpy()
+    assert result.shape == (0,)
+    assert result.dtype == np.dtype("int64")
+
+
+@pytest.mark.parametrize(
+    "a_values,b_values",
+    [
+        ([2, 3], [4]),
+        ([4], [2, 3]),
+        ([2, 3], [4, 5]),
+        ([], [4]),
+        ([4], []),
+        ([], []),
+    ],
+)
+def test_add_independent_symbolic_lengths(a_values, b_values):
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(a: R.Tensor((m,), "int64"), b: R.Tensor((n,), "int64")):
+            return R.add(a, b)
+
+    a_np = np.array(a_values, dtype="int64")
+    b_np = np.array(b_values, dtype="int64")
+    a = tvm_tirx.runtime.tensor(a_np)
+    b = tvm_tirx.runtime.tensor(b_np)
+    np.testing.assert_array_equal(run_cpu(Module, "main", a, b).numpy(), a_np + b_np)
+
+
+@pytest.mark.parametrize("lengths", [(2, 3), (0, 2), (2, 0)])
+def test_add_independent_symbolic_lengths_incompatible(lengths):
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(a: R.Tensor((m,), "int64"), b: R.Tensor((n,), "int64")):
+            return R.add(a, b)
+
+    ex = relax.build(Module, target="llvm")
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+    a = tvm_tirx.runtime.tensor(np.arange(lengths[0], dtype="int64"))
+    b = tvm_tirx.runtime.tensor(np.arange(lengths[1], dtype="int64"))
+    with pytest.raises(ValueError, match="broadcast"):
+        vm["main"](a, b)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float32", "int32"])
+def test_add_independent_symbolic_lengths_dtype(dtype):
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(a: R.Tensor((m,), dtype), b: R.Tensor((n,), dtype)):
+            return R.add(a, b)
+
+    a_np = np.array([2, -3], dtype=dtype)
+    b_np = np.array([1], dtype=dtype)
+    a = tvm_tirx.runtime.tensor(a_np)
+    b = tvm_tirx.runtime.tensor(b_np)
+    np.testing.assert_array_equal(run_cpu(Module, "main", a, b).numpy(), a_np + b_np)
+
+
+@pytest.mark.parametrize("left_dtype,right_dtype", [("bool", "float32"), ("float32", "bool")])
+def test_add_independent_symbolic_lengths_mixed_bool(left_dtype, right_dtype):
+    @I.ir_module
+    class Dynamic:
+        @R.function
+        def main(a: R.Tensor((m,), left_dtype), b: R.Tensor((n,), right_dtype)):
+            return R.add(a, b)
+
+    @I.ir_module
+    class Static:
+        @R.function
+        def main(a: R.Tensor((2,), left_dtype), b: R.Tensor((1,), right_dtype)):
+            return R.add(a, b)
+
+    a = tvm_tirx.runtime.tensor(np.array([0, 1], dtype=left_dtype))
+    b = tvm_tirx.runtime.tensor(np.array([1], dtype=right_dtype))
+    expected = run_cpu(Static, "main", a, b).numpy()
+    actual = run_cpu(Dynamic, "main", a, b).numpy()
+    np.testing.assert_array_equal(actual, expected)
+    assert actual.dtype == expected.dtype
+
+
 def test_op_call_pure_packed():
     @tvm_tirx.script.ir_module
     class CallPureTest:

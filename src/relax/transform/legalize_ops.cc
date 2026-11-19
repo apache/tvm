@@ -308,6 +308,15 @@ class LegalizeMutator : public ExprMutator {
       }();
       bool ret_shape_defined = KnowAllShapeValues(GetType(visited_call));
       if (!is_data_dependent_op && !ret_shape_defined) {
+        // The dynamic one-dimensional add legalization computes and checks
+        // its broadcast shape at runtime.
+        if (op.same_as(Op::Get("relax.add")) && visited_call->args.size() == 2) {
+          const auto* lhs = GetType(visited_call->args[0]).as<TensorTypeObj>();
+          const auto* rhs = GetType(visited_call->args[1]).as<TensorTypeObj>();
+          if (lhs && rhs && lhs->ndim == 1 && rhs->ndim == 1) {
+            return true;
+          }
+        }
         // This operator cannot be legalized, because legalization by
         // default requires the output shape.  The exception is
         // data-dependent operators (e.g. `R.dynamic_strided_slice`),
