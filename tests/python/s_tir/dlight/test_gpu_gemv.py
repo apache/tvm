@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
@@ -1163,9 +1165,54 @@ def test_gemv_rank_one_vector_input():
 
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
     sch = tvm.s_tir.Schedule(mod)
-    vector_local = sch.get_sblock("vector_local")
-    vector_load_loop = sch.get(sch.get_loops(vector_local)[-1])
-    assert vector_load_loop.kind == tvm_tirx.ir.ForKind.VECTORIZED
+    matrix_local = sch.get_sblock("matrix_local")
+    matrix_load_loop = sch.get(sch.get_loops(matrix_local)[-1])
+    assert matrix_load_loop.kind == tvm_tirx.ir.ForKind.VECTORIZED
+    sch.get_sblock("vector_shared")
+
+
+@pytest.mark.parametrize("matrix_first", [False, True])
+def test_gemv_cache_follows_operand_role(matrix_first):
+    n = 512
+
+    @Ts.function(private=True)
+    def vector_first_func(
+        matrix: T.Tensor((n, 128), "float32"),
+        vector: T.Tensor((128,), "float32"),
+        output: T.Tensor((n,), "float32"),
+    ):
+        for i, k in T.grid(n, 128):
+            with Ts.sblock("gemv"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(vector[vk], matrix[vi, vk])
+                Ts.writes(output[vi])
+                with Ts.init():
+                    output[vi] = T.float32(0)
+                output[vi] += vector[vk] * matrix[vi, vk]
+
+    @Ts.function(private=True)
+    def matrix_first_func(
+        matrix: T.Tensor((n, 128), "float32"),
+        vector: T.Tensor((128,), "float32"),
+        output: T.Tensor((n,), "float32"),
+    ):
+        for i, k in T.grid(n, 128):
+            with Ts.sblock("gemv"):
+                vi, vk = Ts.axis.remap("SR", [i, k])
+                Ts.reads(matrix[vi, vk], vector[vk])
+                Ts.writes(output[vi])
+                with Ts.init():
+                    output[vi] = T.float32(0)
+                output[vi] += matrix[vi, vk] * vector[vk]
+
+    before = matrix_first_func if matrix_first else vector_first_func
+    after = dl.ApplyDefaultSchedule(dl.gpu.GEMV(), target=Target("nvidia/geforce-rtx-3090-ti"))(
+        tvm_tirx.IRModule({"main": before})
+    )
+    sch = tvm.s_tir.Schedule(after)
+    sch.get_sblock("matrix_local")
+    shared = sch.get(sch.get_sblock("vector_shared"))
+    assert shared.reads[0].source.name == "vector"
 
 
 def test_gemv_broadcast_epilogue():
