@@ -20,6 +20,7 @@
  * \file src/runtime/vm/paged_kv_cache.cc
  * \brief Runtime paged KV cache object for language models.
  */
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/json.h>
@@ -27,9 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -44,6 +43,7 @@
 #include "attn_backend.h"
 #include "attn_utils.h"
 #include "kv_state.h"
+#include "nvtx.h"
 
 namespace tvm {
 namespace runtime {
@@ -173,7 +173,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief The RoPE theta. */
   const double rotary_theta_;
   /*! \brief The optional RoPE extension factors for RoPE scaling. */
-  const ffi::Optional<Tensor> rope_ext_factors_;
+  const ffi::Optional<ffi::Tensor> rope_ext_factors_;
 
   /*! \brief The KV cache dtype. */
   const DLDataType kv_dtype_;
@@ -190,19 +190,22 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * has layout (num_pages, 2, num_heads, page_size, qk_head_dim).
    * Along on the "2" dimension, index 0 stands for K and 1 stands for V.
    */
-  std::vector<Tensor> pages_;
+  std::vector<ffi::Tensor> pages_;
   /*! \brief A reusable host-side zero page for deterministic checkpoint padding. */
-  Tensor checkpoint_zero_page_host_;
+  ffi::Optional<ffi::Tensor> checkpoint_zero_page_host_;
   /*! \brief The whole KV cache allocated by NVSHMEM*/
-  Tensor nvshmem_pages_;
+  ffi::Optional<ffi::Tensor> nvshmem_pages_;
   /*! \brief The list of ids of released pages for page reuse. */
   std::vector<int32_t> free_page_ids_;
   /*! \brief The mapping from sequence ids to sequences. */
   std::unordered_map<int64_t, Sequence> seq_map_;
   /*! \brief Whether a checkpoint import is waiting for all page groups. */
   bool checkpoint_import_in_progress_ = false;
-  /*! \brief The page groups restored by the current checkpoint import. */
-  std::vector<bool> checkpoint_imported_groups_;
+  /*!
+   * \brief Per page group, the logical pages restored by the current checkpoint
+   * import from page 0, or -1 if nothing has been imported yet.
+   */
+  std::vector<int64_t> checkpoint_imported_pages_;
 
   /********************* Sequence Block Structures *********************/
 
@@ -249,15 +252,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedKVCacheAuxDataManager> aux_data_manager_;
 
   // Temporary arrays to store intermediate attention results.
-  Tensor temp_attn_q_device_;
-  Tensor temp_attn_k_device_;
-  Tensor temp_attn_v_device_;
-  Tensor temp_attn_output_device_;
-  Tensor temp_attn_lse_device_;
-  Tensor merged_attn_lse_device_;
-  std::vector<Tensor> temp_int_attn_workspace_;
-  std::vector<Tensor> temp_int_pinned_attn_workspace_;
-  Tensor temp_float_attn_workspace_;
+  ffi::Optional<ffi::Tensor> temp_attn_q_device_;
+  ffi::Optional<ffi::Tensor> temp_attn_k_device_;
+  ffi::Optional<ffi::Tensor> temp_attn_v_device_;
+  ffi::Tensor temp_attn_output_device_;
+  ffi::Tensor temp_attn_lse_device_;
+  ffi::Tensor merged_attn_lse_device_;
+  std::vector<ffi::Tensor> temp_int_attn_workspace_;
+  std::vector<ffi::Tensor> temp_int_pinned_attn_workspace_;
+  ffi::Optional<ffi::Tensor> temp_float_attn_workspace_;
 
   std::vector<ffi::Any> retrieve_ret_;
 
@@ -297,29 +300,29 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   // after each synchronization and pass these views as input for
   // attention/append.
   //-------------------------------------------
-  Tensor cur_append_length_indptr_view_;
-  Tensor k_ragged_rope_pos_offset_view_;
-  Tensor q_rope_position_map_view_;
-  Tensor append_position_map_view_;
-  Tensor kv_transfer_remote_position_map_view_;
-  Tensor kv_transfer_recver_id_view_;
-  Tensor kv_transfer_page_to_page_local_position_map_view_;
-  Tensor kv_transfer_page_to_page_remote_position_map_view_;
-  Tensor kv_transfer_page_to_page_recver_id_view_;
-  Tensor temp_attn_output_view_;
-  Tensor temp_attn_lse_view_;
-  Tensor merged_attn_lse_view_;
-  std::vector<Tensor> qo_indptr_on_depths_view_;
-  std::vector<Tensor> page_indptr_on_depths_view_;
-  std::vector<Tensor> page_indices_on_depths_view_;
-  std::vector<Tensor> page_indptr_sliding_window_on_depths_view_;
-  std::vector<Tensor> page_indices_sliding_window_on_depths_view_;
-  std::vector<Tensor> length_info_on_depths_view_;
-  std::vector<Tensor> layer_sliding_window_length_info_on_depths_view_;
-  std::vector<Tensor> k_rope_pos_offset_view_;
-  std::vector<Tensor> k_rope_pos_offset_sliding_window_view_;
-  std::vector<Tensor> tree_attn_mask_view_;
-  std::vector<Tensor> tree_attn_mn_indptr_view_;
+  ffi::Optional<ffi::Tensor> cur_append_length_indptr_view_;
+  ffi::Optional<ffi::Tensor> k_ragged_rope_pos_offset_view_;
+  ffi::Optional<ffi::Tensor> q_rope_position_map_view_;
+  ffi::Optional<ffi::Tensor> append_position_map_view_;
+  ffi::Optional<ffi::Tensor> kv_transfer_remote_position_map_view_;
+  ffi::Optional<ffi::Tensor> kv_transfer_recver_id_view_;
+  ffi::Optional<ffi::Tensor> kv_transfer_page_to_page_local_position_map_view_;
+  ffi::Optional<ffi::Tensor> kv_transfer_page_to_page_remote_position_map_view_;
+  ffi::Optional<ffi::Tensor> kv_transfer_page_to_page_recver_id_view_;
+  ffi::Optional<ffi::Tensor> temp_attn_output_view_;
+  ffi::Optional<ffi::Tensor> temp_attn_lse_view_;
+  ffi::Optional<ffi::Tensor> merged_attn_lse_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> qo_indptr_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> page_indptr_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> page_indices_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> page_indptr_sliding_window_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> page_indices_sliding_window_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> length_info_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> layer_sliding_window_length_info_on_depths_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> k_rope_pos_offset_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> k_rope_pos_offset_sliding_window_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> tree_attn_mask_view_;
+  std::vector<ffi::Optional<ffi::Tensor>> tree_attn_mn_indptr_view_;
 
   ffi::Optional<ffi::Function> f_transpose_append_mha_;
   ffi::Optional<ffi::Function> f_transpose_append_mla_;
@@ -372,7 +375,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t v_head_dim, std::vector<AttnKind> attn_kinds, int64_t reserved_num_seqs,
       int64_t num_total_pages, int64_t prefill_chunk_size, bool support_sliding_window,
       int64_t layer_sliding_window_size, RoPEMode rope_mode, double rotary_scale,
-      double rotary_theta, ffi::Optional<Tensor> rope_ext_factors, bool enable_kv_transfer,
+      double rotary_theta, ffi::Optional<ffi::Tensor> rope_ext_factors, bool enable_kv_transfer,
       DLDataType dtype, Device device, ffi::Optional<ffi::Function> f_transpose_append_mha,
       ffi::Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
@@ -409,6 +412,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         rotary_theta_(rotary_theta),
         rope_ext_factors_(std::move(rope_ext_factors)),
         kv_dtype_(dtype),
+        temp_attn_output_device_(
+            tvm::runtime::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device)),
+        temp_attn_lse_device_(tvm::runtime::Empty({prefill_chunk_size_, num_qo_heads},
+                                                  DLDataType{kDLFloat, 32, 1}, device)),
+        merged_attn_lse_device_(tvm::runtime::Empty({prefill_chunk_size_, num_qo_heads},
+                                                    DLDataType{kDLFloat, 32, 1}, device)),
         f_transpose_append_mha_(std::move(f_transpose_append_mha)),
         f_transpose_append_mla_(std::move(f_transpose_append_mla)),
         f_compact_copy_(std::move(f_compact_copy)),
@@ -450,12 +459,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           (*f_nvshmem_empty)(
               ffi::Shape({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}),
               dtype, device)
-              .cast<Tensor>();
+              .cast<ffi::Tensor>();
       for (int i = 0; i < num_layers; ++i) {
-        pages_.push_back(nvshmem_pages_.CreateView(
-            {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_}, nvshmem_pages_->dtype,
+        pages_.push_back(tvm::runtime::CreateView(
+            nvshmem_pages_.value(), {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_},
+            nvshmem_pages_.value().dtype(),
             i * num_total_pages_ * 2 * num_kv_heads_ * page_size_ * qk_head_dim_ *
-                (nvshmem_pages_.DataType().bits + 7) / 8));
+                (nvshmem_pages_.value().dtype().bits + 7) / 8));
       }
 
       const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("nvshmem.KVTransfer");
@@ -470,7 +480,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         ffi::Shape kv_cache_shape =
             GetKVCacheShape(attn_kinds_[layer_id_begin_offset_ + i], num_total_pages,
                             reserved_num_seqs, num_kv_heads, page_size, qk_head_dim, v_head_dim);
-        pages_.push_back(Tensor::Empty(kv_cache_shape, dtype, device));
+        pages_.push_back(tvm::runtime::Empty(kv_cache_shape, dtype, device));
       }
     }
 
@@ -533,47 +543,41 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
       if (NeedKernelBeginForward()) {
         temp_int_attn_workspace_.push_back(
-            Tensor::Empty({kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device));
-        temp_int_pinned_attn_workspace_.push_back(Tensor::Empty(
+            tvm::runtime::Empty({kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device));
+        temp_int_pinned_attn_workspace_.push_back(tvm::runtime::Empty(
             {kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, GetPreferredHostDevice(device)));
       }
-      qo_indptr_on_depths_view_.push_back(Tensor());
-      page_indptr_on_depths_view_.push_back(Tensor());
-      page_indices_on_depths_view_.push_back(Tensor());
-      page_indptr_sliding_window_on_depths_view_.push_back(Tensor());
-      page_indices_sliding_window_on_depths_view_.push_back(Tensor());
-      length_info_on_depths_view_.push_back(Tensor());
-      layer_sliding_window_length_info_on_depths_view_.push_back(Tensor());
-      k_rope_pos_offset_view_.push_back(Tensor());
-      k_rope_pos_offset_sliding_window_view_.push_back(Tensor());
-      tree_attn_mask_view_.push_back(Tensor());
-      tree_attn_mn_indptr_view_.push_back(Tensor());
+      qo_indptr_on_depths_view_.push_back(std::nullopt);
+      page_indptr_on_depths_view_.push_back(std::nullopt);
+      page_indices_on_depths_view_.push_back(std::nullopt);
+      page_indptr_sliding_window_on_depths_view_.push_back(std::nullopt);
+      page_indices_sliding_window_on_depths_view_.push_back(std::nullopt);
+      length_info_on_depths_view_.push_back(std::nullopt);
+      layer_sliding_window_length_info_on_depths_view_.push_back(std::nullopt);
+      k_rope_pos_offset_view_.push_back(std::nullopt);
+      k_rope_pos_offset_sliding_window_view_.push_back(std::nullopt);
+      tree_attn_mask_view_.push_back(std::nullopt);
+      tree_attn_mn_indptr_view_.push_back(std::nullopt);
       is_chain_on_depths_.push_back(true);
     }
     // Additional workspace for the "prefill with ragged kv" kernel.
     if (NeedKernelBeginForward()) {
       temp_int_attn_workspace_.push_back(
-          Tensor::Empty({kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device));
-      temp_int_pinned_attn_workspace_.push_back(Tensor::Empty(
+          tvm::runtime::Empty({kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device));
+      temp_int_pinned_attn_workspace_.push_back(tvm::runtime::Empty(
           {kIntAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, GetPreferredHostDevice(device)));
       temp_float_attn_workspace_ =
-          Tensor::Empty({kFloatAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device);
+          tvm::runtime::Empty({kFloatAttnWorkspaceByte}, DLDataType{kDLUInt, 8, 1}, device);
     }
 
     if (std::find(attn_kinds_.begin(), attn_kinds_.end(), AttnKind::kMHA) != attn_kinds_.end()) {
       temp_attn_q_device_ =
-          Tensor::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
+          tvm::runtime::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
       temp_attn_k_device_ =
-          Tensor::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
+          tvm::runtime::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
       temp_attn_v_device_ =
-          Tensor::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
+          tvm::runtime::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
     }
-    temp_attn_output_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device);
-    temp_attn_lse_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DLDataType{kDLFloat, 32, 1}, device);
-    merged_attn_lse_device_ =
-        Tensor::Empty({prefill_chunk_size_, num_qo_heads}, DLDataType{kDLFloat, 32, 1}, device);
     for (int64_t page_id = num_total_pages - 1; page_id >= 0; --page_id) {
       free_page_ids_.push_back(page_id);
     }
@@ -599,7 +603,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     } else {
       aux_data_manager_ = std::make_unique<PlainPagedKVCacheAuxDataManager>(
           reserved_num_seqs, num_total_pages, prefill_chunk_size, dtype_aux_, device,
-          preferred_host_device, copy_stream_);
+          preferred_host_device, copy_stream_, support_layer_sliding_window_);
     }
 
     // Right now only the "normal" RoPE mode supports the RoPE extention factors.
@@ -623,7 +627,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void Clear() final {
     seq_map_.clear();
     checkpoint_import_in_progress_ = false;
-    checkpoint_imported_groups_.clear();
+    checkpoint_imported_pages_.clear();
     free_page_ids_.clear();
     for (int64_t page_id = num_total_pages_ - 1; page_id >= 0; --page_id) {
       free_page_ids_.push_back(page_id);
@@ -788,7 +792,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       DeviceAPI::Get(device_)->SetStream(device_, copy_stream_);
     }
     for (int layer = 0; layer < num_layers_; ++layer) {
-      Tensor page_layer_view = pages_[layer];
+      ffi::Tensor page_layer_view = pages_[layer];
       f_copy_single_page_(page_layer_view, src_page_id, tgt_page_id, copy_length);
     }
     if (copy_stream_ != compute_stream_) {
@@ -806,9 +810,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     // Copy indptr/src/dst arrays to GPU.
     aux_data_manager_->ResetCompactKVAuxDataCopy();
-    Tensor commit_copy_length_indptr_view =
+    ffi::Tensor commit_copy_length_indptr_view =
         aux_data_manager_->CopyCommitLengthIndptrAsync(&commit_copy_length_indptr_host_);
-    Tensor commit_copy_src_dst_pos_in_page_table_view =
+    ffi::Tensor commit_copy_src_dst_pos_in_page_table_view =
         aux_data_manager_->CopyCommitSrcDstPosInPageTableAsync(
             &commit_copy_src_pos_in_page_table_host_, &commit_copy_dst_pos_in_page_table_host_);
     aux_data_manager_->CommitCompactKVAuxDataCopy();
@@ -945,15 +949,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   ffi::String GetCheckpointMetadata(int64_t seq_id) const final {
     CheckCheckpointSequenceSupported(seq_id);
+    return GetCheckpointMetadataAt(seq_id, seq_map_.at(seq_id).seq_length);
+  }
+
+  ffi::String GetCheckpointMetadataAt(int64_t seq_id, int64_t seq_length) const final {
+    CheckCheckpointSequenceSupported(seq_id);
     const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointLength(seq, seq_length);
+    // Validate the page table even though only the length is reported.
+    GetNumLogicalPages(seq);
 
     namespace json = tvm::ffi::json;
     json::Object metadata = MakeLayoutMetadata();
     metadata.Set("layout_hash", GetLayoutHash());
     metadata.Set("seq_id", seq_id);
-    metadata.Set("seq_length", static_cast<int64_t>(seq.seq_length));
-    metadata.Set("logical_pages", MakeLogicalPageMetadata(seq));
-    metadata.Set("groups", MakePageGroupMetadata(seq));
+    metadata.Set("seq_length", seq_length);
+    metadata.Set("logical_pages", MakeLogicalPageMetadata(seq_length));
+    metadata.Set("groups", MakePageGroupMetadata(GetExpectedNumLogicalPages(seq_length)));
     return json::Stringify(metadata);
   }
 
@@ -962,48 +974,46 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return ffi::String(Uint64ToHex(FNV1a64(GetLayoutDescriptor())));
   }
 
-  void ExportPageGroup(int64_t seq_id, int64_t group_id, Tensor dst) final {
+  void ExportPageGroup(int64_t seq_id, int64_t group_id, ffi::Tensor dst) final {
+    TVM_FFI_ICHECK(dst.defined());
     CheckCheckpointSequenceSupported(seq_id);
     const Sequence& seq = seq_map_.at(seq_id);
-    TVM_FFI_ICHECK_GE(group_id, 0)
-        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id << ".";
-    TVM_FFI_ICHECK_LT(group_id, num_layers_)
-        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id
-        << ", but only " << num_layers_ << " groups are available.";
-
     int64_t num_logical_pages = GetNumLogicalPages(seq);
     CheckExportPageGroupTensor(dst, num_logical_pages);
+    ExportPageRange(seq_id, group_id, seq.seq_length, 0, num_logical_pages, dst, 0);
+  }
+
+  void ExportPageRange(int64_t seq_id, int64_t group_id, int64_t seq_length, int64_t page_begin,
+                       int64_t page_end, ffi::Tensor dst, int64_t dst_page_offset) final {
+    CheckCheckpointSequenceSupported(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointGroupId(group_id, "export");
+    CheckCheckpointLength(seq, seq_length);
+    CheckCheckpointPageRange(page_begin, page_end, GetExpectedNumLogicalPages(seq_length),
+                             "export");
+    CheckPageRangeTensor(dst, dst_page_offset, page_end - page_begin, "ExportPageRange");
+    if (page_begin == page_end) {
+      return;
+    }
     std::vector<int32_t> page_ids = GetCheckpointPageIds(seq, "checkpoint export");
 
     if (copy_stream_ != nullptr) {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
     }
 
-    Tensor layer_pages = pages_[group_id];
-    int64_t num_full_pages = seq.seq_length / page_size_;
-    int64_t partial_page_length = seq.seq_length % page_size_;
-    if (partial_page_length != 0) {
-      TVM_FFI_ICHECK_LT(num_full_pages, num_logical_pages);
-      ExportPartialCheckpointPage(layer_pages, page_ids[num_full_pages], dst, num_full_pages,
-                                  partial_page_length);
+    ffi::Tensor layer_pages = pages_[group_id];
+    int64_t num_full_pages = seq_length / page_size_;
+    int64_t full_page_end = std::min(page_end, num_full_pages);
+    if (page_begin < full_page_end) {
+      CopyCheckpointPages(layer_pages, page_ids, page_begin, full_page_end, dst, dst_page_offset,
+                          /*to_page_group=*/true);
     }
-
-    int64_t logical_page_index = 0;
-    while (logical_page_index < num_full_pages) {
-      int64_t run_length = 1;
-      while (logical_page_index + run_length < num_full_pages &&
-             page_ids[logical_page_index + run_length] ==
-                 page_ids[logical_page_index] + run_length) {
-        ++run_length;
-      }
-      CopyCheckpointPageRun(layer_pages, page_ids[logical_page_index], dst, logical_page_index,
-                            run_length);
-      logical_page_index += run_length;
+    if (page_end > num_full_pages) {
+      // Only the last logical page can be partial.
+      ExportPartialCheckpointPage(layer_pages, page_ids[num_full_pages], dst,
+                                  dst_page_offset + num_full_pages - page_begin,
+                                  seq_length % page_size_);
     }
-    if (partial_page_length != 0) {
-      ++logical_page_index;
-    }
-    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
   }
 
   void PrepareImport(int64_t seq_id, ffi::String metadata_json) final {
@@ -1025,11 +1035,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     seq_map_.insert({seq_id, Sequence(&global_block_pool_, block_idx)});
     checkpoint_import_in_progress_ = true;
-    checkpoint_imported_groups_.assign(num_layers_, false);
+    checkpoint_imported_pages_.assign(num_layers_, -1);
     dirty_aux_data_device_ = true;
   }
 
-  void ImportPageGroup(int64_t seq_id, int64_t group_id, Tensor src) final {
+  void ImportPageGroup(int64_t seq_id, int64_t group_id, ffi::Tensor src) final {
+    TVM_FFI_ICHECK(src.defined());
     CheckCheckpointLayoutSupported();
     TVM_FFI_ICHECK(checkpoint_import_in_progress_)
         << "PagedAttentionKVCache checkpoint import has not been prepared.";
@@ -1040,7 +1051,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK_LT(group_id, num_layers_)
         << "PagedAttentionKVCache checkpoint import got invalid group id " << group_id
         << ", but only " << num_layers_ << " groups are available.";
-    TVM_FFI_ICHECK(!checkpoint_imported_groups_[group_id])
+    TVM_FFI_ICHECK_EQ(checkpoint_imported_pages_[group_id], -1)
         << "PagedAttentionKVCache checkpoint group " << group_id << " was already imported.";
 
     int64_t num_logical_pages = GetNumLogicalPages(seq);
@@ -1050,22 +1061,37 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (copy_stream_ != nullptr) {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
     }
-
-    Tensor layer_pages = pages_[group_id];
-    int64_t logical_page_index = 0;
-    while (logical_page_index < num_logical_pages) {
-      int64_t run_length = 1;
-      while (logical_page_index + run_length < num_logical_pages &&
-             page_ids[logical_page_index + run_length] ==
-                 page_ids[logical_page_index] + run_length) {
-        ++run_length;
-      }
-      CopyCheckpointPageRun(src, logical_page_index, layer_pages, page_ids[logical_page_index],
-                            run_length);
-      logical_page_index += run_length;
+    if (num_logical_pages > 0) {
+      CopyCheckpointPages(pages_[group_id], page_ids, 0, num_logical_pages, src, 0,
+                          /*to_page_group=*/false);
     }
-    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
-    checkpoint_imported_groups_[group_id] = true;
+    checkpoint_imported_pages_[group_id] = num_logical_pages;
+  }
+
+  void ImportPageRange(int64_t seq_id, int64_t group_id, int64_t page_begin, int64_t page_end,
+                       ffi::Tensor src, int64_t src_page_offset) final {
+    CheckCheckpointLayoutSupported();
+    TVM_FFI_ICHECK(checkpoint_import_in_progress_)
+        << "PagedAttentionKVCache checkpoint import has not been prepared.";
+    CheckCheckpointSequenceState(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointGroupId(group_id, "import");
+    int64_t num_logical_pages = GetNumLogicalPages(seq);
+    CheckCheckpointPageRange(page_begin, page_end, num_logical_pages, "import");
+    int64_t imported_pages = std::max<int64_t>(checkpoint_imported_pages_[group_id], 0);
+    TVM_FFI_ICHECK_LE(page_begin, imported_pages)
+        << "PagedAttentionKVCache checkpoint import of group " << group_id << " pages ["
+        << page_begin << ", " << page_end << ") leaves pages [" << imported_pages << ", "
+        << page_begin << ") unimported.";
+    CheckPageRangeTensor(src, src_page_offset, page_end - page_begin, "ImportPageRange");
+    std::vector<int32_t> page_ids = GetCheckpointPageIds(seq, "checkpoint import");
+
+    if (copy_stream_ != nullptr) {
+      DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
+    }
+    CopyCheckpointPages(pages_[group_id], page_ids, page_begin, page_end, src, src_page_offset,
+                        /*to_page_group=*/false);
+    checkpoint_imported_pages_[group_id] = std::max(imported_pages, page_end);
   }
 
   void FinishImport(int64_t seq_id) final {
@@ -1073,12 +1099,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(checkpoint_import_in_progress_)
         << "PagedAttentionKVCache checkpoint import has not been prepared.";
     CheckCheckpointSequenceState(seq_id);
+    int64_t num_logical_pages = GetNumLogicalPages(seq_map_.at(seq_id));
     for (int64_t group_id = 0; group_id < num_layers_; ++group_id) {
-      TVM_FFI_ICHECK(checkpoint_imported_groups_[group_id])
-          << "PagedAttentionKVCache checkpoint import is missing group " << group_id << ".";
+      TVM_FFI_ICHECK_EQ(checkpoint_imported_pages_[group_id], num_logical_pages)
+          << "PagedAttentionKVCache checkpoint import is missing group " << group_id << " pages ["
+          << std::max<int64_t>(checkpoint_imported_pages_[group_id], 0) << ", " << num_logical_pages
+          << ").";
     }
     checkpoint_import_in_progress_ = false;
-    checkpoint_imported_groups_.clear();
+    checkpoint_imported_pages_.clear();
   }
 
   int32_t GetSequenceLength(int64_t seq_id) const final {
@@ -1515,57 +1544,63 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                  sequence->kv_transfer_metadata.local_position_map.end());
   }
 
-  void AttentionWithFusedQKV(int64_t layer_id, Tensor qkv_data, ffi::Optional<Tensor> mask,
-                             Tensor o_data, double sm_scale) final {
+  void AttentionWithFusedQKV(int64_t layer_id, ffi::Tensor qkv_data,
+                             ffi::Optional<ffi::Tensor> mask, ffi::Tensor o_data,
+                             double sm_scale) final {
+    TVM_FFI_ICHECK(qkv_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
     // Part 1. Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
-    Tensor pages = pages_[local_layer_id];
-    TVM_FFI_ICHECK(qkv_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(o_data.DataType() == pages.DataType());
+    ffi::Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(qkv_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(o_data.dtype() == pages.dtype());
     TVM_FFI_ICHECK(attn_kinds_[layer_id] == AttnKind::kMHA ||
                    attn_kinds_[layer_id] == AttnKind::kMHASliding);
 
     // qkv_data: (num_total_length, num_qo_heads + 2 * num_kv_heads, qk_head_dim)
     // o_data: (num_total_length, num_qo_heads, qk_head_dim)
 
-    TVM_FFI_ICHECK_EQ(qkv_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(o_data->ndim, 3);
+    TVM_FFI_ICHECK_EQ(qkv_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(o_data.ndim(), 3);
     for (int dim = 0; dim < 3; ++dim) {
       if (dim == 1) {
-        TVM_FFI_ICHECK_EQ(qkv_data->shape[1], num_qo_heads_ + 2 * num_kv_heads_);
-        TVM_FFI_ICHECK_EQ(o_data->shape[1], num_qo_heads_);
+        TVM_FFI_ICHECK_EQ(qkv_data.shape()[1], num_qo_heads_ + 2 * num_kv_heads_);
+        TVM_FFI_ICHECK_EQ(o_data.shape()[1], num_qo_heads_);
       } else {
-        TVM_FFI_ICHECK_EQ(o_data->shape[dim], qkv_data->shape[dim]);
+        TVM_FFI_ICHECK_EQ(o_data.shape()[dim], qkv_data.shape()[dim]);
       }
     }
 
-    TVM_FFI_ICHECK_EQ(qkv_data->shape[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(qkv_data.shape()[2], qk_head_dim_);
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
       total_seq_length += cur_append_lengths_[seq_id];
     }
-    TVM_FFI_ICHECK_LE(total_seq_length, qkv_data->shape[0]);
+    TVM_FFI_ICHECK_LE(total_seq_length, qkv_data.shape()[0]);
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
-    Tensor q_data = temp_attn_q_device_.CreateView({total_seq_length, num_qo_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
-    Tensor k_data = temp_attn_k_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
-    Tensor v_data = temp_attn_v_device_.CreateView({total_seq_length, num_kv_heads_, qk_head_dim_},
-                                                   qkv_data->dtype);
+    ffi::Tensor q_data =
+        tvm::runtime::CreateView(temp_attn_q_device_.value(),
+                                 {total_seq_length, num_qo_heads_, qk_head_dim_}, qkv_data.dtype());
+    ffi::Tensor k_data =
+        tvm::runtime::CreateView(temp_attn_k_device_.value(),
+                                 {total_seq_length, num_kv_heads_, qk_head_dim_}, qkv_data.dtype());
+    ffi::Tensor v_data =
+        tvm::runtime::CreateView(temp_attn_v_device_.value(),
+                                 {total_seq_length, num_kv_heads_, qk_head_dim_}, qkv_data.dtype());
 
-    Tensor qkv_data_view = qkv_data;
-    Tensor o_data_view = o_data;
-    if (total_seq_length != qkv_data->shape[0]) {
-      qkv_data_view = qkv_data.CreateView(
-          {total_seq_length, qkv_data->shape[1], qkv_data->shape[2]}, qkv_data->dtype);
-      o_data_view =
-          o_data.CreateView({total_seq_length, num_qo_heads_, qk_head_dim_}, qkv_data->dtype);
+    ffi::Tensor qkv_data_view = qkv_data;
+    ffi::Tensor o_data_view = o_data;
+    if (total_seq_length != qkv_data.shape()[0]) {
+      qkv_data_view = tvm::runtime::CreateView(
+          qkv_data, {total_seq_length, qkv_data.shape()[1], qkv_data.shape()[2]}, qkv_data.dtype());
+      o_data_view = tvm::runtime::CreateView(
+          o_data, {total_seq_length, num_qo_heads_, qk_head_dim_}, qkv_data.dtype());
     }
     // Part 2. Split fused qkv and apply rotary embedding to q/k data.
     if (transfer_kv_) {
@@ -1573,10 +1608,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, kv_transfer_stream_, compute_stream_);
     }
     if (!rope_ext_factors_.has_value()) {
-      f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
+      f_split_rotary_(qkv_data_view, q_rope_position_map_view_.value(), q_data, k_data, v_data,
                       static_cast<int64_t>(rope_mode_ == RoPEMode::kNormal));
     } else {
-      f_split_rotary_(qkv_data_view, q_rope_position_map_view_, q_data, k_data, v_data,
+      f_split_rotary_(qkv_data_view, q_rope_position_map_view_.value(), q_data, k_data, v_data,
                       rope_ext_factors_.value());
     }
 
@@ -1584,7 +1619,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(f_transpose_append_mha_.has_value());
     if (append_before_attn_) {
       f_transpose_append_mha_.value()(pages_[local_layer_id], k_data, v_data,
-                                      append_position_map_view_);
+                                      append_position_map_view_.value());
     }
     // Part 4: KV transfer
     if (page_to_page_transfer_kv_) {
@@ -1592,11 +1627,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // FIXME: if the sender and recver's PP/TP degree do not match, we will need to first
       // get the view of remote pages, and then take the specific remote layer.
       // The KV transfer stream nees to wait for the compute stream.
-      f_transfer_kv_page_to_page_.value()(pages_[local_layer_id], pages_[local_layer_id],
-                                          kv_transfer_page_to_page_remote_position_map_view_,
-                                          kv_transfer_page_to_page_local_position_map_view_,
-                                          kv_transfer_page_to_page_recver_id_view_,
-                                          kv_transfer_stream_);
+      f_transfer_kv_page_to_page_.value()(
+          pages_[local_layer_id], pages_[local_layer_id],
+          kv_transfer_page_to_page_remote_position_map_view_.value(),
+          kv_transfer_page_to_page_local_position_map_view_.value(),
+          kv_transfer_page_to_page_recver_id_view_.value(), kv_transfer_stream_);
     }
     if (transfer_kv_) {
       // FIXME: if the sender and recver's PP/TP degree do not match, we will need to first
@@ -1604,29 +1639,34 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // The KV transfer stream nees to wait for the compute stream.
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, compute_stream_, kv_transfer_stream_);
       f_transfer_kv_.value()(pages_[local_layer_id], k_data, v_data,
-                             kv_transfer_remote_position_map_view_, kv_transfer_recver_id_view_,
-                             kv_transfer_stream_);
+                             kv_transfer_remote_position_map_view_.value(),
+                             kv_transfer_recver_id_view_.value(), kv_transfer_stream_);
     }
     // Part 5: perform attention
     AttentionInternal(layer_id, q_data, k_data, v_data, o_data_view, sm_scale);
     // Part 6. Append k/v data to kv-cache if flag "append_before_attn" is not set.
     if (!append_before_attn_) {
       f_transpose_append_mha_.value()(pages_[local_layer_id], k_data, v_data,
-                                      append_position_map_view_);
+                                      append_position_map_view_.value());
     }
   }
 
-  void SelfAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
-                     Tensor lse_data, double sm_scale) final {
+  void SelfAttention(int64_t layer_id, ffi::Tensor q_data, ffi::Tensor k_data, ffi::Tensor v_data,
+                     ffi::Tensor o_data, ffi::Tensor lse_data, double sm_scale) final {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
-    Tensor pages = pages_[local_layer_id];
-    TVM_FFI_ICHECK(q_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(k_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(v_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(o_data.DataType() == pages.DataType());
+    ffi::Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(q_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(k_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(v_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(o_data.dtype() == pages.dtype());
     AttnKind attn_kind = attn_kinds_[layer_id];
 
     // q_data: (num_total_length, num_qo_heads, qk_head_dim)
@@ -1638,14 +1678,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
       total_seq_length += cur_append_lengths_[seq_id];
     }
-    TVM_FFI_ICHECK_EQ(q_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(k_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(v_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(o_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(q_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(k_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(v_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(o_data->shape[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(q_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(k_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(v_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(o_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(k_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(v_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[0], total_seq_length);
 
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
@@ -1659,15 +1699,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void CrossAttention(int64_t layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
-                      double sm_scale) final {
+  void CrossAttention(int64_t layer_id, ffi::Tensor q_data, ffi::Tensor o_data,
+                      ffi::Tensor lse_data, double sm_scale) final {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
-    Tensor pages = pages_[local_layer_id];
-    TVM_FFI_ICHECK(q_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(o_data.DataType() == pages.DataType());
+    ffi::Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(q_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(o_data.dtype() == pages.dtype());
     AttnKind attn_kind = attn_kinds_[layer_id];
 
     // q_data: (num_total_length, num_qo_heads, qk_head_dim)
@@ -1677,14 +1720,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
       total_seq_length += cur_append_lengths_[seq_id];
     }
-    TVM_FFI_ICHECK_EQ(q_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(o_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(q_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(o_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(q_data->shape[1], num_qo_heads_);
-    TVM_FFI_ICHECK_EQ(o_data->shape[1], num_qo_heads_);
-    TVM_FFI_ICHECK_EQ(q_data->shape[2], qk_head_dim_);
-    TVM_FFI_ICHECK_EQ(o_data->shape[2], v_head_dim_);
+    TVM_FFI_ICHECK_EQ(q_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(o_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[2], v_head_dim_);
 
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
@@ -1699,16 +1742,21 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void AttentionWithSharedKV(int64_t source_layer_id, Tensor q_data, Tensor current_k_data,
-                             Tensor current_v_data, Tensor o_data, double sm_scale) final {
+  void AttentionWithSharedKV(int64_t source_layer_id, ffi::Tensor q_data,
+                             ffi::Tensor current_k_data, ffi::Tensor current_v_data,
+                             ffi::Tensor o_data, double sm_scale) final {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(current_k_data.defined());
+    TVM_FFI_ICHECK(current_v_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
     int64_t local_layer_id = source_layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
-    Tensor pages = pages_[local_layer_id];
-    TVM_FFI_ICHECK(q_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(current_k_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(current_v_data.DataType() == pages.DataType());
-    TVM_FFI_ICHECK(o_data.DataType() == pages.DataType());
+    ffi::Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(q_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(current_k_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(current_v_data.dtype() == pages.dtype());
+    TVM_FFI_ICHECK(o_data.dtype() == pages.dtype());
     TVM_FFI_ICHECK(attn_kinds_[source_layer_id] == AttnKind::kMHA ||
                    attn_kinds_[source_layer_id] == AttnKind::kMHASliding)
         << "Querying K/V from another logical layer is only supported for MHA caches.";
@@ -1717,64 +1765,74 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
       total_seq_length += cur_append_lengths_[seq_id];
     }
-    TVM_FFI_ICHECK_EQ(q_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(current_k_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(current_v_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(o_data->ndim, 3);
-    TVM_FFI_ICHECK_EQ(q_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(current_k_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(current_v_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(o_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(q_data->shape[1], num_qo_heads_);
-    TVM_FFI_ICHECK_EQ(current_k_data->shape[1], num_kv_heads_);
-    TVM_FFI_ICHECK_EQ(current_v_data->shape[1], num_kv_heads_);
-    TVM_FFI_ICHECK_EQ(o_data->shape[1], num_qo_heads_);
-    TVM_FFI_ICHECK_EQ(q_data->shape[2], qk_head_dim_);
-    TVM_FFI_ICHECK_EQ(current_k_data->shape[2], qk_head_dim_);
-    TVM_FFI_ICHECK_EQ(current_v_data->shape[2], v_head_dim_);
-    TVM_FFI_ICHECK_EQ(o_data->shape[2], v_head_dim_);
+    TVM_FFI_ICHECK_EQ(q_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(current_k_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(current_v_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(o_data.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(current_k_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(current_v_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(current_k_data.shape()[1], num_kv_heads_);
+    TVM_FFI_ICHECK_EQ(current_v_data.shape()[1], num_kv_heads_);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[1], num_qo_heads_);
+    TVM_FFI_ICHECK_EQ(q_data.shape()[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(current_k_data.shape()[2], qk_head_dim_);
+    TVM_FFI_ICHECK_EQ(current_v_data.shape()[2], v_head_dim_);
+    TVM_FFI_ICHECK_EQ(o_data.shape()[2], v_head_dim_);
 
     ComputeStreamWaitForCopyStream();
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
     AttentionInternal(source_layer_id, q_data, current_k_data, current_v_data, o_data, sm_scale);
   }
 
-  void AppendMLAKV(int64_t layer_id, Tensor kv_data) final {
+  void AppendMLAKV(int64_t layer_id, ffi::Tensor kv_data) final {
+    TVM_FFI_ICHECK(kv_data.defined());
     // Shape and dtype check.
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
-    Tensor pages = pages_[local_layer_id];
-    TVM_FFI_ICHECK(kv_data.DataType() == pages.DataType());
+    ffi::Tensor pages = pages_[local_layer_id];
+    TVM_FFI_ICHECK(kv_data.dtype() == pages.dtype());
     TVM_FFI_ICHECK(attn_kinds_[layer_id] == AttnKind::kMLA);
 
     // kv_data: (num_total_length, qk_head_dim)
-    TVM_FFI_ICHECK_EQ(kv_data->ndim, 2);
+    TVM_FFI_ICHECK_EQ(kv_data.ndim(), 2);
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
       total_seq_length += cur_append_lengths_[seq_id];
     }
-    TVM_FFI_ICHECK_LE(kv_data->shape[0], total_seq_length);
-    TVM_FFI_ICHECK_EQ(kv_data->shape[1], qk_head_dim_);
+    TVM_FFI_ICHECK_LE(kv_data.shape()[0], total_seq_length);
+    TVM_FFI_ICHECK_EQ(kv_data.shape()[1], qk_head_dim_);
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
     TVM_FFI_ICHECK(f_transpose_append_mla_.has_value());
-    f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data, append_position_map_view_);
+    f_transpose_append_mla_.value()(pages_[local_layer_id], kv_data,
+                                    append_position_map_view_.value());
   }
 
-  ffi::Array<Tensor> MergeAttnOutputInplace(Tensor o_self_attn, Tensor lse_self_attn,
-                                            Tensor o_cross_attn, Tensor lse_cross_attn) final {
+  ffi::Array<ffi::Tensor> MergeAttnOutputInplace(ffi::Tensor o_self_attn, ffi::Tensor lse_self_attn,
+                                                 ffi::Tensor o_cross_attn,
+                                                 ffi::Tensor lse_cross_attn) final {
+    TVM_FFI_ICHECK(o_self_attn.defined());
+    TVM_FFI_ICHECK(lse_self_attn.defined());
+    TVM_FFI_ICHECK(o_cross_attn.defined());
+    TVM_FFI_ICHECK(lse_cross_attn.defined());
     TVM_FFI_ICHECK_GE(f_merge_inplace_.size(), 2)
         << "The general attention merge function is not defined.";
     f_merge_inplace_[1](o_self_attn, lse_self_attn, o_cross_attn, lse_cross_attn);
     return {o_self_attn, lse_self_attn};
   }
 
-  void LinearAttention(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
+  void LinearAttention(int64_t layer_id, ffi::Tensor q_data, ffi::Tensor k_data, ffi::Tensor v_data,
                        double sm_scale) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
     // Todo(ruihang): implement it
   }
 
@@ -1873,16 +1931,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  Tensor GetQueryPositions() final {
+  ffi::Tensor GetQueryPositions() final {
     // Sync the copy stream and the compute stream.
     ComputeStreamWaitForCopyStream();
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
-    return q_rope_position_map_view_;
+    return q_rope_position_map_view_.value();
   };
 
-  void DebugGetKV(int64_t seq_id, int64_t start_pos, int64_t end_pos, Tensor k_data,
-                  Tensor v_data) final {
+  void DebugGetKV(int64_t seq_id, int64_t start_pos, int64_t end_pos, ffi::Tensor k_data,
+                  ffi::Tensor v_data) final {
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
     TVM_FFI_ICHECK(f_debug_get_kv_.has_value())
         << "PageAttentionKVCache requires the `f_debug_get_kv` to be explicitly passed in when "
            "initialization. Please construct the KV cache with `f_debug_get_kv`.";
@@ -1897,16 +1957,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     static constexpr const char* error_msg =
         "DebugGetKV expects the k_data in layout (num_layers, seq_length, num_kv_heads, "
         "qk_head_dim).";
-    std::vector<Tensor*> vec_kv_data = {&k_data, &v_data};
-    for (const Tensor* data_ptr : vec_kv_data) {
-      TVM_FFI_ICHECK_EQ((*data_ptr)->ndim, 4) << error_msg;
-      TVM_FFI_ICHECK_EQ((*data_ptr)->shape[0], num_layers_)
+    std::vector<ffi::Tensor*> vec_kv_data = {&k_data, &v_data};
+    for (const ffi::Tensor* data_ptr : vec_kv_data) {
+      TVM_FFI_ICHECK_EQ((*data_ptr).ndim(), 4) << error_msg;
+      TVM_FFI_ICHECK_EQ((*data_ptr).shape()[0], num_layers_)
           << error_msg << " The number of layers mismatches.";
-      TVM_FFI_ICHECK_EQ((*data_ptr)->shape[1], end_pos - start_pos)
+      TVM_FFI_ICHECK_EQ((*data_ptr).shape()[1], end_pos - start_pos)
           << error_msg << " The sequence length mismatches.";
-      TVM_FFI_ICHECK_EQ((*data_ptr)->shape[2], num_kv_heads_)
+      TVM_FFI_ICHECK_EQ((*data_ptr).shape()[2], num_kv_heads_)
           << error_msg << " The number of heads mismatches.";
-      TVM_FFI_ICHECK_EQ((*data_ptr)->shape[3], qk_head_dim_)
+      TVM_FFI_ICHECK_EQ((*data_ptr).shape()[3], qk_head_dim_)
           << error_msg << " The number of head features mismatches.";
     }
 
@@ -1923,9 +1983,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         append_position_map.push_back(page_id * page_size_ + page_offset);
       }
     }
-    Tensor position_map_device = Tensor::Empty({end_pos - start_pos}, dtype_aux_, device_);
-    position_map_device.CopyFromBytes(
-        append_position_map.data() + start_pos,
+    ffi::Tensor position_map_device =
+        tvm::runtime::Empty({end_pos - start_pos}, dtype_aux_, device_);
+    tvm::runtime::CopyFromBytes(
+        position_map_device, append_position_map.data() + start_pos,
         (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
     for (int64_t layer_id = 0; layer_id < num_layers_; ++layer_id) {
       TVM_FFI_ICHECK(attn_kinds_[layer_id] == AttnKind::kMHA)
@@ -1934,7 +1995,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos, Tensor kv_data) final {
+  void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos,
+                     ffi::Tensor kv_data) final {
+    TVM_FFI_ICHECK(kv_data.defined());
     TVM_FFI_ICHECK(f_debug_get_kv_.has_value())
         << "PageAttentionKVCache requires the `f_debug_get_kv` to be explicitly passed in when "
            "initialization. Please construct the KV cache with `f_debug_get_kv`.";
@@ -1948,12 +2011,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // kv_data: (num_layers, seq_length, qk_head_dim)
     static constexpr const char* error_msg =
         "DebugGetKV expects the kv_data in layout (num_layers, seq_length, qk_head_dim).";
-    TVM_FFI_ICHECK_EQ(kv_data->ndim, 3) << error_msg;
-    TVM_FFI_ICHECK_EQ(kv_data->shape[0], num_layers_)
+    TVM_FFI_ICHECK_EQ(kv_data.ndim(), 3) << error_msg;
+    TVM_FFI_ICHECK_EQ(kv_data.shape()[0], num_layers_)
         << error_msg << " The number of layers mismatches.";
-    TVM_FFI_ICHECK_EQ(kv_data->shape[1], end_pos - start_pos)
+    TVM_FFI_ICHECK_EQ(kv_data.shape()[1], end_pos - start_pos)
         << error_msg << " The sequence length mismatches.";
-    TVM_FFI_ICHECK_EQ(kv_data->shape[2], qk_head_dim_)
+    TVM_FFI_ICHECK_EQ(kv_data.shape()[2], qk_head_dim_)
         << error_msg << " The number of head features mismatches.";
 
     std::vector<int32_t> trace = seq.GetBlockTrace(global_block_pool_);
@@ -1969,9 +2032,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         append_position_map.push_back(page_id * page_size_ + page_offset);
       }
     }
-    Tensor position_map_device = Tensor::Empty({end_pos - start_pos}, dtype_aux_, device_);
-    position_map_device.CopyFromBytes(
-        append_position_map.data() + start_pos,
+    ffi::Tensor position_map_device =
+        tvm::runtime::Empty({end_pos - start_pos}, dtype_aux_, device_);
+    tvm::runtime::CopyFromBytes(
+        position_map_device, append_position_map.data() + start_pos,
         (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
     for (int64_t layer_id = 0; layer_id < num_layers_; ++layer_id) {
       TVM_FFI_ICHECK(attn_kinds_[layer_id] == AttnKind::kMLA)
@@ -1980,7 +2044,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void DebugSetKV(int64_t seq_id, int64_t start_pos, Tensor k_data, Tensor v_data) final {
+  void DebugSetKV(int64_t seq_id, int64_t start_pos, ffi::Tensor k_data, ffi::Tensor v_data) final {
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
     TVM_FFI_ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
 
@@ -2234,33 +2300,76 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return seq_length;
   }
 
-  void CheckPageGroupTensor(const Tensor& tensor, int64_t num_logical_pages,
+  void CheckPageGroupTensor(const ffi::Tensor& tensor, int64_t num_logical_pages,
                             const char* api_name) const {
+    TVM_FFI_ICHECK(tensor.defined());
     std::string error_msg = std::string(api_name) +
                             " expects the tensor in layout "
                             "(1,num_logical_pages,2,num_kv_heads,page_size,qk_head_dim).";
     TVM_FFI_ICHECK(tensor.defined()) << error_msg;
-    TVM_FFI_ICHECK(tensor.DataType() == kv_dtype_)
-        << error_msg << " The dtype mismatches, expected " << kv_dtype_ << ", got "
-        << tensor.DataType() << ".";
-    TVM_FFI_ICHECK_EQ(tensor->ndim, 6) << error_msg;
-    TVM_FFI_ICHECK_EQ(tensor->shape[0], 1) << error_msg << " The group count mismatches.";
-    TVM_FFI_ICHECK_EQ(tensor->shape[1], num_logical_pages)
+    TVM_FFI_ICHECK(tensor.dtype() == kv_dtype_) << error_msg << " The dtype mismatches, expected "
+                                                << kv_dtype_ << ", got " << tensor.dtype() << ".";
+    TVM_FFI_ICHECK_EQ(tensor.ndim(), 6) << error_msg;
+    TVM_FFI_ICHECK_EQ(tensor.shape()[0], 1) << error_msg << " The group count mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[1], num_logical_pages)
         << error_msg << " The number of logical pages mismatches.";
-    TVM_FFI_ICHECK_EQ(tensor->shape[2], 2) << error_msg << " The K/V axis mismatches.";
-    TVM_FFI_ICHECK_EQ(tensor->shape[3], num_kv_heads_)
+    TVM_FFI_ICHECK_EQ(tensor.shape()[2], 2) << error_msg << " The K/V axis mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[3], num_kv_heads_)
         << error_msg << " The number of KV heads mismatches.";
-    TVM_FFI_ICHECK_EQ(tensor->shape[4], page_size_) << error_msg << " The page size mismatches.";
-    TVM_FFI_ICHECK_EQ(tensor->shape[5], qk_head_dim_)
+    TVM_FFI_ICHECK_EQ(tensor.shape()[4], page_size_) << error_msg << " The page size mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[5], qk_head_dim_)
         << error_msg << " The head dimension mismatches.";
   }
 
-  void CheckExportPageGroupTensor(const Tensor& dst, int64_t num_logical_pages) const {
+  void CheckExportPageGroupTensor(const ffi::Tensor& dst, int64_t num_logical_pages) const {
+    TVM_FFI_ICHECK(dst.defined());
     CheckPageGroupTensor(dst, num_logical_pages, "ExportPageGroup");
   }
 
-  void CheckImportPageGroupTensor(const Tensor& src, int64_t num_logical_pages) const {
+  void CheckImportPageGroupTensor(const ffi::Tensor& src, int64_t num_logical_pages) const {
+    TVM_FFI_ICHECK(src.defined());
     CheckPageGroupTensor(src, num_logical_pages, "ImportPageGroup");
+  }
+
+  void CheckPageRangeTensor(const ffi::Tensor& tensor, int64_t page_offset, int64_t num_pages,
+                            const char* api_name) const {
+    std::string error_msg = std::string(api_name) +
+                            " expects the tensor in layout "
+                            "(1,num_pages,2,num_kv_heads,page_size,qk_head_dim).";
+    TVM_FFI_ICHECK(tensor.defined()) << error_msg;
+    TVM_FFI_ICHECK(tensor.dtype() == kv_dtype_) << error_msg << " The dtype mismatches, expected "
+                                                << kv_dtype_ << ", got " << tensor.dtype() << ".";
+    TVM_FFI_ICHECK_EQ(tensor.ndim(), 6) << error_msg;
+    TVM_FFI_ICHECK_EQ(tensor.shape()[0], 1) << error_msg << " The group count mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[2], 2) << error_msg << " The K/V axis mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[3], num_kv_heads_)
+        << error_msg << " The number of KV heads mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[4], page_size_) << error_msg << " The page size mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[5], qk_head_dim_)
+        << error_msg << " The head dimension mismatches.";
+    TVM_FFI_ICHECK(page_offset >= 0 && page_offset <= tensor.shape()[1] &&
+                   num_pages <= tensor.shape()[1] - page_offset)
+        << api_name << " page offset " << page_offset << " with " << num_pages
+        << " pages is out of range for a tensor of " << tensor.shape()[1] << " pages.";
+  }
+
+  void CheckCheckpointGroupId(int64_t group_id, const char* operation) const {
+    TVM_FFI_ICHECK(group_id >= 0 && group_id < num_layers_)
+        << "PagedAttentionKVCache checkpoint " << operation << " got invalid group id " << group_id
+        << ", but only " << num_layers_ << " groups are available.";
+  }
+
+  void CheckCheckpointLength(const Sequence& seq, int64_t seq_length) const {
+    TVM_FFI_ICHECK(seq_length >= 0 && seq_length <= seq.seq_length)
+        << "PagedAttentionKVCache checkpoint length " << seq_length
+        << " is outside the sequence length " << seq.seq_length << ".";
+  }
+
+  void CheckCheckpointPageRange(int64_t page_begin, int64_t page_end, int64_t num_logical_pages,
+                                const char* operation) const {
+    TVM_FFI_ICHECK(0 <= page_begin && page_begin <= page_end && page_end <= num_logical_pages)
+        << "PagedAttentionKVCache checkpoint " << operation << " got page range [" << page_begin
+        << ", " << page_end << ") outside the " << num_logical_pages << " logical pages.";
   }
 
   ffi::json::Array MakeAttnKindsMetadata() const {
@@ -2333,14 +2442,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return os.str();
   }
 
-  ffi::json::Array MakeLogicalPageMetadata(const Sequence& seq) const {
+  ffi::json::Array MakeLogicalPageMetadata(int64_t seq_length) const {
     namespace json = tvm::ffi::json;
     json::Array pages;
-    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq.seq_length);
+    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq_length);
     for (int64_t logical_page_index = 0; logical_page_index < num_logical_pages;
          ++logical_page_index) {
       int64_t page_start = logical_page_index * page_size_;
-      int64_t page_length = std::min<int64_t>(page_size_, seq.seq_length - page_start);
+      int64_t page_length = std::min<int64_t>(page_size_, seq_length - page_start);
       TVM_FFI_ICHECK_GT(page_length, 0);
       json::Object page_json;
       page_json.Set("logical_page_index", logical_page_index);
@@ -2362,10 +2471,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return num_pages;
   }
 
-  ffi::json::Array MakePageGroupMetadata(const Sequence& seq) const {
+  ffi::json::Array MakePageGroupMetadata(int64_t num_logical_pages) const {
     namespace json = tvm::ffi::json;
     json::Array groups;
-    int64_t num_logical_pages = GetNumLogicalPages(seq);
     for (int64_t local_layer = 0; local_layer < num_layers_; ++local_layer) {
       json::Object group;
       group.Set("group_index", local_layer);
@@ -2414,40 +2522,75 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return page_ids;
   }
 
-  void CopyCheckpointPageRun(const Tensor& src, int64_t src_page_index, const Tensor& dst,
+  void CopyCheckpointPageRun(const ffi::Tensor& src, int64_t src_page_index, const ffi::Tensor& dst,
                              int64_t dst_page_index, int64_t run_length) const {
+    TVM_FFI_ICHECK(src.defined());
+    TVM_FFI_ICHECK(dst.defined());
     TVM_FFI_ICHECK_GT(run_length, 0);
     int64_t bytes_per_page = GetCheckpointBytesPerPage();
-    Tensor src_pages =
-        src.CreateView({run_length, 2, num_kv_heads_, page_size_, qk_head_dim_}, src->dtype,
-                       static_cast<uint64_t>(src_page_index * bytes_per_page));
-    Tensor dst_pages =
-        dst.CreateView({run_length, 2, num_kv_heads_, page_size_, qk_head_dim_}, dst->dtype,
-                       static_cast<uint64_t>(dst_page_index * bytes_per_page));
-    DLTensor dst_pages_view = *dst_pages.operator->();
-    Tensor::CopyFromTo(src_pages.operator->(), &dst_pages_view, compute_stream_);
+    ffi::Tensor src_pages = tvm::runtime::CreateView(
+        src, {run_length, 2, num_kv_heads_, page_size_, qk_head_dim_}, src.dtype(),
+        static_cast<uint64_t>(src_page_index * bytes_per_page));
+    ffi::Tensor dst_pages = tvm::runtime::CreateView(
+        dst, {run_length, 2, num_kv_heads_, page_size_, qk_head_dim_}, dst.dtype(),
+        static_cast<uint64_t>(dst_page_index * bytes_per_page));
+    DLTensor dst_pages_view = *dst_pages.GetDLTensorPtr();
+    tvm::runtime::CopyFromTo(src_pages.GetDLTensorPtr(), &dst_pages_view, compute_stream_);
   }
 
-  void ExportPartialCheckpointPage(const Tensor& src, int64_t src_page_index, const Tensor& dst,
-                                   int64_t dst_page_index, int64_t valid_length) {
+  /*!
+   * \brief Copy logical pages [begin, end) between a layer's page pool and a page
+   * group tensor, one copy per run of physically consecutive pages.
+   */
+  void CopyCheckpointPages(const ffi::Tensor& layer_pages, const std::vector<int32_t>& page_ids,
+                           int64_t begin, int64_t end, const ffi::Tensor& page_group,
+                           int64_t page_group_offset, bool to_page_group) const {
+    int64_t logical_page_index = begin;
+    while (logical_page_index < end) {
+      int64_t run_length = 1;
+      while (logical_page_index + run_length < end &&
+             page_ids[logical_page_index + run_length] ==
+                 page_ids[logical_page_index] + run_length) {
+        ++run_length;
+      }
+      int64_t group_page_index = page_group_offset + logical_page_index - begin;
+      if (to_page_group) {
+        CopyCheckpointPageRun(layer_pages, page_ids[logical_page_index], page_group,
+                              group_page_index, run_length);
+      } else {
+        CopyCheckpointPageRun(page_group, group_page_index, layer_pages,
+                              page_ids[logical_page_index], run_length);
+      }
+      logical_page_index += run_length;
+    }
+  }
+
+  void ExportPartialCheckpointPage(const ffi::Tensor& src, int64_t src_page_index,
+                                   const ffi::Tensor& dst, int64_t dst_page_index,
+                                   int64_t valid_length) {
+    TVM_FFI_ICHECK(src.defined());
+    TVM_FFI_ICHECK(dst.defined());
     TVM_FFI_ICHECK_GT(valid_length, 0);
     TVM_FFI_ICHECK_LT(valid_length, page_size_);
 
     int64_t bytes_per_scalar = GetCheckpointBytesPerScalar();
     int64_t bytes_per_page = GetCheckpointBytesPerPage();
-    if (!checkpoint_zero_page_host_.defined()) {
-      checkpoint_zero_page_host_ = Tensor::Empty({2, num_kv_heads_, page_size_, qk_head_dim_},
-                                                 kv_dtype_, GetPreferredHostDevice(device_));
+    if (!checkpoint_zero_page_host_.has_value()) {
+      checkpoint_zero_page_host_ = tvm::runtime::Empty({2, num_kv_heads_, page_size_, qk_head_dim_},
+                                                       kv_dtype_, GetPreferredHostDevice(device_));
       std::vector<uint8_t> zero_data(bytes_per_page, 0);
-      checkpoint_zero_page_host_.CopyFromBytes(zero_data.data(), zero_data.size());
+      tvm::runtime::CopyFromBytes(checkpoint_zero_page_host_.value().GetDLTensorPtr(),
+                                  zero_data.data(), zero_data.size());
     }
 
     // Initialize the full destination page with one transfer, then overwrite
     // only the valid prefixes. This makes every unused slot deterministic.
-    Tensor dst_page = dst.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, dst->dtype,
-                                     static_cast<uint64_t>(dst_page_index * bytes_per_page));
-    DLTensor dst_page_view = *dst_page.operator->();
-    Tensor::CopyFromTo(checkpoint_zero_page_host_.operator->(), &dst_page_view, compute_stream_);
+    ffi::Tensor dst_page =
+        tvm::runtime::CreateView(dst, {2, num_kv_heads_, page_size_, qk_head_dim_}, dst.dtype(),
+                                 static_cast<uint64_t>(dst_page_index * bytes_per_page));
+    DLTensor dst_page_view = *dst_page.GetDLTensorPtr();
+    tvm::runtime::CopyFromTo(checkpoint_zero_page_host_.value().GetDLTensorPtr(), &dst_page_view,
+                             compute_stream_);
 
     for (int64_t kv_index = 0; kv_index < 2; ++kv_index) {
       for (int64_t head_index = 0; head_index < num_kv_heads_; ++head_index) {
@@ -2456,11 +2599,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             static_cast<uint64_t>(src_page_index * bytes_per_page + head_offset * bytes_per_scalar);
         uint64_t dst_offset =
             static_cast<uint64_t>(dst_page_index * bytes_per_page + head_offset * bytes_per_scalar);
-        Tensor src_valid = src.CreateView({valid_length, qk_head_dim_}, src->dtype, src_offset);
-        Tensor dst_valid = dst.CreateView({valid_length, qk_head_dim_}, dst->dtype, dst_offset);
+        ffi::Tensor src_valid =
+            tvm::runtime::CreateView(src, {valid_length, qk_head_dim_}, src.dtype(), src_offset);
+        ffi::Tensor dst_valid =
+            tvm::runtime::CreateView(dst, {valid_length, qk_head_dim_}, dst.dtype(), dst_offset);
 
-        DLTensor dst_valid_view = *dst_valid.operator->();
-        Tensor::CopyFromTo(src_valid.operator->(), &dst_valid_view, compute_stream_);
+        DLTensor dst_valid_view = *dst_valid.GetDLTensorPtr();
+        tvm::runtime::CopyFromTo(src_valid.GetDLTensorPtr(), &dst_valid_view, compute_stream_);
       }
     }
   }
@@ -2775,7 +2920,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (is_chain_on_depths_[0] && f_attention_prefill_ragged_ != nullptr &&
           f_attention_prefill_ragged_->backend_kind == AttnBackendKind::kFlashInfer) {
         f_attention_prefill_ragged_->BeginForward(
-            temp_float_attn_workspace_, temp_int_attn_workspace_[0],
+            temp_float_attn_workspace_.value(), temp_int_attn_workspace_[0],
             temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
             &cur_append_lengths_indptr_host_, cur_batch_size_,
             cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
@@ -2783,7 +2928,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     }
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value().shape()[0] == 0) {
         continue;
       }
       TVM_FFI_ICHECK(!support_sliding_window_ || !support_layer_sliding_window_)
@@ -2792,7 +2937,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_decode_ != nullptr &&
             f_attention_decode_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_decode_->BeginForward(
-              d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+              d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
               temp_int_pinned_attn_workspace_[d + 1], &page_indptr_on_depths_host_[d],
               cur_batch_size_, page_size_, num_qo_heads_, num_kv_heads_, qk_head_dim_, v_head_dim_,
               rope_mode_, kv_dtype_, kv_dtype_, copy_stream_);
@@ -2801,7 +2946,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_prefill_ != nullptr &&
             f_attention_prefill_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_prefill_->BeginForward(
-              d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+              d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
               temp_int_pinned_attn_workspace_[d + 1], &qo_indptr_on_depths_host_[d],
               &page_indptr_on_depths_host_[d], &last_page_len_on_depths_host_[d],
               static_cast<int64_t>(qo_indptr_on_depths_host_[d].size()) - 1,
@@ -2819,7 +2964,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         if (f_attention_prefill_ragged_ != nullptr &&
             f_attention_prefill_ragged_->backend_kind == AttnBackendKind::kFlashInfer) {
           f_attention_prefill_ragged_->BeginForward(
-              temp_float_attn_workspace_, temp_int_attn_workspace_[0],
+              temp_float_attn_workspace_.value(), temp_int_attn_workspace_[0],
               temp_int_pinned_attn_workspace_[0], &cur_append_lengths_indptr_host_,
               &cur_append_lengths_indptr_host_, cur_batch_size_,
               cur_append_lengths_indptr_host_.back(), num_qo_heads_, num_kv_heads_, qk_head_dim_,
@@ -2828,7 +2973,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     }
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value().shape()[0] == 0) {
         continue;
       }
       TVM_FFI_ICHECK(!support_sliding_window_)
@@ -2836,7 +2981,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (f_mla_prefill_ != nullptr &&
           f_mla_prefill_->backend_kind == AttnBackendKind::kFlashInfer) {
         f_mla_prefill_->BeginForward(
-            d, temp_float_attn_workspace_, temp_int_attn_workspace_[d + 1],
+            d, temp_float_attn_workspace_.value(), temp_int_attn_workspace_[d + 1],
             temp_int_pinned_attn_workspace_[d + 1], &qo_indptr_on_depths_host_[d],
             &page_indptr_on_depths_host_[d], &last_page_len_on_depths_host_[d],
             static_cast<int64_t>(qo_indptr_on_depths_host_[d].size()) - 1,
@@ -2850,8 +2995,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * \brief Compute attention for between the input q data and the
    * input k/v data and the k/v data in cache on the given layer.
    */
-  void AttentionInternal(int64_t layer_id, Tensor q_data, Tensor k_data, Tensor v_data,
-                         Tensor output, double sm_scale) {
+  void AttentionInternal(int64_t layer_id, ffi::Tensor q_data, ffi::Tensor k_data,
+                         ffi::Tensor v_data, ffi::Tensor output, double sm_scale) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
+    TVM_FFI_ICHECK(output.defined());
     int64_t local_layer_id = layer_id - layer_id_begin_offset_;
     TVM_FFI_ICHECK_GE(local_layer_id, 0);
     TVM_FFI_ICHECK_LT(local_layer_id, num_layers_);
@@ -2860,53 +3009,70 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (!append_before_attn_) {
       // The first part of attention, which only involves the q and the newly appended k/v.
       is_first_kernel = false;
-      MHASelfAttnInternal(q_data, k_data, v_data, output, merged_attn_lse_view_, sm_scale);
+      MHASelfAttnInternal(q_data, k_data, v_data, output, merged_attn_lse_view_.value(), sm_scale);
     }
     bool self_attn_computed = !is_first_kernel;
     bool cross_attn_computed = MHACrossAttnInternal(
-        local_layer_id, q_data, output, merged_attn_lse_view_, sm_scale, is_first_kernel,
+        local_layer_id, q_data, output, merged_attn_lse_view_.value(), sm_scale, is_first_kernel,
         /*causal=*/!append_before_attn_ &&
             attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding);
     TVM_FFI_ICHECK(self_attn_computed || cross_attn_computed)
         << "Both self-attention and cross-attention are not computed.";
   }
 
-  void MHASelfAttnInternal(Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
-                           Tensor lse_data, double sm_scale) {
+  void MHASelfAttnInternal(ffi::Tensor q_data, ffi::Tensor k_data, ffi::Tensor v_data,
+                           ffi::Tensor o_data, ffi::Tensor lse_data, double sm_scale) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     if (is_chain_on_depths_[0]) {
       // If the batch does not form a tree, use raggedness prefill kernel.
       TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_ragged_);
       f_attention_prefill_ragged_->MHA(
-          q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, /*causal=*/true, rope_mode_,
-          rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+          cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+          k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, rope_mode_, rotary_scale_,
+          rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
     } else {
       // The batch requires tree attention.
       TVM_FFI_ICHECK(f_attention_prefill_with_tree_mask_ != nullptr)
           << "Function \"f_attention_prefill_with_tree_mask_\" is not defined.";
-      TVM_FFI_ICHECK(tree_attn_mask_view_[0].defined());
-      TVM_FFI_ICHECK(tree_attn_mn_indptr_view_[0].defined());
+      TVM_FFI_ICHECK(tree_attn_mask_view_[0].has_value());
+      TVM_FFI_ICHECK(tree_attn_mn_indptr_view_[0].has_value());
       f_attention_prefill_with_tree_mask_->MHA(
-          q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, tree_attn_mn_indptr_view_[0], tree_attn_mask_view_[0],
-          rope_mode_, rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+          cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+          tree_attn_mn_indptr_view_[0].value(), tree_attn_mask_view_[0].value(), rope_mode_,
+          rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
     }
   }
 
-  void MLASelfAttnInternal(Tensor q_data, Tensor k_data, Tensor v_data, Tensor o_data,
-                           Tensor lse_data, double sm_scale) {
+  void MLASelfAttnInternal(ffi::Tensor q_data, ffi::Tensor k_data, ffi::Tensor v_data,
+                           ffi::Tensor o_data, ffi::Tensor lse_data, double sm_scale) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(k_data.defined());
+    TVM_FFI_ICHECK(v_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     TVM_FFI_ICHECK(is_chain_on_depths_[0]) << "Tree attn not able for MLA for now.";
     // If the batch does not form a tree, use raggedness prefill kernel.
     TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_ragged_);
     f_attention_prefill_ragged_->MHA(
-        q_data, k_data, v_data, cur_append_length_indptr_view_, cur_append_length_indptr_view_,
-        q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, /*causal=*/true, RoPEMode::kNone,
-        rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+        q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
+        cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
+        k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, RoPEMode::kNone, rotary_scale_,
+        rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
   }
 
   /*! \brief Compute cross-attention for MHA. Return if there is effective computation. */
-  bool MHACrossAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
-                            double sm_scale, bool is_first_kernel, bool causal) {
+  bool MHACrossAttnInternal(int64_t local_layer_id, ffi::Tensor q_data, ffi::Tensor o_data,
+                            ffi::Tensor lse_data, double sm_scale, bool is_first_kernel,
+                            bool causal) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     std::unique_ptr<PagedPrefillFunc>& f_prefill =
         (!support_sliding_window_ &&
          attn_kinds_[local_layer_id + layer_id_begin_offset_] != AttnKind::kMHASliding)
@@ -2922,66 +3088,54 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     bool cross_attn_computed = false;
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value().shape()[0] == 0) {
         continue;
       }
-      Tensor attn_output;
-      Tensor attn_lse;
-      if (is_first_kernel) {
-        attn_output = o_data;
-        attn_lse = lse_data;
-      } else {
-        attn_output = temp_attn_output_view_;
-        attn_lse = temp_attn_lse_view_;
-      }
+      ffi::Tensor attn_output = is_first_kernel ? o_data : temp_attn_output_view_.value();
+      ffi::Tensor attn_lse = is_first_kernel ? lse_data : temp_attn_lse_view_.value();
       // If layer is sliding window, use sliding window index pointer/indices
-      Tensor page_indptr;
-      Tensor page_indices;
-      Tensor length_info;
-      Tensor k_rope_pos;
-      double rotary_theta;
-      double rotary_scale;
-
-      if (attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding) {
-        page_indptr = page_indptr_sliding_window_on_depths_view_[d];
-        page_indices = page_indices_sliding_window_on_depths_view_[d];
-        length_info = layer_sliding_window_length_info_on_depths_view_[d];
-        k_rope_pos = k_rope_pos_offset_sliding_window_view_[d];
-        rotary_theta = 10000;
-        rotary_scale = 1;
-      } else {
-        page_indptr = page_indptr_on_depths_view_[d];
-        page_indices = page_indices_on_depths_view_[d];
-        length_info = length_info_on_depths_view_[d];
-        k_rope_pos = k_rope_pos_offset_view_[d];
-        rotary_theta = rotary_theta_;
-        rotary_scale = rotary_scale_;
-      }
+      bool layer_sliding =
+          attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding;
+      ffi::Tensor page_indptr = layer_sliding
+                                    ? page_indptr_sliding_window_on_depths_view_[d].value()
+                                    : page_indptr_on_depths_view_[d].value();
+      ffi::Tensor page_indices = layer_sliding
+                                     ? page_indices_sliding_window_on_depths_view_[d].value()
+                                     : page_indices_on_depths_view_[d].value();
+      ffi::Tensor length_info = layer_sliding
+                                    ? layer_sliding_window_length_info_on_depths_view_[d].value()
+                                    : length_info_on_depths_view_[d].value();
+      ffi::Tensor k_rope_pos = layer_sliding ? k_rope_pos_offset_sliding_window_view_[d].value()
+                                             : k_rope_pos_offset_view_[d].value();
+      double rotary_theta = layer_sliding ? 10000 : rotary_theta_;
+      double rotary_scale = layer_sliding ? 1 : rotary_scale_;
 
       if (append_before_attn_ && !is_chain_on_depths_[d]) {
         TVM_FFI_ICHECK_NOTNULL(f_attention_prefill_with_tree_mask_paged_kv_);
         f_attention_prefill_with_tree_mask_paged_kv_->MHA(
-            q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id], page_indptr, page_indices,
-            length_info, k_rope_pos, q_rope_position_map_view_, tree_attn_mn_indptr_view_[d],
-            tree_attn_mask_view_[d], rope_mode_, rotary_scale, rotary_theta, sm_scale, attn_output,
-            attn_lse, compute_stream_);
+            q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id], page_indptr,
+            page_indices, length_info, k_rope_pos, q_rope_position_map_view_.value(),
+            tree_attn_mn_indptr_view_[d].value(), tree_attn_mask_view_[d].value(), rope_mode_,
+            rotary_scale, rotary_theta, sm_scale, attn_output, attn_lse, compute_stream_);
       } else if (use_decode_kernel_[d]) {
         // Use decode kernel for depth d
         TVM_FFI_ICHECK_NOTNULL(f_decode);
         f_decode->MHA(d, q_data, pages_[local_layer_id], page_indptr, page_indices, length_info,
-                      k_rope_pos, q_rope_position_map_view_, rope_mode_, rotary_scale, rotary_theta,
-                      sm_scale, attn_output, attn_lse, compute_stream_);
+                      k_rope_pos, q_rope_position_map_view_.value(), rope_mode_, rotary_scale,
+                      rotary_theta, sm_scale, attn_output, attn_lse, compute_stream_);
       } else {
         // Use prefill kernel for depth d
         TVM_FFI_ICHECK_NOTNULL(f_prefill);
-        f_prefill->MHA(d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id], page_indptr,
-                       page_indices, length_info, q_rope_position_map_view_, k_rope_pos, causal,
+        f_prefill->MHA(d, q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id],
+                       page_indptr, page_indices, length_info, q_rope_position_map_view_.value(),
+                       k_rope_pos, causal,
                        /*rotary_mode=*/rope_mode_, rotary_scale, rotary_theta, sm_scale,
                        attn_output, attn_lse, compute_stream_);
       }
 
       if (!is_first_kernel) {
-        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_, temp_attn_lse_view_);
+        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_.value(),
+                            temp_attn_lse_view_.value());
       } else {
         is_first_kernel = false;
       }
@@ -2991,34 +3145,32 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   /*! \brief Compute cross-attention for MLA. Return if there is effective computation. */
-  bool MLACrossAttnInternal(int64_t local_layer_id, Tensor q_data, Tensor o_data, Tensor lse_data,
-                            double sm_scale) {
+  bool MLACrossAttnInternal(int64_t local_layer_id, ffi::Tensor q_data, ffi::Tensor o_data,
+                            ffi::Tensor lse_data, double sm_scale) {
+    TVM_FFI_ICHECK(q_data.defined());
+    TVM_FFI_ICHECK(o_data.defined());
+    TVM_FFI_ICHECK(lse_data.defined());
     TVM_FFI_ICHECK_GE(num_depths_, 1)
         << "The number of effective depths must be greater or equal to 1.";
 
     bool is_first_kernel = true;
     for (int d = 0; d < num_depths_; ++d) {
-      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+      if (page_indices_on_depths_view_[d].value().shape()[0] == 0) {
         continue;
       }
-      Tensor attn_output;
-      Tensor attn_lse;
-      if (is_first_kernel) {
-        attn_output = o_data;
-        attn_lse = lse_data;
-      } else {
-        attn_output = temp_attn_output_view_;
-        attn_lse = temp_attn_lse_view_;
-      }
+      ffi::Tensor attn_output = is_first_kernel ? o_data : temp_attn_output_view_.value();
+      ffi::Tensor attn_lse = is_first_kernel ? lse_data : temp_attn_lse_view_.value();
       TVM_FFI_ICHECK(is_chain_on_depths_[d]) << "Tree attn not able for MLA for now.";
       TVM_FFI_ICHECK_NOTNULL(f_mla_prefill_);
-      f_mla_prefill_->MLA(d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
-                          page_indptr_on_depths_view_[d], page_indices_on_depths_view_[d],
-                          length_info_on_depths_view_[d], /*causal=*/false, sm_scale, attn_output,
-                          attn_lse, compute_stream_);
+      f_mla_prefill_->MLA(d, q_data, qo_indptr_on_depths_view_[d].value(), pages_[local_layer_id],
+                          page_indptr_on_depths_view_[d].value(),
+                          page_indices_on_depths_view_[d].value(),
+                          length_info_on_depths_view_[d].value(), /*causal=*/false, sm_scale,
+                          attn_output, attn_lse, compute_stream_);
 
       if (!is_first_kernel) {
-        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_, temp_attn_lse_view_);
+        f_merge_inplace_[0](o_data, lse_data, temp_attn_output_view_.value(),
+                            temp_attn_lse_view_.value());
       } else {
         is_first_kernel = false;
       }
@@ -3112,7 +3264,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                           qo_indptr_on_depths_host_[d].size());
         page_indptr_sliding_window_on_depths_view_[d] =
             aux_data_manager_->CopyPageIndptrOnDepthAsync(
-                &page_indptr_sliding_window_on_depths_host_[d], d);
+                &page_indptr_sliding_window_on_depths_host_[d], d, /*layer_sliding_window=*/true);
       }
       // 6. page_indices_sliding_window_on_depths
       for (int d = 0; d < num_depths_; ++d) {
@@ -3120,7 +3272,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                           page_indptr_sliding_window_on_depths_host_[d].back());
         page_indices_sliding_window_on_depths_view_[d] =
             aux_data_manager_->CopyPageIndicesOnDepthAsync(
-                &page_indices_sliding_window_on_depths_host_[d], d);
+                &page_indices_sliding_window_on_depths_host_[d], d, /*layer_sliding_window=*/true);
       }
     }
     // 7. length_info_on_depths
@@ -3147,7 +3299,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         layer_sliding_window_length_info_on_depths_view_[d] =
             aux_data_manager_->CopyLengthInfoOnDepthAsync(&last_page_len_on_depths_host_[d],
                                                           &sliding_window_offset_on_depths_host_[d],
-                                                          &sink_size_on_depths_host_[d], d);
+                                                          &sink_size_on_depths_host_[d], d,
+                                                          /*layer_sliding_window=*/true);
       }
     }
     // 6. k_rope_pos_offset_on_depths
@@ -3203,12 +3356,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     }
     // 16. Create view for temporary arrays for attention computation.
-    temp_attn_output_view_ = temp_attn_output_device_.CreateView(
-        {total_append_length, num_qo_heads_, v_head_dim_}, temp_attn_output_device_->dtype);
-    temp_attn_lse_view_ = temp_attn_lse_device_.CreateView({total_append_length, num_qo_heads_},
-                                                           temp_attn_lse_device_->dtype);
-    merged_attn_lse_view_ = merged_attn_lse_device_.CreateView({total_append_length, num_qo_heads_},
-                                                               merged_attn_lse_device_->dtype);
+    temp_attn_output_view_ = tvm::runtime::CreateView(
+        temp_attn_output_device_, {total_append_length, num_qo_heads_, v_head_dim_},
+        temp_attn_output_device_.dtype());
+    temp_attn_lse_view_ = tvm::runtime::CreateView(
+        temp_attn_lse_device_, {total_append_length, num_qo_heads_}, temp_attn_lse_device_.dtype());
+    merged_attn_lse_view_ =
+        tvm::runtime::CreateView(merged_attn_lse_device_, {total_append_length, num_qo_heads_},
+                                 merged_attn_lse_device_.dtype());
 
     // - Commit the copy.
     aux_data_manager_->CommitAttnAuxDataCopy();
@@ -3250,8 +3405,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         int rope_mode = args[8].cast<int>();
         double rotary_scale = args[9].cast<double>();
         double rotary_theta = args[10].cast<double>();
-        ffi::Optional<Tensor> rope_ext_factors = std::nullopt;  // args[11]
-        Tensor init = args[12].cast<Tensor>();
+        ffi::Optional<ffi::Tensor> rope_ext_factors = std::nullopt;  // args[11]
+        ffi::Tensor init = args[12].cast<ffi::Tensor>();
+        TVM_FFI_ICHECK(init.defined());
         ffi::Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
         ffi::Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
         std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
@@ -3276,7 +3432,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
         ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
 
-        if (auto opt_nd = args[11].as<Tensor>()) {
+        if (auto opt_nd = args[11].as<ffi::Tensor>(); opt_nd && opt_nd->defined()) {
           rope_ext_factors = opt_nd.value();
         }
         auto f_convert_optional_packed_func = [&args](int arg_idx) -> ffi::Optional<ffi::Function> {
@@ -3316,8 +3472,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs,
             num_total_pages, prefill_chunk_size, support_sliding_window, layer_sliding_window_size,
             RoPEMode(rope_mode), rotary_scale, rotary_theta, std::move(rope_ext_factors),
-            enable_kv_transfer,         //
-            init->dtype, init->device,  //
+            enable_kv_transfer,           //
+            init.dtype(), init.device(),  //
             std::move(f_transpose_append_mha), std::move(f_transpose_append_mla),
             std::move(f_compact_copy), std::move(f_attention_prefill_ragged),
             std::move(f_attention_prefill), std::move(f_attention_decode),
@@ -3327,7 +3483,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             std::move(f_attention_prefill_with_tree_mask),           //
             std::move(f_mla_prefill), std::move(f_merge_inplace), std::move(f_split_rotary),
             std::move(f_copy_single_page), std::move(f_debug_get_kv));
-        *rv = AttentionKVCache(std::move(n));
+        *rv = ffi::GetRef<AttentionKVCache>(n.get());
       });
 }
 

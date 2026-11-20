@@ -39,13 +39,15 @@ import tvm_ffi
 from onnx import ModelProto, TensorProto, helper, numpy_helper
 
 import tvm
-import tvm.testing
-from tvm import relax, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend.onnx import from_onnx
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -55,7 +57,7 @@ def collect_relax_call_ops(func):
     call_ops = set()
 
     def _visit(expr):
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             call_ops.add(expr.op.name)
 
     relax.analysis.post_order_visit(func.body, _visit)
@@ -155,9 +157,9 @@ def check_correctness(
     # Separate model from parameters.
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     # Prepare inputs.
     input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
@@ -191,19 +193,19 @@ def check_correctness(
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
-        elif isinstance(tvm_out, tvm.runtime.Tensor) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, tvm_tirx.runtime.Tensor) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert tvm_out.numpy().dtype == ort_out.dtype
-            tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
+            tvm_tirx.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, tvm_ffi.Shape) and isinstance(ort_out, np.ndarray):
-            shape_out = tvm.runtime.tensor([int(i) for i in tvm_out])
+            shape_out = tvm_tirx.runtime.tensor([int(i) for i in tvm_out])
             if check_dtypes:
                 assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
-            tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
+            tvm_tirx.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
         elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
-            tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
+            tvm_tirx.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
         else:
             raise ValueError(f"Unsupported types: {type(tvm_out)}, {type(ort_out)}")
 
@@ -235,9 +237,9 @@ def run_in_tvm(
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
 
     input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
@@ -377,7 +379,7 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -451,7 +453,7 @@ def test_matmulinteger16():
         model.ir_version = 11
 
         tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedInt16:
@@ -622,7 +624,7 @@ def test_constant_comparison_outputs_bool(op_name, np_op, np_dtype):
     constants = []
 
     def collect_constants(expr):
-        if isinstance(expr, tvm.ir.GenericConst):
+        if isinstance(expr, tvm_tirx.ir.GenericConst):
             constants.append(expr.value.numpy())
 
     relax.analysis.post_order_visit(mod["main"].body, collect_constants)
@@ -683,7 +685,7 @@ def test_div_integer_constant_folding_truncates_toward_zero():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_div_integer_constant_folding_preserves_int64_precision():
@@ -708,7 +710,7 @@ def test_div_integer_constant_folding_preserves_int64_precision():
     folded_outputs = []
 
     def collect_constants(expr):
-        if isinstance(expr, tvm.ir.GenericConst):
+        if isinstance(expr, tvm_tirx.ir.GenericConst):
             folded_outputs.append(expr.value.numpy())
 
     relax.analysis.post_order_visit(tvm_model["main"].body, collect_constants)
@@ -765,7 +767,7 @@ def test_div_integer_primexpr_folding_truncates_toward_zero(input_size, divisor_
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("int_mode", [True, False])
@@ -855,7 +857,7 @@ def test_multi_input_broadcasting():
         )
         model = helper.make_model(graph, producer_name="multi_input_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(op_name, input_shapes, output_shape):
         input_shapes = [tuple(shape) for shape in input_shapes]
@@ -1055,7 +1057,7 @@ def _make_expected_broadcast_ir_min(
         Expected IR module for the Min operation.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ExpectedMin:
@@ -1090,7 +1092,7 @@ def _make_expected_broadcast_ir_max(
         Expected IR module for the Max operation.
     """
 
-    n = T.dynamic("n")
+    n = T.dynamic("n", "int64")
 
     @I.ir_module
     class ExpectedMax:
@@ -1140,7 +1142,7 @@ def _test_symbolic_broadcast_case(
             expected = _make_expected_broadcast_ir_min(tuple(x_shape), tuple(y_shape))
         else:
             expected = _make_expected_broadcast_ir_max(tuple(x_shape), tuple(y_shape))
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
     else:
         with pytest.raises(ValueError, match=error_pattern):
             from_onnx(model, opset=18, keep_params_in_input=True)
@@ -1361,7 +1363,7 @@ def test_reciprocal_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_identity_ir():
@@ -1378,7 +1380,7 @@ def test_identity_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_elu_ir():
@@ -1400,7 +1402,7 @@ def test_elu_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_hardswish_ir():
@@ -1422,7 +1424,7 @@ def test_hardswish_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_softsign_ir():
@@ -1441,7 +1443,7 @@ def test_softsign_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_hardmax_ir():
@@ -1465,7 +1467,7 @@ def test_hardmax_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("opset", [11, 13])
@@ -1497,7 +1499,7 @@ def test_legacy_softmax_family_opset11_axis_semantics():
             opset_imports=[helper.make_opsetid("", 11)],
         )
         tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSoftmaxAxis0:
@@ -1694,7 +1696,7 @@ def test_hardmax_opset13_default_axis_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_legacy_softmax_family_opset1_ir_semantics():
@@ -1712,7 +1714,7 @@ def test_legacy_softmax_family_opset1_ir_semantics():
             opset_imports=[helper.make_opsetid("", 1)],
         )
         tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSoftmax:
@@ -1844,7 +1846,7 @@ def test_castlike_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_castlike_nan_inf_to_int8():
@@ -1927,7 +1929,7 @@ def test_gather():
             graph, producer_name="gather_test", opset_imports=[helper.make_opsetid("", 14)]
         )
         tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedRank4Axis0:
@@ -2109,7 +2111,7 @@ def test_gather_shape_constant_index(indices):
     # check_correctness broadcasts a scalar against a one-element tensor, so
     # assert the rank explicitly: only a 0-D index may collapse to a scalar.
     tvm_out = run_in_tvm(model, inputs=input_values)
-    if isinstance(tvm_out, tvm.runtime.Tensor):
+    if isinstance(tvm_out, tvm_tirx.runtime.Tensor):
         out_shape = tuple(tvm_out.numpy().shape)
     else:
         # PrimValue fast-path outputs come back as plain Python scalars.
@@ -2199,7 +2201,7 @@ def test_gather_negative_indices():
             opset_imports=[helper.make_opsetid("", 14)],
         )
         tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     for axis, indices, out_shape, indices_type in [
         (0, [-1, 0], [2, 4], TensorProto.INT64),
@@ -2452,9 +2454,9 @@ def test_scatter_dynamic_shape():
     tvm_model = from_onnx(model, shape_dict=shape_dict, opset=9)
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     vm.set_input("main", data, indices, updates)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
@@ -2669,7 +2671,7 @@ def test_compress():
         )
         model = helper.make_model(graph, producer_name="compress_test")
         tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(tensor_shape: list[int], condition_shape: list[int] | None, axis: int | None):
         if condition_shape is None:
@@ -2680,7 +2682,7 @@ def test_compress():
         if axis is None:
             flat_shape = (int(np.prod(tensor_shape)),)
 
-            num_nonzero = T.dynamic("num_nonzero")
+            num_nonzero = T.dynamic("num_nonzero", "int64")
 
             @I.ir_module
             class ExpectedCompressFlat:
@@ -2704,7 +2706,7 @@ def test_compress():
 
             return ExpectedCompressFlat
 
-        num_nonzero = T.dynamic("num_nonzero")
+        num_nonzero = T.dynamic("num_nonzero", "int64")
 
         @I.ir_module
         class ExpectedCompressAxis:
@@ -2765,7 +2767,7 @@ def test_size():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("k", [-1, 0, 1])
@@ -2808,7 +2810,7 @@ def test_gemm():
 
         model = helper.make_model(graph, producer_name="gemm_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(alpha, beta, useC):
         alpha = 1.0 if alpha is None else alpha
@@ -2990,7 +2992,7 @@ def test_reshape():
         model = helper.make_model(graph, producer_name="reshape_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedStaticShape:
@@ -3059,7 +3061,7 @@ def test_reshape_constant_zero_copy_dimension():
 
     output = run_in_tvm(model, opset=14)
 
-    tvm.testing.assert_allclose(output.numpy(), data)
+    tvm_tirx.testing.assert_allclose(output.numpy(), data)
 
 
 def test_reshape_allowzero_literal_zero_dimension():
@@ -3100,7 +3102,7 @@ def test_reshape_allowzero_infers_dimension_without_literal_zero():
 
     output = run_in_tvm(model, {"data": data}, opset=14)
 
-    tvm.testing.assert_allclose(output.numpy(), data.reshape(6, 2))
+    tvm_tirx.testing.assert_allclose(output.numpy(), data.reshape(6, 2))
 
 
 def test_reshape_shape_output():
@@ -3127,7 +3129,7 @@ def test_reshape_shape_output():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         assert len(tvm_model["main"].attrs["params"]) == 1
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedFlattenShape:
@@ -3197,7 +3199,7 @@ def test_transpose_scalar():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedScalar)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedScalar)
 
     scalar_constant = helper.make_node(
         "Constant",
@@ -3226,7 +3228,7 @@ def test_transpose_scalar():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedConstant)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedConstant)
 
 
 def test_transpose_axes_validation():
@@ -3242,7 +3244,7 @@ def test_transpose_axes_validation():
         )
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedTranspose1D:
@@ -3297,7 +3299,7 @@ def assert_static_unsqueeze_ir(
     tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
     if axes_as_param:
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_unsqueeze():
@@ -3394,10 +3396,10 @@ def test_unsqueeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="unsqueeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
-    unsqueeze_dim_0 = T.dynamic("unsqueeze_dim_0")
-    unsqueeze_dim_1 = T.dynamic("unsqueeze_dim_1")
-    unsqueeze_dim_2 = T.dynamic("unsqueeze_dim_2")
-    unsqueeze_dim_3 = T.dynamic("unsqueeze_dim_3")
+    unsqueeze_dim_0 = T.dynamic("unsqueeze_dim_0", "int64")
+    unsqueeze_dim_1 = T.dynamic("unsqueeze_dim_1", "int64")
+    unsqueeze_dim_2 = T.dynamic("unsqueeze_dim_2", "int64")
+    unsqueeze_dim_3 = T.dynamic("unsqueeze_dim_3", "int64")
 
     @I.ir_module
     class Expected:
@@ -3448,7 +3450,7 @@ def test_unsqueeze_dynamic_axes_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_unsqueeze_dynamic_axes_rank_validation():
@@ -3562,7 +3564,7 @@ def test_bias_gelu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_fast_gelu():
@@ -3600,7 +3602,7 @@ def test_fast_gelu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     fast_gelu_with_bias_node = helper.make_node(
         "FastGelu", ["x", "bias"], ["y"], domain="com.microsoft"
@@ -3646,7 +3648,7 @@ def test_fast_gelu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model_with_bias, ExpectedWithBias)
+    tvm_tirx.ir.assert_structural_equal(tvm_model_with_bias, ExpectedWithBias)
 
 
 def test_clip():
@@ -3665,19 +3667,27 @@ def test_clip():
         model.opset_import[0].version = 14
         tvm_model = from_onnx(model, keep_params_in_input=True)
         if tir_func_names:
-            expected = tvm.IRModule(expected.functions)
+            expected = tvm_tirx.IRModule(expected.functions)
             for name in tir_func_names:
                 expected.update_func(expected.get_global_var(name), tvm_model[name])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedClipMinMax:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
-        def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_max: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3696,7 +3706,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv3: R.Tensor((), dtype="bool") = R.isnan(max)
                 lv4: R.Tensor((), dtype="float32") = R.where(
@@ -3705,7 +3715,7 @@ def test_clip():
                 lv5 = R.call_tir(
                     cls.minimum,
                     (lv2, lv4),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv5
                 R.output(gv)
@@ -3713,8 +3723,12 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMin:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3732,7 +3746,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3740,8 +3754,12 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMaxOnlyInput:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3759,7 +3777,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3806,12 +3824,16 @@ def test_clip_v6(max, min):
 
     @I.ir_module
     class ExpectedClipV6:
-        @Ts.prim_func(private=True)
-        def maximum(var_input: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
-        def minimum(var_input: T.handle, var_output: T.handle):
+        @Ts.function(private=True)
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3822,21 +3844,21 @@ def test_clip_v6(max, min):
                 lv = R.call_tir(
                     cls.maximum,
                     (input,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv1 = R.call_tir(
                     cls.minimum,
                     (lv,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv1
                 R.output(gv)
             return gv
 
-    expected = tvm.IRModule(ExpectedClipV6.functions)
+    expected = tvm_tirx.IRModule(ExpectedClipV6.functions)
     expected.update_func(expected.get_global_var("maximum"), tvm_model["maximum"])
     expected.update_func(expected.get_global_var("minimum"), tvm_model["minimum"])
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 @pytest.mark.parametrize(
@@ -3993,9 +4015,9 @@ def test_where_shape_expr_broadcast(cond_vals, y_vals, expected):
     model = _make_where_shape_expr_model(t1_shape, cond_vals, y_vals)
     feeds = {"__t": np.ones(t1_shape, dtype="float32")}
     mod = from_onnx(model, shape_dict={"__t": list(t1_shape)})
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(mod, target="llvm")
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
     out = vm["main"](feeds["__t"])
     np.testing.assert_array_equal(
         np.array([int(i) for i in out], dtype=np.int64), np.array(expected, dtype=np.int64)
@@ -4027,7 +4049,7 @@ def test_shape():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_scalar_input():
@@ -4058,7 +4080,7 @@ def test_shape_scalar_input():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_unknown_rank_input():
@@ -4089,7 +4111,7 @@ def test_shape_unknown_rank_input():
     op_names = []
 
     def collect_ops(expr):
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             op_names.append(expr.op.name)
 
     relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
@@ -4184,7 +4206,7 @@ def test_shape_start_end(attrs, expected_shape):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_start_end_symbolic():
@@ -4225,7 +4247,7 @@ def test_shape_start_end_symbolic():
         keep_params_in_input=True,
     )
 
-    B = T.dynamic("B")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -4239,7 +4261,7 @@ def test_shape_start_end_symbolic():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_start_end_scalar():
@@ -4280,7 +4302,7 @@ def test_shape_start_end_scalar():
         keep_params_in_input=True,
     )
 
-    assert relax.analysis.check_well_formed(tvm_model)
+    relax.analysis.check_well_formed(tvm_model)
 
     # A rank-0 input has a known, empty static shape, so start=1 slices an empty
     # ShapeExpr and folds at import time. This used to fall back to a runtime
@@ -4289,7 +4311,7 @@ def test_shape_start_end_scalar():
     op_names = []
 
     def collect_ops(expr):
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             op_names.append(expr.op.name)
 
     relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
@@ -4306,7 +4328,7 @@ def test_shape_start_end_scalar():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_trilu():
@@ -4380,7 +4402,7 @@ def test_trilu_initializer_with_params_in_input():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("upper", [True, False])
@@ -4432,7 +4454,7 @@ def test_trilu_dynamic_k_ir(upper: bool):
 
         expected = ExpectedTriu
     else:
-        m = T.dynamic("m")
+        m = T.dynamic("m", "int64")
 
         @I.ir_module
         class ExpectedTril:
@@ -4455,7 +4477,67 @@ def test_trilu_dynamic_k_ir(upper: bool):
 
         expected = ExpectedTril
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
+
+
+def test_celu_ir():
+    """Check the lowered Relax IR for the Celu operator (opset 12, default alpha)."""
+    model = make_unary_model("Celu", [2, 3])
+    model.opset_import[0].version = 12
+    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.divide(x, R.const(1.0, "float32"))
+                lv1: R.Tensor((2, 3), dtype="float32") = R.exp(lv)
+                lv2: R.Tensor((2, 3), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv1)
+                lv3: R.Tensor((2, 3), dtype="float32") = R.nn.relu(lv2)
+                lv4: R.Tensor((2, 3), dtype="float32") = R.multiply(R.const(-1.0, "float32"), lv3)
+                lv5: R.Tensor((2, 3), dtype="float32") = R.nn.relu(x)
+                gv: R.Tensor((2, 3), dtype="float32") = R.add(lv4, lv5)
+                R.output(gv)
+            return gv
+
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
+
+    # Custom alpha=0.5
+    model = make_unary_model("Celu", [2, 3], attrs={"alpha": 0.5})
+    model.opset_import[0].version = 12
+    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedCustomAlpha:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.divide(x, R.const(0.5, "float32"))
+                lv1: R.Tensor((2, 3), dtype="float32") = R.exp(lv)
+                lv2: R.Tensor((2, 3), dtype="float32") = R.subtract(R.const(1.0, "float32"), lv1)
+                lv3: R.Tensor((2, 3), dtype="float32") = R.nn.relu(lv2)
+                lv4: R.Tensor((2, 3), dtype="float32") = R.multiply(R.const(-0.5, "float32"), lv3)
+                lv5: R.Tensor((2, 3), dtype="float32") = R.nn.relu(x)
+                gv: R.Tensor((2, 3), dtype="float32") = R.add(lv4, lv5)
+                R.output(gv)
+            return gv
+
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustomAlpha)
+
+
+def test_celu():
+    """Check numerical correctness of the Celu operator against onnxruntime."""
+    # Default alpha=1.0
+    check_correctness(make_unary_model("Celu", [2, 3]), opset=12)
+
+    # Custom alpha=0.5
+    check_correctness(make_unary_model("Celu", [2, 3], attrs={"alpha": 0.5}), opset=12)
+
+    # Custom alpha=2.0
+    check_correctness(make_unary_model("Celu", [2, 3], attrs={"alpha": 2.0}), opset=12)
 
 
 def test_selu():
@@ -4482,7 +4564,7 @@ def test_selu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     model = make_unary_model("Selu", [2, 3], attrs={"alpha": 0.25, "gamma": 0.3})
     tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -4505,7 +4587,7 @@ def test_selu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
 
 def test_mish():
@@ -4526,7 +4608,7 @@ def test_mish():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_prelu():
@@ -4543,7 +4625,7 @@ def test_prelu():
         )
         model = helper.make_model(graph, producer_name="prelu_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedRankZeroSlope:
@@ -4749,9 +4831,9 @@ def test_softplus_float64_accuracy():
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
     tvm_model, params = relax.frontend.detach_params(tvm_model)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
         ex = tvm.compile(tvm_model, target="llvm")
-        vm = relax.VirtualMachine(ex, tvm.cpu())
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
 
     vm.set_input("main", xs)
     vm.invoke_stateful("main")
@@ -4776,7 +4858,7 @@ def test_thresholded_relu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     model = make_unary_model("ThresholdedRelu", [2, 3], attrs={"alpha": -0.01})
     tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -4795,7 +4877,7 @@ def test_thresholded_relu():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
 
 def test_leakyrelu():
@@ -4823,7 +4905,7 @@ def test_hardsigmoid():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     model = make_unary_model("HardSigmoid", [2, 3], attrs={"alpha": 0.3, "beta": 0.4})
     tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -4846,7 +4928,7 @@ def test_hardsigmoid():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
     model = make_unary_model("HardSigmoid", [1, 3, 20, 20], attrs={"alpha": 0.5, "beta": 0.6})
     tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -4871,7 +4953,7 @@ def test_hardsigmoid():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom4D)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom4D)
 
 
 def test_shrink():
@@ -4896,7 +4978,7 @@ def test_shrink():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     model = make_unary_model("Shrink", [2, 3], attrs={"lambd": 0.2, "bias": 0.1})
     tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -4927,7 +5009,7 @@ def test_shrink():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
 
 def _make_conv_model(input_shape, weight_shape, stride, dilation, pad, bias, auto_pad):
@@ -5011,7 +5093,7 @@ def _verify_conv_import(auto_pad, stride, dilation, pad, bias, nd, groups):
     def visit(expr):
         if (
             isinstance(expr, relax.Call)
-            and isinstance(expr.op, tvm.ir.Op)
+            and isinstance(expr.op, tvm_tirx.ir.Op)
             and expr.op.name == conv_op_name
         ):
             conv_calls.append(expr)
@@ -5136,7 +5218,7 @@ def _verify_conv_transpose_import(nd, groups, auto_pad, stride, dilation, pad, b
     def visit(expr):
         if (
             isinstance(expr, relax.Call)
-            and isinstance(expr.op, tvm.ir.Op)
+            and isinstance(expr.op, tvm_tirx.ir.Op)
             and expr.op.name == conv_op_name
         ):
             conv_calls.append(expr)
@@ -5291,6 +5373,154 @@ def test_cumsum_axis_shape_validation():
         from_onnx(model, opset=14, keep_params_in_input=True)
 
 
+def _np_cumprod(x, axis=0, reverse=False, exclusive=False):
+    if reverse:
+        x = np.flip(x, axis=axis)
+    if exclusive:
+        slices = [slice(None)] * x.ndim
+        pad_shape = list(x.shape)
+        pad_shape[axis] = 1
+        ones = np.ones(pad_shape, dtype=x.dtype)
+        slices[axis] = slice(0, -1)
+        x_shifted = np.concatenate([ones, x[tuple(slices)]], axis=axis)
+        res = np.cumprod(x_shifted, axis=axis)
+    else:
+        res = np.cumprod(x, axis=axis)
+    if reverse:
+        res = np.flip(res, axis=axis)
+    return res
+
+
+def _verify_cumprod(model, inputs, expected, opset=26, rtol=1e-5, atol=1e-5):
+    # ONNX Runtime 1.23.2 in TVM CI does not support opset 26 models,
+    # so we compile the imported Relax model and verify against NumPy reference.
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+    tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
+    tvm_model = relax.transform.LegalizeOps()(tvm_model)
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
+
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
+        ex = tvm.compile(tvm_model, target="llvm")
+        vm = relax.VirtualMachine(ex, tvm_tirx.cpu())
+
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
+    if params:
+        input_list += params["main"]
+
+    vm.set_input("main", *input_list)
+    vm.invoke_stateful("main")
+    tvm_output = vm.get_outputs("main").numpy()
+
+    np.testing.assert_allclose(tvm_output, expected, rtol=rtol, atol=atol)
+
+
+@pytest.mark.parametrize("reverse", [True, False])
+@pytest.mark.parametrize("exclusive", [True, False])
+def test_cumprod(reverse, exclusive):
+    cumprod_node = helper.make_node(
+        "CumProd", ["x", "axis"], ["y"], reverse=reverse, exclusive=exclusive
+    )
+    shape = [4, 4]
+    graph = helper.make_graph(
+        [cumprod_node],
+        "cumprod_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        initializer=[helper.make_tensor("axis", TensorProto.INT64, (), [1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+    )
+
+    model = helper.make_model(
+        graph, producer_name="cumprod_test", opset_imports=[helper.make_opsetid("", 26)]
+    )
+    x = np.array(
+        [
+            [1.0, 1.2, 0.9, 1.1],
+            [0.8, 1.5, 0.7, 1.3],
+            [1.1, 0.9, 1.2, 0.8],
+            [1.4, 0.6, 1.0, 1.1],
+        ],
+        dtype=np.float32,
+    )
+    expected = _np_cumprod(x, axis=1, reverse=reverse, exclusive=exclusive)
+    _verify_cumprod(model, inputs={"x": x}, expected=expected)
+
+
+def test_cumprod_int32_1d_axis_initializer():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT32, [1], [0])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph, producer_name="cumprod_graph", opset_imports=[helper.make_opsetid("", 26)]
+    )
+    x = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float64)
+    expected = _np_cumprod(x, axis=0)
+    _verify_cumprod(model, inputs={"X": x}, expected=expected)
+
+
+def test_cumprod_dynamic_axis_not_supported():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_dynamic_axis_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+            helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="cumprod_dynamic_axis_graph",
+        opset_imports=[helper.make_opsetid("", 26)],
+    )
+    with pytest.raises(ValueError, match="non-constant axis input is not supported"):
+        from_onnx(model, opset=26, keep_params_in_input=True)
+
+
+def test_cumprod_axis_shape_validation():
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumProd", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumprod_invalid_axis_shape_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        initializer=[helper.make_tensor("axis", onnx.TensorProto.INT64, [2], [0, 1])],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="cumprod_invalid_axis_shape_graph",
+        opset_imports=[helper.make_opsetid("", 26)],
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"axis input must be a scalar \(0-D\) or a single-element 1-D tensor",
+    ):
+        from_onnx(model, opset=26, keep_params_in_input=True)
+
+
 def test_squeeze():
     def verify_squeeze(axis, expected):
         if axis:
@@ -5319,7 +5549,7 @@ def test_squeeze():
         tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
         if axis:
             tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSqueezeAxes:
@@ -5383,7 +5613,7 @@ def test_squeeze_axes_attribute():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_squeeze_non_unit_axis_raises():
@@ -5462,7 +5692,7 @@ def test_squeeze_constant():
         tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
         if axis:
             tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSqueezeConstantAxes:
@@ -5515,8 +5745,8 @@ def test_dynamic_squeeze():
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -5531,7 +5761,7 @@ def test_dynamic_squeeze():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_squeeze_dynamic_axes_ir():
@@ -5551,9 +5781,9 @@ def test_squeeze_dynamic_axes_ir():
     model = helper.make_model(graph, producer_name="squeeze_dynamic_axes_ir_test")
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
-    squeeze_num_keep_dims = T.dynamic("squeeze_num_keep_dims")
-    squeeze_dim_0 = T.dynamic("squeeze_dim_0")
-    squeeze_dim_1 = T.dynamic("squeeze_dim_1")
+    squeeze_num_keep_dims = T.dynamic("squeeze_num_keep_dims", "int64")
+    squeeze_dim_0 = T.dynamic("squeeze_dim_0", "int64")
+    squeeze_dim_1 = T.dynamic("squeeze_dim_1", "int64")
 
     @I.ir_module
     class Expected:
@@ -5597,7 +5827,7 @@ def test_squeeze_dynamic_axes_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_squeeze_dynamic_axes_rank_validation():
@@ -5648,14 +5878,14 @@ def test_dynamic_shape_squeeze(axis):
     a = T.dynamic("A", "int64")
     x = relax.Var("x", relax.TensorType([a], "float32"))
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
-    gv = relax.Var("gv", tvm.ir.PrimType("int64"))
+    gv = relax.Var("gv", tvm_tirx.ir.PrimType("int64"))
     body = relax.SeqExpr([relax.DataflowBlock([relax.VarBinding(gv, a)])], gv)
     # Match the importer boundary, where BlockBuilder populates the SeqExpr result type.
     body = relax.BlockBuilder().normalize(body)
-    expected_func = relax.Function([x, axes], body, tvm.ir.PrimType("int64")).with_attrs(
+    expected_func = relax.Function([x, axes], body, tvm_tirx.ir.PrimType("int64")).with_attrs(
         {"num_input": 1, "global_symbol": "main"}
     )
-    tvm.ir.assert_structural_equal(tvm_model, tvm.IRModule({"main": expected_func}))
+    tvm_tirx.ir.assert_structural_equal(tvm_model, tvm_tirx.IRModule({"main": expected_func}))
 
 
 def test_const():
@@ -5687,7 +5917,88 @@ def test_const():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [13, 22])
+@pytest.mark.parametrize("symbolic", [False, True])
+@pytest.mark.parametrize("dtype", ["float16", "float32", "float64"])
+@pytest.mark.parametrize("axis", [0, 1, -1, None])
+@pytest.mark.parametrize("p", [1, 2, None])
+def test_lp_normalization(opset, symbolic, dtype, axis, p):
+    attrs = {}
+    if axis is not None:
+        attrs["axis"] = axis
+    if p is not None:
+        attrs["p"] = p
+    tensor_type = helper.np_dtype_to_tensor_dtype(np.dtype(dtype))
+    model = make_unary_model(
+        "LpNormalization",
+        ["N", "C", "W"] if symbolic else [2, 3, 4],
+        attrs=attrs,
+        input_dtype=tensor_type,
+        output_dtype=tensor_type,
+    )
+    model.ir_version = 8
+    model.opset_import[0].version = opset
+    onnx.checker.check_model(model, full_check=True)
+
+    values = (np.arange(24).reshape(2, 3, 4) % 7 - 3).astype(dtype)
+    values[0, 0, :] = 0
+    values[:, 0, 0] = 0
+    values[0, :, 0] = 0
+    if dtype == "float16":
+        values *= 256
+    reference_values = values.astype("float64")
+    norm = np.linalg.norm(
+        reference_values,
+        ord=2 if p is None else p,
+        axis=-1 if axis is None else axis,
+        keepdims=True,
+    )
+    expected = np.divide(
+        reference_values, norm, out=np.zeros_like(reference_values), where=norm != 0
+    ).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=opset).numpy()
+    assert actual.dtype == values.dtype
+    tolerance = 2e-3 if dtype == "float16" else 1e-6
+    tvm_tirx.testing.assert_allclose(actual, expected, rtol=tolerance, atol=1e-7)
+    # The CI ONNX Runtime supports the equivalent opset 13 kernel for these dtypes.
+    reference_model = ModelProto()
+    reference_model.CopyFrom(model)
+    reference_model.opset_import[0].version = 13
+    ort_output = onnxruntime.InferenceSession(
+        reference_model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run(None, {"x": values})[0]
+    tvm_tirx.testing.assert_allclose(actual, ort_output, rtol=tolerance, atol=1e-7)
+
+
+@pytest.mark.parametrize("p", [0, 3])
+def test_lp_normalization_invalid_p(p):
+    model = make_unary_model("LpNormalization", [2, 3], attrs={"p": p})
+    model.opset_import[0].version = 13
+    with pytest.raises(ValueError, match="LpNormalization.*p.*1 or 2"):
+        from_onnx(model, opset=13)
+
+
+@pytest.mark.parametrize("p", [1, 2])
+def test_lp_normalization_bfloat16(p):
+    dtype = helper.tensor_dtype_to_np_dtype(TensorProto.BFLOAT16)
+    model = make_unary_model(
+        "LpNormalization",
+        [2, 3],
+        attrs={"p": p},
+        input_dtype=TensorProto.BFLOAT16,
+        output_dtype=TensorProto.BFLOAT16,
+    )
+    values = np.array([[1, -1, 0], [0, 0, 0]], dtype=dtype)
+    norm = np.linalg.norm(values.astype("float32"), ord=p, axis=-1, keepdims=True)
+    expected = (values.astype("float32") / np.where(norm == 0, 1, norm)).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=22).numpy()
+    assert actual.dtype == values.dtype
+    tvm_tirx.testing.assert_allclose(
+        actual.astype("float32"), expected.astype("float32"), rtol=1e-2, atol=1e-7
+    )
 
 
 def test_instance_norm():
@@ -5706,7 +6017,7 @@ def test_instance_norm():
 
         model = helper.make_model(graph, producer_name="instance_norm_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class Expected4D:
@@ -5772,7 +6083,7 @@ def test_mean_variance_norm():
 
         model = helper.make_model(graph, producer_name="mean_variance_norm_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedDefaultAxes:
@@ -5932,6 +6243,171 @@ def test_layer_norm():
     from_onnx(model, opset=17, keep_params_in_input=True)
 
 
+def test_layer_norm_optional_outputs():
+    node = helper.make_node(
+        "LayerNormalization",
+        ["input", "scale", "bias"],
+        ["Y", "Mean", "InvStdDev"],
+        axis=-1,
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph(
+        [node],
+        "layer_norm_optional_outputs_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [4]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("Mean", TensorProto.FLOAT, [2, 3, 1]),
+            helper.make_tensor_value_info("InvStdDev", TensorProto.FLOAT, [2, 3, 1]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="layer_norm_optional_outputs_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    check_correctness(
+        model,
+        inputs={
+            "input": np.arange(24, dtype="float32").reshape(2, 3, 4),
+            "scale": np.ones(4, dtype="float32"),
+            "bias": np.zeros(4, dtype="float32"),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("axis", [1, -2])
+@pytest.mark.parametrize(
+    "scale_shape, bias_shape",
+    [((4,), (4,)), ((1, 4), (4,)), ((4, 4), None), ((4, 4), (4, 4))],
+)
+@pytest.mark.parametrize("num_outputs", [1, 2, 3])
+def test_layer_norm_broadcast_parameters(dtype, axis, scale_shape, bias_shape, num_outputs):
+    tensor_type = TensorProto.FLOAT if dtype == "float32" else TensorProto.FLOAT16
+    input_names = ["input", "scale"]
+    input_infos = [
+        helper.make_tensor_value_info("input", tensor_type, [2, 4, 4]),
+        helper.make_tensor_value_info("scale", tensor_type, scale_shape),
+    ]
+    inputs = {
+        "input": np.linspace(-3.0, 5.0, 32).reshape(2, 4, 4).astype(dtype),
+        "scale": np.linspace(0.5, 1.5, int(np.prod(scale_shape)))
+        .reshape(scale_shape)
+        .astype(dtype),
+    }
+    if bias_shape is not None:
+        input_names.append("bias")
+        input_infos.append(helper.make_tensor_value_info("bias", tensor_type, bias_shape))
+        inputs["bias"] = (
+            np.linspace(-0.25, 0.25, int(np.prod(bias_shape))).reshape(bias_shape).astype(dtype)
+        )
+    output_infos = [
+        helper.make_tensor_value_info("Y", tensor_type, [2, 4, 4]),
+        helper.make_tensor_value_info("Mean", TensorProto.FLOAT, [2, 1, 1]),
+        helper.make_tensor_value_info("InvStdDev", TensorProto.FLOAT, [2, 1, 1]),
+    ][:num_outputs]
+    node = helper.make_node(
+        "LayerNormalization", input_names, [info.name for info in output_infos], axis=axis
+    )
+    model = helper.make_model(
+        helper.make_graph([node], "layer_norm_broadcast_parameters", input_infos, output_infos),
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    # Some ONNX Runtime versions reject valid broadcasted scale and bias shapes.
+    x = inputs["input"].astype("float32")
+    axes = tuple(range(axis % x.ndim, x.ndim))
+    mean = np.mean(x, axis=axes, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=axes, keepdims=True) + np.float32(1e-5))
+    expected_y = ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"]
+    if bias_shape is not None:
+        expected_y += inputs["bias"]
+    expected = [expected_y, mean, inv_std_dev][:num_outputs]
+
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if num_outputs == 1 else actual
+    assert len(actual) == num_outputs
+    tol = 1e-3 if dtype == "float16" else 1e-5
+    for value, reference in zip(actual, expected):
+        value = value.numpy()
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "outputs", [["Y"], ["Y", "", ""], ["Y", "Mean", ""], ["Y", "", "InvStdDev"]]
+)
+@pytest.mark.parametrize("in_subgraph", [False, True])
+def test_layer_norm_optional_output_names(dtype, outputs, in_subgraph):
+    tensor_type = TensorProto.FLOAT if dtype == "float32" else TensorProto.FLOAT16
+    input_infos = [
+        helper.make_tensor_value_info("input", tensor_type, [2, 4]),
+        helper.make_tensor_value_info("scale", tensor_type, [4]),
+    ]
+    output_infos = [
+        helper.make_tensor_value_info(
+            name,
+            tensor_type if name == "Y" else TensorProto.FLOAT,
+            [2, 4] if name == "Y" else [2, 1],
+        )
+        for name in outputs
+        if name
+    ]
+    node = helper.make_node("LayerNormalization", ["input", "scale"], outputs)
+    inputs = {
+        "input": np.array([[1, 2, 4, 8], [10000, 10016, 10032, 10048]], dtype=dtype),
+        "scale": np.array([0.5, 1.5, 2.0, 0.75], dtype=dtype),
+    }
+    if in_subgraph:
+        branch = helper.make_graph([node], "branch", [], output_infos)
+        node = helper.make_node(
+            "If",
+            ["cond"],
+            [info.name for info in output_infos],
+            then_branch=branch,
+            else_branch=branch,
+        )
+        input_infos.append(helper.make_tensor_value_info("cond", TensorProto.BOOL, []))
+        inputs["cond"] = np.array(True)
+    model = helper.make_model(
+        helper.make_graph([node], "layer_norm_optional_outputs", input_infos, output_infos),
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    onnx.checker.check_model(model)
+    ops = collect_relax_call_ops(from_onnx(model)["main"])
+    if len(output_infos) == 1:
+        assert "relax.nn.layer_norm" in ops
+        assert "relax.mean" not in ops
+        assert "relax.rsqrt" not in ops
+
+    x = inputs["input"].astype("float32")
+    mean = np.mean(x, axis=-1, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=-1, keepdims=True) + np.float32(1e-5))
+    expected = {
+        "Y": ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"],
+        "Mean": mean,
+        "InvStdDev": inv_std_dev,
+    }
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if len(output_infos) == 1 else actual
+    assert len(actual) == len(output_infos)
+    for value, info in zip(actual, output_infos):
+        value = value.numpy()
+        reference = expected[info.name]
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        tol = 1e-3 if reference.dtype == np.float16 else 1e-5
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
+
+
 def test_layer_norm_with_nd_gamma_beta():
     layer_norm_node = helper.make_node(
         "LayerNormalization", ["input", "scale", "bias"], ["Y"], axis=1, epsilon=1e-12
@@ -6009,7 +6485,7 @@ def test_layer_norm_numerical_stability():
     tvm_output = run_in_tvm(model, inputs=inputs, ir_version=9, opset=17)
 
     assert np.isfinite(tvm_output.numpy()).all()
-    tvm.testing.assert_allclose(tvm_output.numpy(), expected)
+    tvm_tirx.testing.assert_allclose(tvm_output.numpy(), expected)
 
 
 def test_rms_norm():
@@ -6249,11 +6725,11 @@ def test_group_norm():
         )
         tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        expected = tvm.IRModule(expected.functions)
+        expected = tvm_tirx.IRModule(expected.functions)
         for gv in expected.get_global_vars():
             if gv.name_hint != "main":
                 expected.update_func(gv, tvm_model[gv.name_hint])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     for input_shape, scale_shape, bias_shape, num_groups, opset, dtype, dtype_str, stash_type in [
         ([1, 4, 2, 2], [2], [2], 2, 18, TensorProto.FLOAT, "float32", 1),
@@ -6398,7 +6874,7 @@ def test_skiplayernormalization(dynamic):
                     R.output(gv)
                 return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, Expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
     hidden_size = 384
     batch_size = 4
@@ -6477,7 +6953,7 @@ def test_embedlayernormalization():
 
         tvm_model = from_onnx(model, keep_params_in_input=True)
 
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
         # TODO(@anwang2009): onnxruntime v1.9.0 requires empty list for optional argument,
         # but v1.10.0+ requires None instead.
@@ -6677,7 +7153,7 @@ def test_local_response_norm():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 COMPOSITE_REDUCE_FUNCS = [
@@ -6746,7 +7222,7 @@ def verify_composite_reduce_axes_attr_ir(
         opset_imports=[helper.make_opsetid("", opset)],
     )
     tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
-    tvm.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
 
 
 def create_reduce_test_parameters_axes_attr():
@@ -6952,7 +7428,7 @@ def _make_reduce_expected_ir(
             "",
         ]
     )
-    return tvm.script.from_source(source, extra_vars=parser_vars)
+    return tvm_tirx.script.from_source(source, extra_vars=parser_vars)
 
 
 def test_composite_reduce_funcs_axes_attr_ir():
@@ -7042,7 +7518,7 @@ def verify_composite_reduce_axes_input_ir(
         assert len(tvm_model["main"].attrs["params"]) == 1
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    tvm.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
 
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
@@ -7209,7 +7685,7 @@ def test_expand():
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def _assert_expand_dynamic_shapeexpr_ir(name, input_shape, shape_input_shape, expected):
         shape_node = onnx.helper.make_node("Shape", inputs=["in_2"], outputs=["shape"])
@@ -7226,7 +7702,7 @@ def test_expand():
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSameRank:
@@ -7260,7 +7736,7 @@ def test_expand():
                 R.output(gv)
             return gv
 
-    batch = T.dynamic("batch")
+    batch = T.dynamic("batch", "int64")
 
     @I.ir_module
     class ExpectedDynamicShape:
@@ -7476,7 +7952,7 @@ def test_constantofshape_default_value():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_constantofshape_initializer_shape_with_keep_params_in_input():
@@ -7541,7 +8017,7 @@ def test_slice():
         model = helper.make_model(graph, producer_name="slice_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedSliceAxesAndSteps:
@@ -7736,7 +8212,7 @@ def test_slice_dynamic_inputs_ir():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_slice_dynamic_inputs_length_validation():
@@ -7837,7 +8313,7 @@ def test_slice_dynamic_shape():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         assert len(tvm_model["main"].attrs["params"]) == 3
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedShapeSlice0:
@@ -7854,7 +8330,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice1:
@@ -7871,8 +8347,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice2:
@@ -7889,7 +8365,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice3:
@@ -7906,9 +8382,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice4:
@@ -7940,7 +8416,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice6:
@@ -7957,8 +8433,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice7:
@@ -7975,7 +8451,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice8:
@@ -7992,9 +8468,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice9:
@@ -8026,7 +8502,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
+    A = T.dynamic("A", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice11:
@@ -8043,8 +8519,8 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice12:
@@ -8061,7 +8537,7 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    C = T.dynamic("C")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice13:
@@ -8078,9 +8554,9 @@ def test_slice_dynamic_shape():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
-    C = T.dynamic("C")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class ExpectedShapeSlice14:
@@ -8227,7 +8703,7 @@ def test_attention(dynamic):
                     R.output(gv)
                 return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedAttention)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedAttention)
         # "present" output should be nullptr when the "past" input isn't included,
         # but ort requires an output shape to be specified?
         # verify_with_ort_with_inputs(
@@ -8300,8 +8776,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantWithInputs:
-            @Ts.prim_func(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            @Ts.function(private=True)
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8316,7 +8794,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8328,8 +8806,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantAttrs:
-            @Ts.prim_func(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            @Ts.function(private=True)
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8342,7 +8822,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8354,8 +8834,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectWithInputs:
-            @Ts.prim_func(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            @Ts.function(private=True)
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8369,7 +8852,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8381,8 +8864,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectAttrs:
-            @Ts.prim_func(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            @Ts.function(private=True)
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8395,7 +8881,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8407,8 +8893,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeWithInputs:
-            @Ts.prim_func(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            @Ts.function(private=True)
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8422,7 +8911,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8434,8 +8923,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeAttrs:
-            @Ts.prim_func(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            @Ts.function(private=True)
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8448,7 +8940,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8461,8 +8953,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
             @I.ir_module
             class ExpectedPadWrapWithInputs:
-                @Ts.prim_func(private=True)
-                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                @Ts.function(private=True)
+                def circular_pad(
+                    input: T.Tensor(input_shape, "float32"),
+                    CircularPadInput: T.Tensor(out_shape, "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -8476,7 +8971,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                         lv = R.call_tir(
                             cls.circular_pad,
                             (input,),
-                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                            ty_args=[R.Tensor(out_shape, dtype="float32")],
                         )
                         gv: R.Tensor(out_shape, dtype="float32") = lv
                         R.output(gv)
@@ -8486,8 +8981,11 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadWrapWithAxes:
-            @Ts.prim_func(private=True)
-            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+            @Ts.function(private=True)
+            def circular_pad(
+                input: T.Tensor(input_shape, "float32"),
+                CircularPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8502,7 +9000,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.circular_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8588,11 +9086,11 @@ def test_pad(dynamic):
         model.opset_import[0].version = opset
         tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        expected = tvm.IRModule(expected.functions)
+        expected = tvm_tirx.IRModule(expected.functions)
         for gv in expected.get_global_vars():
             if gv.name_hint != "main":
                 expected.update_func(gv, tvm_model[gv.name_hint])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     for input_shape, pads, mode, value, opset, axes in [
         ((2, 2), [0, 1, 0, 0], "constant", 0.0, 14, None),
@@ -8655,7 +9153,7 @@ def test_pad_opset18_axes():
 
     # mode="wrap" was only added in Pad-19 and must be rejected for opset 18.
     model = make_model((1, 3, 4), [2, 2], [2], "wrap", opset=18)
-    with pytest.raises(tvm.error.OpAttributeInvalid):
+    with pytest.raises(AttributeError):
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 
@@ -8712,11 +9210,11 @@ def test_pad_v2(dynamic):
         model = helper.make_model(graph, producer_name="pad_test")
         model.opset_import[0].version = 10
         tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-        expected = tvm.IRModule(expected.functions)
+        expected = tvm_tirx.IRModule(expected.functions)
         for gv in expected.get_global_vars():
             if gv.name_hint != "main":
                 expected.update_func(gv, tvm_model[gv.name_hint])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     for input_shape, pads, mode, value in [
         ((2, 2), [0, 1, 0, 0], "constant", 0.0),
@@ -8805,7 +9303,7 @@ def test_split():
         )
         model = helper.make_model(graph, producer_name="split_test")
         tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(fp_arith, dynamic, indata_shape, outdata_shapes, split, axis, pass_split):
         def shape_tuple(shape):
@@ -8956,7 +9454,7 @@ def test_split_initializer_with_params_in_input():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_tile():
@@ -8987,19 +9485,32 @@ def test_tile():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         assert len(tvm_model["main"].attrs["params"]) == 1
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        expected = tvm.IRModule(expected.functions)
+        expected = tvm_tirx.IRModule(expected.functions)
         expected.update_func(expected.get_global_var("tile"), tvm_model["tile"])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
-    tile_input_dim_0 = T.dynamic("tile_input_dim_0")
-    tile_input_dim_1 = T.dynamic("tile_input_dim_1")
-    tile_input_dim_2 = T.dynamic("tile_input_dim_2")
-    tile_input_dim_3 = T.dynamic("tile_input_dim_3")
+    tile_input_dim_0 = T.dynamic("tile_input_dim_0", "int64")
+    tile_input_dim_1 = T.dynamic("tile_input_dim_1", "int64")
+    tile_input_dim_2 = T.dynamic("tile_input_dim_2", "int64")
+    tile_input_dim_3 = T.dynamic("tile_input_dim_3", "int64")
 
     @I.ir_module
     class ExpectedTileDynamicInput:
-        @Ts.prim_func(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        @Ts.function(private=True)
+        def tile(
+            input: T.Tensor(
+                (tile_input_dim_0, tile_input_dim_1, tile_input_dim_2, tile_input_dim_3), "float32"
+            ),
+            T_tile: T.Tensor(
+                (
+                    tile_input_dim_0 * 2,
+                    tile_input_dim_1,
+                    tile_input_dim_2 * 3,
+                    tile_input_dim_3 * 2,
+                ),
+                "float32",
+            ),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9029,15 +9540,17 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor(
-                        (
-                            tile_input_dim_0 * 2,
-                            tile_input_dim_1,
-                            tile_input_dim_2 * 3,
-                            tile_input_dim_3 * 2,
-                        ),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (
+                                tile_input_dim_0 * 2,
+                                tile_input_dim_1,
+                                tile_input_dim_2 * 3,
+                                tile_input_dim_3 * 2,
+                            ),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 gv: R.Tensor(
                     (
@@ -9053,8 +9566,10 @@ def test_tile():
 
     @I.ir_module
     class ExpectedTileStaticInput:
-        @Ts.prim_func(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        @Ts.function(private=True)
+        def tile(
+            input: T.Tensor((2, 3, 4, 5), "float32"), T_tile: T.Tensor((4, 3, 12, 10), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9068,7 +9583,7 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor((4, 3, 12, 10), dtype="float32"),
+                    ty_args=[R.Tensor((4, 3, 12, 10), dtype="float32")],
                 )
                 gv: R.Tensor((4, 3, 12, 10), dtype="float32") = lv
                 R.output(gv)
@@ -9105,9 +9620,9 @@ def test_tile_dynamic_repeats():
         )
 
         tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-        expected = tvm.IRModule(expected.functions)
+        expected = tvm_tirx.IRModule(expected.functions)
         expected.update_func(expected.get_global_var("dyn_tile"), tvm_model["dyn_tile"])
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(dynamic_input, in_shape):
         rank = len(in_shape)
@@ -9118,13 +9633,16 @@ def test_tile_dynamic_repeats():
         )
 
         if rank == 2:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
 
             @I.ir_module
             class ExpectedTileRank2:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9144,7 +9662,7 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
+                            ty_args=[R.Tensor((tile_dim_0, tile_dim_1), dtype="float32")],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
                         R.output(gv)
@@ -9153,14 +9671,17 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank2
 
         if rank == 3:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
-            tile_dim_2 = T.dynamic("tile_dim_2")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
+            tile_dim_2 = T.dynamic("tile_dim_2", "int64")
 
             @I.ir_module
             class ExpectedTileRank3:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9181,7 +9702,9 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
+                            ty_args=[
+                                R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32")
+                            ],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
                         R.output(gv)
@@ -9190,15 +9713,20 @@ def test_tile_dynamic_repeats():
             return ExpectedTileRank3
 
         if rank == 4:
-            tile_dim_0 = T.dynamic("tile_dim_0")
-            tile_dim_1 = T.dynamic("tile_dim_1")
-            tile_dim_2 = T.dynamic("tile_dim_2")
-            tile_dim_3 = T.dynamic("tile_dim_3")
+            tile_dim_0 = T.dynamic("tile_dim_0", "int64")
+            tile_dim_1 = T.dynamic("tile_dim_1", "int64")
+            tile_dim_2 = T.dynamic("tile_dim_2", "int64")
+            tile_dim_3 = T.dynamic("tile_dim_3", "int64")
 
             @I.ir_module
             class ExpectedTileRank4:
-                @Ts.prim_func(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                @Ts.function(private=True)
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor(
+                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), "float32"
+                    ),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9221,10 +9749,12 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor(
-                                (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
-                                dtype="float32",
-                            ),
+                            ty_args=[
+                                R.Tensor(
+                                    (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
+                                    dtype="float32",
+                                )
+                            ],
                         )
                         gv: R.Tensor(
                             (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
@@ -9248,6 +9778,124 @@ def test_tile_dynamic_repeats():
         verify_tile_dynamic_repeats(
             dynamic_input, in_shape, repeats, make_expected(dynamic_input, in_shape)
         )
+
+
+def test_reverse_sequence_ir():
+    """Verify lowered Relax IR for the ReverseSequence ONNX operator."""
+
+    def make_reverse_sequence_model(x_shape, seq_lens_shape, time_axis=None, batch_axis=None):
+        attrs = {}
+        if time_axis is not None:
+            attrs["time_axis"] = time_axis
+        if batch_axis is not None:
+            attrs["batch_axis"] = batch_axis
+        node = helper.make_node(
+            "ReverseSequence",
+            inputs=["x", "sequence_lens"],
+            outputs=["y"],
+            **attrs,
+        )
+        graph = helper.make_graph(
+            [node],
+            "reverse_sequence_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+                helper.make_tensor_value_info("sequence_lens", TensorProto.INT64, seq_lens_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+        )
+        return helper.make_model(graph, producer_name="reverse_sequence_test")
+
+    # Default time_axis=0, batch_axis=1
+    model = make_reverse_sequence_model([4, 3], [3])
+    tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedDefault:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            sequence_lens: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor((4, 3), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((4, 3), dtype="float32") = R.reverse_sequence(
+                    x, sequence_lens, seq_axis=0, batch_axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedDefault)
+
+    # Custom time_axis=1, batch_axis=0
+    model = make_reverse_sequence_model([2, 5], [2], time_axis=1, batch_axis=0)
+    tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
+
+    @I.ir_module
+    class ExpectedCustom:
+        @R.function
+        def main(
+            x: R.Tensor((2, 5), dtype="float32"),
+            sequence_lens: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((2, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 5), dtype="float32") = R.reverse_sequence(
+                    x, sequence_lens, seq_axis=1, batch_axis=0
+                )
+                R.output(gv)
+            return gv
+
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedCustom)
+
+
+def test_reverse_sequence():
+    """Verify numerical correctness of ReverseSequence against ONNX Runtime."""
+
+    def verify_reverse_sequence(x, sequence_lens, time_axis=None, batch_axis=None, opset=10):
+        attrs = {}
+        if time_axis is not None:
+            attrs["time_axis"] = time_axis
+        if batch_axis is not None:
+            attrs["batch_axis"] = batch_axis
+        node = helper.make_node(
+            "ReverseSequence",
+            inputs=["x", "sequence_lens"],
+            outputs=["y"],
+            **attrs,
+        )
+        seq_lens_proto = TensorProto.INT64 if sequence_lens.dtype == np.int64 else TensorProto.INT32
+        graph = helper.make_graph(
+            [node],
+            "reverse_sequence_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
+                helper.make_tensor_value_info(
+                    "sequence_lens", seq_lens_proto, list(sequence_lens.shape)
+                ),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(x.shape))],
+        )
+        model = helper.make_model(graph, producer_name="reverse_sequence_test")
+        inputs = {"x": x, "sequence_lens": sequence_lens}
+        check_correctness(model, inputs=inputs, opset=opset)
+
+    # Example 1: 2D, time_axis=0, batch_axis=1
+    x = np.arange(16, dtype=np.float32).reshape(4, 4)
+    seq_lens = np.array([4, 3, 2, 1], dtype=np.int64)
+    verify_reverse_sequence(x, seq_lens, time_axis=0, batch_axis=1)
+
+    # Example 2: 2D, time_axis=1, batch_axis=0
+    seq_lens = np.array([1, 2, 3, 4], dtype=np.int64)
+    verify_reverse_sequence(x, seq_lens, time_axis=1, batch_axis=0)
+
+    # Default attributes (time_axis=0, batch_axis=1)
+    verify_reverse_sequence(x, np.array([4, 2, 1, 3], dtype=np.int64))
+
+    # 3D tensor
+    x_3d = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    seq_lens_3d = np.array([3, 1], dtype=np.int64)
+    verify_reverse_sequence(x_3d, seq_lens_3d, time_axis=1, batch_axis=0)
 
 
 def _generate_roi_cases():
@@ -9337,7 +9985,7 @@ def test_resize_dynamic_roi_tf_crop_and_resize():
 
     def _visit(expr):
         nonlocal seen_call_tir
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             if expr.op.name == "relax.call_tir":
                 seen_call_tir = True
 
@@ -9378,7 +10026,7 @@ def test_resize_dynamic_roi_3d_tf_crop_and_resize():
 
     def _visit(expr):
         nonlocal seen_call_tir
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             if expr.op.name == "relax.call_tir":
                 seen_call_tir = True
 
@@ -9429,7 +10077,7 @@ def test_resize_nd_sizes():
 
         def _visit(expr):
             nonlocal seen_call_tir
-            if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
                 if expr.op.name == "relax.call_tir":
                     seen_call_tir = True
 
@@ -9460,7 +10108,7 @@ def test_resize_5d_emits_relax_resize3d():
 
     def _visit(expr):
         nonlocal seen_resize3d
-        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm_tirx.ir.Op):
             if expr.op.name == "relax.image.resize3d":
                 seen_resize3d = True
 
@@ -9488,8 +10136,8 @@ def test_einsum():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
-        def einsum(x: T.handle, T_einsum: T.handle):
+        @Ts.function(private=True)
+        def einsum(x: T.Tensor((3, 4), "float32"), T_einsum: T.Tensor((3,), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -9497,14 +10145,14 @@ def test_einsum():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.einsum, (x,), out_ty=R.Tensor((3,), dtype="float32"))
+                lv = R.call_tir(cls.einsum, (x,), ty_args=[R.Tensor((3,), dtype="float32")])
                 gv: R.Tensor((3,), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    expected = tvm.IRModule(Expected.functions)
+    expected = tvm_tirx.IRModule(Expected.functions)
     expected.update_func(expected.get_global_var("einsum"), tvm_model["einsum"])
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_range():
@@ -9548,7 +10196,7 @@ def test_range():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_range_constant_float():
@@ -9756,7 +10404,7 @@ def test_batch_norm_defaults_to_inference_mode():
     batch_norm_attrs = []
 
     def visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.nn.batch_norm"):
             batch_norm_attrs.append(expr.attrs)
 
     relax.analysis.post_order_visit(tvm_model["main"], visit)
@@ -9799,7 +10447,7 @@ def test_batch_norm_mixed_dtype_params():
     batch_norm_calls = []
 
     def visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.nn.batch_norm"):
             batch_norm_calls.append(expr)
 
     relax.analysis.post_order_visit(tvm_model["main"], visit)
@@ -9851,13 +10499,14 @@ def test_batch_norm_training_preserves_output_dtypes():
     batch_norm_calls = []
 
     def visit(expr):
-        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.nn.batch_norm"):
             batch_norm_calls.append(expr)
 
     relax.analysis.post_order_visit(tvm_model["main"], visit)
 
     assert len(batch_norm_calls) == 1
     assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
+    assert batch_norm_calls[0].attrs.momentum == pytest.approx(0.1)
 
 
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
@@ -9903,7 +10552,7 @@ def verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads, expe
     )
     model = helper.make_model(graph, producer_name="pool_structural_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_pool():
@@ -10096,7 +10745,7 @@ def test_global_average_pool():
             opset_imports=[helper.make_opsetid("", 14)],
         )
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class Expected1D:
@@ -10155,7 +10804,7 @@ def test_global_max_pool():
             opset_imports=[helper.make_opsetid("", 14)],
         )
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class Expected1D:
@@ -10214,7 +10863,7 @@ def test_global_lp_pool(p: int):
         )
         model = helper.make_model(graph, producer_name="global_lp_pool_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedGlobalLpPool1D:
@@ -10307,7 +10956,7 @@ def test_maxunpool():
 
         model = helper.make_model(graph, producer_name="maxunpool_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedMaxUnpool0:
@@ -10526,7 +11175,7 @@ def test_dropout():
             opset_imports=[helper.make_opsetid("", opset)],
         )
         tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedDropoutRateHalf:
@@ -10580,7 +11229,7 @@ def test_dropout():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedDropoutRatioInput)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedDropoutRatioInput)
 
 
 def test_flatten():
@@ -10594,7 +11243,7 @@ def test_flatten():
         )
         model = helper.make_model(graph, producer_name="flatten_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedAxis0:
@@ -10648,10 +11297,10 @@ def test_flatten_dynamic():
         )
         model = helper.make_model(graph, producer_name="flatten_dynamic_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxis0:
@@ -10667,8 +11316,8 @@ def test_flatten_dynamic():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxisNegative1:
@@ -10682,8 +11331,8 @@ def test_flatten_dynamic():
                 R.output(gv)
             return gv
 
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class ExpectedDynamicAxis2:
@@ -10702,7 +11351,8 @@ def test_flatten_dynamic():
     verify_flatten_dynamic_ir(2, ExpectedDynamicAxis2)
 
 
-def test_onehot():
+@pytest.mark.parametrize("depth_dtype", [TensorProto.INT64, TensorProto.FLOAT])
+def test_onehot(depth_dtype):
     one_hot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["y"], axis=1)
     graph = helper.make_graph(
         [one_hot_node],
@@ -10711,7 +11361,7 @@ def test_onehot():
             helper.make_tensor_value_info("indices", TensorProto.INT64, [2, 2]),
         ],
         initializer=[
-            helper.make_tensor("depth", TensorProto.INT64, [], [10]),
+            helper.make_tensor("depth", depth_dtype, [], [10]),
             helper.make_tensor("values", TensorProto.FLOAT, [2], [3, 1]),
         ],
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 10, 2])],
@@ -10794,9 +11444,9 @@ def test_nonzero():
         )
         model = helper.make_model(graph, producer_name="nonzero_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedScalar:
@@ -10811,7 +11461,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank1:
@@ -10826,7 +11476,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank2:
@@ -10841,7 +11491,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank3:
@@ -10856,7 +11506,7 @@ def test_nonzero():
                 R.output(gv)
             return gv
 
-    nonzero_numbers = T.dynamic("nonzero_numbers")
+    nonzero_numbers = T.dynamic("nonzero_numbers", "int64")
 
     @I.ir_module
     class ExpectedRank4:
@@ -10894,7 +11544,7 @@ def test_depth_to_space():
         )
         model = helper.make_model(graph, producer_name="depth_to_space_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedDCR:
@@ -10968,7 +11618,7 @@ def test_space_to_depth():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def construct_sequence(input_shape: list[int], num_tensors: int, name: str = "sequence"):
@@ -11032,7 +11682,7 @@ def test_sequence_construct():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_sequence_empty():
@@ -11052,11 +11702,11 @@ def test_sequence_empty():
         def main() -> R.Tuple:
             R.func_attr({"num_input": 0})
             with R.dataflow():
-                gv: R.Tuple = R.tuple()
+                gv: R.Tuple = ()
                 R.output(gv)
-            return R.tuple()
+            return ()
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_sequence_erase():
@@ -11073,7 +11723,7 @@ def test_sequence_erase():
         )
         model = helper.make_model(graph, producer_name="test_sequence_erase")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedEraseExplicit:
@@ -11142,7 +11792,7 @@ def test_sequence_insert():
         )
         model = helper.make_model(graph, producer_name="test_sequence_insert")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedInsertExplicit:
@@ -11218,7 +11868,7 @@ def test_concat_from_sequence():
         )
         model = helper.make_model(graph, producer_name="test_concat_from_sequence")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedConcatAxis0:
@@ -11330,7 +11980,7 @@ def test_concat_from_sequence_new_axis_three_tensors():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_concat_from_sequence_invalid_new_axis():
@@ -11373,7 +12023,7 @@ def test_split_to_sequence():
         )
         model = helper.make_model(graph, producer_name="test_split_to_sequence")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedScalarSplit:
@@ -11446,7 +12096,7 @@ def test_sequence_at():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_optional_get_element_tensor():
@@ -11475,7 +12125,7 @@ def test_optional_get_element_tensor():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_optional_has_element_tensor():
@@ -11504,7 +12154,7 @@ def test_optional_has_element_tensor():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_optional_has_element_empty():
@@ -11535,7 +12185,7 @@ def test_optional_has_element_empty():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_optional_get_element_sequence():
@@ -11571,7 +12221,7 @@ def test_optional_get_element_sequence():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_optional_without_input_requires_type_attr():
@@ -11690,10 +12340,12 @@ def test_symbolic_shape_deduction():
         )
         model = helper.make_model(graph, producer_name="test_shape_deduction")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
+        tvm_tirx.ir.assert_structural_equal(
+            tvm_model["main"].without_attr("params"), expected["main"]
+        )
 
-    batch = T.dynamic("batch")
-    seq = T.dynamic("seq")
+    batch = T.dynamic("batch", "int64")
+    seq = T.dynamic("seq", "int64")
 
     @I.ir_module
     class ExpectedWithReshapeFlatten:
@@ -11711,8 +12363,8 @@ def test_symbolic_shape_deduction():
                 R.output(gv)
             return gv
 
-    batch = T.dynamic("batch")
-    seq = T.dynamic("seq")
+    batch = T.dynamic("batch", "int64")
+    seq = T.dynamic("seq", "int64")
 
     @I.ir_module
     class ExpectedWithoutReshapeFlatten:
@@ -11748,7 +12400,7 @@ def test_multi_inputs_with_same_symbolic_shape():
     model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    batch = T.dynamic("batch")
+    batch = T.dynamic("batch", "int64")
 
     @I.ir_module
     class Expected:
@@ -11763,7 +12415,7 @@ def test_multi_inputs_with_same_symbolic_shape():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_multi_ops_with_same_params():
@@ -11803,7 +12455,7 @@ def test_multi_ops_with_same_params():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_params_names_start_with_onnx():
@@ -11841,7 +12493,7 @@ def test_params_names_start_with_onnx():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize(
@@ -11892,8 +12544,8 @@ def test_shape_dim_string_expression_graph_add():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11906,7 +12558,7 @@ def test_shape_dim_string_expression_graph_add():
             return gv
     # fmt: on
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_dim_string_expression_graph_subtract():
@@ -11927,8 +12579,8 @@ def test_shape_dim_string_expression_graph_subtract():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11941,7 +12593,7 @@ def test_shape_dim_string_expression_graph_subtract():
             return gv
     # fmt: on
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_dim_string_expression_graph_mul():
@@ -11962,8 +12614,8 @@ def test_shape_dim_string_expression_graph_mul():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -11976,7 +12628,7 @@ def test_shape_dim_string_expression_graph_mul():
             return gv
     # fmt: on
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_dim_string_expression_graph_div_1():
@@ -11998,8 +12650,8 @@ def test_shape_dim_string_expression_graph_div_1():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -12013,7 +12665,7 @@ def test_shape_dim_string_expression_graph_div_1():
 
     # fmt: on
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_shape_dim_string_expression_graph_div_2():
@@ -12034,8 +12686,8 @@ def test_shape_dim_string_expression_graph_div_2():
     tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
 
     # fmt: off
-    A = T.dynamic("A")
-    B = T.dynamic("B")
+    A = T.dynamic("A", "int64")
+    B = T.dynamic("B", "int64")
 
     @I.ir_module
     class Expected:
@@ -12048,7 +12700,7 @@ def test_shape_dim_string_expression_graph_div_2():
             return gv
     # fmt: on
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @I.ir_module
@@ -12130,7 +12782,7 @@ def _assert_nms_import(model, expected, num_params=0):
         assert len(tvm_model["main"].attrs["params"]) == num_params
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_nms():
@@ -12269,7 +12921,7 @@ def test_affine_grid():
         tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
         assert len(tvm_model["main"].attrs["params"]) == 1
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedAlignCorners:
@@ -12361,7 +13013,7 @@ def test_affine_grid_3d():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
@@ -12421,7 +13073,7 @@ def test_grid_sample(mode, padding_mode, align_corners):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedGridSample4D)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedGridSample4D)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest"])
@@ -12481,7 +13133,7 @@ def test_grid_sample_5d(mode, padding_mode, align_corners):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, ExpectedGridSample5D)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, ExpectedGridSample5D)
 
 
 def test_grid_sample_5d_cubic_unsupported():
@@ -12566,7 +13218,7 @@ def test_grid_sample_4d_non_square_output_shape():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_grid_sample_unsupported_rank():
@@ -12655,7 +13307,7 @@ def test_grid_sample_linear_mode_translation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_grid_sample_cubic_mode_translation():
@@ -12715,7 +13367,7 @@ def test_grid_sample_cubic_mode_translation():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_roi_align():
@@ -12752,7 +13404,7 @@ def test_roi_align():
 
         model = helper.make_model(graph, producer_name="roi_align_test")
         tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedRoiAlignHalfPixel:
@@ -12852,7 +13504,7 @@ def test_if():
         main_graph = helper.make_graph([if_node], "if_test", [cond_info, x_info], [result_info])
         model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedScalarCondition:
@@ -12948,7 +13600,7 @@ def test_if_computed_condition():
                 gv4: R.Tensor((3,), dtype="float32") = gv3
             return gv4
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_if_multiple_outputs():
@@ -13019,7 +13671,7 @@ def test_if_multiple_outputs():
             gv6: R.Tensor((3,), dtype="float32") = gv4[1]
             return (gv5, gv6)
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_if_nested():
@@ -13099,7 +13751,7 @@ def test_if_nested():
                 gv4: R.Tensor((3,), dtype="float32") = gv3
             return gv4
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_if_subgraph():
@@ -13214,7 +13866,7 @@ def test_if_subgraph():
                 gv4: R.Tensor((1, 1, 3, 3), dtype="float32") = gv3
             return gv4
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 # Helper that builds the ONNX graph for MatMulInteger so the tests don't repeat boilerplate code every time
@@ -13267,7 +13919,7 @@ def verify_matmulinteger_ir(A_shape, B_shape, A_dtype, B_dtype, expected, a_zp=N
     if a_zp is not None or b_zp is not None:
         assert len(tvm_model["main"].attrs["params"]) == 2
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_matmulinteger():
@@ -13575,7 +14227,7 @@ def test_arg_min_max_select_last_index():
         )
         model = helper.make_model(graph, producer_name="arg_select_last_index_test")
         tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     def make_expected(op_name, axis, keepdims):
         axis_extent = [3, 4, 5][axis] - 1
@@ -13626,7 +14278,7 @@ def test_arg_min_max_select_last_index_no_tie():
         )
         model = helper.make_model(graph, producer_name="arg_no_tie_test")
         tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedArgMax:
@@ -13680,7 +14332,7 @@ def test_split_to_sequence_keepdims_0():
         )
         model = helper.make_model(graph, producer_name="test_split_to_sequence_keepdims_0")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedKeepdims0Axis0:
@@ -13842,7 +14494,7 @@ def test_split_to_sequence_keepdims_ignored_when_split_provided():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_split_to_sequence_uneven_last_chunk():
@@ -13861,7 +14513,7 @@ def test_split_to_sequence_uneven_last_chunk():
         )
         model = helper.make_model(graph, producer_name="test_split_to_sequence_uneven")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_tirx.ir.assert_structural_equal(tvm_model, expected)
 
     @I.ir_module
     class ExpectedUnevenAxis0:
@@ -14036,7 +14688,7 @@ def test_dynamicquantizelinear_opset11():
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_quantizelinear_default_axis_opset10():
@@ -14108,7 +14760,7 @@ def test_quantizelinear_output_dtype(opset):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
@@ -14144,7 +14796,7 @@ def test_dequantizelinear_scale_dtype(opset):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("opset", [23, 24, 25])
@@ -14185,7 +14837,7 @@ def test_dequantizelinear_output_dtype(opset):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
@@ -14219,7 +14871,7 @@ def test_quantizelinear_integer_saturate(opset):
                 R.output(gv)
             return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
@@ -14326,5 +14978,967 @@ def test_quantizelinear_output_dtype_mismatch(opset):
         from_onnx(model, opset=opset, keep_params_in_input=True)
 
 
+def test_qlinearmatmul():
+    """Verify numerical correctness of QLinearMatMul against ONNX Runtime and reference."""
+
+    np_dtype_map = {
+        "uint8": (np.uint8, TensorProto.UINT8),
+        "int8": (np.int8, TensorProto.INT8),
+    }
+
+    def verify_qlinearmatmul(
+        a_shape,
+        b_shape,
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(),
+        b_scale_shape=(),
+        y_scale_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        a_np_dtype, a_proto = np_dtype_map[a_dtype]
+        b_np_dtype, b_proto = np_dtype_map[b_dtype]
+        y_np_dtype, y_proto = np_dtype_map[y_dtype]
+
+        if a_dtype == "uint8":
+            a = rng.randint(120, 136, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 128, dtype=a_np_dtype)
+        else:
+            a = rng.randint(-8, 8, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 0, dtype=a_np_dtype)
+
+        if b_dtype == "uint8":
+            b = rng.randint(120, 136, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 128, dtype=b_np_dtype)
+        else:
+            b = rng.randint(-8, 8, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 0, dtype=b_np_dtype)
+
+        if y_dtype == "uint8":
+            y_zp = np.full(y_scale_shape, 128, dtype=y_np_dtype)
+        else:
+            y_zp = np.full(y_scale_shape, 0, dtype=y_np_dtype)
+
+        a_scale = np.full(a_scale_shape, 0.5, dtype=np.float32)
+        b_scale = np.full(b_scale_shape, 0.25, dtype=np.float32)
+        y_scale = np.full(y_scale_shape, 2.0, dtype=np.float32)
+
+        node = helper.make_node(
+            "QLinearMatMul",
+            inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+            outputs=["y"],
+        )
+
+        y_shape = list(np.matmul(np.zeros(a_shape), np.zeros(b_shape)).shape)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearmatmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, a_shape),
+                helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, list(a_scale_shape)),
+                helper.make_tensor_value_info("a_zp", a_proto, list(a_scale_shape)),
+                helper.make_tensor_value_info("b", b_proto, b_shape),
+                helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, list(b_scale_shape)),
+                helper.make_tensor_value_info("b_zp", b_proto, list(b_scale_shape)),
+                helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, list(y_scale_shape)),
+                helper.make_tensor_value_info("y_zp", y_proto, list(y_scale_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", y_proto, y_shape)],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+        inputs = {
+            "a": a,
+            "a_scale": a_scale,
+            "a_zp": a_zp,
+            "b": b,
+            "b_scale": b_scale,
+            "b_zp": b_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+        check_correctness(model, inputs=inputs, opset=opset)
+
+    def verify_qlinearmatmul_ref(
+        a_shape,
+        b_shape,
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(),
+        b_scale_shape=(),
+        y_scale_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        a_np_dtype, a_proto = np_dtype_map[a_dtype]
+        b_np_dtype, b_proto = np_dtype_map[b_dtype]
+        y_np_dtype, y_proto = np_dtype_map[y_dtype]
+
+        if a_dtype == "uint8":
+            a = rng.randint(120, 136, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 128, dtype=a_np_dtype)
+        else:
+            a = rng.randint(-8, 8, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 0, dtype=a_np_dtype)
+
+        if b_dtype == "uint8":
+            b = rng.randint(120, 136, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 128, dtype=b_np_dtype)
+        else:
+            b = rng.randint(-8, 8, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 0, dtype=b_np_dtype)
+
+        if y_dtype == "uint8":
+            y_zp = np.full(y_scale_shape, 128, dtype=y_np_dtype)
+        else:
+            y_zp = np.full(y_scale_shape, 0, dtype=y_np_dtype)
+
+        a_scale = np.full(a_scale_shape, 0.5, dtype=np.float32)
+        b_scale = np.full(b_scale_shape, 0.25, dtype=np.float32)
+        y_scale = np.full(y_scale_shape, 2.0, dtype=np.float32)
+
+        # Reference calculation
+        a_int32 = a.astype(np.int32)
+        b_int32 = b.astype(np.int32)
+        a_zp_i = a_zp.astype(np.int32)
+        b_zp_i = b_zp.astype(np.int32)
+        if a.ndim >= 2 and a_zp_i.ndim == 1:
+            a_zp_i = np.expand_dims(a_zp_i, axis=-1)
+        if b.ndim >= 2 and b_zp_i.ndim == 1:
+            b_zp_i = np.expand_dims(b_zp_i, axis=0)
+
+        matmul_int32 = np.matmul(a_int32 - a_zp_i, b_int32 - b_zp_i)
+        as_f = a_scale.copy()
+        bs_f = b_scale.copy()
+        ys_f = y_scale.copy()
+        yz_f = y_zp.astype(np.float32)
+
+        if b.ndim >= 2 and as_f.ndim == 1:
+            as_f = np.expand_dims(as_f, axis=-1)
+        elif b.ndim == 1 and as_f.ndim >= 2 and as_f.shape[-1] == 1:
+            as_f = np.squeeze(as_f, axis=-1)
+
+        if a.ndim >= 2 and bs_f.ndim == 1:
+            bs_f = np.expand_dims(bs_f, axis=0)
+        elif a.ndim == 1 and bs_f.ndim >= 2 and bs_f.shape[-2] == 1:
+            bs_f = np.squeeze(bs_f, axis=-2)
+
+        if b.ndim >= 2 and a.ndim >= 2 and ys_f.ndim == 1:
+            if a.shape[-2] == ys_f.shape[0]:
+                ys_f = np.expand_dims(ys_f, axis=-1)
+                yz_f = np.expand_dims(yz_f, axis=-1)
+            elif b.shape[-1] == ys_f.shape[0]:
+                ys_f = np.expand_dims(ys_f, axis=0)
+                yz_f = np.expand_dims(yz_f, axis=0)
+
+        scaled = matmul_int32.astype(np.float32) * (as_f * bs_f) / ys_f
+        rounded = np.round(scaled) + yz_f
+        min_v, max_v = (0, 255) if y_dtype == "uint8" else (-128, 127)
+        ref_out = np.clip(rounded, min_v, max_v).astype(y_np_dtype)
+
+        node = helper.make_node(
+            "QLinearMatMul",
+            inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+            outputs=["y"],
+        )
+        y_shape = list(ref_out.shape)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearmatmul_ref_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, a_shape),
+                helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, list(a_scale_shape)),
+                helper.make_tensor_value_info("a_zp", a_proto, list(a_scale_shape)),
+                helper.make_tensor_value_info("b", b_proto, b_shape),
+                helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, list(b_scale_shape)),
+                helper.make_tensor_value_info("b_zp", b_proto, list(b_scale_shape)),
+                helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, list(y_scale_shape)),
+                helper.make_tensor_value_info("y_zp", y_proto, list(y_scale_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", y_proto, y_shape)],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+        inputs = {
+            "a": a,
+            "a_scale": a_scale,
+            "a_zp": a_zp,
+            "b": b,
+            "b_scale": b_scale,
+            "b_zp": b_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+        tvm_out = run_in_tvm(model, inputs=inputs, opset=opset)
+        tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+        assert tvm_val.shape == ref_out.shape
+        np.testing.assert_allclose(tvm_val, ref_out, atol=1e-5)
+
+    # 2D uint8 with in-range output
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # 2D int8
+    verify_qlinearmatmul([3, 4], [4, 2], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10)
+    # 3D batched int8
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10
+    )
+    # 3D batched uint8
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # Opset 21 uint8
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=21
+    )
+    # Opset 21 int8
+    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=21)
+    # Mixed signedness uint8/int8
+    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="uint8", b_dtype="int8", y_dtype="uint8", opset=10)
+    # Matrix-vector (2D x 1D -> 1D)
+    verify_qlinearmatmul([2, 3], [3], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    # Vector-matrix (1D x 2D -> 1D)
+    verify_qlinearmatmul([3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    # Batched matrix-vector (3D x 1D -> 2D)
+    verify_qlinearmatmul(
+        [2, 3, 4], [4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # Per-column parameter on B
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", b_scale_shape=(4,)
+    )
+    # Batched per-column parameter on B
+    verify_qlinearmatmul(
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        b_scale_shape=(2, 1, 5),
+    )
+
+    # Reference tests for cases unsupported by ORT (per-row A and int8/uint8)
+    verify_qlinearmatmul_ref(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", a_scale_shape=(2,)
+    )
+    verify_qlinearmatmul_ref(
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(2, 3, 1),
+    )
+    verify_qlinearmatmul_ref([2, 3], [3, 4], a_dtype="int8", b_dtype="uint8", y_dtype="int8")
+
+
+def test_qlinearmatmul_float8_unsupported():
+    """Verify that float8 inputs and outputs in QLinearMatMul are rejected with NotImplementedError."""
+    node = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    # TensorProto.FLOAT8E4M3FN is type 17
+    graph = helper.make_graph(
+        [node],
+        "test_float8",
+        inputs=[
+            helper.make_tensor_value_info("a", 17, [2, 3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("a_zp", 17, []),
+            helper.make_tensor_value_info("b", 17, [3, 4]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("b_zp", 17, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", 17, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", 17, [2, 4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    with pytest.raises(NotImplementedError, match="Float8 operands and outputs"):
+        from_onnx(model, opset=21, keep_params_in_input=True)
+
+
+def test_qlinearmatmul_singleton_scales_output_shape():
+    """Singleton [1]-shape scales and zero points must not alter the MatMul output rank.
+
+    A valid a_scale:[1] on [3] @ [3,4] must still produce output [4], not [1,4].
+    """
+    a = np.array([2, 3, 4], dtype=np.uint8)
+    b = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.uint8)
+    # All quantization parameters as [1]-shape (singleton) arrays
+    a_scale = np.array([0.5], dtype=np.float32)
+    a_zp = np.array([0], dtype=np.uint8)
+    b_scale = np.array([0.5], dtype=np.float32)
+    b_zp = np.array([0], dtype=np.uint8)
+    y_scale = np.array([1.0], dtype=np.float32)
+    y_zp = np.array([0], dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph = helper.make_graph(
+        [node],
+        "singleton_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3, 4]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # Output must be rank-1, shape [4], not rank-2 [1,4]
+    assert tvm_val.shape == (4,), f"Expected shape (4,) but got {tvm_val.shape}"
+    # Reference: (a - a_zp) @ (b - b_zp) * (a_scale * b_scale / y_scale) + y_zp
+    ref = np.clip(
+        np.round(
+            np.matmul(a.astype(np.int32), b.astype(np.int32)).astype(np.float32) * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val, ref)
+
+    # Matrix-vector case: [4, 3] @ [3] -> [4]
+    a_mv = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [1, 0, 1]], dtype=np.uint8)
+    b_mv = np.array([2, 1, 0], dtype=np.uint8)
+    node_mv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_mv = helper.make_graph(
+        [node_mv],
+        "singleton_mv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [4, 3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model_mv = helper.make_model(graph_mv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_mv = {
+        "a": a_mv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_mv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_mv = run_in_tvm(model_mv, inputs=inputs_mv, opset=10)
+    tvm_val_mv = (
+        tvm_out_mv[0].numpy() if isinstance(tvm_out_mv, list | tuple) else tvm_out_mv.numpy()
+    )
+    assert tvm_val_mv.shape == (4,), f"Expected shape (4,) but got {tvm_val_mv.shape}"
+    ref_mv = np.clip(
+        np.round(
+            np.matmul(a_mv.astype(np.int32), b_mv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_mv, ref_mv)
+
+    # Vector-vector dot product case: [3] @ [3] -> ()
+    a_vv = np.array([2, 3, 4], dtype=np.uint8)
+    b_vv = np.array([1, 2, 1], dtype=np.uint8)
+    node_vv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_vv = helper.make_graph(
+        [node_vv],
+        "singleton_vv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [])],
+    )
+    model_vv = helper.make_model(graph_vv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_vv = {
+        "a": a_vv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_vv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_vv = run_in_tvm(model_vv, inputs=inputs_vv, opset=10)
+    tvm_val_vv = (
+        tvm_out_vv[0].numpy() if isinstance(tvm_out_vv, list | tuple) else tvm_out_vv.numpy()
+    )
+    assert tvm_val_vv.shape == (), f"Expected scalar shape () but got {tvm_val_vv.shape}"
+    ref_vv = np.clip(
+        np.round(
+            np.matmul(a_vv.astype(np.int32), b_vv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_vv, ref_vv)
+
+
+def test_dft():
+    """Verify numerical correctness of DFT against ONNX Runtime."""
+
+    def verify_dft(
+        x,
+        dft_length=None,
+        axis=1,
+        inverse=0,
+        onesided=0,
+        opset=17,
+    ):
+        inputs_list = ["x"]
+        graph_inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))]
+        feed_inputs = {"x": x}
+
+        attrs = {"inverse": inverse, "onesided": onesided}
+        initializers = []
+        if opset < 20:
+            attrs["axis"] = axis
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+        else:
+            # opset 20: axis is 3rd input
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+            else:
+                inputs_list.append("")
+            inputs_list.append("axis")
+            initializers.append(helper.make_tensor("axis", TensorProto.INT64, [], [axis]))
+
+        node = helper.make_node("DFT", inputs=inputs_list, outputs=["y"], **attrs)
+
+        # Calculate expected output shape
+        y_shape = list(x.shape)
+        actual_axis = axis if axis >= 0 else len(x.shape) + axis
+        N = x.shape[actual_axis] if dft_length is None else dft_length
+        y_shape[actual_axis] = (N // 2 + 1) if onesided else N
+        y_shape[-1] = 2
+
+        graph = helper.make_graph(
+            [node],
+            "dft_test",
+            inputs=graph_inputs,
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, y_shape)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=10
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, atol=1e-4)
+
+    # 1. Real input, forward, full
+    x_real = np.random.randn(2, 6, 1).astype(np.float32)
+    verify_dft(x_real, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 2. Real input, forward, onesided
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 3. Complex input, inverse
+    x_comp = np.random.randn(2, 6, 2).astype(np.float32)
+    verify_dft(x_comp, axis=1, inverse=1, onesided=0, opset=17)
+
+    # 4. dft_length padding
+    verify_dft(x_real, dft_length=8, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 5. dft_length truncating
+    verify_dft(x_real, dft_length=4, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 6. Axis = 0
+    x_axis0 = np.random.randn(4, 3, 1).astype(np.float32)
+    verify_dft(x_axis0, axis=0, inverse=0, onesided=0, opset=17)
+
+    # 7. Opset 20
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=20)
+
+
+def test_dft_validation_and_errors():
+    """Verify DFT parameter validation and unsupported dynamic inputs."""
+    # 1. Non-constant axis in opset 20
+    node = helper.make_node("DFT", inputs=["x", "", "axis"], outputs=["y"])
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_axis",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3, 1]),
+            helper.make_tensor_value_info("axis", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 3, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant axis"):
+        from_onnx(model, opset=20, keep_params_in_input=True)
+
+    # 2. Non-constant dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_len",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1]),
+            helper.make_tensor_value_info("dft_length", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant dft_length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 3. Non-positive dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_neg_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="dft_length must be positive"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 4. dft_length exceeding MAX_DFT_LENGTH (4096)
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_large_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 5000, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [5000])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 5000, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="exceeds maximum supported length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+
+def test_dft_float16_precision():
+    """Verify that 512-point float16 DFT phases do not overflow or produce NaNs."""
+    N = 512
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_dft",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    x_val = np.ones((1, N, 1), dtype=np.float16) * 0.01
+    tvm_out = run_in_tvm(model, inputs={"x": x_val}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert not np.isnan(res).any()
+    assert not np.isinf(res).any()
+    assert res.dtype == np.float16
+
+
+def test_dft_float16_inverse_overflow():
+    """Verify float16 inverse DFT does not overflow before normalization.
+
+    Two real float16 samples of 40000 have an unnormalized sum of 80000, which is
+    infinity in float16 (max representable ~65504).  The inverse normalization
+    divides by N=2 to recover 40000, but only if the intermediate arithmetic is kept
+    in float32.  Without the fix this test produces inf in the output.
+    """
+    # Build a minimal inverse DFT: N=2, complex input representing two 40000 samples
+    N = 2
+    # Complex representation: [[40000+0j, 40000+0j]] shaped [1, N, 2]
+    x_cplx = np.zeros((1, N, 2), dtype=np.float16)
+    x_cplx[0, 0, 0] = 40000.0  # real
+    x_cplx[0, 1, 0] = 40000.0  # real
+
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], inverse=1, axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_idft_overflow",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # The output should be finite and representable in float16
+    assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
+    assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
+    assert res.dtype == np.float16
+
+
+def test_qlinearconv():
+    """Verify numerical correctness of QLinearConv against ONNX Runtime."""
+
+    def verify_qlinearconv(
+        x_shape,
+        w_shape,
+        strides=None,
+        pads=None,
+        dilations=None,
+        auto_pad=None,
+        group=1,
+        with_bias=True,
+        dtype="uint8",
+        w_scale_shape=(),
+        w_zp_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        is_int8 = dtype == "int8"
+        proto = TensorProto.INT8 if is_int8 else TensorProto.UINT8
+        np_dtype = np.int8 if is_int8 else np.uint8
+
+        if is_int8:
+            x = rng.randint(-8, 8, size=x_shape).astype(np_dtype)
+            x_zp = np.array(0, dtype=np_dtype)
+            w = rng.randint(-8, 8, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 0, dtype=np_dtype)
+            y_zp = np.array(0, dtype=np_dtype)
+        else:
+            x = rng.randint(120, 136, size=x_shape).astype(np_dtype)
+            x_zp = np.array(128, dtype=np_dtype)
+            w = rng.randint(116, 128, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 120, dtype=np_dtype)
+            y_zp = np.array(128, dtype=np_dtype)
+
+        x_scale = np.array(0.5, dtype=np.float32)
+        if len(w_scale_shape) > 0:
+            w_scale = np.linspace(
+                0.1, 0.5, num=int(np.prod(w_scale_shape)), dtype=np.float32
+            ).reshape(w_scale_shape)
+        else:
+            w_scale = np.array(0.25, dtype=np.float32)
+        y_scale = np.array(2.0, dtype=np.float32)
+
+        inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"]
+        graph_inputs = [
+            helper.make_tensor_value_info("x", proto, x_shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", proto, []),
+            helper.make_tensor_value_info("w", proto, w_shape),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, list(w_scale_shape)),
+            helper.make_tensor_value_info("w_zp", proto, list(w_zp_shape)),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", proto, []),
+        ]
+
+        feed_inputs = {
+            "x": x,
+            "x_scale": x_scale,
+            "x_zp": x_zp,
+            "w": w,
+            "w_scale": w_scale,
+            "w_zp": w_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+
+        if with_bias:
+            B = rng.randint(-5, 5, size=[w_shape[0]]).astype(np.int32)
+            inputs_list.append("B")
+            graph_inputs.append(helper.make_tensor_value_info("B", TensorProto.INT32, [w_shape[0]]))
+            feed_inputs["B"] = B
+
+        kwargs = {"group": group, "kernel_shape": w_shape[2:]}
+        if strides is not None:
+            kwargs["strides"] = strides
+        if dilations is not None:
+            kwargs["dilations"] = dilations
+        if pads is not None:
+            kwargs["pads"] = pads
+        if auto_pad is not None:
+            kwargs["auto_pad"] = auto_pad
+
+        node = helper.make_node(
+            "QLinearConv",
+            inputs=inputs_list,
+            outputs=["y"],
+            **kwargs,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearconv_test",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_value_info("y", proto, None)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=8
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, check_dtypes=True)
+
+    # 1. 2D Conv with bias (in-range uint8)
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+    # 2. 2D Conv without bias
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=False)
+    # 3. Multi-channel 2D Conv
+    verify_qlinearconv([2, 3, 5, 5], [4, 3, 3, 3], pads=[1, 1, 1, 1], with_bias=True)
+    # 4. 1D Conv
+    verify_qlinearconv([1, 1, 8], [1, 1, 3], strides=[1], dilations=[1], pads=[0, 0])
+    # 5. 3D Conv
+    verify_qlinearconv(
+        [1, 1, 4, 4, 4],
+        [1, 1, 2, 2, 2],
+        strides=[1, 1, 1],
+        dilations=[1, 1, 1],
+        pads=[0, 0, 0, 0, 0, 0],
+    )
+    # 6. SAME_UPPER automatic padding (even kernel on odd spatial dimension to create asymmetric padding)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_UPPER")
+    # 7. SAME_LOWER automatic padding (even kernel on odd spatial dimension to distinguish from SAME_UPPER)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_LOWER")
+    # 8. VALID automatic padding
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 3, 3], auto_pad="VALID")
+    # 9. Non-unit strides and dilations
+    verify_qlinearconv(
+        [1, 1, 8, 8], [1, 1, 3, 3], strides=[2, 2], dilations=[2, 2], pads=[0, 0, 0, 0]
+    )
+    # 10. Grouped Conv
+    verify_qlinearconv([1, 4, 4, 4], [4, 2, 2, 2], group=2, pads=[0, 0, 0, 0])
+    # 11. Signed int8 quantization
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], dtype="int8", pads=[0, 0, 0, 0], with_bias=True)
+    # 12. Distinct per-output-channel weight scales and zero-points
+    verify_qlinearconv(
+        [1, 2, 4, 4],
+        [4, 2, 2, 2],
+        w_scale_shape=(4,),
+        w_zp_shape=(4,),
+        pads=[0, 0, 0, 0],
+        with_bias=True,
+    )
+    # 13. Unequal input/output channels with bias
+    verify_qlinearconv([1, 3, 5, 5], [5, 3, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+
+
+def test_qlinearconv_precision_cancellation():
+    """Verify that 1x1 conv over 261 uint8 channels with large bias keeps precision in int32."""
+    channels = 261
+    x = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(1.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+    bias = np.array([-16838675], dtype=np.int32)
+
+    inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp", "B"]
+    graph_inputs = [
+        helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("B", TensorProto.INT32, [1]),
+    ]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=inputs_list,
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_cancel_test",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+        "B": bias,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert tvm_val[0, 0, 0, 0] == 1
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_no_kernel_shape_attr():
+    """QLinearConv must work when kernel_shape attribute is omitted (inferred from weight shape).
+
+    Uses a 2D conv without supplying kernel_shape in the ONNX node attributes to
+    exercise the weight_norm.ty.shape.values[2:] inference path.
+    """
+    x = np.array(
+        [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.uint8
+    )
+    w = np.ones((1, 1, 2, 2), dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(4.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    # NOTE: no kernel_shape attribute — it must be inferred from w.shape[2:]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        # no kernel_shape here
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_no_kshape",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, 1, 4, 4]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, 1, 2, 2]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, None)],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_scale_overflow():
+    """Combined scale x_scale * w_scale must not overflow float32.
+
+    With x_scale = w_scale = 2**65 and y_scale = 2**124, the correct uint8 output is 64,
+    but computing the product in float32 gives infinity and clips to 255.
+    The combined scale is computed in float64 to prevent this.
+    """
+    channels = 1
+    x = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    x_scale = np.array(2.0**65, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(2.0**65, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(2.0**124, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_scale_overflow_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # x=1, w=1 (no zero-point), matmul=1, scale=2^65*2^65/2^124 = 2^130/2^124 = 2^6 = 64
+    # Expected output: clip(round(1 * 64), 0, 255) = 64
+    assert tvm_val[0, 0, 0, 0] == 64, (
+        f"Expected 64 (scale product computed in float64) but got {tvm_val[0, 0, 0, 0]}. "
+        "Scale product likely overflowed float32."
+    )
+
+    # Also verify zero accumulator does not turn into NaN when multiplier overflows float32
+    feed_inputs_zero = dict(feed_inputs)
+    feed_inputs_zero["x"] = np.zeros([1, channels, 1, 1], dtype=np.uint8)
+    feed_inputs_zero["y_zp"] = np.array(128, dtype=np.uint8)
+    tvm_out_zero = run_in_tvm(model, inputs=feed_inputs_zero, opset=10)
+    tvm_val_zero = (
+        tvm_out_zero[0].numpy() if isinstance(tvm_out_zero, list | tuple) else tvm_out_zero.numpy()
+    )
+    assert tvm_val_zero[0, 0, 0, 0] == 128, (
+        f"Expected 128 for zero accumulator with scale overflow, but got {tvm_val_zero[0, 0, 0, 0]}"
+    )
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

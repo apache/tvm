@@ -18,14 +18,19 @@
 
 from typing import Union
 
+import numpy as np
+import pytest
+
 import tvm
-import tvm.script
-import tvm.testing
-from tvm import IRModule, relax
+import tvm_tirx
+import tvm_tirx.script
+import tvm_tirx.testing
+from tvm import relax
 from tvm.relax import Function
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm.relax import script as R
+from tvm_tirx import IRModule
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 
 def test_batch_norm_inference():
@@ -92,7 +97,7 @@ def test_batch_norm_inference():
             return gv
 
     After = relax.transform.DecomposeOpsForInference("main")(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_batch_norm_training():
@@ -177,7 +182,32 @@ def test_batch_norm_training():
             return (gv0, gv1, gv2)
 
     After = relax.transform.DecomposeOpsForTraining("main")(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
+
+
+def test_batch_norm_training_negative_axis():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), "float32"),
+            gamma: R.Tensor((4,), "float32"),
+            beta: R.Tensor((4,), "float32"),
+            moving_mean: R.Tensor((4,), "float32"),
+            moving_var: R.Tensor((4,), "float32"),
+        ):
+            return R.nn.batch_norm(
+                x,
+                gamma,
+                beta,
+                moving_mean,
+                moving_var,
+                axis=-1,
+                training=True,
+            )
+
+    After = relax.transform.DecomposeOpsForTraining()(Before)
+    relax.analysis.check_well_formed(After, check_ty=True)
 
 
 def test_batch_norm_multiple_functions():
@@ -304,7 +334,7 @@ def test_batch_norm_multiple_functions():
             return gv
 
     After = relax.transform.DecomposeOpsForInference()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 def test_layer_norm():
@@ -356,7 +386,62 @@ def test_layer_norm():
             return ln
 
     After = relax.transform.DecomposeOpsForTraining()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
+
+
+@pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is required")
+def test_layer_norm_fp16_training():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float16"),
+            gamma: R.Tensor((4,), "float16"),
+            beta: R.Tensor((4,), "float16"),
+        ):
+            with R.dataflow():
+                output = R.nn.layer_norm(x, gamma, beta, axes=[-1], epsilon=1e-5)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float16"),
+            gamma: R.Tensor((4,), "float16"),
+            beta: R.Tensor((4,), "float16"),
+        ):
+            with R.dataflow():
+                stats_data = R.astype(x, "float32")
+                mean = R.mean(stats_data, axis=[-1], keepdims=True)
+                centered = R.subtract(stats_data, mean)
+                variance = R.variance(stats_data, axis=[-1], keepdims=True)
+                adjusted = R.add(variance, R.const(1e-5, "float32"))
+                stddev = R.sqrt(adjusted)
+                normalized = R.divide(centered, stddev)
+                normalized_fp16 = R.astype(normalized, "float16")
+                scaled = R.multiply(normalized_fp16, gamma)
+                output = R.add(scaled, beta)
+                R.output(output)
+            return output
+
+    after = relax.transform.DecomposeOpsForTraining()(Before)
+    tvm_tirx.ir.assert_structural_equal(Expected, after)
+
+    x = np.array([[1, 2, 4, 8], [30000, 30016, 30032, 30048]], dtype="float16")
+    gamma = np.array([0.5, 1.5, 2.0, 0.75], dtype="float16")
+    beta = np.array([0.25, -0.5, 0.75, -1.0], dtype="float16")
+    stats_data = x.astype("float32")
+    mean = np.mean(stats_data, axis=-1, keepdims=True)
+    stddev = np.sqrt(np.var(stats_data, axis=-1, keepdims=True) + np.float32(1e-5))
+    expected = ((stats_data - mean) / stddev).astype("float16") * gamma + beta
+    args = [tvm_tirx.runtime.tensor(value) for value in (x, gamma, beta)]
+    for mod in (Before, after):
+        vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+        actual = vm["main"](*args).numpy()
+        assert actual.dtype == np.float16
+        np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
 
 
 def test_op_tensor_to_shape():
@@ -367,9 +452,9 @@ def test_op_tensor_to_shape():
             gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
             return gv
 
-    x = T.dynamic("x")
-    x_1 = T.dynamic("x_1")
-    x_2 = T.dynamic("x_2")
+    x = T.dynamic("x", "int64")
+    x_1 = T.dynamic("x_1", "int64")
+    x_2 = T.dynamic("x_2", "int64")
 
     @I.ir_module
     class Expected:
@@ -383,8 +468,8 @@ def test_op_tensor_to_shape():
             return gv_1
 
     After = relax.transform.DecomposeOpsForInference()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    tvm_tirx.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
