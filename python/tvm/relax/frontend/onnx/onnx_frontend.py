@@ -5620,6 +5620,75 @@ class SkipLayerNormalization(OnnxOpConverter):
         return relax.Tuple([output, placeholder, placeholder])
 
 
+class SimplifiedLayerNormalization(OnnxOpConverter):
+    """Converts a microsoft contrib SimplifiedLayerNormalization node into a Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        scale = inputs[1]
+        bias = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", -1)
+        epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
+
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("SimplifiedLayerNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "SimplifiedLayerNormalization")[0]
+        axes = list(range(axis, ndim))
+
+        input_dtype = data.ty.dtype.dtype
+        scale_dtype = scale.ty.dtype.dtype
+
+        # Broadcast scale to the normalized shape if necessary
+        if isinstance(data.ty.shape, relax.ShapeExpr):
+            normalized_shape = relax.ShapeExpr(data.ty.shape.values[axis:])
+            if not tvm_ffi.structural_equal(scale.ty.shape, normalized_shape):
+                scale = relax.op.broadcast_to(scale, normalized_shape)
+
+        # stash_type == 1 -> compute in float32, otherwise in the input dtype
+        compute_dtype = "float32" if stash_type == 1 else input_dtype
+
+        data_compute = (
+            data if input_dtype == compute_dtype else relax.op.astype(data, compute_dtype)
+        )
+        scale_compute = (
+            scale if scale_dtype == compute_dtype else relax.op.astype(scale, compute_dtype)
+        )
+
+        num_outputs = attr.get("tvm_custom", {}).get("num_outputs", 1)
+        full_reduce = len(axes) == ndim
+
+        if full_reduce or num_outputs > 1:
+            mean_square = relax.op.mean(
+                relax.op.multiply(data_compute, data_compute), axis=axes, keepdims=full_reduce
+            )
+            inv_std = relax.op.rsqrt(
+                relax.op.add(mean_square, relax.const(epsilon, dtype=compute_dtype))
+            )
+
+        if full_reduce:
+            # Decompose to avoid the TOPI rms_norm 0-dim indexing bug
+            output = relax.op.multiply(relax.op.multiply(data_compute, inv_std), scale_compute)
+        else:
+            output = relax.op.nn.rms_norm(data_compute, scale_compute, axes, epsilon)
+
+        if bias is not None:
+            output = relax.op.add(output, relax.op.astype(bias, compute_dtype))
+
+        if compute_dtype != scale_dtype:
+            output = relax.op.astype(output, scale_dtype)
+
+        if num_outputs == 1:
+            return output
+
+        if full_reduce:
+            inv_std = relax.op.squeeze(inv_std)
+
+        return relax.Tuple([output, inv_std])
+
+
 class SkipSimplifiedLayerNormalization(OnnxOpConverter):
     """Converts a microsoft contrib SkipSimplifiedLayerNormalization node into a Relax expression."""
 
@@ -5630,7 +5699,17 @@ class SkipSimplifiedLayerNormalization(OnnxOpConverter):
         gamma = inputs[2]
         bias = inputs[3] if len(inputs) > 3 and inputs[3] is not None else None
 
-        epsilon = attr.get("epsilon", 1e-5)
+        epsilon = attr.get("epsilon", 1e-12)
+        num_outputs = attr.get("tvm_custom", {}).get("num_outputs", 3)
+
+        input_dtype = data.ty.dtype.dtype
+        low_precision = input_dtype in ("float16", "bfloat16")
+        if low_precision:
+            data = relax.op.astype(data, "float32")
+            skip = relax.op.astype(skip, "float32")
+            gamma = relax.op.astype(gamma, "float32")
+            if bias is not None:
+                bias = relax.op.astype(bias, "float32")
 
         data = relax.op.add(data, skip)
         if bias is not None:
@@ -5638,8 +5717,16 @@ class SkipSimplifiedLayerNormalization(OnnxOpConverter):
 
         output = relax.op.nn.rms_norm(data, gamma, axes=-1, epsilon=epsilon)
 
-        # Expects three outputs though only the first is used. Construct a placeholder for others.
+        if low_precision:
+            output = relax.op.astype(output, input_dtype)
+            if num_outputs > 3:
+                data = relax.op.astype(data, input_dtype)
+
         placeholder = relax.const(0, dtype="float32")
+
+        if num_outputs > 3:
+            # Output 4 - input_skip_bias_sum
+            return relax.Tuple([output, placeholder, placeholder, data])
         return relax.Tuple([output, placeholder, placeholder])
 
 
@@ -6921,7 +7008,7 @@ def _get_convert_map():
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
         "RMSNormalization": RMSNormalization,
-        "SimplifiedLayerNormalization": RMSNormalization,
+        "SimplifiedLayerNormalization": SimplifiedLayerNormalization,
         "GroupNormalization": GroupNormalization,
         "SkipLayerNormalization": SkipLayerNormalization,
         "SkipSimplifiedLayerNormalization": SkipSimplifiedLayerNormalization,
