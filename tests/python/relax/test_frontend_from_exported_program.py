@@ -7892,6 +7892,73 @@ def test_item():
     verify_model(Item(), example_args, {}, Expected)
 
 
+@pytest.mark.parametrize(
+    "x_dtype",
+    [torch.float32, torch.float16, torch.int32],
+    ids=["float32", "float16", "int32"],
+)
+@pytest.mark.parametrize(
+    "op",
+    [
+        lambda x, s: x * s,
+        lambda x, s: x + s,
+        lambda x, s: x - s,
+        lambda x, s: s * x,
+        lambda x, s: s - x,
+    ],
+    ids=["mul", "add", "sub", "rmul", "rsub"],
+)
+def test_binary_op_with_integer_item(op, x_dtype):
+    class ItemBinary(Module):
+        def forward(self, x, t):
+            return op(x, t.item())
+
+    example_args = (torch.tensor([1, 2, 3], dtype=x_dtype), torch.tensor(3))
+    verify_model_numerically(ItemBinary(), example_args, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "x_dtype",
+    [torch.float32, torch.float16],
+    ids=["float32", "float16"],
+)
+@pytest.mark.parametrize(
+    "op",
+    [lambda x, s: x / s, lambda x, s: s / x],
+    ids=["div", "rdiv"],
+)
+def test_binary_op_with_integer_item_float_division(op, x_dtype):
+    class ItemDiv(Module):
+        def forward(self, x, t):
+            return op(x, t.item())
+
+    example_args = (torch.tensor([1, 2, 4], dtype=x_dtype), torch.tensor(4))
+    verify_model_numerically(ItemDiv(), example_args, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "op",
+    [
+        lambda x, s: x * s,
+        lambda x, s: x + s,
+        lambda x, s: x - s,
+        lambda x, s: s * x,
+        lambda x, s: s - x,
+        lambda x, s: x / s,
+        lambda x, s: s / x,
+    ],
+    ids=["mul", "add", "sub", "rmul", "rsub", "div", "rdiv"],
+)
+def test_binary_op_with_integer_item_bfloat16(op):
+    class ItemBinaryBf16(Module):
+        def forward(self, x, t):
+            # NumPy has no bfloat16, so cast the input and the result around the operation.
+            return op(x.to(torch.bfloat16), t.item()).to(torch.float32)
+
+    example_args = (torch.tensor([1, 2, 4], dtype=torch.float32), torch.tensor(4))
+    verify_model_numerically(ItemBinaryBf16(), example_args, rtol=1e-2, atol=1e-2)
+
+
 def test_norm():
     class Norm(Module):
         def __init__(self, p, dim=None, keepdim=False):
