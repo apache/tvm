@@ -58,9 +58,20 @@ void BucketizeAttrs::RegisterReflection() {
               refl::DefaultValue(false));
 }
 
+void SearchSortedAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SearchSortedAttrs>()
+      .def_ro("out_int32", &SearchSortedAttrs::out_int32,
+              "Indicate the output datatype, int32 if True, int64 otherwise.",
+              refl::DefaultValue(false))
+      .def_ro("right", &SearchSortedAttrs::right,
+              "Determines the behavior for values in boundaries", refl::DefaultValue(false));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   ArgmaxArgminAttrs::RegisterReflection();
   BucketizeAttrs::RegisterReflection();
+  SearchSortedAttrs::RegisterReflection();
 }
 
 /* relax.bucketize */
@@ -113,6 +124,80 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "undefined."),
           sig::call_attrs<BucketizeAttrs>())
       .set_native_fn_attr<&InferTypeBucketize>(tvm::op_attr::kInferType)
+      .set_attr(tvm::relax::op_attr::kPurity, true);
+}
+
+/* relax.searchsorted */
+
+Expr searchsorted(Expr sorted_sequence, Expr values, bool out_int32, bool right) {
+  auto attrs = ffi::make_object<SearchSortedAttrs>();
+  attrs->out_int32 = std::move(out_int32);
+  attrs->right = std::move(right);
+  static const Op op = Op::Get("relax.searchsorted");
+  return Call(Type::Missing(), op, {std::move(sorted_sequence), std::move(values)},
+              Attrs(attrs), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.searchsorted", searchsorted);
+}
+
+Type InferTypeSearchSorted(const CallObj* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
+  TensorType sorted_sequence_info = input_ty[0];
+  TensorType values_info = input_ty[1];
+
+  if (!sorted_sequence_info->IsUnknownNdim() && sorted_sequence_info->ndim == 0) {
+    TVM_FFI_VISIT_THROW(ValueError, call)
+        << "SearchSorted requires sorted_sequence to have at least one dimension";
+  }
+  if (sorted_sequence_info->ndim > 1) {
+    if (!values_info->IsUnknownNdim() && sorted_sequence_info->ndim != values_info->ndim) {
+      TVM_FFI_VISIT_THROW(ValueError, call)
+          << "SearchSorted requires an N-D sorted_sequence and values to have the same rank, "
+             "but got "
+          << sorted_sequence_info->ndim << " and " << values_info->ndim;
+    }
+    const auto* sequence_shape = sorted_sequence_info->shape.as<ShapeExprObj>();
+    const auto* values_shape = values_info->shape.as<ShapeExprObj>();
+    if (sequence_shape && values_shape &&
+        static_cast<int>(values_shape->values.size()) == sorted_sequence_info->ndim) {
+      sym::Analyzer analyzer;
+      for (int i = 0; i + 1 < sorted_sequence_info->ndim; ++i) {
+        if (analyzer->CanProve(sequence_shape->values[i] != values_shape->values[i])) {
+          TVM_FFI_VISIT_THROW(ValueError, call)
+              << "SearchSorted requires matching outer dimensions, but got "
+              << sequence_shape->values[i] << " and " << values_shape->values[i] << " at axis "
+              << i;
+        }
+      }
+    }
+  }
+
+  auto attrs = call->attrs.as<SearchSortedAttrs>();
+  PrimType out_dtype = PrimType::Int(64);
+  if (attrs->out_int32) {
+    out_dtype = PrimType::Int(32);
+  }
+
+  // Output shape is identical to values.shape
+  const auto* data_shape = values_info->shape.as<ShapeExprObj>();
+  if (data_shape) {
+    return TensorType(ShapeExpr(data_shape->values), out_dtype, values_info->vdevice);
+  }
+  return TensorType(out_dtype, values_info->ndim, values_info->vdevice);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.searchsorted")
+      .signature(sig::arg("sorted_sequence",
+                          "N-D or 1-D tensor, containing monotonically increasing sequence on the "
+                          "innermost dimension."),
+                 sig::arg("values", "N-D tensor containing the search values."),
+                 sig::call_attrs<SearchSortedAttrs>())
+      .set_native_fn_attr<&InferTypeSearchSorted>(tvm::op_attr::kInferType)
       .set_attr(tvm::relax::op_attr::kPurity, true);
 }
 

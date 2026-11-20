@@ -113,6 +113,129 @@ def test_dispatch_scanop_cuda():
     assert_structural_equal(mod, expected_mod, map_free_vars=True)
 
 
+def test_dispatch_searchsorted():
+    """Test CPU dispatch to topi.searchsorted."""
+    @I.ir_module
+    class Before:
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
+
+        @R.function
+        def foo(
+            sorted_sequence: R.Tensor((2, 5), "float32", "llvm"),
+            values: R.Tensor((2, 3), "float32", "llvm"),
+        ):
+            with R.dataflow():
+                lv = R.searchsorted(sorted_sequence, values, right=True, out_int32=True)
+                gv = lv
+                R.output(gv)
+            return gv
+
+    vdevices = [R.vdevice("llvm", 0)]
+    sorted_seq = relax.Var("sorted_sequence", R.Tensor((2, 5), "float32", vdevices[0]))
+    vals = relax.Var("values", R.Tensor((2, 3), "float32", vdevices[0]))
+    bb = relax.BlockBuilder()
+
+    with bb.function("foo", (sorted_seq, vals), {"global_symbol": "foo"}):
+        with bb.dataflow():
+            out = bb.emit_te(
+                topi.searchsorted,
+                sorted_seq,
+                vals,
+                right=True,
+                out_dtype="int32",
+            )
+            out = bb.emit_output(out)
+        bb.emit_func_output(out)
+
+    expected_mod = bb.finalize()
+    expected_mod.update_global_info("vdevice", vdevices)
+
+    mod = DispatchSortScan()(Before)
+    assert_structural_equal(mod, expected_mod)
+
+
+def test_dispatch_searchsorted_cuda():
+    """Test CUDA dispatch to topi.gpu.searchsorted."""
+    @I.ir_module
+    class Before:
+        I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
+
+        @R.function
+        def foo(
+            sorted_sequence: R.Tensor((2, 5), "float32", "cuda"),
+            values: R.Tensor((2, 3), "float32", "cuda"),
+        ):
+            with R.dataflow():
+                lv = R.searchsorted(sorted_sequence, values, right=True, out_int32=True)
+                gv = lv
+                R.output(gv)
+            return gv
+
+    target = tvm_tirx.target.Target("cuda", host="llvm")
+    vdevices = [R.vdevice("cuda", 0)]
+
+    sorted_seq = relax.Var("sorted_sequence", R.Tensor((2, 5), "float32", vdevices[0]))
+    vals = relax.Var("values", R.Tensor((2, 3), "float32", vdevices[0]))
+    bb = relax.BlockBuilder()
+
+    with bb.function("foo", (sorted_seq, vals), {"global_symbol": "foo"}):
+        with bb.dataflow():
+            out = bb.emit_te(
+                topi.gpu.searchsorted,
+                sorted_seq,
+                vals,
+                right=True,
+                out_dtype="int32",
+                target=target,
+            )
+            out = bb.emit_output(out)
+        bb.emit_func_output(out)
+
+    expected_mod = bb.finalize()
+    expected_mod.update_global_info("vdevice", vdevices)
+
+    mod = DispatchSortScan(target=target)(Before)
+
+    assert_structural_equal(mod, expected_mod)
+    
+
+def test_dispatch_searchsorted_cuda_symbolic():
+    """Test CUDA dispatch and compilation for searchsorted with N-D symbolic shapes."""
+    target = "cuda"
+    if not tvm_tirx.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+        
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
+
+    @I.ir_module
+    class Symbolic:
+        I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
+
+        @R.function
+        def main(
+            sorted_sequence: R.Tensor((m, 10), "float32", "cuda"),
+            values: R.Tensor((m, n), "float32", "cuda"),
+        ):
+            with R.dataflow():
+                gv = R.searchsorted(sorted_sequence, values, right=False, out_int32=False)
+                R.output(gv)
+            return gv
+
+    target = tvm_tirx.target.Target("cuda", host="llvm")
+    mod = DispatchSortScan(target=target)(Symbolic)
+    tvm.compile(mod, target)
+
+    called_kernels = []
+
+    def collect_calls(expr):
+        if isinstance(expr, relax.Call) and getattr(expr.op, "name", None) == "relax.call_tir":
+            called_kernels.append(expr.args[0].name_hint)
+
+    relax.analysis.post_order_visit(mod["main"], collect_calls)
+    assert any("searchsorted" in k for k in called_kernels)
+
+
 def test_dispatch_sort():
     m = T.dynamic("m", "int64")
 

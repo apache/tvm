@@ -47,6 +47,14 @@ struct BucketizeAttrs : public tvm::AttrsObj {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, AttrsObj);
 };  // struct BucketizeAttrs
 
+/*! \brief Attributes for searchsorted operator */
+struct SearchSortedAttrs : public tvm::AttrsObj {
+  bool out_int32;
+  bool right;
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SearchSortedAttrs", SearchSortedAttrs, AttrsObj);
+};
+
 }  // namespace relax
 }  // namespace tvm
 
