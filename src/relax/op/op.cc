@@ -1508,6 +1508,9 @@ Type ReturnShapeToTensorType(const CallObj* call_node) {
   const auto* ty = GetTypeAs<ShapeTypeObj>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   int32_t ndim = ty->ndim;
+  if (ndim == kUnknownNDim) {
+    return TensorType(PrimType::Int(64), /*ndim=*/1);
+  }
   return TensorType(ShapeExpr({PrimExpr(ndim)}), PrimType::Int(64));
 }
 
