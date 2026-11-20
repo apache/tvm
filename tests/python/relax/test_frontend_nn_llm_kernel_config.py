@@ -287,5 +287,28 @@ def test_merge_state_waits_before_overwriting_the_shared_lse(head_dim):
     )
 
 
+@pytest.mark.parametrize("sliding_window", [False, True])
+def test_wide_fp32_head_prefill_fits_metal_shared_memory(sliding_window):
+    target = tvm_tirx.target.Target("metal")
+    config = _get_prefill_kernel_config(2, 4, 512, "float32", target)
+    assert config == (16, 2, 2, 16, 1, 4, 512, 4)
+    for func in (
+        _attention_prefill(2, 4, 512, "float32", sliding_window, {}, target),
+        _attention_prefill_ragged(2, 4, 512, 512, "float32", {}, target),
+    ):
+        assert _get_allocated_shared_memory(func) == 24_688
+        assert _get_allocated_shared_memory(func) <= int(
+            target.attrs["max_shared_memory_per_block"]
+        )
+        module = tvm_tirx.tirx.compile(func.with_attr("global_symbol", "main"), target=target).mod
+        assert module.imports[0].inspect_source()
+
+
+def test_wide_fp32_metal_prefill_rejects_insufficient_storage():
+    target = tvm_tirx.target.Target({"kind": "metal", "max_shared_memory_per_block": 1024})
+    with pytest.raises(ValueError, match="target allows 1024 bytes"):
+        _get_prefill_kernel_config(2, 4, 512, "float32", target)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
