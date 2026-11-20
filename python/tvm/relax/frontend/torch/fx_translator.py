@@ -267,7 +267,9 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
-        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+        return self._avg_pool2d_impl(
+            x, kernel_size, stride, padding, ceil_mode, divisor_override=module.divisor_override
+        )
 
     def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -276,7 +278,9 @@ class TorchFXImporter(BaseFXGraphImporter):
         stride = module.stride
         padding = module.padding
         ceil_mode = module.ceil_mode
-        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode)
+        return self._avg_pool3d_impl(
+            x, kernel_size, stride, padding, ceil_mode, divisor_override=module.divisor_override
+        )
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

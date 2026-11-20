@@ -2222,7 +2222,7 @@ def test_avg_pool2d():
                     dilation=[1, 1],
                     padding=[0, 0, 0, 0],
                     ceil_mode=False,
-                    count_include_pad=False,
+                    count_include_pad=True,
                     layout="NCHW",
                     out_layout="NCHW",
                 )
@@ -2235,6 +2235,82 @@ def test_avg_pool2d():
     verify_model(AvgPool2d2(), example_args, {}, expected2)
     verify_model(AvgPool2d4(), example_args, {}, expected4)
     verify_model(AvgPool2d5(), example_args, {}, expected5)
+
+
+def test_avg_pool_divisor_override():
+    class AvgPool2d(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+                divisor_override=2,
+                count_include_pad=False,
+            )
+
+    @tvm_tirx.script.ir_module
+    class expected2d:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv1 = R.multiply(lv, R.const(4.5, "float32"))
+                gv = (lv1,)
+                R.output(gv)
+            return gv
+
+    class AvgPool3d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(kernel_size=2, divisor_override=4)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm_tirx.script.ir_module
+    class expected3d:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[2, 2, 2],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv1 = R.multiply(lv, R.const(2.0, "float32"))
+                gv = (lv1,)
+                R.output(gv)
+            return gv
+
+    class AvgPool2dCeil(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=3, stride=2, ceil_mode=True, divisor_override=2
+            )
+
+    verify_model(AvgPool2d(), (torch.randn(1, 3, 10, 10),), {}, expected2d)
+    verify_model(AvgPool3d(), (torch.randn(1, 3, 8, 8, 8),), {}, expected3d)
+    with pytest.raises(NotImplementedError, match="divisor_override and ceil_mode"):
+        from_exported_program(
+            torch.export.export(AvgPool2dCeil(), (torch.randn(1, 3, 10, 10),)),
+        )
 
 
 def test_avg_pool3d():
