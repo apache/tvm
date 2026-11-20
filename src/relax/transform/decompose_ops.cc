@@ -30,6 +30,8 @@
 
 #include <unordered_set>
 
+#include "../op/op_common.h"
+#include "../op/tensor/datatype.h"
 #include "utils.h"
 
 namespace tvm {
@@ -95,9 +97,10 @@ Expr MutateBatchNormForTraining(Call call) {
 
   TensorType ty = MatchTensorType(data);
 
+  int axis = NormalizeAxis(call, ty->ndim, attrs->axis);
   ffi::Array<int64_t> reduce_axes;
   for (int i = 0; i < ty->ndim; ++i) {
-    if (i != attrs->axis) {
+    if (i != axis) {
       reduce_axes.push_back(i);
     }
   }
@@ -126,13 +129,19 @@ Expr DecomposeLayerNorm(const Call& call) {
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
 
-  Expr data_mean = mean(data, attrs->axes, true);
-  Expr data_var = variance(data, attrs->axes, true);
+  const bool is_float16 = ty->dtype.value() == PrimType::Float(16);
+  Expr stats_data = is_float16 ? astype(data, PrimType::Float(32)->dtype) : data;
+  Expr data_mean = mean(stats_data, attrs->axes, true);
+  Expr data_var = variance(stats_data, attrs->axes, true);
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype.value()->dtype);
+  Expr epsilon = MakeConstantScalar(
+      attrs->epsilon, is_float16 ? PrimType::Float(32)->dtype : ty->dtype.value()->dtype);
   Expr sqrt_var = sqrt(add(data_var, epsilon));
-  Expr out = divide(subtract(data, data_mean), sqrt_var);
+  Expr out = divide(subtract(stats_data, data_mean), sqrt_var);
+  if (is_float16) {
+    out = astype(out, ty->dtype.value()->dtype);
+  }
 
   if (attrs->scale) {
     out = multiply(out, gamma);
@@ -147,7 +156,7 @@ Expr DecomposeLayerNorm(const Call& call) {
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
   Expr expr = call_node->args[0];
-  const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
+  const ShapeTypeObj* ty = GetTypeAs<ShapeTypeObj>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
@@ -178,7 +187,7 @@ class TrainingOperatorMutator : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return MutateBatchNormForTraining(call);
@@ -200,7 +209,7 @@ class OpDecomposer : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return DecomposeBatchNorm(call);

@@ -60,7 +60,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     std::optional<ffi::Any> unroll_explicit;
   };
 
-  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeObj* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenTensor. Please "
@@ -108,7 +108,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const ForObj* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
     PrimExpr min = this->Mutate(op->begin, inplace_mode).ValueOrUnchanged(op->begin);
     PrimExpr end = this->Mutate(op->end, inplace_mode).ValueOrUnchanged(op->end);
@@ -183,9 +183,9 @@ namespace transform {
 
 Pass LowerOpaqueBlock() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    if (!f->body.has_value()) return f;
+    if (f->GetAttr(tvm::attr::kDeclaration).value_or(false)) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
+    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock");
