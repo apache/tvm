@@ -210,5 +210,89 @@ def test_capture_error_is_recoverable():
     tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cudagraph(), reason="need cudagraph")
+@pytest.mark.parametrize("fail_warmup", [False, True])
+def test_workspace_warmup_uses_capture_stream(fail_warmup):
+    """The capture must reuse the workspace allocated during warmup."""
+
+    @I.ir_module
+    class WorkspaceModule:
+        @R.function(pure=False)
+        def main(x: R.Tensor((16,), "float32")):
+            cls = WorkspaceModule
+            args: R.Tuple(R.Tensor((16,), "float32")) = (x,)
+            result: R.Tuple(R.Tensor((16,), "float32")) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.capture, args, R.prim_value(0)),
+                ty_args=R.Tuple(R.Tensor((16,), "float32")),
+            )
+            return result[0]
+
+        @R.function(pure=False)
+        def capture(x: R.Tensor((16,), "float32")):
+            y = R.call_pure_packed(
+                "test_vm_cuda_graph.workspace", x, ty_args=R.Tensor((16,), "float32")
+            )
+            return (y,)
+
+    def run_and_check():
+        runtime = ctypes.CDLL(None)
+        allocate = runtime.TVMBackendAllocWorkspace
+        allocate.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        allocate.restype = ctypes.c_void_p
+        release = runtime.TVMBackendFreeWorkspace
+        release.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
+        release.restype = ctypes.c_int
+        cudart = ctypes.CDLL(ctypes.util.find_library("cudart"))
+        cudart.cudaMemsetAsync.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_size_t,
+            ctypes.c_void_p,
+        ]
+        cudart.cudaMemsetAsync.restype = ctypes.c_int
+        get_stream = tvm_ffi.get_global_func("runtime.get_cuda_stream")
+        streams = []
+
+        @tvm_ffi.register_global_func("test_vm_cuda_graph.workspace", override=True)
+        def use_workspace(x):
+            if fail_warmup:
+                raise RuntimeError("warmup failed")
+            stream = get_stream()
+            streams.append(stream.value)
+            ptr = allocate(2, 0, 4096, 2, 32)
+            assert ptr is not None
+            assert cudart.cudaMemsetAsync(ptr, 0, 4096, stream) == 0
+            assert release(2, 0, ptr) == 0
+            return x
+
+        target = tvm_tirx.target.Target("cuda", host="llvm")
+        executable = codegen(relax.transform.RemovePurityChecking()(WorkspaceModule), target)
+        dev = tvm_tirx.cuda(0)
+        vm = relax.VirtualMachine(executable, dev)
+        values = np.arange(16, dtype="float32")
+        arg = tvm_tirx.runtime.tensor(values, dev)
+        caller_stream = get_stream().value
+        if fail_warmup:
+            with pytest.raises(RuntimeError, match="warmup failed"):
+                vm["main"](arg)
+            assert get_stream().value == caller_stream
+            return
+        for _ in range(3):
+            np.testing.assert_array_equal(vm["main"](arg).numpy(), values)
+            assert get_stream().value == caller_stream
+        assert len(streams) == 2
+        assert streams[0] == streams[1]
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
