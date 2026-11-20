@@ -906,14 +906,21 @@ export class WebGPUContext {
   ): void {
     // Flush batched compute passes before writing, to preserve execution order.
     this.flushCommands();
-    this.device.queue.writeBuffer(
-      this.gpuBufferFromPtr(toPtr),
-      toOffset,
-      rawBytes as GPUAllowSharedBufferSource,
-      0,
-      nbytes
-    );
     this.pendingGPUToCPUCopyIsQueueTail = false;
+    const buffer = this.gpuBufferFromPtr(toPtr);
+    // Bound each browser transfer, including when the destination exceeds 2 GiB.
+    const maxWriteSize = 256 * 1024 * 1024;
+    let offset = 0;
+    do {
+      this.device.queue.writeBuffer(
+        buffer,
+        toOffset + offset,
+        rawBytes as GPUAllowSharedBufferSource,
+        offset,
+        Math.min(maxWriteSize, nbytes - offset)
+      );
+      offset += maxWriteSize;
+    } while (offset < nbytes);
   }
   /**
    * Clear canvas
