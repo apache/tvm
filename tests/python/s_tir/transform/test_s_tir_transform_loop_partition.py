@@ -23,6 +23,7 @@ import tvm
 import tvm_tirx
 import tvm_tirx.testing
 from tvm.s_tir import script as Ts
+from tvm_tirx.ir import prim
 from tvm_tirx.ir.module import IRModule
 from tvm_tirx.script import tirx as T
 
@@ -101,6 +102,31 @@ def test_condition_EQ():
         stmt = tvm_tirx.tirx.transform.StmtSimplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm_tirx.tirx.Select)))
+
+
+@pytest.mark.parametrize("index_dtype", ["int32", "int64"])
+def test_single_point_partition_preserves_index_type(index_dtype):
+    @Ts.function
+    def before(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
+        for i in T.serial(T.Cast(index_dtype, 2)):
+            if T.likely(i < T.Cast(index_dtype, 1)):
+                B[i] = A[i]
+            else:
+                B[i] = A[i]
+
+    mod = IRModule({"main": before})
+    with tvm_tirx.ir.transform.PassContext(
+        config={"s_tir.LoopPartition": {"partition_const_loop": True}}
+    ):
+        mod = tvm.s_tir.transform.LoopPartition()(mod)
+
+    body = mod["main"].body
+    assert not any(collect_visit(body, lambda node: isinstance(node, tvm_tirx.ir.For)))
+
+    def check_add(expr):
+        assert expr.a.ty == expr.b.ty, f"Mismatched addition types: {expr.a.ty} and {expr.b.ty}"
+
+    tvm_ffi.structural_walk(body, (prim.Add, check_add))
 
 
 def test_everything_during_deduction():

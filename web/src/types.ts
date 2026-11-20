@@ -51,3 +51,41 @@ export interface Disposable {
    */
   dispose: () => void;
 }
+
+/**
+ * Options for creating a sampled-token readback ring.
+ *
+ * The ring is intended for batched GPU->CPU token-id readback where each
+ * token is represented as int32.
+ */
+export interface SampledTokenReadbackRingOptions {
+  /**
+   * Number of staging slots in the ring. Defaults to 3 when unspecified.
+   */
+  slotCount?: number;
+
+  /**
+   * Maximum number of token ids (int32) per submitted batch.
+   */
+  maxTokensPerBatch: number;
+}
+
+/**
+ * One completed sampled-token readback batch.
+ */
+export interface SampledTokenReadbackBatch {
+  /**
+   * Monotonic ring-local batch sequence number.
+   */
+  batchSeq: number;
+
+  /**
+   * Number of valid token ids in `tokens`.
+   */
+  tokenCount: number;
+
+  /**
+   * Contiguous token-id vector (int32) copied from GPU staging slot.
+   */
+  tokens: Int32Array;
+}

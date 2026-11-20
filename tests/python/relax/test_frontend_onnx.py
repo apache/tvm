@@ -15616,5 +15616,329 @@ def test_dft_float16_inverse_overflow():
     assert res.dtype == np.float16
 
 
+def test_qlinearconv():
+    """Verify numerical correctness of QLinearConv against ONNX Runtime."""
+
+    def verify_qlinearconv(
+        x_shape,
+        w_shape,
+        strides=None,
+        pads=None,
+        dilations=None,
+        auto_pad=None,
+        group=1,
+        with_bias=True,
+        dtype="uint8",
+        w_scale_shape=(),
+        w_zp_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        is_int8 = dtype == "int8"
+        proto = TensorProto.INT8 if is_int8 else TensorProto.UINT8
+        np_dtype = np.int8 if is_int8 else np.uint8
+
+        if is_int8:
+            x = rng.randint(-8, 8, size=x_shape).astype(np_dtype)
+            x_zp = np.array(0, dtype=np_dtype)
+            w = rng.randint(-8, 8, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 0, dtype=np_dtype)
+            y_zp = np.array(0, dtype=np_dtype)
+        else:
+            x = rng.randint(120, 136, size=x_shape).astype(np_dtype)
+            x_zp = np.array(128, dtype=np_dtype)
+            w = rng.randint(116, 128, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 120, dtype=np_dtype)
+            y_zp = np.array(128, dtype=np_dtype)
+
+        x_scale = np.array(0.5, dtype=np.float32)
+        if len(w_scale_shape) > 0:
+            w_scale = np.linspace(
+                0.1, 0.5, num=int(np.prod(w_scale_shape)), dtype=np.float32
+            ).reshape(w_scale_shape)
+        else:
+            w_scale = np.array(0.25, dtype=np.float32)
+        y_scale = np.array(2.0, dtype=np.float32)
+
+        inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"]
+        graph_inputs = [
+            helper.make_tensor_value_info("x", proto, x_shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", proto, []),
+            helper.make_tensor_value_info("w", proto, w_shape),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, list(w_scale_shape)),
+            helper.make_tensor_value_info("w_zp", proto, list(w_zp_shape)),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", proto, []),
+        ]
+
+        feed_inputs = {
+            "x": x,
+            "x_scale": x_scale,
+            "x_zp": x_zp,
+            "w": w,
+            "w_scale": w_scale,
+            "w_zp": w_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+
+        if with_bias:
+            B = rng.randint(-5, 5, size=[w_shape[0]]).astype(np.int32)
+            inputs_list.append("B")
+            graph_inputs.append(helper.make_tensor_value_info("B", TensorProto.INT32, [w_shape[0]]))
+            feed_inputs["B"] = B
+
+        kwargs = {"group": group, "kernel_shape": w_shape[2:]}
+        if strides is not None:
+            kwargs["strides"] = strides
+        if dilations is not None:
+            kwargs["dilations"] = dilations
+        if pads is not None:
+            kwargs["pads"] = pads
+        if auto_pad is not None:
+            kwargs["auto_pad"] = auto_pad
+
+        node = helper.make_node(
+            "QLinearConv",
+            inputs=inputs_list,
+            outputs=["y"],
+            **kwargs,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearconv_test",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_value_info("y", proto, None)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=8
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, check_dtypes=True)
+
+    # 1. 2D Conv with bias (in-range uint8)
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+    # 2. 2D Conv without bias
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=False)
+    # 3. Multi-channel 2D Conv
+    verify_qlinearconv([2, 3, 5, 5], [4, 3, 3, 3], pads=[1, 1, 1, 1], with_bias=True)
+    # 4. 1D Conv
+    verify_qlinearconv([1, 1, 8], [1, 1, 3], strides=[1], dilations=[1], pads=[0, 0])
+    # 5. 3D Conv
+    verify_qlinearconv(
+        [1, 1, 4, 4, 4],
+        [1, 1, 2, 2, 2],
+        strides=[1, 1, 1],
+        dilations=[1, 1, 1],
+        pads=[0, 0, 0, 0, 0, 0],
+    )
+    # 6. SAME_UPPER automatic padding (even kernel on odd spatial dimension to create asymmetric padding)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_UPPER")
+    # 7. SAME_LOWER automatic padding (even kernel on odd spatial dimension to distinguish from SAME_UPPER)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_LOWER")
+    # 8. VALID automatic padding
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 3, 3], auto_pad="VALID")
+    # 9. Non-unit strides and dilations
+    verify_qlinearconv(
+        [1, 1, 8, 8], [1, 1, 3, 3], strides=[2, 2], dilations=[2, 2], pads=[0, 0, 0, 0]
+    )
+    # 10. Grouped Conv
+    verify_qlinearconv([1, 4, 4, 4], [4, 2, 2, 2], group=2, pads=[0, 0, 0, 0])
+    # 11. Signed int8 quantization
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], dtype="int8", pads=[0, 0, 0, 0], with_bias=True)
+    # 12. Distinct per-output-channel weight scales and zero-points
+    verify_qlinearconv(
+        [1, 2, 4, 4],
+        [4, 2, 2, 2],
+        w_scale_shape=(4,),
+        w_zp_shape=(4,),
+        pads=[0, 0, 0, 0],
+        with_bias=True,
+    )
+    # 13. Unequal input/output channels with bias
+    verify_qlinearconv([1, 3, 5, 5], [5, 3, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+
+
+def test_qlinearconv_precision_cancellation():
+    """Verify that 1x1 conv over 261 uint8 channels with large bias keeps precision in int32."""
+    channels = 261
+    x = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(1.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+    bias = np.array([-16838675], dtype=np.int32)
+
+    inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp", "B"]
+    graph_inputs = [
+        helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("B", TensorProto.INT32, [1]),
+    ]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=inputs_list,
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_cancel_test",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+        "B": bias,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert tvm_val[0, 0, 0, 0] == 1
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_no_kernel_shape_attr():
+    """QLinearConv must work when kernel_shape attribute is omitted (inferred from weight shape).
+
+    Uses a 2D conv without supplying kernel_shape in the ONNX node attributes to
+    exercise the weight_norm.ty.shape.values[2:] inference path.
+    """
+    x = np.array(
+        [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.uint8
+    )
+    w = np.ones((1, 1, 2, 2), dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(4.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    # NOTE: no kernel_shape attribute — it must be inferred from w.shape[2:]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        # no kernel_shape here
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_no_kshape",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, 1, 4, 4]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, 1, 2, 2]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, None)],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_scale_overflow():
+    """Combined scale x_scale * w_scale must not overflow float32.
+
+    With x_scale = w_scale = 2**65 and y_scale = 2**124, the correct uint8 output is 64,
+    but computing the product in float32 gives infinity and clips to 255.
+    The combined scale is computed in float64 to prevent this.
+    """
+    channels = 1
+    x = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    x_scale = np.array(2.0**65, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(2.0**65, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(2.0**124, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_scale_overflow_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # x=1, w=1 (no zero-point), matmul=1, scale=2^65*2^65/2^124 = 2^130/2^124 = 2^6 = 64
+    # Expected output: clip(round(1 * 64), 0, 255) = 64
+    assert tvm_val[0, 0, 0, 0] == 64, (
+        f"Expected 64 (scale product computed in float64) but got {tvm_val[0, 0, 0, 0]}. "
+        "Scale product likely overflowed float32."
+    )
+
+    # Also verify zero accumulator does not turn into NaN when multiplier overflows float32
+    feed_inputs_zero = dict(feed_inputs)
+    feed_inputs_zero["x"] = np.zeros([1, channels, 1, 1], dtype=np.uint8)
+    feed_inputs_zero["y_zp"] = np.array(128, dtype=np.uint8)
+    tvm_out_zero = run_in_tvm(model, inputs=feed_inputs_zero, opset=10)
+    tvm_val_zero = (
+        tvm_out_zero[0].numpy() if isinstance(tvm_out_zero, list | tuple) else tvm_out_zero.numpy()
+    )
+    assert tvm_val_zero[0, 0, 0, 0] == 128, (
+        f"Expected 128 for zero accumulator with scale overflow, but got {tvm_val_zero[0, 0, 0, 0]}"
+    )
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
