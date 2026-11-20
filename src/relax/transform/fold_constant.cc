@@ -31,6 +31,8 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
+#include <cstring>
+
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
@@ -385,11 +387,30 @@ class ConstantFolder : public ExprMutator {
           TVM_FFI_ICHECK(ndarray.IsContiguous());
           TVM_FFI_ICHECK_EQ(ndarray.byte_offset(), 0);
           TVM_FFI_ICHECK_EQ(ndarray.ndim(), 1);
-          const int64_t* data = static_cast<const int64_t*>(ndarray.data_ptr());
           int64_t num_elems = ndarray.shape()[0];
           ffi::Array<PrimExpr> shape_values;
-          for (int64_t i = 0; i < num_elems; i++) {
-            shape_values.push_back(IntImm::Int64(data[i]));
+          const auto* data = static_cast<const char*>(ndarray.data_ptr());
+          auto append_values = [&](auto value) {
+            for (int64_t i = 0; i < num_elems; i++) {
+              std::memcpy(&value, data + i * sizeof(value), sizeof(value));
+              shape_values.push_back(IntImm::Int64(value));
+            }
+          };
+          if (ndarray.dtype().code != kDLInt || ndarray.dtype().lanes != 1) {
+            return post_call;
+          }
+          switch (ndarray.dtype().bits) {
+            case 16:
+              append_values(int16_t{});
+              break;
+            case 32:
+              append_values(int32_t{});
+              break;
+            case 64:
+              append_values(int64_t{});
+              break;
+            default:
+              return post_call;
           }
           return ShapeExpr(shape_values);
         }
