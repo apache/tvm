@@ -936,7 +936,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     // If the loop extent is 1, do not create the loop anymore
     auto f_substitute =
         [loop_var = for_node->var](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (var.same_as(loop_var)) return ffi::Any(IntImm::Int32(0));
+      if (var.same_as(loop_var)) return ffi::Any(IntImm(var->ty.as_or_throw<PrimType>(), 0));
       return ffi::Unchanged();
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
@@ -996,10 +996,10 @@ namespace transform {
 
 Pass LoopPartition() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
-    if (!f->body.has_value()) return f;
+    if (f->GetAttr(tvm::attr::kDeclaration).value_or(false)) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfigOrDefault<LoopPartitionConfig>("s_tir.LoopPartition");
-    n->body = s_tir::LoopPartition(std::move(n->body).value(), cfg->partition_const_loop,
+    n->body = s_tir::LoopPartition(std::move(n->body), cfg->partition_const_loop,
                                    cfg->no_unroll_loop_with_extent_one,
                                    cfg->unroll_loop_with_partition_hint_no_interval);
     return f;
