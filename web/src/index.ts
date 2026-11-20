@@ -20,6 +20,7 @@
 export {
   Scalar, DLDevice, DLDataType,
   PackedFunc, Module, Tensor,
+  SampledTokenReadbackRing,
   TVMArray, TVMObject, VirtualMachine,
   InitProgressCallback, InitProgressReport, FetchTensorCacheOptions,
   Instance, instantiate
@@ -37,7 +38,12 @@ export {
   hasTensorInCache,
   deleteTensorCache
 } from "./artifact_cache";
-export { Disposable, LibraryProvider } from "./types";
+export {
+  Disposable,
+  LibraryProvider,
+  SampledTokenReadbackBatch,
+  SampledTokenReadbackRingOptions,
+} from "./types";
 export { RPCServer } from "./rpc_server";
 export { assert, wasmPath, LinearCongruentialGenerator } from "./support";
 export type { RNGState } from "./support";

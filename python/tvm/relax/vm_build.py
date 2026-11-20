@@ -196,7 +196,7 @@ def build(
     relax_pipeline : str = "default"
         The Relax compilation pipeline to use.
 
-    tir_pipelinie : str = "default"
+    tir_pipeline : str = "default"
         The TIR compilation pipeline to use.
 
     system_lib: Optional[bool]

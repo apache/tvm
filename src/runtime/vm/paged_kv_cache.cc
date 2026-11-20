@@ -201,8 +201,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unordered_map<int64_t, Sequence> seq_map_;
   /*! \brief Whether a checkpoint import is waiting for all page groups. */
   bool checkpoint_import_in_progress_ = false;
-  /*! \brief The page groups restored by the current checkpoint import. */
-  std::vector<bool> checkpoint_imported_groups_;
+  /*!
+   * \brief Per page group, the logical pages restored by the current checkpoint
+   * import from page 0, or -1 if nothing has been imported yet.
+   */
+  std::vector<int64_t> checkpoint_imported_pages_;
 
   /********************* Sequence Block Structures *********************/
 
@@ -624,7 +627,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void Clear() final {
     seq_map_.clear();
     checkpoint_import_in_progress_ = false;
-    checkpoint_imported_groups_.clear();
+    checkpoint_imported_pages_.clear();
     free_page_ids_.clear();
     for (int64_t page_id = num_total_pages_ - 1; page_id >= 0; --page_id) {
       free_page_ids_.push_back(page_id);
@@ -946,15 +949,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   ffi::String GetCheckpointMetadata(int64_t seq_id) const final {
     CheckCheckpointSequenceSupported(seq_id);
+    return GetCheckpointMetadataAt(seq_id, seq_map_.at(seq_id).seq_length);
+  }
+
+  ffi::String GetCheckpointMetadataAt(int64_t seq_id, int64_t seq_length) const final {
+    CheckCheckpointSequenceSupported(seq_id);
     const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointLength(seq, seq_length);
+    // Validate the page table even though only the length is reported.
+    GetNumLogicalPages(seq);
 
     namespace json = tvm::ffi::json;
     json::Object metadata = MakeLayoutMetadata();
     metadata.Set("layout_hash", GetLayoutHash());
     metadata.Set("seq_id", seq_id);
-    metadata.Set("seq_length", static_cast<int64_t>(seq.seq_length));
-    metadata.Set("logical_pages", MakeLogicalPageMetadata(seq));
-    metadata.Set("groups", MakePageGroupMetadata(seq));
+    metadata.Set("seq_length", seq_length);
+    metadata.Set("logical_pages", MakeLogicalPageMetadata(seq_length));
+    metadata.Set("groups", MakePageGroupMetadata(GetExpectedNumLogicalPages(seq_length)));
     return json::Stringify(metadata);
   }
 
@@ -967,14 +978,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(dst.defined());
     CheckCheckpointSequenceSupported(seq_id);
     const Sequence& seq = seq_map_.at(seq_id);
-    TVM_FFI_ICHECK_GE(group_id, 0)
-        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id << ".";
-    TVM_FFI_ICHECK_LT(group_id, num_layers_)
-        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id
-        << ", but only " << num_layers_ << " groups are available.";
-
     int64_t num_logical_pages = GetNumLogicalPages(seq);
     CheckExportPageGroupTensor(dst, num_logical_pages);
+    ExportPageRange(seq_id, group_id, seq.seq_length, 0, num_logical_pages, dst, 0);
+  }
+
+  void ExportPageRange(int64_t seq_id, int64_t group_id, int64_t seq_length, int64_t page_begin,
+                       int64_t page_end, ffi::Tensor dst, int64_t dst_page_offset) final {
+    CheckCheckpointSequenceSupported(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointGroupId(group_id, "export");
+    CheckCheckpointLength(seq, seq_length);
+    CheckCheckpointPageRange(page_begin, page_end, GetExpectedNumLogicalPages(seq_length),
+                             "export");
+    CheckPageRangeTensor(dst, dst_page_offset, page_end - page_begin, "ExportPageRange");
+    if (page_begin == page_end) {
+      return;
+    }
     std::vector<int32_t> page_ids = GetCheckpointPageIds(seq, "checkpoint export");
 
     if (copy_stream_ != nullptr) {
@@ -982,30 +1002,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
 
     ffi::Tensor layer_pages = pages_[group_id];
-    int64_t num_full_pages = seq.seq_length / page_size_;
-    int64_t partial_page_length = seq.seq_length % page_size_;
-    if (partial_page_length != 0) {
-      TVM_FFI_ICHECK_LT(num_full_pages, num_logical_pages);
-      ExportPartialCheckpointPage(layer_pages, page_ids[num_full_pages], dst, num_full_pages,
-                                  partial_page_length);
+    int64_t num_full_pages = seq_length / page_size_;
+    int64_t full_page_end = std::min(page_end, num_full_pages);
+    if (page_begin < full_page_end) {
+      CopyCheckpointPages(layer_pages, page_ids, page_begin, full_page_end, dst, dst_page_offset,
+                          /*to_page_group=*/true);
     }
-
-    int64_t logical_page_index = 0;
-    while (logical_page_index < num_full_pages) {
-      int64_t run_length = 1;
-      while (logical_page_index + run_length < num_full_pages &&
-             page_ids[logical_page_index + run_length] ==
-                 page_ids[logical_page_index] + run_length) {
-        ++run_length;
-      }
-      CopyCheckpointPageRun(layer_pages, page_ids[logical_page_index], dst, logical_page_index,
-                            run_length);
-      logical_page_index += run_length;
+    if (page_end > num_full_pages) {
+      // Only the last logical page can be partial.
+      ExportPartialCheckpointPage(layer_pages, page_ids[num_full_pages], dst,
+                                  dst_page_offset + num_full_pages - page_begin,
+                                  seq_length % page_size_);
     }
-    if (partial_page_length != 0) {
-      ++logical_page_index;
-    }
-    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
   }
 
   void PrepareImport(int64_t seq_id, ffi::String metadata_json) final {
@@ -1027,7 +1035,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     seq_map_.insert({seq_id, Sequence(&global_block_pool_, block_idx)});
     checkpoint_import_in_progress_ = true;
-    checkpoint_imported_groups_.assign(num_layers_, false);
+    checkpoint_imported_pages_.assign(num_layers_, -1);
     dirty_aux_data_device_ = true;
   }
 
@@ -1043,7 +1051,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK_LT(group_id, num_layers_)
         << "PagedAttentionKVCache checkpoint import got invalid group id " << group_id
         << ", but only " << num_layers_ << " groups are available.";
-    TVM_FFI_ICHECK(!checkpoint_imported_groups_[group_id])
+    TVM_FFI_ICHECK_EQ(checkpoint_imported_pages_[group_id], -1)
         << "PagedAttentionKVCache checkpoint group " << group_id << " was already imported.";
 
     int64_t num_logical_pages = GetNumLogicalPages(seq);
@@ -1053,22 +1061,37 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (copy_stream_ != nullptr) {
       DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
     }
-
-    ffi::Tensor layer_pages = pages_[group_id];
-    int64_t logical_page_index = 0;
-    while (logical_page_index < num_logical_pages) {
-      int64_t run_length = 1;
-      while (logical_page_index + run_length < num_logical_pages &&
-             page_ids[logical_page_index + run_length] ==
-                 page_ids[logical_page_index] + run_length) {
-        ++run_length;
-      }
-      CopyCheckpointPageRun(src, logical_page_index, layer_pages, page_ids[logical_page_index],
-                            run_length);
-      logical_page_index += run_length;
+    if (num_logical_pages > 0) {
+      CopyCheckpointPages(pages_[group_id], page_ids, 0, num_logical_pages, src, 0,
+                          /*to_page_group=*/false);
     }
-    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
-    checkpoint_imported_groups_[group_id] = true;
+    checkpoint_imported_pages_[group_id] = num_logical_pages;
+  }
+
+  void ImportPageRange(int64_t seq_id, int64_t group_id, int64_t page_begin, int64_t page_end,
+                       ffi::Tensor src, int64_t src_page_offset) final {
+    CheckCheckpointLayoutSupported();
+    TVM_FFI_ICHECK(checkpoint_import_in_progress_)
+        << "PagedAttentionKVCache checkpoint import has not been prepared.";
+    CheckCheckpointSequenceState(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    CheckCheckpointGroupId(group_id, "import");
+    int64_t num_logical_pages = GetNumLogicalPages(seq);
+    CheckCheckpointPageRange(page_begin, page_end, num_logical_pages, "import");
+    int64_t imported_pages = std::max<int64_t>(checkpoint_imported_pages_[group_id], 0);
+    TVM_FFI_ICHECK_LE(page_begin, imported_pages)
+        << "PagedAttentionKVCache checkpoint import of group " << group_id << " pages ["
+        << page_begin << ", " << page_end << ") leaves pages [" << imported_pages << ", "
+        << page_begin << ") unimported.";
+    CheckPageRangeTensor(src, src_page_offset, page_end - page_begin, "ImportPageRange");
+    std::vector<int32_t> page_ids = GetCheckpointPageIds(seq, "checkpoint import");
+
+    if (copy_stream_ != nullptr) {
+      DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
+    }
+    CopyCheckpointPages(pages_[group_id], page_ids, page_begin, page_end, src, src_page_offset,
+                        /*to_page_group=*/false);
+    checkpoint_imported_pages_[group_id] = std::max(imported_pages, page_end);
   }
 
   void FinishImport(int64_t seq_id) final {
@@ -1076,12 +1099,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(checkpoint_import_in_progress_)
         << "PagedAttentionKVCache checkpoint import has not been prepared.";
     CheckCheckpointSequenceState(seq_id);
+    int64_t num_logical_pages = GetNumLogicalPages(seq_map_.at(seq_id));
     for (int64_t group_id = 0; group_id < num_layers_; ++group_id) {
-      TVM_FFI_ICHECK(checkpoint_imported_groups_[group_id])
-          << "PagedAttentionKVCache checkpoint import is missing group " << group_id << ".";
+      TVM_FFI_ICHECK_EQ(checkpoint_imported_pages_[group_id], num_logical_pages)
+          << "PagedAttentionKVCache checkpoint import is missing group " << group_id << " pages ["
+          << std::max<int64_t>(checkpoint_imported_pages_[group_id], 0) << ", " << num_logical_pages
+          << ").";
     }
     checkpoint_import_in_progress_ = false;
-    checkpoint_imported_groups_.clear();
+    checkpoint_imported_pages_.clear();
   }
 
   int32_t GetSequenceLength(int64_t seq_id) const final {
@@ -2305,6 +2331,47 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     CheckPageGroupTensor(src, num_logical_pages, "ImportPageGroup");
   }
 
+  void CheckPageRangeTensor(const ffi::Tensor& tensor, int64_t page_offset, int64_t num_pages,
+                            const char* api_name) const {
+    std::string error_msg = std::string(api_name) +
+                            " expects the tensor in layout "
+                            "(1,num_pages,2,num_kv_heads,page_size,qk_head_dim).";
+    TVM_FFI_ICHECK(tensor.defined()) << error_msg;
+    TVM_FFI_ICHECK(tensor.dtype() == kv_dtype_) << error_msg << " The dtype mismatches, expected "
+                                                << kv_dtype_ << ", got " << tensor.dtype() << ".";
+    TVM_FFI_ICHECK_EQ(tensor.ndim(), 6) << error_msg;
+    TVM_FFI_ICHECK_EQ(tensor.shape()[0], 1) << error_msg << " The group count mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[2], 2) << error_msg << " The K/V axis mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[3], num_kv_heads_)
+        << error_msg << " The number of KV heads mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[4], page_size_) << error_msg << " The page size mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor.shape()[5], qk_head_dim_)
+        << error_msg << " The head dimension mismatches.";
+    TVM_FFI_ICHECK(page_offset >= 0 && page_offset <= tensor.shape()[1] &&
+                   num_pages <= tensor.shape()[1] - page_offset)
+        << api_name << " page offset " << page_offset << " with " << num_pages
+        << " pages is out of range for a tensor of " << tensor.shape()[1] << " pages.";
+  }
+
+  void CheckCheckpointGroupId(int64_t group_id, const char* operation) const {
+    TVM_FFI_ICHECK(group_id >= 0 && group_id < num_layers_)
+        << "PagedAttentionKVCache checkpoint " << operation << " got invalid group id " << group_id
+        << ", but only " << num_layers_ << " groups are available.";
+  }
+
+  void CheckCheckpointLength(const Sequence& seq, int64_t seq_length) const {
+    TVM_FFI_ICHECK(seq_length >= 0 && seq_length <= seq.seq_length)
+        << "PagedAttentionKVCache checkpoint length " << seq_length
+        << " is outside the sequence length " << seq.seq_length << ".";
+  }
+
+  void CheckCheckpointPageRange(int64_t page_begin, int64_t page_end, int64_t num_logical_pages,
+                                const char* operation) const {
+    TVM_FFI_ICHECK(0 <= page_begin && page_begin <= page_end && page_end <= num_logical_pages)
+        << "PagedAttentionKVCache checkpoint " << operation << " got page range [" << page_begin
+        << ", " << page_end << ") outside the " << num_logical_pages << " logical pages.";
+  }
+
   ffi::json::Array MakeAttnKindsMetadata() const {
     ffi::json::Array result;
     for (int64_t layer_id = layer_id_begin_offset_; layer_id < layer_id_end_offset_; ++layer_id) {
@@ -2375,14 +2442,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return os.str();
   }
 
-  ffi::json::Array MakeLogicalPageMetadata(const Sequence& seq) const {
+  ffi::json::Array MakeLogicalPageMetadata(int64_t seq_length) const {
     namespace json = tvm::ffi::json;
     json::Array pages;
-    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq.seq_length);
+    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq_length);
     for (int64_t logical_page_index = 0; logical_page_index < num_logical_pages;
          ++logical_page_index) {
       int64_t page_start = logical_page_index * page_size_;
-      int64_t page_length = std::min<int64_t>(page_size_, seq.seq_length - page_start);
+      int64_t page_length = std::min<int64_t>(page_size_, seq_length - page_start);
       TVM_FFI_ICHECK_GT(page_length, 0);
       json::Object page_json;
       page_json.Set("logical_page_index", logical_page_index);
@@ -2404,10 +2471,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     return num_pages;
   }
 
-  ffi::json::Array MakePageGroupMetadata(const Sequence& seq) const {
+  ffi::json::Array MakePageGroupMetadata(int64_t num_logical_pages) const {
     namespace json = tvm::ffi::json;
     json::Array groups;
-    int64_t num_logical_pages = GetNumLogicalPages(seq);
     for (int64_t local_layer = 0; local_layer < num_layers_; ++local_layer) {
       json::Object group;
       group.Set("group_index", local_layer);
@@ -2470,6 +2536,33 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         static_cast<uint64_t>(dst_page_index * bytes_per_page));
     DLTensor dst_pages_view = *dst_pages.GetDLTensorPtr();
     tvm::runtime::CopyFromTo(src_pages.GetDLTensorPtr(), &dst_pages_view, compute_stream_);
+  }
+
+  /*!
+   * \brief Copy logical pages [begin, end) between a layer's page pool and a page
+   * group tensor, one copy per run of physically consecutive pages.
+   */
+  void CopyCheckpointPages(const ffi::Tensor& layer_pages, const std::vector<int32_t>& page_ids,
+                           int64_t begin, int64_t end, const ffi::Tensor& page_group,
+                           int64_t page_group_offset, bool to_page_group) const {
+    int64_t logical_page_index = begin;
+    while (logical_page_index < end) {
+      int64_t run_length = 1;
+      while (logical_page_index + run_length < end &&
+             page_ids[logical_page_index + run_length] ==
+                 page_ids[logical_page_index] + run_length) {
+        ++run_length;
+      }
+      int64_t group_page_index = page_group_offset + logical_page_index - begin;
+      if (to_page_group) {
+        CopyCheckpointPageRun(layer_pages, page_ids[logical_page_index], page_group,
+                              group_page_index, run_length);
+      } else {
+        CopyCheckpointPageRun(page_group, group_page_index, layer_pages,
+                              page_ids[logical_page_index], run_length);
+      }
+      logical_page_index += run_length;
+    }
   }
 
   void ExportPartialCheckpointPage(const ffi::Tensor& src, int64_t src_page_index,
