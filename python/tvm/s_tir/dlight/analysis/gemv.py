@@ -158,8 +158,10 @@ def normalize(
         else:
             s_loops.append(loop)
 
-    assert s_loops
-    assert r_loops
+    # Broadcast operands can make a general reduction look like GEMV.
+    # GEMV needs a non-batch spatial axis as well as a reduction axis.
+    if not s_loops or not r_loops:
+        return None
     if not c_loops:
         c_loops = [sch.add_unit_loop(block_info.block_rv)]
     if not batch_loops:
