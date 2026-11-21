@@ -1050,7 +1050,7 @@ class OperatorFusor : public ExprMutator {
       // Step 3. A symbolic shape var may only appear in the binding's resulting type(e.g. a
       // call_tir's out_ty), invisible to the relax::Var traversal above. Depend on the group
       // whose MatchCast defined that var.
-      for (const tirx::Var& used_tir_var : TIRVarsInType(GetType(binding->var))) {
+      for (const tvm::Var& used_tir_var : TIRVarsInType(GetType(binding->var))) {
         if (auto it = symbolic_var_def_group_.find(used_tir_var);
             it != symbolic_var_def_group_.end() && it->second != cur_group) {
           AddGroupDep(cur_group, it->second, binding->var->name, used_tir_var->name);
@@ -1060,8 +1060,8 @@ class OperatorFusor : public ExprMutator {
       // Step 4. Record which group first defines each symbolic var a MatchCast introduces, so
       // later bindings (Step 3) can depend on it. First write wins: re-matching the same var
       // later must not move its defining group.
-      if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        for (const tirx::Var& defined_var : DefinableTIRVarsInType(match_cast->ty)) {
+      if (const auto* match_cast = binding.as<MatchCastObj>()) {
+        for (const tvm::Var& defined_var : DefinableTIRVarsInType(match_cast->ty)) {
           symbolic_var_def_group_.emplace(defined_var, cur_group);
         }
       }
@@ -1178,7 +1178,7 @@ class OperatorFusor : public ExprMutator {
    */
   std::unordered_map<Group*, std::vector<Group*>> group_deps_;
   /*! \brief A map from a symbolic var to the group of the MatchCast that first defines it. */
-  std::unordered_map<tirx::Var, Group*> symbolic_var_def_group_;
+  std::unordered_map<tvm::Var, Group*> symbolic_var_def_group_;
   /*! \brief Whether or not to lift bound constants to parameters of the grouped function. */
   bool lift_constants_{true};
 };

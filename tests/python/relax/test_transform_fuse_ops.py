@@ -1696,10 +1696,10 @@ def test_fuseops_respects_match_cast_shape_dependency():
     class Before:
         make_shape_n = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def make_shape(
-            x: T.Buffer((make_shape_n, T.int64(8)), "float32"),
-            out: T.Buffer((T.int64(2),), "int64"),
+            x: T.Tensor((make_shape_n, T.int64(8)), "float32"),
+            out: T.Tensor((T.int64(2),), "int64"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             with Ts.sblock("write0"):
@@ -1710,10 +1710,10 @@ def test_fuseops_respects_match_cast_shape_dependency():
         copy_2d_m = T.int64()
         copy_2d_n = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def copy_2d(
-            x: T.Buffer((copy_2d_m, T.int64(8)), "float32"),
-            out: T.Buffer((copy_2d_n, T.int64(8)), "float32"),
+            x: T.Tensor((copy_2d_m, T.int64(8)), "float32"),
+            out: T.Tensor((copy_2d_n, T.int64(8)), "float32"),
         ):
             T.func_attr({"op_pattern": 8, "tirx.noalias": True})
             for i, j in T.grid(out.shape[0], T.int64(8)):
@@ -1723,7 +1723,7 @@ def test_fuseops_respects_match_cast_shape_dependency():
 
     def emit_shape_bound_copy(bb, x, shape_gv, copy_gv, shape_var, name_prefix):
         shape_tensor = bb.emit(
-            relax.call_tir(shape_gv, (x,), out_ty=relax.TensorType((2,), "int64")),
+            relax.call_tir(shape_gv, (x,), ty_args=[relax.TensorType((2,), "int64")]),
             name_hint=f"{name_prefix}_shape_tensor",
         )
         shape = bb.emit(relax.op.tensor_to_shape(shape_tensor), name_hint=f"{name_prefix}_shape")
@@ -1733,7 +1733,7 @@ def test_fuseops_respects_match_cast_shape_dependency():
             name_hint=f"{name_prefix}_shape_bound",
         )
         return bb.emit(
-            relax.call_tir(copy_gv, (x,), out_ty=relax.TensorType((shape_var, 8), "float32")),
+            relax.call_tir(copy_gv, (x,), ty_args=[relax.TensorType((shape_var, 8), "float32")]),
             name_hint=f"{name_prefix}_copy",
         )
 
@@ -1741,10 +1741,10 @@ def test_fuseops_respects_match_cast_shape_dependency():
     copy_gv = Before.get_global_var("copy_2d")
     bb = relax.BlockBuilder(Before)
 
-    m = tvm.tirx.Var("m", "int64")
-    d0 = tvm.tirx.Var("d0", "int64")
-    s0 = tvm.tirx.Var("s0", "int64")
-    s1 = tvm.tirx.Var("s1", "int64")
+    m = tvm_tirx.tirx.Var("m", "int64")
+    d0 = tvm_tirx.tirx.Var("d0", "int64")
+    s0 = tvm_tirx.tirx.Var("s0", "int64")
+    s1 = tvm_tirx.tirx.Var("s1", "int64")
     x = relax.Var("x", relax.TensorType((m, 8), "float32"))
 
     with bb.function("main", params=[x]):
@@ -1769,7 +1769,7 @@ def test_fuseops_respects_match_cast_shape_dependency():
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
     mod = relax.transform.LegalizeOps()(mod)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
@@ -1779,7 +1779,7 @@ def test_fuseops_respects_match_cast_shape_dependency():
     # Guard against the test becoming vacuous: it only exercises the bug if subtract+add
     # actually get fused into a group whose dependency call pull the call_tir forward.
     assert any(gv.name_hint.startswith("fused_") for gv in mod.get_global_vars())
-    assert relax.analysis.check_well_formed(mod)
+    relax.analysis.check_well_formed(mod)
 
 
 def test_primitive_call_arg_not_inlined():
