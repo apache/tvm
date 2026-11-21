@@ -6510,6 +6510,34 @@ def test_masked_select_numerically():
     verify_model_numerically(MaskedSelect(), example_args)
 
 
+@pytest.mark.skipif(not device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize(
+    "data_shape, mask_shape, axis",
+    [
+        ((4,), (4,), 0),
+        ((2, 3, 4), (2, 3), 0),
+        ((2, 3, 4), (3, 4), 1),
+        ((2, 3, 4), (3,), 1),
+    ],
+)
+def test_index_tensor_boolean_mask(data_shape, mask_shape, axis):
+    class MaskIndex(Module):
+        def forward(self, data, mask):
+            return data[(slice(None),) * axis + (mask,)]
+
+    model = MaskIndex()
+    data = torch.arange(np.prod(data_shape), dtype=torch.float32).reshape(data_shape)
+    mask = (torch.arange(np.prod(mask_shape)) % 2 == 0).reshape(mask_shape)
+    mod = from_exported_program(export(model, (data, mask)))
+    vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+    tvm_data = tvm_tirx.runtime.tensor(data.numpy())
+
+    for current_mask in (mask, torch.zeros_like(mask), torch.ones_like(mask)):
+        actual = vm["main"](tvm_data, tvm_tirx.runtime.tensor(current_mask.numpy()))[0].numpy()
+        expected = model(data, current_mask).numpy()
+        np.testing.assert_array_equal(actual, expected, strict=True)
+
+
 def test_new_ones():
     class NewOnes(Module):
         def forward(self, x):
