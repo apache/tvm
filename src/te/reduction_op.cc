@@ -20,6 +20,8 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
 
+#include <limits>
+
 namespace tvm::prim {
 using s_tir::IterVar;
 PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Location loc) {
@@ -55,11 +57,29 @@ PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }  // namespace tvm::prim
 
 namespace tvm {
+
+namespace {
+
+// Whether the type has an IEEE infinity representation that can be used as
+// the reduction identity.  Keep the finite min_value/max_value fallback for
+// types without infinity (bfloat16, float8, ...) and for integer types.
+bool SupportsInfinityIdentity(PrimType ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat) &&
+         (ty.bits() == 16 || ty.bits() == 32 || ty.bits() == 64);
+}
+
+}  // namespace
+
 PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimExpr> init,
              Location loc) {
   PrimVar x("x", source.ty(), loc), y("y", source.ty(), loc);
   PrimExpr result = prim::Max(x, y, loc);
-  PrimExpr identity_element = prim::min_value(source.ty(), loc);
+  // Use -inf as the identity so that max(-inf, x) == x for every input,
+  // including an input that consists entirely of -inf.
+  PrimExpr identity_element =
+      SupportsInfinityIdentity(source.ty())
+          ? FloatImm(source.ty(), -std::numeric_limits<double>::infinity(), loc)
+          : prim::min_value(source.ty(), loc);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, loc);
   return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, loc);
 }
@@ -68,7 +88,12 @@ PrimExpr min(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimEx
              Location loc) {
   PrimVar x("x", source.ty(), loc), y("y", source.ty(), loc);
   PrimExpr result = prim::Min(x, y, loc);
-  PrimExpr identity_element = prim::max_value(source.ty(), loc);
+  // Use +inf as the identity so that min(+inf, x) == x for every input,
+  // including an input that consists entirely of +inf.
+  PrimExpr identity_element =
+      SupportsInfinityIdentity(source.ty())
+          ? FloatImm(source.ty(), std::numeric_limits<double>::infinity(), loc)
+          : prim::max_value(source.ty(), loc);
   te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, loc);
   return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, loc);
 }

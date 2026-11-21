@@ -883,7 +883,7 @@ def test_cuda_sfm():
                             Ts.reads(A[v_i0, v_k])
                             Ts.writes(T_softmax_maxelem[v_i0])
                             with Ts.init():
-                                T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                                T_softmax_maxelem[v_i0] = T.float32("-inf")
                             T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
             for i0_fused_0 in T.parallel(1, annotations={"thread_binding": "blockIdx.x"}):
                 for i0_fused_1 in T.parallel(256, annotations={"thread_binding": "threadIdx.x"}):
@@ -923,7 +923,7 @@ def test_cuda_sfm():
                             Ts.reads(A[v_i0, v_k])
                             Ts.writes(T_softmax_maxelem[v_i0])
                             with Ts.init():
-                                T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                                T_softmax_maxelem[v_i0] = T.float32("-inf")
                             T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
             for i0_fused_0 in T.parallel(4, annotations={"thread_binding": "blockIdx.x"}):
                 for i0_fused_1 in T.parallel(64, annotations={"thread_binding": "threadIdx.x"}):
@@ -963,7 +963,7 @@ def test_cuda_sfm():
                             Ts.reads(A[v_i0, v_k])
                             Ts.writes(T_softmax_maxelem[v_i0])
                             with Ts.init():
-                                T_softmax_maxelem[v_i0] = T.float32(-3.4028234663852886e+38)
+                                T_softmax_maxelem[v_i0] = T.float32("-inf")
                             T_softmax_maxelem[v_i0] = T.max(T_softmax_maxelem[v_i0], A[v_i0, v_k])
             for i0_fused in T.parallel(256, annotations={"thread_binding": "blockIdx.x"}):
                 for ax0, ax1_0 in T.grid(1, 1):
@@ -1006,7 +1006,7 @@ def test_cuda_sfm():
                             Ts.reads(A[v_i0, v_k])
                             Ts.writes(T_softmax_maxelem_shared[v_i0])
                             with Ts.init():
-                                T_softmax_maxelem_shared[v_i0] = T.float32(-3.4028234663852886e+38)
+                                T_softmax_maxelem_shared[v_i0] = T.float32("-inf")
                             T_softmax_maxelem_shared[v_i0] = T.max(T_softmax_maxelem_shared[v_i0], A[v_i0, v_k])
                 for ax0, ax1_0 in T.grid(1, 1):
                     for ax1_1 in T.parallel(512, annotations={"thread_binding": "threadIdx.x"}):

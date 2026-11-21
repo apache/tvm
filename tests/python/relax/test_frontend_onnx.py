@@ -7330,6 +7330,30 @@ def test_reduce_funcs_axes_attr_numerical(func, opset, dynamic, keepdims):
     )
 
 
+@pytest.mark.parametrize(
+    "func, extreme",
+    [
+        ("ReduceMax", -np.inf),
+        ("ReduceMin", np.inf),
+    ],
+)
+def test_reduce_infinity_identity_numerical(func, extreme):
+    node = helper.make_node(func, inputs=["x"], outputs=["y"], keepdims=0)
+    graph = helper.make_graph(
+        [node],
+        "reduce_infinity_identity_numerical_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reduce_infinity_identity_numerical_test",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+    inputs = {"x": np.full(3, extreme, dtype=np.float32)}
+    check_correctness(model, inputs, opset=13, rtol=0, atol=0)
+
+
 def _make_reduce_expected_ir(
     func: str,
     input_shape: list[int],

@@ -879,7 +879,7 @@ def test_max_pool2d():
                     Ts.writes(pool_max[ax0, ax1, ax2, ax3])
                     Ts.sblock_attr({"schedule_rule":"meta_schedule.pool_max"})
                     with Ts.init():
-                        pool_max[ax0, ax1, ax2, ax3] = T.float32(-3.4028234663852886e+38)
+                        pool_max[ax0, ax1, ax2, ax3] = T.float32("-inf")
                     pool_max[ax0, ax1, ax2, ax3] = T.max(pool_max[ax0, ax1, ax2, ax3], pad_temp[ax0, ax1 * T.int64(2) + rv0, ax2 * T.int64(2) + rv1, ax3])
     # fmt: on
 
@@ -913,7 +913,7 @@ def test_max_pool2d_NCHW16c():
                     Ts.writes(pool_max[ax0, ax1, ax2, ax3, ax4])
                     Ts.sblock_attr({"schedule_rule":"meta_schedule.pool_max"})
                     with Ts.init():
-                        pool_max[ax0, ax1, ax2, ax3, ax4] = T.float32(-3.4028234663852886e+38)
+                        pool_max[ax0, ax1, ax2, ax3, ax4] = T.float32("-inf")
                     pool_max[ax0, ax1, ax2, ax3, ax4] = T.max(pool_max[ax0, ax1, ax2, ax3, ax4], rxplaceholder[ax0, ax1, ax2 + rv0, ax3 + rv1, ax4])
     # fmt: on
 
@@ -954,7 +954,7 @@ def test_max_pool2d_ceil_mode():
                     Ts.writes(pool_max[ax0, ax1, ax2, ax3])
                     Ts.sblock_attr({"schedule_rule":"meta_schedule.pool_max"})
                     with Ts.init():
-                        pool_max[ax0, ax1, ax2, ax3] = T.float32(-3.4028234663852886e+38)
+                        pool_max[ax0, ax1, ax2, ax3] = T.float32("-inf")
                     pool_max[ax0, ax1, ax2, ax3] = T.max(pool_max[ax0, ax1, ax2, ax3], pad_temp[ax0, ax1, ax2 * T.int64(3) + rv0, ax3 * T.int64(3) + rv1])
     # fmt: on
 
@@ -1900,7 +1900,7 @@ def test_softmax():
                     Ts.reads(rxplaceholder[i0_1, i1_1, k, i2_1])
                     Ts.writes(T_softmax_maxelem[i0_1, i1_1, i2_1])
                     with Ts.init():
-                        T_softmax_maxelem[i0_1, i1_1, i2_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_1, i1_1, i2_1] = T.float32("-inf")
                     T_softmax_maxelem[i0_1, i1_1, i2_1] = T.max(T_softmax_maxelem[i0_1, i1_1, i2_1], rxplaceholder[i0_1, i1_1, k, i2_1])
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(16), T.int64(32)):
                 with Ts.sblock("T_softmax_exp"):
@@ -1969,7 +1969,7 @@ def test_softmax_symbolic():
                     Ts.reads(rxplaceholder[i0_1, i1_1, k])
                     Ts.writes(T_softmax_maxelem[i0_1, i1_1])
                     with Ts.init():
-                        T_softmax_maxelem[i0_1, i1_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_1, i1_1] = T.float32("-inf")
                     T_softmax_maxelem[i0_1, i1_1] = T.max(T_softmax_maxelem[i0_1, i1_1], rxplaceholder[i0_1, i1_1, k])
             for i0, i1, i2 in T.grid(a_softmax, b_softmax, c_softmax):
                 with Ts.sblock("T_softmax_exp"):
@@ -2025,7 +2025,7 @@ def test_log_softmax():
                     Ts.reads(rxplaceholder[i0_1, i1_1, k, i2_1])
                     Ts.writes(T_softmax_maxelem[i0_1, i1_1, i2_1])
                     with Ts.init():
-                        T_softmax_maxelem[i0_1, i1_1, i2_1] = T.float32(-3.4028234663852886e38)
+                        T_softmax_maxelem[i0_1, i1_1, i2_1] = T.float32("-inf")
                     T_softmax_maxelem[i0_1, i1_1, i2_1] = T.max(T_softmax_maxelem[i0_1, i1_1, i2_1], rxplaceholder[i0_1, i1_1, k, i2_1])
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(32), T.int64(16)):
                 with Ts.sblock("compute"):
@@ -2088,7 +2088,7 @@ def test_log_softmax_symbolic():
                     Ts.reads(rxplaceholder[v_i0, v_i1, v_k])
                     Ts.writes(T_softmax_maxelem[v_i0, v_i1])
                     with Ts.init():
-                        T_softmax_maxelem[v_i0, v_i1] = T.float32(-3.4028234663852886e38)
+                        T_softmax_maxelem[v_i0, v_i1] = T.float32("-inf")
                     T_softmax_maxelem[v_i0, v_i1] = T.max(T_softmax_maxelem[v_i0, v_i1], rxplaceholder[v_i0, v_i1, v_k])
             for i0, i1, k in T.grid(a_log_softmax, b_log_softmax, c_log_softmax):
                 with Ts.sblock("compute"):
@@ -3758,7 +3758,7 @@ def test_attention():
                     Ts.reads(trilu[v_ax0, v_ax1, v_k2])
                     Ts.writes(trilu_red[v_ax0, v_ax1, v_ax2])
                     with Ts.init():
-                        trilu_red[v_ax0, v_ax1, v_ax2] = T.float32(-340282346638528859811704183484516925440.0)
+                        trilu_red[v_ax0, v_ax1, v_ax2] = T.float32("-inf")
                     trilu_red[v_ax0, v_ax1, v_ax2] = T.max(trilu_red[v_ax0, v_ax1, v_ax2], trilu[v_ax0, v_ax1, v_k2])
             for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
                 with Ts.sblock("T_subtract"):

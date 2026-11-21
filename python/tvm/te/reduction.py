@@ -28,7 +28,7 @@ from tvm_tirx import tirx as tir
 from tvm_tirx.ir import Expr, Scriptable, Var, const
 from tvm_tirx.ir.location import UNKNOWN_LOC, Location
 from tvm_tirx.ir.prim import _ffi_api as _prim_ffi_api
-from tvm_tirx.ir.prim import max_value, min_value
+from tvm_tirx.ir.prim import infinity, max_value, min_value
 from tvm_tirx.tirx.op import _primexpr_dtype
 
 from . import _ffi_api
@@ -287,14 +287,31 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
+def _has_infinity(dtype):
+    """Whether the dtype has an IEEE infinity that can be used as an identity."""
+    return str(dtype) in ("float16", "float32", "float64")
+
+
+def _min_identity(dtype):
+    # min(+inf, x) == x for every x, including x == +inf.  Types without
+    # infinity keep the largest finite value as their identity.
+    return infinity(ty=dtype) if _has_infinity(dtype) else max_value(ty=dtype)
+
+
+def _max_identity(dtype):
+    # max(-inf, x) == x for every x, including x == -inf.  Types without
+    # infinity keep the lowest finite value as their identity.
+    return -infinity(ty=dtype) if _has_infinity(dtype) else min_value(ty=dtype)
+
+
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(
     lambda x, y: _prim_ffi_api._OpMin(x, y, UNKNOWN_LOC),
-    lambda dtype: max_value(ty=dtype),
+    _min_identity,
     name="min",
 )  # type: ignore
 max = comm_reducer(
     lambda x, y: _prim_ffi_api._OpMax(x, y, UNKNOWN_LOC),
-    lambda dtype: min_value(ty=dtype),
+    _max_identity,
     name="max",
 )  # type: ignore

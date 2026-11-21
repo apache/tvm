@@ -79,7 +79,7 @@ def test_gpu_softmax_mn():
                 Ts.reads(A[i0_1, k])
                 Ts.writes(T_softmax_maxelem[i0_1])
                 with Ts.init():
-                    T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
+                    T_softmax_maxelem[i0_1] = T.float32("-inf")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_exp"):
@@ -124,7 +124,7 @@ def test_gpu_softmax_mn():
                         Ts.reads(A[i0_1, k])
                         Ts.writes(T_softmax_maxelem_shared[i0_1])
                         with Ts.init():
-                            T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
+                            T_softmax_maxelem_shared[i0_1] = T.float32("-inf")
                         T_softmax_maxelem_shared[i0_1] = T.max(
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
@@ -172,7 +172,7 @@ def test_gpu_softmax_mn():
                 Ts.reads(A[i0_1, k])
                 Ts.writes(T_softmax_maxelem[i0_1])
                 with Ts.init():
-                    T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
+                    T_softmax_maxelem[i0_1] = T.float32("-inf")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_exp"):
@@ -226,7 +226,7 @@ def test_gpu_softmax_mn():
                         Ts.reads(A[i0_1, k])
                         Ts.writes(T_softmax_maxelem_shared[i0_1])
                         with Ts.init():
-                            T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
+                            T_softmax_maxelem_shared[i0_1] = T.float32("-inf")
                         T_softmax_maxelem_shared[i0_1] = T.max(
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )

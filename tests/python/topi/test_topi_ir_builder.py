@@ -270,6 +270,32 @@ def test_imperative_tensors_numerical(kind):
         tvm_tirx.testing.assert_allclose(result.numpy(), reference, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.skipif(not tvm_tirx.runtime.enabled("llvm"), reason="LLVM is not enabled")
+@pytest.mark.parametrize(
+    "dtype, kind, extreme",
+    [
+        ("float16", "max", -np.inf),
+        ("float16", "min", np.inf),
+        ("float32", "max", -np.inf),
+        ("float32", "min", np.inf),
+        ("float64", "max", -np.inf),
+        ("float64", "min", np.inf),
+    ],
+)
+def test_reduce_infinity_identity(dtype, kind, extreme):
+    """Reductions must preserve infinities instead of clamping to finite extrema."""
+    data = np.full((2, 3), extreme, dtype=dtype)
+    x = te.placeholder(data.shape, dtype)
+    out = getattr(topi, kind)(x, axis=1)
+
+    executable = tvm_tirx.tirx.compile(te.create_function([x, out]), target="llvm")
+    actual = tvm_tirx.runtime.empty((2,), dtype)
+    executable(tvm_tirx.runtime.tensor(data), actual)
+    tvm_tirx.testing.assert_allclose(
+        actual.numpy(), np.full((2,), extreme, dtype=dtype), atol=0, rtol=0
+    )
+
+
 def test_topi_tan_requires_float_dtype():
     x = te.placeholder((2, 2), dtype="int32", name="x")
 
