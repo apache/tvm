@@ -7613,6 +7613,44 @@ def test_prod(torch_dtype, relax_dtype):
     verify_model(Prod(), example_args, {}, Expected)
 
 
+def test_prod_dim():
+    class ProdDim(Module):
+        def forward(self, x):
+            return torch.prod(x, dim=1)
+
+    class ProdDimKeepdim(Module):
+        def forward(self, x):
+            return torch.prod(x, dim=1, keepdim=True)
+
+    @tvm_tirx.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.prod(x, axis=[1], keepdims=False)
+                gv: R.Tuple(R.Tensor((5,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm_tirx.script.ir_module
+    class ExpectedKeepdim:
+        @R.function
+        def main(
+            x: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 1), dtype="float32") = R.prod(x, axis=[1], keepdims=True)
+                gv: R.Tuple(R.Tensor((5, 1), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(ProdDim(), example_args, {}, Expected)
+    verify_model(ProdDimKeepdim(), example_args, {}, ExpectedKeepdim)
+
+
 def test_cumprod():
     class Cumprod(Module):
         def forward(self, x):
