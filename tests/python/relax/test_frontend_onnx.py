@@ -1788,6 +1788,54 @@ def test_cast(from_type, to_type):
     check_correctness(model, opset=13)
 
 
+@pytest.mark.parametrize("saturate", [None, 0, 1])
+@pytest.mark.parametrize(
+    "to_type, max_value, overflow_result",
+    [
+        (TensorProto.FLOAT8E4M3FN, 448, np.nan),
+        (TensorProto.FLOAT8E4M3FNUZ, 240, np.nan),
+        (TensorProto.FLOAT8E5M2, 57344, np.inf),
+        (TensorProto.FLOAT8E5M2FNUZ, 57344, np.nan),
+    ],
+)
+def test_cast_float8_constant_saturate(to_type, max_value, overflow_result, saturate):
+    large_value = max(1000, 2 * max_value)
+    values = np.array(
+        [large_value, -large_value, max_value, -max_value, 1.5, -1.5, 0, np.nan],
+        dtype="float32",
+    )
+    attrs = {} if saturate is None else {"saturate": saturate}
+    graph = helper.make_graph(
+        [
+            helper.make_node("Cast", ["x"], ["q"], to=to_type, **attrs),
+            helper.make_node("Cast", ["q"], ["y"], to=TensorProto.FLOAT),
+        ],
+        "cast_float8_constant_saturate",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, list(values.shape))],
+        initializer=[numpy_helper.from_array(values, "x")],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 19)], ir_version=10)
+    onnx.checker.check_model(model, full_check=True)
+    mod = from_onnx(model)
+    assert not mod["main"].params
+    constants = []
+
+    def collect_constants(expr):
+        if isinstance(expr, tvm_tirx.ir.GenericConst):
+            constants.append(expr.value.numpy())
+
+    relax.analysis.post_order_visit(mod["main"].body, collect_constants)
+    assert len(constants) == 1
+    limit = overflow_result if saturate == 0 else max_value
+    expected = np.array(
+        [limit, -limit, max_value, -max_value, 1.5, -1.5, 0, np.nan],
+        dtype="float32",
+    )
+    assert constants[0].dtype == expected.dtype
+    np.testing.assert_array_equal(constants[0], expected)
+
+
 @pytest.mark.parametrize("to_type", [TensorProto.INT64, TensorProto.UINT64])
 def test_cast_float_to_64bit_int_dynamic(to_type):
     cast_node = helper.make_node("Cast", ["a"], ["b"], to=to_type)

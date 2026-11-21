@@ -1357,6 +1357,20 @@ class Cast(OnnxOpConverter):
 
         return relax.op.astype(inputs[0], to_type)
 
+    @classmethod
+    def _impl_v19(cls, bb, inputs, attr, params):
+        to_type = get_type(attr["to"])
+        if (
+            isinstance(inputs[0], tvm_tirx.ir.GenericConst)
+            and to_type in ("float8_e4m3fn", "float8_e4m3fnuz", "float8_e5m2", "float8_e5m2fnuz")
+            and attr.get("saturate", 1)
+        ):
+            from onnx.numpy_helper import saturate_cast  # pylint: disable=import-outside-toplevel
+
+            output = saturate_cast(inputs[0].value.numpy(), _np.dtype(to_type))
+            return relax.const(output, to_type)
+        return cls._impl_v13(bb, inputs, attr, params)
+
 
 class CastLike(OnnxOpConverter):
     """Convert an onnx CastLike node into an equivalent Relax expression."""
