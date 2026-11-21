@@ -114,7 +114,20 @@ inline hipDataType GetHipDataType(DLDataType type) {
   TVM_FFI_THROW(InternalError) << "Unsupported hip type";
 }
 
-inline hipblasDatatype_t GetHipBlasDataType(DLDataType type) {
+/*
+ * hipBLAS 3.0 (ROCm 7) removed hipblasDatatype_t: the *Ex APIs take hipDataType for the matrix
+ * types and hipblasComputeType_t for the compute type. hipBLAS 2.x (ROCm 6) has that API when
+ * HIPBLAS_V2 is defined, which hipBLAS 3.x always does; the HIPBLAS_R_* names remain as aliases.
+ */
+#ifdef HIPBLAS_V2
+using HipBlasDataType = hipDataType;
+using HipBlasComputeType = hipblasComputeType_t;
+#else
+using HipBlasDataType = hipblasDatatype_t;
+using HipBlasComputeType = hipblasDatatype_t;
+#endif
+
+inline HipBlasDataType GetHipBlasDataType(DLDataType type) {
   if (type.code == kDLInt) {
     switch (type.bits) {
       case 8:
@@ -140,6 +153,26 @@ inline hipblasDatatype_t GetHipBlasDataType(DLDataType type) {
     }
   }
   TVM_FFI_THROW(InternalError) << "Unsupported hip type";
+}
+
+/*! \brief Compute type of a hipBLAS *Ex GEMM: the precision of the output type (as before). */
+inline HipBlasComputeType GetHipBlasComputeType(DLDataType out_type) {
+#ifdef HIPBLAS_V2
+  if (out_type.code == kDLInt && out_type.bits == 32) return HIPBLAS_COMPUTE_32I;
+  if (out_type.code == kDLFloat) {
+    switch (out_type.bits) {
+      case 16:
+        return HIPBLAS_COMPUTE_16F;
+      case 32:
+        return HIPBLAS_COMPUTE_32F;
+      case 64:
+        return HIPBLAS_COMPUTE_64F;
+    }
+  }
+  TVM_FFI_THROW(InternalError) << "Unsupported hipBLAS compute type";
+#else
+  return GetHipBlasDataType(out_type);
+#endif
 }
 
 /*! \brief Execute matrix multiply followed by the specified epilogue, using hipBLASLt. */
