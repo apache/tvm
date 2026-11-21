@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
 
+import operator
 from collections.abc import Callable
 from functools import partial, reduce
 
@@ -591,6 +592,23 @@ class TorchFXImporter(BaseFXGraphImporter):
         bias = self.params.get(module.bias, None)
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool_module_output(self, node: fx.Node, values: relax.Expr):
+        module = self.named_modules[node.target]
+        if not module.return_indices:
+            return values
+
+        # Relax computes the pooled values only. Preserve the FX tuple while
+        # rejecting any use that would observe its unavailable indices.
+        for user in node.users:
+            if user.op == "call_function" and user.target == operator.getitem:
+                index = user.args[1]
+                if type(index) is int and (
+                    index in (0, -2) or (index in (1, -1) and not user.users)
+                ):
+                    continue
+            raise NotImplementedError("MaxPool indices output is not supported in from_fx")
+        return (values, None)
+
     def _max_pool1d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -600,7 +618,8 @@ class TorchFXImporter(BaseFXGraphImporter):
         dilation = module.dilation
         ceil_mode = module.ceil_mode
 
-        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        values = self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        return self._max_pool_module_output(node, values)
 
     def _max_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -611,7 +630,8 @@ class TorchFXImporter(BaseFXGraphImporter):
         dilation = module.dilation
         ceil_mode = module.ceil_mode
 
-        return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        values = self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        return self._max_pool_module_output(node, values)
 
     def _max_pool3d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -622,7 +642,8 @@ class TorchFXImporter(BaseFXGraphImporter):
         dilation = module.dilation
         ceil_mode = module.ceil_mode
 
-        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        values = self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+        return self._max_pool_module_output(node, values)
 
     def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -792,8 +813,6 @@ class TorchFXImporter(BaseFXGraphImporter):
     def create_convert_map(
         self,
     ) -> dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]]:
-        import operator
-
         import torch  # type: ignore
         from torch import nn
 

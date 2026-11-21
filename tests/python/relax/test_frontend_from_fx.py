@@ -1075,6 +1075,40 @@ def test_maxpool1d():
     verify_model(MaxPool1d3(), input_info, {}, expected3)
 
 
+@pytest.mark.parametrize("ndim", [1, 2, 3])
+def test_maxpool_module_values_from_tuple(ndim):
+    pool_class = getattr(torch.nn, f"MaxPool{ndim}d")
+
+    class Pooled(Module):
+        def __init__(self, index):
+            super().__init__()
+            self.pool = pool_class(2, return_indices=True)
+            self.index = index
+
+        def forward(self, x):
+            result = self.pool(x)
+            if self.index == 0:
+                values, _ = result
+                return values
+            return result[self.index]
+
+    class ValuesOnly(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = pool_class(2)
+
+        def forward(self, x):
+            return self.pool(x)
+
+    inputs = [([2, 3] + [4] * ndim, "float32")]
+    expected = from_fx(fx.symbolic_trace(ValuesOnly()), inputs)
+    for index in (0, -2):
+        actual = from_fx(fx.symbolic_trace(Pooled(index)), inputs)
+        tvm_tirx.ir.assert_structural_equal(actual, expected)
+    with pytest.raises(NotImplementedError, match="MaxPool indices output"):
+        from_fx(fx.symbolic_trace(Pooled(1)), inputs)
+
+
 def test_maxpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -2787,6 +2821,17 @@ def test_getitem_scalar_tensor_and_new_axis():
             return out
 
     verify_model(Index(), [([2, 3], "float32"), ([], "int64")], {}, Expected)
+
+
+@pytest.mark.parametrize("read_shape", [False, True])
+def test_getitem_primitive_scalar_index(read_shape):
+    class Index(Module):
+        def forward(self, x, j):
+            return x[j.shape[0] if read_shape else j.item(), None]
+
+    j_shape = [tvm_tirx.tirx.Var("n", "int64")] if read_shape else []
+    mod = from_fx(fx.symbolic_trace(Index()), [([3, 2], "float32"), (j_shape, "int64")])
+    tvm_tirx.ir.assert_structural_equal(mod["main"].ret_ty, relax.TensorType((1, 2), "float32"))
 
 
 def test_getitem_dynamic_extent_guard():

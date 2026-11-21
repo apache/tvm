@@ -3144,8 +3144,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         if not isinstance(index_expr, relax.Expr):
                             raise ValueError("Expected a tensor index for relax.op.take")
                         mode = "fast"
+                    if isinstance(index_expr.ty, PrimType):
+                        if tvm_tirx.ir.is_prim_expr(index_expr):
+                            extent = shape[i]
+                            valid = tirx.And(index_expr >= -extent, index_expr < extent)
+                            guard = self.block_builder.emit(
+                                relax.ShapeExpr([tirx.Cast("int64", valid)])
+                            )
+                            self.block_builder.match_cast(guard, relax.ShapeType([1]))
+                        take_rank_delta = -1
+                        mode = "wrap"
+                    else:
+                        take_rank_delta = index_expr.ty.ndim - 1
                     advanced = (index_expr, i, mode)
-                    take_rank_delta = index_expr.ty.ndim - 1
                     i += 1
                 else:
                     raise ValueError("Unsupported index type: " + str(type(index)))
