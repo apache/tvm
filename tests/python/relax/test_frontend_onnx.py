@@ -11162,9 +11162,9 @@ def test_maxunpool():
 
 def test_maxunpool_with_output_shape():
     data = np.array([[[[5.0, 6.0], [7.0, 8.0]]]], dtype="float32")
-    indices = np.array([[[[0, 3], [8, 15]]]], dtype="int64")
+    indices = np.array([[[[5, 7], [13, 15]]]], dtype="int64")
 
-    out_shape = [1, 1, 4, 4]
+    out_shape = [1, 1, 5, 5]
 
     def make_model(output_shape_as_input):
         initializers = [
@@ -11190,10 +11190,10 @@ def test_maxunpool_with_output_shape():
         )
         return helper.make_model(graph, producer_name="maxunpool_output_shape_test")
 
-    for variant in [None, "initializer"]:
-        check_correctness(make_model(variant), inputs={"X": data}, opset=11)
+    check_correctness(make_model("initializer"), inputs={"X": data}, opset=11)
 
-    from_onnx(make_model("initializer"), keep_params_in_input=True)
+    tvm_model = from_onnx(make_model("initializer"))
+    assert [int(d) for d in tvm_model["main"].ret_ty.shape] == out_shape
 
     with pytest.raises(ValueError, match="constant `output_shape`"):
         from_onnx(make_model("graph_input"))
