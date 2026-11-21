@@ -10034,6 +10034,30 @@ def test_resize_dynamic_roi_3d_tf_crop_and_resize():
     assert seen_call_tir
 
 
+@pytest.mark.parametrize("ndim", [3, 4, 5])
+@pytest.mark.parametrize("dtype", ["int32", "int64", "uint32", "uint64", "float64"])
+def test_resize_nearest_preserves_samples(ndim, dtype):
+    # Nearest interpolation must copy samples exactly, including bits lost in float32.
+    values = [1 + 2**-40, 1 + 2**-39] if dtype == "float64" else [2**24 + 1, 2**24 + 3]
+    data = np.array(values, dtype=dtype).reshape([1] * (ndim - 1) + [2])
+    expected = np.repeat(data, 2, axis=-1)
+    tensor_type = helper.np_dtype_to_tensor_dtype(data.dtype)
+    graph = helper.make_graph(
+        [helper.make_node("Resize", ["X", "", "", "sizes"], ["Y"])],
+        "resize_nearest_preserves_samples",
+        [helper.make_tensor_value_info("X", tensor_type, data.shape)],
+        [helper.make_tensor_value_info("Y", tensor_type, expected.shape)],
+        initializer=[numpy_helper.from_array(np.array(expected.shape, dtype="int64"), "sizes")],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    mod = relax.transform.LegalizeOps()(from_onnx(model))
+    with tvm_tirx.ir.transform.PassContext(opt_level=3):
+        vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+    actual = vm["main"](tvm_tirx.runtime.tensor(data)).numpy()
+    assert actual.dtype == expected.dtype
+    np.testing.assert_array_equal(actual, expected)
+
+
 def test_resize_nd_sizes():
     cases = [
         ("resize1d", [1, 1, 4], [1, 1, 7]),
