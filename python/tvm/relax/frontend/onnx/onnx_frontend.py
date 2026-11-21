@@ -4802,7 +4802,13 @@ class MaxUnpool(OnnxOpConverter):
         total_output_shape -= _np.concatenate([[0, 0], list(strides)], axis=0)
 
         if output_shape is not None:
-            total_output_shape = output_shape
+            output_shape = get_constant(output_shape, params)
+            if not isinstance(output_shape, tvm_tirx.ir.GenericConst):
+                raise ValueError(
+                    "MaxUnpool only supports a constant `output_shape` input, "
+                    f"but got a non-constant expression: {output_shape}"
+                )
+            total_output_shape = output_shape.value.numpy().astype("int64")
 
         elif pads is not None:
             # Get pads in the proper format
