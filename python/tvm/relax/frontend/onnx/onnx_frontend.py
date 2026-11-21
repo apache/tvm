@@ -61,6 +61,7 @@ from tvm import relax, topi
 from tvm_tirx import tirx
 from tvm_tirx.ir import Expr as TvmExpr
 from tvm_tirx.ir import IRModule
+from tvm_tirx.ir.expr import Constant as RelaxConstant
 from tvm_tirx.ir.unique_name_supply import UniqueNameSupply
 from tvm_tirx.runtime import DataTypeCode
 
@@ -343,6 +344,129 @@ class OnnxOpConverter:
         if hasattr(cls, f"_impl_v{version}"):
             return getattr(cls, f"_impl_v{version}")
         raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
+
+
+def _fold_dequantize_linear(x, scale, zp, out_dtype):
+    """Constant-fold 0-D DequantizeLinear (QDQ graphs may dequantize scalar initializers)."""
+    if not isinstance(x, RelaxConstant) or x.ty.ndim != 0:
+        return None
+    if not isinstance(scale, RelaxConstant):
+        return None
+    if zp is None:
+        zp_np = _np.array(0, dtype=x.data.numpy().dtype)
+    elif isinstance(zp, RelaxConstant):
+        zp_np = zp.data.numpy()
+    else:
+        return None
+    x_np = x.data.numpy()
+    scale_np = scale.data.numpy()
+    out = (x_np.astype(_np.float64) - _np.asarray(zp_np).astype(_np.float64)) * scale_np
+    return relax.const(out.astype(out_dtype), out_dtype)
+
+
+def _dequantize_linear(x, scale, zp, axis, out_dtype):
+    folded = _fold_dequantize_linear(x, scale, zp, out_dtype)
+    if folded is not None:
+        return folded
+    if hasattr(x.ty, "ndim") and x.ty.ndim == 0:
+        x = relax.op.reshape(x, (1,))
+        axis = 0
+    elif hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+        axis = 0
+    if zp is None:
+        zp = relax.const(0, x.ty.dtype.dtype)
+    return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+
+def _quantize_linear(x, scale, zp, out_dtype, axis=0):
+    """Quantize float tensor to integer type (QLinear / ORT contrib ops)."""
+    if zp is None:
+        zp = relax.const(0, out_dtype)
+    if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+        axis = 0
+    return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+def _qlinear_dequantize(x, scale, zp):
+    """Dequantize QLinear tensor inputs to float32 (ORT uses fp32 compute)."""
+    return _dequantize_linear(x, scale, zp, axis=0, out_dtype="float32")
+def _qlinear_requantize_from_accumulator(bb, accum, in_scale, y_scale, y_zero_point, out_dtype):
+    """Requantize int32 accumulator with effective input scale `in_scale`."""
+    y_scale_norm = bb.normalize(y_scale)
+    y_zp = y_zero_point
+    if y_zero_point is None:
+        y_zp = relax.const(0, out_dtype)
+
+    y_zp_norm = bb.normalize(y_zp)
+    if len(y_zp_norm.ty.shape) == 1:
+        accum_norm = bb.normalize(accum)
+        if hasattr(accum_norm.ty, "shape") and len(accum_norm.ty.shape) >= 2:
+            row_dim = accum_norm.ty.shape[-2]
+            if (
+                isinstance(row_dim, (int, tvm_tirx.ir.IntImm))
+                and int(row_dim) == int(y_zp_norm.ty.shape[0])
+            ):
+                y_zp = relax.op.expand_dims(y_zp, axis=-1)
+
+    if len(y_scale_norm.ty.shape) == 1:
+        accum_norm = bb.normalize(accum)
+        if hasattr(accum_norm.ty, "shape") and len(accum_norm.ty.shape) >= 2:
+            row_dim = accum_norm.ty.shape[-2]
+            if (
+                isinstance(row_dim, (int, tvm_tirx.ir.IntImm))
+                and int(row_dim) == int(y_scale_norm.ty.shape[0])
+            ):
+                y_scale = relax.op.expand_dims(y_scale, axis=-1)
+
+    accum_float = relax.op.astype(accum, "float32")
+    scale_mult = relax.op.divide(
+        relax.op.astype(in_scale, "float32"), relax.op.astype(y_scale, "float32")
+    )
+    scaled = relax.op.multiply(accum_float, scale_mult)
+    rounded = relax.op.round(scaled)
+    y_val = relax.op.add(rounded, relax.op.astype(y_zp, "float32"))
+
+    if out_dtype == "uint8":
+        min_val, max_val = 0, 255
+    elif out_dtype == "int8":
+        min_val, max_val = -128, 127
+    elif out_dtype == "uint16":
+        min_val, max_val = 0, 65535
+    elif out_dtype == "int16":
+        min_val, max_val = -32768, 32767
+    else:
+        min_val, max_val = 0, 255
+
+    clipped = relax.op.clip(y_val, min_val, max_val)
+    return relax.op.astype(clipped, out_dtype)
+def _avg_pool_from_onnx_attrs(bb, shape_ref, data_fp, attr):
+    """AveragePool using ``shape_ref`` for static shape inference (not ``data_fp``)."""
+    input_shape = shape_ref.ty.shape
+    ndim = len(input_shape)
+    auto_pad_raw = attr.get("auto_pad", b"NOTSET")
+    auto_pad = auto_pad_raw.decode("utf-8") if isinstance(auto_pad_raw, bytes) else auto_pad_raw
+    ceil_mode = attr.get("ceil_mode", 0)
+    dilations = attr.get("dilations", [1] * (ndim - 2))
+    kernel_shape = attr.get("kernel_shape")
+    pads = attr.get("pads", 0)
+    strides = attr.get("strides", [1] * (ndim - 2))
+    count_include_pad = attr.get("count_include_pad", False)
+
+    assert len(kernel_shape) in [1, 2, 3], "Currently only 1D/2D/3D pooling is supported."
+    assert auto_pad in ("NOTSET", "SAME_UPPER", "SAME_LOWER", "VALID"), (
+        f"Value {auto_pad} in attribute auto_pad is invalid."
+    )
+
+    if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+        pads_list = []
+        for axis in range(len(input_shape) - 2):
+            axis_shape = int(input_shape[2 + axis])
+            stride = strides[axis]
+            kernel = kernel_shape[axis]
+            pads_list.append(AveragePool.get_pad_pair(axis_shape, kernel, stride, auto_pad))
+        pads = tuple(val for pair in zip(*pads_list) for val in pair)
+
+    op = getattr(relax.op.nn, "avg_pool" + str(len(kernel_shape)) + "d")
+    return op(data_fp, kernel_shape, strides, pads, dilations, ceil_mode, count_include_pad)
 
 
 class QuantizeLinear(OnnxOpConverter):
@@ -6782,6 +6906,203 @@ class DFT(OnnxOpConverter):
         return relax.op.concat([y_re, y_im], axis=-1)
 
 
+class QGemm(OnnxOpConverter):
+    """Converts onnx QGemm (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        a, a_scale, a_zp, b, b_scale, b_zp = inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
+        c_bias = None
+        y_scale = None
+        y_zp = None
+        if len(inputs) > 8:
+            c_bias = inputs[6] if inputs[6] is not None else None
+            y_scale = inputs[7] if len(inputs) > 7 else None
+            y_zp = inputs[8] if len(inputs) > 8 and inputs[8] is not None else None
+        elif len(inputs) == 8:
+            # Optional C omitted: y_scale and y_zp occupy slots 6/7.
+            if inputs[6] is not None and inputs[6].ty.dtype.dtype == "float32":
+                y_scale, y_zp = inputs[6], inputs[7]
+            else:
+                c_bias = inputs[6]
+                y_scale = inputs[7] if len(inputs) > 7 else None
+        elif len(inputs) == 7:
+            y_scale = inputs[6]
+
+        alpha = float(attr.get("alpha", 1.0))
+        trans_a = int(attr.get("transA", 0))
+        trans_b = int(attr.get("transB", 0))
+        out_dtype = a.ty.dtype.dtype
+
+        if trans_a:
+            a = relax.op.permute_dims(a, [1, 0])
+        if trans_b:
+            b = relax.op.permute_dims(b, [1, 0])
+
+        a_i = relax.op.astype(a, "int32")
+        b_i = relax.op.astype(b, "int32")
+
+        if a_zp is not None:
+            a_zp_i = bb.normalize(relax.op.astype(a_zp, "int32"))
+            if len(a_zp_i.ty.shape) == 1:
+                a_zp_i = relax.op.expand_dims(a_zp_i, axis=-1)
+            a_i = bb.normalize(relax.op.subtract(a_i, a_zp_i))
+
+        if b_zp is not None:
+            b_zp_i = bb.normalize(relax.op.astype(b_zp, "int32"))
+            if len(b_zp_i.ty.shape) == 1:
+                b_zp_i = relax.op.expand_dims(b_zp_i, axis=0)
+            b_i = bb.normalize(relax.op.subtract(b_i, b_zp_i))
+
+        accum = bb.normalize(relax.op.matmul(a_i, b_i, out_dtype="int32"))
+
+        if c_bias is not None:
+            accum = bb.normalize(relax.op.add(accum, bb.normalize(relax.op.astype(c_bias, "int32"))))
+
+        rq_scale = relax.op.multiply(
+            relax.op.astype(a_scale, "float32"),
+            relax.op.astype(b_scale, "float32"),
+        )
+        if alpha != 1.0:
+            rq_scale = relax.op.multiply(rq_scale, relax.const(alpha, "float32"))
+
+        if y_scale is not None:
+            return _qlinear_requantize_from_accumulator(bb, accum, rq_scale, y_scale, y_zp, out_dtype)
+
+        return relax.op.multiply(relax.op.astype(accum, "float32"), rq_scale)
+class QLinearMul(OnnxOpConverter):
+    """Converts onnx QLinearMul (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
+        out_dtype = a.ty.dtype.dtype
+        a_fp = _qlinear_dequantize(a, a_scale, a_zp)
+        b_fp = _qlinear_dequantize(b, b_scale, b_zp)
+        out = relax.op.multiply(a_fp, b_fp)
+        return _quantize_linear(out, y_scale, y_zp, out_dtype)
+class QLinearSoftmax(OnnxOpConverter):
+    """Converts onnx QLinearSoftmax (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 1)
+        x, x_scale, x_zp, y_scale, y_zp = inputs
+        out_dtype = x.ty.dtype.dtype
+        x_fp = _qlinear_dequantize(x, x_scale, x_zp)
+        out = relax.op.nn.softmax(x_fp, axis=axis)
+        return _quantize_linear(out, y_scale, y_zp, out_dtype, axis=axis)
+
+
+
+
+def _avg_pool_from_onnx_attrs(bb, shape_ref, data_fp, attr):
+    """AveragePool using ``shape_ref`` for static shape inference (not ``data_fp``)."""
+    input_shape = shape_ref.ty.shape
+    ndim = len(input_shape)
+    auto_pad_raw = attr.get("auto_pad", b"NOTSET")
+    auto_pad = auto_pad_raw.decode("utf-8") if isinstance(auto_pad_raw, bytes) else auto_pad_raw
+    ceil_mode = attr.get("ceil_mode", 0)
+    dilations = attr.get("dilations", [1] * (ndim - 2))
+    kernel_shape = attr.get("kernel_shape")
+    pads = attr.get("pads", 0)
+    strides = attr.get("strides", [1] * (ndim - 2))
+    count_include_pad = attr.get("count_include_pad", False)
+
+    assert len(kernel_shape) in [1, 2, 3], "Currently only 1D/2D/3D pooling is supported."
+    assert auto_pad in ("NOTSET", "SAME_UPPER", "SAME_LOWER", "VALID"), (
+        f"Value {auto_pad} in attribute auto_pad is invalid."
+    )
+
+    if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+        pads_list = []
+        for axis in range(len(input_shape) - 2):
+            axis_shape = int(input_shape[2 + axis])
+            stride = strides[axis]
+            kernel = kernel_shape[axis]
+            pads_list.append(AveragePool.get_pad_pair(axis_shape, kernel, stride, auto_pad))
+        pads = tuple(val for pair in zip(*pads_list) for val in pair)
+
+    op = getattr(relax.op.nn, "avg_pool" + str(len(kernel_shape)) + "d")
+    return op(data_fp, kernel_shape, strides, pads, dilations, ceil_mode, count_include_pad)
+class QLinearAveragePool(OnnxOpConverter):
+    """Converts onnx QLinearAveragePool (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x, x_scale, x_zp, y_scale, y_zp = inputs
+        out_dtype = x.ty.dtype.dtype
+        x_fp = bb.normalize(_qlinear_dequantize(x, x_scale, x_zp))
+        pooled = _avg_pool_from_onnx_attrs(bb, x, x_fp, attr)
+        return _quantize_linear(pooled, y_scale, y_zp, out_dtype)
+class QLinearGlobalAveragePool(OnnxOpConverter):
+    """Converts onnx QLinearGlobalAveragePool (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x, x_scale, x_zp, y_scale, y_zp = inputs
+        out_dtype = x.ty.dtype.dtype
+        if hasattr(x.ty, "ndim"):
+            rank = x.ty.ndim
+        else:
+            rank = len(x.ty.shape)
+        x_fp = bb.normalize(_qlinear_dequantize(x, x_scale, x_zp))
+        axes = list(range(2, rank))
+        pooled = relax.op.mean(x_fp, axis=axes, keepdims=True)
+        return _quantize_linear(pooled, y_scale, y_zp, out_dtype)
+class QLinearAdd(OnnxOpConverter):
+    """Converts onnx QLinearAdd (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
+        out_dtype = a.ty.dtype.dtype
+        a_fp = _qlinear_dequantize(a, a_scale, a_zp)
+        b_fp = _qlinear_dequantize(b, b_scale, b_zp)
+        out = relax.op.add(a_fp, b_fp)
+        return _quantize_linear(out, y_scale, y_zp, out_dtype)
+class QLinearLeakyRelu(OnnxOpConverter):
+    """Converts onnx QLinearLeakyRelu (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        x, x_scale, x_zp, y_scale, y_zp = inputs
+        out_dtype = x.ty.dtype.dtype
+        alpha = float(attr.get("alpha", 0.01))
+        x_fp = _qlinear_dequantize(x, x_scale, x_zp)
+        out = relax.op.nn.leakyrelu(x_fp, alpha)
+        return _quantize_linear(out, y_scale, y_zp, out_dtype)
+class QLinearSigmoid(OnnxOpConverter):
+    """Converts onnx QLinearSigmoid (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        x, x_scale, x_zp, y_scale, y_zp = inputs
+        out_dtype = x.ty.dtype.dtype
+        x_fp = _qlinear_dequantize(x, x_scale, x_zp)
+        out = relax.op.sigmoid(x_fp)
+        return _quantize_linear(out, y_scale, y_zp, out_dtype)
+class QLinearConcat(OnnxOpConverter):
+    """Converts onnx QLinearConcat (ORT contrib) into equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        y_scale = inputs[0]
+        y_zero_point = inputs[1]
+        if (len(inputs) - 2) % 3 != 0:
+            raise ValueError(
+                "QLinearConcat: additional input count must be a multiple of 3 "
+                "(tensor/scale/zero_point tuples)"
+            )
+        tensors = []
+        for i in range(2, len(inputs), 3):
+            tensors.append(_qlinear_dequantize(inputs[i], inputs[i + 1], inputs[i + 2]))
+        out_dtype = inputs[2].ty.dtype.dtype
+        concat_out = relax.op.concat(tensors, axis=axis)
+        return _quantize_linear(concat_out, y_scale, y_zero_point, out_dtype, axis=axis)
+
+
 def _get_convert_map():
     return {
         # defs/experimental
@@ -6862,6 +7183,15 @@ def _get_convert_map():
         "MatMulInteger": MatMulInteger,
         "MatMulInteger16": MatMulInteger16,
         "QLinearMatMul": QLinearMatMul,
+        "QGemm": QGemm,
+        "QLinearAdd": QLinearAdd,
+        "QLinearMul": QLinearMul,
+        "QLinearLeakyRelu": QLinearLeakyRelu,
+        "QLinearSigmoid": QLinearSigmoid,
+        "QLinearSoftmax": QLinearSoftmax,
+        "QLinearConcat": QLinearConcat,
+        "QLinearAveragePool": QLinearAveragePool,
+        "QLinearGlobalAveragePool": QLinearGlobalAveragePool,
         "Reshape": Reshape,
         "Sigmoid": Sigmoid,
         "Softmax": Softmax,
