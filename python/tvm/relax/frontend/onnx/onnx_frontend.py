@@ -243,13 +243,14 @@ def get_info(
     shape = []
     shape_name = []
     for dim in info_proto.type.tensor_type.shape.dim:
-        name = dim.dim_param
-        value = dim.dim_value
-        if value is None or value == 0:
-            value = parse_shape_name(name, value_dict)
-            shape_name.append(name)
-        else:
+        if dim.HasField("dim_value"):
+            value = dim.dim_value
             shape_name.append(value)
+        else:
+            name = dim.dim_param
+            # Each anonymous extent is independent. Cache only named dimensions.
+            value = parse_shape_name(name, value_dict) if name else tirx.Var("", "int64")
+            shape_name.append(name)
         shape.append(value)
 
     name = info_proto.name
