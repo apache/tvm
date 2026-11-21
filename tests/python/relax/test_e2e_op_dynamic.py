@@ -140,5 +140,44 @@ def test_strided_slice_symbolic_out_of_bounds(begin_offset):
     tvm_tirx.testing.assert_allclose(out, x_np[::-1])
 
 
+def test_dynamic_prod_zero_extent():
+    k = T.dynamic("k", "int64")
+
+    @tvm_tirx.script.ir_module
+    class Prod:
+        @R.function
+        def main(x: R.Tensor((2, k), "float32")) -> R.Tensor((2,), "float32"):
+            gv: R.Tensor((2,), "float32") = R.prod(x, axis=1)
+            return gv
+
+    vm = build(Prod)
+    for extent in [0, 3]:
+        x_np = np.arange(2 * extent, dtype=np.float32).reshape(2, extent) + 1
+        out = vm["main"](tvm_tirx.runtime.tensor(x_np, dev)).numpy()
+        tvm_tirx.testing.assert_allclose(out, np.prod(x_np, axis=1))
+
+
+def test_dynamic_matmul_zero_extent():
+    k = T.dynamic("k", "int64")
+
+    @tvm_tirx.script.ir_module
+    class Matmul:
+        @R.function
+        def main(a: R.Tensor((2, k), "float32"), b: R.Tensor((k, 3), "float32")) -> R.Tensor(
+            (2, 3), "float32"
+        ):
+            gv: R.Tensor((2, 3), "float32") = R.matmul(a, b)
+            return gv
+
+    vm = build(Matmul)
+    for extent in [0, 3]:
+        a_np = np.ones((2, extent), dtype=np.float32)
+        b_np = np.ones((extent, 3), dtype=np.float32)
+        out = vm["main"](
+            tvm_tirx.runtime.tensor(a_np, dev), tvm_tirx.runtime.tensor(b_np, dev)
+        ).numpy()
+        tvm_tirx.testing.assert_allclose(out, a_np @ b_np)
+
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
