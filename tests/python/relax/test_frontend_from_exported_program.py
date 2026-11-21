@@ -8727,26 +8727,44 @@ def test_grid_sample():
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 4, 4), dtype="float32"),
-            grid: R.Tensor((1, 2, 2, 2), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")):
+            grid: R.Tensor((1, 3, 5, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 3, 5), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 2, 2), dtype="float32") = R.image.grid_sample(
+                grid_nchw: R.Tensor((1, 2, 3, 5), dtype="float32") = R.permute_dims(
+                    grid, axes=[0, 3, 1, 2]
+                )
+                lv: R.Tensor((1, 3, 3, 5), dtype="float32") = R.image.grid_sample(
                     input_1,
-                    grid,
+                    grid_nchw,
                     method="bilinear",
                     layout="NCHW",
                     padding_mode="zeros",
                     align_corners=True,
                 )
-                gv: R.Tuple(R.Tensor((1, 3, 2, 2), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((1, 3, 3, 5), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     example_args = (
         torch.randn(1, 3, 4, 4, dtype=torch.float32),
-        torch.randn(1, 2, 2, 2, dtype=torch.float32),
+        torch.randn(1, 3, 5, 2, dtype=torch.float32),
     )
     verify_model(GridSample(), example_args, {}, expected)
+
+
+@pytest.mark.parametrize("height,width", [(2, 2), (3, 5)])
+def test_grid_sample_numerically(height, width):
+    class GridSample(Module):
+        def forward(self, data, grid):
+            return torch.nn.functional.grid_sample(data, grid, align_corners=False)
+
+    # In the 2x2 case, the wrong layout still produces the expected shape.
+    data = torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4)
+    y, x = torch.meshgrid(
+        torch.linspace(-0.5, 0.5, height), torch.linspace(-0.5, 0.5, width), indexing="ij"
+    )
+    grid = torch.stack((x, y), dim=-1).unsqueeze(0)
+    verify_model_numerically(GridSample(), (data, grid), rtol=1e-6, atol=1e-6)
 
 
 def test_torchvision_roi_align():
