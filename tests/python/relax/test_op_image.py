@@ -299,6 +299,31 @@ def test_resize3d_infer_ty_wrong_input_type():
         bb.normalize(relax.op.image.resize3d(x2, s0))
 
 
+def test_resize3d_tf_crop_and_resize_depth_extrapolation():
+    data = np.arange(1, 9, dtype="float32").reshape(1, 1, 2, 2, 2)
+    x = relax.Var("x", R.Tensor(data.shape, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x]):
+        gv = bb.emit(
+            relax.op.image.resize3d(
+                x,
+                size=(4, 2, 2),
+                # TOPI orders each half of the spatial ROI as (width, height, depth).
+                roi=(0.0, 0.0, -1.0, 1.0, 1.0, 2.0),
+                method="linear",
+                coordinate_transformation_mode="tf_crop_and_resize",
+                extrapolation_value=-7.0,
+            )
+        )
+        bb.emit_func_output(gv)
+
+    vm = relax.VirtualMachine(tvm.compile(bb.get(), target="llvm"), tvm_tirx.cpu())
+    actual = vm["main"](tvm_tirx.runtime.tensor(data)).numpy()
+    # Only depth is out of bounds, so the two middle planes must keep the input.
+    expected = np.pad(data, ((0, 0), (0, 0), (1, 1), (0, 0), (0, 0)), constant_values=-7.0)
+    tvm_tirx.testing.assert_allclose(actual, expected)
+
+
 def test_resize2d_infer_ty_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
