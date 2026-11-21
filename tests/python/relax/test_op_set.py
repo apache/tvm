@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import tvm_ffi
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -23,6 +24,7 @@ from tvm.relax import VDevice
 from tvm.relax import script as R
 from tvm_tirx import tirx
 from tvm_tirx.ir import Op
+from tvm_tirx.testing import env
 
 
 def test_op_correctness():
@@ -899,6 +901,20 @@ def test_nonzero_infer_ty_wrong_input_dtype():
         bb.normalize(relax.op.nonzero(x0))
     with pytest.raises(TypeError):
         bb.normalize(relax.op.nonzero(x1))
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_nonzero_keeps_input_device():
+    nonzero = tvm_ffi.get_global_func("relax.run.nonzero")
+
+    def run_and_check():
+        dev = tvm_tirx.cuda(0)
+        data = tvm_tirx.runtime.empty((2, 3), "int32", dev).copyfrom([[0, 1, 0], [2, 0, 3]])
+        result = nonzero(data)
+        assert result.device == data.device
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
