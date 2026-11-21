@@ -43,12 +43,12 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
 
         def run_and_check():
             dev = tvm_tirx.rocm(0)
-            a = tvm_tirx.runtime.tensor(
-                np.random.uniform(0, 128, size=(n, l)).astype(str(A.dtype)), dev
-            )
-            b = tvm_tirx.runtime.tensor(
-                np.random.uniform(0, 128, size=(l, m)).astype(str(B.dtype)), dev
-            )
+            # Integer inputs in [0, 128); float inputs in [0, 1) so fp16 results stay finite.
+            high = 128 if "int" in in_dtype else 1
+            a_np = np.random.uniform(0, high, size=(n, l)).astype(str(A.dtype))
+            b_np = np.random.uniform(0, high, size=(l, m)).astype(str(B.dtype))
+            a = tvm_tirx.runtime.tensor(a_np, dev)
+            b = tvm_tirx.runtime.tensor(b_np, dev)
             c = tvm_tirx.runtime.tensor(np.zeros((n, m), dtype=str(C.dtype)), dev)
             f(a, b, c)
             tvm_tirx.testing.assert_allclose(

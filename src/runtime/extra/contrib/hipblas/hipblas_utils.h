@@ -26,6 +26,12 @@
 #include <dlpack/dlpack.h>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
+// Make hipblasHalf the HIP __half type (with value conversions), not the default raw uint16_t:
+// the shared GEMM helpers pass alpha/beta as static_cast<hipblasHalf>(double), which on uint16_t
+// gives the bit pattern 0x0001 for 1.0 instead of fp16 1.0. This mirrors `half` in the cuBLAS path.
+#ifndef HIPBLAS_USE_HIP_HALF
+#define HIPBLAS_USE_HIP_HALF
+#endif
 #include <hipblas/hipblas.h>
 #include <hipblaslt/hipblaslt.h>
 #include <tvm/ffi/error.h>
