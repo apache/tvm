@@ -5632,6 +5632,12 @@ class SimplifiedLayerNormalization(OnnxOpConverter):
         epsilon = attr.get("epsilon", 1e-05)
         stash_type = attr.get("stash_type", 1)
 
+        if stash_type != 1:
+            raise ValueError(
+                f"SimplifiedLayerNormalization currently only supports stash_type=1 (FLOAT), "
+                f"but got stash_type={stash_type}."
+            )
+
         ndim = _get_known_tensor_rank(data)
         if ndim is None:
             raise ValueError("SimplifiedLayerNormalization requires a statically known input rank.")
@@ -5642,13 +5648,17 @@ class SimplifiedLayerNormalization(OnnxOpConverter):
         scale_dtype = scale.ty.dtype.dtype
 
         # Broadcast scale to the normalized shape if necessary
+        decompose_scale = False
         if isinstance(data.ty.shape, relax.ShapeExpr):
             normalized_shape = relax.ShapeExpr(data.ty.shape.values[axis:])
             if not tvm_ffi.structural_equal(scale.ty.shape, normalized_shape):
-                scale = relax.op.broadcast_to(scale, normalized_shape)
+                if len(scale.ty.shape) <= len(normalized_shape):
+                    scale = relax.op.broadcast_to(scale, normalized_shape)
+                else:
+                    decompose_scale = True
 
-        # stash_type == 1 -> compute in float32, otherwise in the input dtype
-        compute_dtype = "float32" if stash_type == 1 else input_dtype
+        # stash_type == 1 computes in float32
+        compute_dtype = "float32"
 
         data_compute = (
             data if input_dtype == compute_dtype else relax.op.astype(data, compute_dtype)
@@ -5659,16 +5669,17 @@ class SimplifiedLayerNormalization(OnnxOpConverter):
 
         num_outputs = attr.get("tvm_custom", {}).get("num_outputs", 1)
         full_reduce = len(axes) == ndim
+        use_decomposed = full_reduce or decompose_scale
 
-        if full_reduce or num_outputs > 1:
+        if use_decomposed or num_outputs > 1:
             mean_square = relax.op.mean(
-                relax.op.multiply(data_compute, data_compute), axis=axes, keepdims=full_reduce
+                relax.op.multiply(data_compute, data_compute), axis=axes, keepdims=True
             )
             inv_std = relax.op.rsqrt(
                 relax.op.add(mean_square, relax.const(epsilon, dtype=compute_dtype))
             )
 
-        if full_reduce:
+        if use_decomposed:
             # Decompose to avoid the TOPI rms_norm 0-dim indexing bug
             output = relax.op.multiply(relax.op.multiply(data_compute, inv_std), scale_compute)
         else:
@@ -5682,9 +5693,6 @@ class SimplifiedLayerNormalization(OnnxOpConverter):
 
         if num_outputs == 1:
             return output
-
-        if full_reduce:
-            inv_std = relax.op.squeeze(inv_std)
 
         return relax.Tuple([output, inv_std])
 
@@ -5727,6 +5735,9 @@ class SkipSimplifiedLayerNormalization(OnnxOpConverter):
         if num_outputs > 3:
             # Output 4 - input_skip_bias_sum
             return relax.Tuple([output, placeholder, placeholder, data])
+        if num_outputs == 1:
+             return output
+
         return relax.Tuple([output, placeholder, placeholder])
 
 

@@ -6656,7 +6656,7 @@ def test_simplified_layer_norm():
             "SimplifiedLayerNormalization",
             inputs=["input", "scale"],
             outputs=["y"],
-            domain="com.microsoft",
+            domain="",
             axis=axis,
             epsilon=epsilon,
         )
@@ -6701,14 +6701,14 @@ def _verify_simplified_layer_norm_execution(shape, axis, in_dtype, scale_dtype, 
 
     norm_axis = axis if axis >= 0 else len(shape) + axis
     scale_shape = shape[norm_axis:]
-    inv_std_shape = shape[:norm_axis]
+    inv_std_shape = list(shape[:norm_axis]) + [1] * (len(shape) - norm_axis)
 
     output_names = ["y"] if num_outputs == 1 else ["y", "inv_std_var"]
     node = helper.make_node(
         "SimplifiedLayerNormalization",
         inputs=["x", "scale"],
         outputs=output_names,
-        domain="com.microsoft",
+        domain="",
         axis=axis,
         epsilon=1e-5,
     )
@@ -6749,9 +6749,11 @@ def _verify_simplified_layer_norm_execution(shape, axis, in_dtype, scale_dtype, 
         out_y, out_inv_std = tvm_out
         assert out_y.numpy().dtype == np.dtype(scale_dtype)
         tvm_tirx.testing.assert_allclose(out_y.numpy(), expected_y, rtol=1e-3, atol=1e-3)
-        expected_inv_std = np.squeeze(inv_std, axis=red_axes)
+
+        assert out_inv_std.numpy().shape == tuple(inv_std_shape)
+        assert out_inv_std.numpy().dtype == np.dtype(np.float32)
         tvm_tirx.testing.assert_allclose(
-            out_inv_std.numpy(), expected_inv_std, rtol=1e-5, atol=1e-5
+            out_inv_std.numpy(), inv_std, rtol=1e-5, atol=1e-5
         )
 
 
@@ -7238,6 +7240,85 @@ def test_skipsimplifiedlayernormalization():
     verify_skipsimplifiedlayernormalization(shape=["batch", "seq_len", 128], has_bias=False)
     verify_skipsimplifiedlayernormalization(shape=["batch", "seq_len", 256], has_bias=True)
     verify_skipsimplifiedlayernormalization(shape=["batch", "hidden_dim"], has_bias=True)
+    
+
+def _verify_skip_simplified_layer_norm_execution(shape, dtype, has_bias, with_residual_output):
+    proto = TensorProto.FLOAT16 if dtype == "float16" else TensorProto.FLOAT
+    epsilon = 1e-5
+    gamma_shape = [shape[-1]]
+
+    input_names = ["input", "skip", "gamma"] + (["bias"] if has_bias else [])
+    output_names = (
+        ["output", "", "", "input_skip_bias_sum"] if with_residual_output else ["output"]
+    )
+
+    node = helper.make_node(
+        "SkipSimplifiedLayerNormalization",
+        inputs=input_names,
+        outputs=output_names,
+        domain="com.microsoft",
+        epsilon=epsilon,
+    )
+
+    graph_inputs = [
+        helper.make_tensor_value_info("input", proto, shape),
+        helper.make_tensor_value_info("skip", proto, shape),
+        helper.make_tensor_value_info("gamma", proto, gamma_shape),
+    ]
+    if has_bias:
+        graph_inputs.append(helper.make_tensor_value_info("bias", proto, gamma_shape))
+
+    graph_outputs = [helper.make_tensor_value_info("output", proto, shape)]
+    if with_residual_output:
+        graph_outputs.append(helper.make_tensor_value_info("input_skip_bias_sum", proto, shape))
+
+    graph = helper.make_graph(
+        [node], "skip_sln_exec_test", inputs=graph_inputs, outputs=graph_outputs
+    )
+    model = helper.make_model(
+        graph, opset_imports=[helper.make_opsetid("", 14), helper.make_opsetid("com.microsoft", 1)]
+    )
+
+    rg = np.random.default_rng(0)
+    feeds = {
+        "input": rg.standard_normal(shape).astype(dtype),
+        "skip": rg.standard_normal(shape).astype(dtype),
+        "gamma": rg.standard_normal(gamma_shape).astype(dtype),
+    }
+    if has_bias:
+        feeds["bias"] = rg.standard_normal(gamma_shape).astype(dtype)
+
+    # accumulate in float32, cast back to the input dtype
+    summed = feeds["input"].astype(np.float32) + feeds["skip"].astype(np.float32)
+    if has_bias:
+        summed = summed + feeds["bias"].astype(np.float32)
+    inv_std = 1.0 / np.sqrt(np.mean(summed**2, axis=-1, keepdims=True) + epsilon)
+    expected_out = (summed * inv_std * feeds["gamma"].astype(np.float32)).astype(dtype)
+    expected_sum = summed.astype(dtype)
+
+    rtol, atol = (1e-3, 1e-3) if dtype == "float16" else (1e-5, 1e-5)
+    tvm_out = run_in_tvm(model, inputs=feeds)
+
+    if with_residual_output:
+        out, residual = tvm_out
+        assert residual.numpy().shape == tuple(shape)
+        assert residual.numpy().dtype == np.dtype(dtype)
+        tvm_tirx.testing.assert_allclose(residual.numpy(), expected_sum, rtol=rtol, atol=atol)
+    else:
+        out = tvm_out
+
+    assert out.numpy().shape == tuple(shape)
+    assert out.numpy().dtype == np.dtype(dtype)
+    tvm_tirx.testing.assert_allclose(out.numpy(), expected_out, rtol=rtol, atol=atol)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("has_bias", [False, True])
+@pytest.mark.parametrize("with_residual_output", [False, True])
+def test_skip_simplified_layer_norm_execution(dtype, has_bias, with_residual_output):
+    _verify_skip_simplified_layer_norm_execution(
+        [2, 8, 32], dtype, has_bias, with_residual_output
+    )
 
 
 def test_embedlayernormalization():
