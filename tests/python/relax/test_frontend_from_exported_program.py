@@ -5035,7 +5035,7 @@ def test_cat():
                 gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-            
+
     @I.ir_module
     class Expected4:
         @R.function
@@ -5050,7 +5050,10 @@ def test_cat():
             return gv
 
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
-    example_args_empty = (torch.tensor([], dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
+    example_args_empty = (
+        torch.tensor([], dtype=torch.float32),
+        torch.randn(2, 3, dtype=torch.float32),
+    )
     example_args_mutate = (
         torch.randn(3, dtype=torch.float32),
         torch.tensor([0], dtype=torch.int64),

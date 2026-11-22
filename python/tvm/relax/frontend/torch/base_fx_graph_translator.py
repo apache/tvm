@@ -2125,7 +2125,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         filtered = []
         for t in tensors:
             shape = self.shape_of(t)
-            if shape is not None and len(shape) == 1 and self._static_dim(shape[0]) == 0:
+            if (
+                isinstance(shape, relax.ShapeExpr)
+                and len(shape) == 1
+                and self._static_dim(shape[0]) == 0
+            ):
                 continue
             filtered.append(t)
 
@@ -2136,7 +2140,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if len(filtered) == 1:
             tensor = filtered[0]
             ndim = tensor.ty.ndim
-            if ndim >= 0 and not -ndim <= axis < ndim:
+            if isinstance(axis, int) and ndim >= 0 and not -ndim <= axis < ndim:
                 raise ValueError(f"cat dim {axis} is out of range for a tensor of rank {ndim}")
 
         return self.block_builder.emit(relax.op.concat(filtered, axis=axis))

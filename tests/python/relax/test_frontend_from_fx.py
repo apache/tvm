@@ -5110,10 +5110,6 @@ def test_cat():
             y.index_put_((indices,), values)
             return x
 
-    class CatSplit(Module):
-        def forward(self, x):
-            return torch.cat(torch.split(x, 2, dim=0), dim=0)
-
     @I.ir_module
     class Expected1:
         @R.function
@@ -5164,7 +5160,7 @@ def test_cat():
         ) -> R.Tensor((3,), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="float32") = R.concat((inp_0,), axis=0)
-                lv1: R.Tensor((3,), dtype="float32") = R.index_put(
+                lv1: R.Tensor((3,), dtype="float32") = R.index_put(  # noqa: F841
                     lv, R.tuple(inp_1), inp_2, accumulate=False
                 )
                 gv: R.Tensor((3,), dtype="float32") = inp_0
@@ -5192,7 +5188,17 @@ def test_cat():
     verify_model(Cat3(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
     verify_model(Cat3(), [([0], "float32"), ([2, 3], "float32")], {}, Expected3)
     verify_model(CatMutate(), [([3], "float32"), ([1], "int64"), ([1], "float32")], {}, Expected4)
-    verify_model(CatSplit(), [([4, 3], "float32")], {}, Expected5)
+    
+    # Build FX graph explicitly to test cat on an un-unpacked tuple-valued split node
+    graph = fx.Graph()
+    x = graph.placeholder("x")
+    split = graph.call_function(torch.split, args=(x, 2), kwargs={"dim": 0})
+    cat = graph.call_function(torch.cat, args=(split,), kwargs={"dim": 0})
+    graph.output(cat)
+    graph_model = fx.GraphModule(Module(), graph)
+    with torch.no_grad():
+        mod = from_fx(graph_model, [([4, 3], "float32")])
+    tvm_tirx.ir.assert_structural_equal(mod, Expected5)
 
 
 def test_max():
