@@ -115,6 +115,7 @@ def test_dispatch_scanop_cuda():
 
 def test_dispatch_searchsorted():
     """Test CPU dispatch to topi.searchsorted."""
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("llvm", 0)]})
@@ -154,8 +155,41 @@ def test_dispatch_searchsorted():
     assert_structural_equal(mod, expected_mod)
 
 
+@pytest.mark.parametrize("right", [False, True])
+def test_searchsorted_nan_numerical(right):
+    """NaN queries must map to len(sorted_sequence) regardless of right setting."""
+    seq_np = np.array([[1.0, 2.0, 3.0]], dtype="float32")
+    vals_np = np.array([[float("nan"), 2.0, float("nan")]], dtype="float32")
+
+    expected = np.array([[3, 1 if not right else 2, 3]], dtype="int64")
+
+    vdevices = [R.vdevice("llvm", 0)]
+    sorted_seq = relax.Var("sorted_seq", R.Tensor((1, 3), "float32", vdevices[0]))
+    values = relax.Var("values", R.Tensor((1, 3), "float32", vdevices[0]))
+    bb = relax.BlockBuilder()
+
+    with bb.function("main", [sorted_seq, values]):
+        with bb.dataflow():
+            out = bb.emit_te(topi.searchsorted, sorted_seq, values, right=right, out_dtype="int64")
+            out = bb.emit_output(out)
+        bb.emit_func_output(out)
+    mod = bb.finalize()
+    mod.update_global_info("vdevice", vdevices)
+
+    ex = tvm.compile(mod, "llvm")
+    dev = tvm_tirx.device_from_target("llvm")
+    vm = tvm.relax.VirtualMachine(ex, dev)
+    result = vm["main"](
+        tvm_tirx.runtime.tensor(seq_np, dev),
+        tvm_tirx.runtime.tensor(vals_np, dev),
+    ).numpy()
+
+    np.testing.assert_array_equal(result, expected)
+
+
 def test_dispatch_searchsorted_cuda():
     """Test CUDA dispatch to topi.gpu.searchsorted."""
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [R.vdevice("cuda", 0)]})
@@ -197,14 +231,15 @@ def test_dispatch_searchsorted_cuda():
     mod = DispatchSortScan(target=target)(Before)
 
     assert_structural_equal(mod, expected_mod)
-    
 
+
+@pytest.mark.gpu
 def test_dispatch_searchsorted_cuda_symbolic():
     """Test CUDA dispatch and compilation for searchsorted with N-D symbolic shapes."""
     target = "cuda"
-    if not tvm_tirx.testing.device_enabled(target):
+    if not device_enabled(target):
         pytest.skip(f"{target} not enabled")
-        
+
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
 

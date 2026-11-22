@@ -2108,7 +2108,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if isinstance(values, int | float):
             dtype = str(sorted_sequence.ty.dtype)
             if isinstance(values, float) and not dtype.startswith("float") and dtype != "bfloat16":
-                dtype = "float32"
+                import torch
+
+                dtype = self._convert_data_type(torch.get_default_dtype())
                 sorted_sequence = self.block_builder.emit(relax.op.astype(sorted_sequence, dtype))
             values = relax.const(values, dtype)
 
@@ -2128,8 +2130,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 raise ValueError(f"side must be either 'left' or 'right', but got: {side}")
             if side == "left" and right is True:
                 raise ValueError("side cannot be set to 'left' while right is True.")
-                
-            right = (side == "right")
+
+            right = side == "right"
 
         out_int32 = kwargs.get("out_int32", False)
 

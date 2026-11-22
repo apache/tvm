@@ -49,8 +49,8 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
     def condition(current_val, target_val):
         if right:
-            return current_val <= target_val
-        return current_val < target_val
+            return current_val > target_val
+        return current_val >= target_val
 
     with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
         mid = lo[T.tensor_indices(lo, 0)] + (
@@ -62,9 +62,9 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
             )
         ):
             with T.then_():
-                T.tensor_store(lo, T.tensor_indices(lo, 0), mid + 1)
-            with T.else_():
                 T.tensor_store(hi, T.tensor_indices(hi, 0), mid)
+            with T.else_():
+                T.tensor_store(lo, T.tensor_indices(lo, 0), mid + 1)
 
     return lo[T.tensor_indices(lo, 0)]
 
