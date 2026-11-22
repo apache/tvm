@@ -158,6 +158,32 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void ExportPageGroup(int64_t seq_id, int64_t group_id, ffi::Tensor dst) = 0;
 
   /*!
+   * \brief Get checkpoint metadata for the first `seq_length` positions of a
+   * sequence, as GetCheckpointMetadata would report it at that length.
+   * \param seq_id The id of the sequence whose checkpoint metadata is requested.
+   * \param seq_length The checkpointed length, at most the sequence length.
+   * \return JSON string describing runtime layout and logical pages.
+   */
+  virtual ffi::String GetCheckpointMetadataAt(int64_t seq_id, int64_t seq_length) const = 0;
+
+  /*!
+   * \brief Export logical pages [page_begin, page_end) of one page group, as
+   * they are for the first `seq_length` positions of the sequence. Positions at
+   * or after `seq_length` in the last page are written as zeros, so pages below
+   * `seq_length` can be exported while later positions are still appended.
+   * \param seq_id The id of the sequence whose pages are exported.
+   * \param group_id The checkpoint group id to export.
+   * \param seq_length The checkpointed length, at most the sequence length.
+   * \param page_begin The first logical page to export.
+   * \param page_end One past the last logical page to export.
+   * \param dst The destination tensor in page group layout.
+   * \param dst_page_offset The page of `dst` that receives `page_begin`.
+   */
+  virtual void ExportPageRange(int64_t seq_id, int64_t group_id, int64_t seq_length,
+                               int64_t page_begin, int64_t page_end, ffi::Tensor dst,
+                               int64_t dst_page_offset) = 0;
+
+  /*!
    * \brief Prepare sequence state and page tables for checkpoint import.
    * \param seq_id The id of the sequence being imported.
    * \param metadata_json The checkpoint metadata JSON string.
@@ -171,6 +197,21 @@ class AttentionKVCacheObj : public KVStateObj {
    * \param src The source tensor containing the page group.
    */
   virtual void ImportPageGroup(int64_t seq_id, int64_t group_id, ffi::Tensor src) = 0;
+
+  /*!
+   * \brief Import logical pages [page_begin, page_end) of one page group into a
+   * prepared sequence. Ranges of a group are imported in increasing order and
+   * may overlap the previous range, which they overwrite; a group is complete
+   * once its ranges cover every logical page without a gap.
+   * \param seq_id The id of the sequence being imported.
+   * \param group_id The checkpoint group id to import.
+   * \param page_begin The first logical page to import.
+   * \param page_end One past the last logical page to import.
+   * \param src The source tensor in page group layout.
+   * \param src_page_offset The page of `src` that holds `page_begin`.
+   */
+  virtual void ImportPageRange(int64_t seq_id, int64_t group_id, int64_t page_begin,
+                               int64_t page_end, ffi::Tensor src, int64_t src_page_offset) = 0;
 
   /*!
    * \brief Finish a checkpoint import after all page groups have been restored.

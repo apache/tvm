@@ -5920,6 +5920,87 @@ def test_const():
     tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize("opset", [13, 22])
+@pytest.mark.parametrize("symbolic", [False, True])
+@pytest.mark.parametrize("dtype", ["float16", "float32", "float64"])
+@pytest.mark.parametrize("axis", [0, 1, -1, None])
+@pytest.mark.parametrize("p", [1, 2, None])
+def test_lp_normalization(opset, symbolic, dtype, axis, p):
+    attrs = {}
+    if axis is not None:
+        attrs["axis"] = axis
+    if p is not None:
+        attrs["p"] = p
+    tensor_type = helper.np_dtype_to_tensor_dtype(np.dtype(dtype))
+    model = make_unary_model(
+        "LpNormalization",
+        ["N", "C", "W"] if symbolic else [2, 3, 4],
+        attrs=attrs,
+        input_dtype=tensor_type,
+        output_dtype=tensor_type,
+    )
+    model.ir_version = 8
+    model.opset_import[0].version = opset
+    onnx.checker.check_model(model, full_check=True)
+
+    values = (np.arange(24).reshape(2, 3, 4) % 7 - 3).astype(dtype)
+    values[0, 0, :] = 0
+    values[:, 0, 0] = 0
+    values[0, :, 0] = 0
+    if dtype == "float16":
+        values *= 256
+    reference_values = values.astype("float64")
+    norm = np.linalg.norm(
+        reference_values,
+        ord=2 if p is None else p,
+        axis=-1 if axis is None else axis,
+        keepdims=True,
+    )
+    expected = np.divide(
+        reference_values, norm, out=np.zeros_like(reference_values), where=norm != 0
+    ).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=opset).numpy()
+    assert actual.dtype == values.dtype
+    tolerance = 2e-3 if dtype == "float16" else 1e-6
+    tvm_tirx.testing.assert_allclose(actual, expected, rtol=tolerance, atol=1e-7)
+    # The CI ONNX Runtime supports the equivalent opset 13 kernel for these dtypes.
+    reference_model = ModelProto()
+    reference_model.CopyFrom(model)
+    reference_model.opset_import[0].version = 13
+    ort_output = onnxruntime.InferenceSession(
+        reference_model.SerializeToString(), providers=["CPUExecutionProvider"]
+    ).run(None, {"x": values})[0]
+    tvm_tirx.testing.assert_allclose(actual, ort_output, rtol=tolerance, atol=1e-7)
+
+
+@pytest.mark.parametrize("p", [0, 3])
+def test_lp_normalization_invalid_p(p):
+    model = make_unary_model("LpNormalization", [2, 3], attrs={"p": p})
+    model.opset_import[0].version = 13
+    with pytest.raises(ValueError, match="LpNormalization.*p.*1 or 2"):
+        from_onnx(model, opset=13)
+
+
+@pytest.mark.parametrize("p", [1, 2])
+def test_lp_normalization_bfloat16(p):
+    dtype = helper.tensor_dtype_to_np_dtype(TensorProto.BFLOAT16)
+    model = make_unary_model(
+        "LpNormalization",
+        [2, 3],
+        attrs={"p": p},
+        input_dtype=TensorProto.BFLOAT16,
+        output_dtype=TensorProto.BFLOAT16,
+    )
+    values = np.array([[1, -1, 0], [0, 0, 0]], dtype=dtype)
+    norm = np.linalg.norm(values.astype("float32"), ord=p, axis=-1, keepdims=True)
+    expected = (values.astype("float32") / np.where(norm == 0, 1, norm)).astype(dtype)
+    actual = run_in_tvm(model, inputs={"x": values}, opset=22).numpy()
+    assert actual.dtype == values.dtype
+    tvm_tirx.testing.assert_allclose(
+        actual.astype("float32"), expected.astype("float32"), rtol=1e-2, atol=1e-7
+    )
+
+
 def test_instance_norm():
     def verify_instance_norm(input_shape, scale_shape, bias_shape, expected):
         node = helper.make_node("InstanceNormalization", ["a", "b", "c"], ["d"], epsilon=1e-12)
@@ -6160,6 +6241,171 @@ def test_layer_norm():
     model = helper.make_model(graph, producer_name="layer_norm_test")
     model.opset_import[0].version = 17
     from_onnx(model, opset=17, keep_params_in_input=True)
+
+
+def test_layer_norm_optional_outputs():
+    node = helper.make_node(
+        "LayerNormalization",
+        ["input", "scale", "bias"],
+        ["Y", "Mean", "InvStdDev"],
+        axis=-1,
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph(
+        [node],
+        "layer_norm_optional_outputs_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [4]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("Mean", TensorProto.FLOAT, [2, 3, 1]),
+            helper.make_tensor_value_info("InvStdDev", TensorProto.FLOAT, [2, 3, 1]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="layer_norm_optional_outputs_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    check_correctness(
+        model,
+        inputs={
+            "input": np.arange(24, dtype="float32").reshape(2, 3, 4),
+            "scale": np.ones(4, dtype="float32"),
+            "bias": np.zeros(4, dtype="float32"),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("axis", [1, -2])
+@pytest.mark.parametrize(
+    "scale_shape, bias_shape",
+    [((4,), (4,)), ((1, 4), (4,)), ((4, 4), None), ((4, 4), (4, 4))],
+)
+@pytest.mark.parametrize("num_outputs", [1, 2, 3])
+def test_layer_norm_broadcast_parameters(dtype, axis, scale_shape, bias_shape, num_outputs):
+    tensor_type = TensorProto.FLOAT if dtype == "float32" else TensorProto.FLOAT16
+    input_names = ["input", "scale"]
+    input_infos = [
+        helper.make_tensor_value_info("input", tensor_type, [2, 4, 4]),
+        helper.make_tensor_value_info("scale", tensor_type, scale_shape),
+    ]
+    inputs = {
+        "input": np.linspace(-3.0, 5.0, 32).reshape(2, 4, 4).astype(dtype),
+        "scale": np.linspace(0.5, 1.5, int(np.prod(scale_shape)))
+        .reshape(scale_shape)
+        .astype(dtype),
+    }
+    if bias_shape is not None:
+        input_names.append("bias")
+        input_infos.append(helper.make_tensor_value_info("bias", tensor_type, bias_shape))
+        inputs["bias"] = (
+            np.linspace(-0.25, 0.25, int(np.prod(bias_shape))).reshape(bias_shape).astype(dtype)
+        )
+    output_infos = [
+        helper.make_tensor_value_info("Y", tensor_type, [2, 4, 4]),
+        helper.make_tensor_value_info("Mean", TensorProto.FLOAT, [2, 1, 1]),
+        helper.make_tensor_value_info("InvStdDev", TensorProto.FLOAT, [2, 1, 1]),
+    ][:num_outputs]
+    node = helper.make_node(
+        "LayerNormalization", input_names, [info.name for info in output_infos], axis=axis
+    )
+    model = helper.make_model(
+        helper.make_graph([node], "layer_norm_broadcast_parameters", input_infos, output_infos),
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    # Some ONNX Runtime versions reject valid broadcasted scale and bias shapes.
+    x = inputs["input"].astype("float32")
+    axes = tuple(range(axis % x.ndim, x.ndim))
+    mean = np.mean(x, axis=axes, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=axes, keepdims=True) + np.float32(1e-5))
+    expected_y = ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"]
+    if bias_shape is not None:
+        expected_y += inputs["bias"]
+    expected = [expected_y, mean, inv_std_dev][:num_outputs]
+
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if num_outputs == 1 else actual
+    assert len(actual) == num_outputs
+    tol = 1e-3 if dtype == "float16" else 1e-5
+    for value, reference in zip(actual, expected):
+        value = value.numpy()
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "outputs", [["Y"], ["Y", "", ""], ["Y", "Mean", ""], ["Y", "", "InvStdDev"]]
+)
+@pytest.mark.parametrize("in_subgraph", [False, True])
+def test_layer_norm_optional_output_names(dtype, outputs, in_subgraph):
+    tensor_type = TensorProto.FLOAT if dtype == "float32" else TensorProto.FLOAT16
+    input_infos = [
+        helper.make_tensor_value_info("input", tensor_type, [2, 4]),
+        helper.make_tensor_value_info("scale", tensor_type, [4]),
+    ]
+    output_infos = [
+        helper.make_tensor_value_info(
+            name,
+            tensor_type if name == "Y" else TensorProto.FLOAT,
+            [2, 4] if name == "Y" else [2, 1],
+        )
+        for name in outputs
+        if name
+    ]
+    node = helper.make_node("LayerNormalization", ["input", "scale"], outputs)
+    inputs = {
+        "input": np.array([[1, 2, 4, 8], [10000, 10016, 10032, 10048]], dtype=dtype),
+        "scale": np.array([0.5, 1.5, 2.0, 0.75], dtype=dtype),
+    }
+    if in_subgraph:
+        branch = helper.make_graph([node], "branch", [], output_infos)
+        node = helper.make_node(
+            "If",
+            ["cond"],
+            [info.name for info in output_infos],
+            then_branch=branch,
+            else_branch=branch,
+        )
+        input_infos.append(helper.make_tensor_value_info("cond", TensorProto.BOOL, []))
+        inputs["cond"] = np.array(True)
+    model = helper.make_model(
+        helper.make_graph([node], "layer_norm_optional_outputs", input_infos, output_infos),
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    onnx.checker.check_model(model)
+    ops = collect_relax_call_ops(from_onnx(model)["main"])
+    if len(output_infos) == 1:
+        assert "relax.nn.layer_norm" in ops
+        assert "relax.mean" not in ops
+        assert "relax.rsqrt" not in ops
+
+    x = inputs["input"].astype("float32")
+    mean = np.mean(x, axis=-1, keepdims=True)
+    inv_std_dev = 1 / np.sqrt(np.var(x, axis=-1, keepdims=True) + np.float32(1e-5))
+    expected = {
+        "Y": ((x - mean) * inv_std_dev).astype(dtype) * inputs["scale"],
+        "Mean": mean,
+        "InvStdDev": inv_std_dev,
+    }
+    actual = run_in_tvm(model, inputs=inputs, opset=17)
+    actual = [actual] if len(output_infos) == 1 else actual
+    assert len(actual) == len(output_infos)
+    for value, info in zip(actual, output_infos):
+        value = value.numpy()
+        reference = expected[info.name]
+        assert value.dtype == reference.dtype
+        assert value.shape == reference.shape
+        tol = 1e-3 if reference.dtype == np.float16 else 1e-5
+        np.testing.assert_allclose(value, reference, rtol=tol, atol=tol)
 
 
 def test_layer_norm_with_nd_gamma_beta():
@@ -10260,6 +10506,7 @@ def test_batch_norm_training_preserves_output_dtypes():
 
     assert len(batch_norm_calls) == 1
     assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
+    assert batch_norm_calls[0].attrs.momentum == pytest.approx(0.1)
 
 
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
@@ -14729,6 +14976,968 @@ def test_quantizelinear_output_dtype_mismatch(opset):
 
     with pytest.raises(ValueError, match="must match the zero-point dtype"):
         from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+def test_qlinearmatmul():
+    """Verify numerical correctness of QLinearMatMul against ONNX Runtime and reference."""
+
+    np_dtype_map = {
+        "uint8": (np.uint8, TensorProto.UINT8),
+        "int8": (np.int8, TensorProto.INT8),
+    }
+
+    def verify_qlinearmatmul(
+        a_shape,
+        b_shape,
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(),
+        b_scale_shape=(),
+        y_scale_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        a_np_dtype, a_proto = np_dtype_map[a_dtype]
+        b_np_dtype, b_proto = np_dtype_map[b_dtype]
+        y_np_dtype, y_proto = np_dtype_map[y_dtype]
+
+        if a_dtype == "uint8":
+            a = rng.randint(120, 136, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 128, dtype=a_np_dtype)
+        else:
+            a = rng.randint(-8, 8, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 0, dtype=a_np_dtype)
+
+        if b_dtype == "uint8":
+            b = rng.randint(120, 136, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 128, dtype=b_np_dtype)
+        else:
+            b = rng.randint(-8, 8, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 0, dtype=b_np_dtype)
+
+        if y_dtype == "uint8":
+            y_zp = np.full(y_scale_shape, 128, dtype=y_np_dtype)
+        else:
+            y_zp = np.full(y_scale_shape, 0, dtype=y_np_dtype)
+
+        a_scale = np.full(a_scale_shape, 0.5, dtype=np.float32)
+        b_scale = np.full(b_scale_shape, 0.25, dtype=np.float32)
+        y_scale = np.full(y_scale_shape, 2.0, dtype=np.float32)
+
+        node = helper.make_node(
+            "QLinearMatMul",
+            inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+            outputs=["y"],
+        )
+
+        y_shape = list(np.matmul(np.zeros(a_shape), np.zeros(b_shape)).shape)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearmatmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, a_shape),
+                helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, list(a_scale_shape)),
+                helper.make_tensor_value_info("a_zp", a_proto, list(a_scale_shape)),
+                helper.make_tensor_value_info("b", b_proto, b_shape),
+                helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, list(b_scale_shape)),
+                helper.make_tensor_value_info("b_zp", b_proto, list(b_scale_shape)),
+                helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, list(y_scale_shape)),
+                helper.make_tensor_value_info("y_zp", y_proto, list(y_scale_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", y_proto, y_shape)],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+        inputs = {
+            "a": a,
+            "a_scale": a_scale,
+            "a_zp": a_zp,
+            "b": b,
+            "b_scale": b_scale,
+            "b_zp": b_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+        check_correctness(model, inputs=inputs, opset=opset)
+
+    def verify_qlinearmatmul_ref(
+        a_shape,
+        b_shape,
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(),
+        b_scale_shape=(),
+        y_scale_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        a_np_dtype, a_proto = np_dtype_map[a_dtype]
+        b_np_dtype, b_proto = np_dtype_map[b_dtype]
+        y_np_dtype, y_proto = np_dtype_map[y_dtype]
+
+        if a_dtype == "uint8":
+            a = rng.randint(120, 136, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 128, dtype=a_np_dtype)
+        else:
+            a = rng.randint(-8, 8, size=a_shape).astype(a_np_dtype)
+            a_zp = np.full(a_scale_shape, 0, dtype=a_np_dtype)
+
+        if b_dtype == "uint8":
+            b = rng.randint(120, 136, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 128, dtype=b_np_dtype)
+        else:
+            b = rng.randint(-8, 8, size=b_shape).astype(b_np_dtype)
+            b_zp = np.full(b_scale_shape, 0, dtype=b_np_dtype)
+
+        if y_dtype == "uint8":
+            y_zp = np.full(y_scale_shape, 128, dtype=y_np_dtype)
+        else:
+            y_zp = np.full(y_scale_shape, 0, dtype=y_np_dtype)
+
+        a_scale = np.full(a_scale_shape, 0.5, dtype=np.float32)
+        b_scale = np.full(b_scale_shape, 0.25, dtype=np.float32)
+        y_scale = np.full(y_scale_shape, 2.0, dtype=np.float32)
+
+        # Reference calculation
+        a_int32 = a.astype(np.int32)
+        b_int32 = b.astype(np.int32)
+        a_zp_i = a_zp.astype(np.int32)
+        b_zp_i = b_zp.astype(np.int32)
+        if a.ndim >= 2 and a_zp_i.ndim == 1:
+            a_zp_i = np.expand_dims(a_zp_i, axis=-1)
+        if b.ndim >= 2 and b_zp_i.ndim == 1:
+            b_zp_i = np.expand_dims(b_zp_i, axis=0)
+
+        matmul_int32 = np.matmul(a_int32 - a_zp_i, b_int32 - b_zp_i)
+        as_f = a_scale.copy()
+        bs_f = b_scale.copy()
+        ys_f = y_scale.copy()
+        yz_f = y_zp.astype(np.float32)
+
+        if b.ndim >= 2 and as_f.ndim == 1:
+            as_f = np.expand_dims(as_f, axis=-1)
+        elif b.ndim == 1 and as_f.ndim >= 2 and as_f.shape[-1] == 1:
+            as_f = np.squeeze(as_f, axis=-1)
+
+        if a.ndim >= 2 and bs_f.ndim == 1:
+            bs_f = np.expand_dims(bs_f, axis=0)
+        elif a.ndim == 1 and bs_f.ndim >= 2 and bs_f.shape[-2] == 1:
+            bs_f = np.squeeze(bs_f, axis=-2)
+
+        if b.ndim >= 2 and a.ndim >= 2 and ys_f.ndim == 1:
+            if a.shape[-2] == ys_f.shape[0]:
+                ys_f = np.expand_dims(ys_f, axis=-1)
+                yz_f = np.expand_dims(yz_f, axis=-1)
+            elif b.shape[-1] == ys_f.shape[0]:
+                ys_f = np.expand_dims(ys_f, axis=0)
+                yz_f = np.expand_dims(yz_f, axis=0)
+
+        scaled = matmul_int32.astype(np.float32) * (as_f * bs_f) / ys_f
+        rounded = np.round(scaled) + yz_f
+        min_v, max_v = (0, 255) if y_dtype == "uint8" else (-128, 127)
+        ref_out = np.clip(rounded, min_v, max_v).astype(y_np_dtype)
+
+        node = helper.make_node(
+            "QLinearMatMul",
+            inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+            outputs=["y"],
+        )
+        y_shape = list(ref_out.shape)
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearmatmul_ref_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, a_shape),
+                helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, list(a_scale_shape)),
+                helper.make_tensor_value_info("a_zp", a_proto, list(a_scale_shape)),
+                helper.make_tensor_value_info("b", b_proto, b_shape),
+                helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, list(b_scale_shape)),
+                helper.make_tensor_value_info("b_zp", b_proto, list(b_scale_shape)),
+                helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, list(y_scale_shape)),
+                helper.make_tensor_value_info("y_zp", y_proto, list(y_scale_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("y", y_proto, y_shape)],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+        inputs = {
+            "a": a,
+            "a_scale": a_scale,
+            "a_zp": a_zp,
+            "b": b,
+            "b_scale": b_scale,
+            "b_zp": b_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+        tvm_out = run_in_tvm(model, inputs=inputs, opset=opset)
+        tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+        assert tvm_val.shape == ref_out.shape
+        np.testing.assert_allclose(tvm_val, ref_out, atol=1e-5)
+
+    # 2D uint8 with in-range output
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # 2D int8
+    verify_qlinearmatmul([3, 4], [4, 2], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10)
+    # 3D batched int8
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=10
+    )
+    # 3D batched uint8
+    verify_qlinearmatmul(
+        [2, 3, 4], [2, 4, 5], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # Opset 21 uint8
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=21
+    )
+    # Opset 21 int8
+    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="int8", b_dtype="int8", y_dtype="int8", opset=21)
+    # Mixed signedness uint8/int8
+    verify_qlinearmatmul([2, 3], [3, 4], a_dtype="uint8", b_dtype="int8", y_dtype="uint8", opset=10)
+    # Matrix-vector (2D x 1D -> 1D)
+    verify_qlinearmatmul([2, 3], [3], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    # Vector-matrix (1D x 2D -> 1D)
+    verify_qlinearmatmul([3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10)
+    # Batched matrix-vector (3D x 1D -> 2D)
+    verify_qlinearmatmul(
+        [2, 3, 4], [4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", opset=10
+    )
+    # Per-column parameter on B
+    verify_qlinearmatmul(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", b_scale_shape=(4,)
+    )
+    # Batched per-column parameter on B
+    verify_qlinearmatmul(
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        b_scale_shape=(2, 1, 5),
+    )
+
+    # Reference tests for cases unsupported by ORT (per-row A and int8/uint8)
+    verify_qlinearmatmul_ref(
+        [2, 3], [3, 4], a_dtype="uint8", b_dtype="uint8", y_dtype="uint8", a_scale_shape=(2,)
+    )
+    verify_qlinearmatmul_ref(
+        [2, 3, 4],
+        [2, 4, 5],
+        a_dtype="uint8",
+        b_dtype="uint8",
+        y_dtype="uint8",
+        a_scale_shape=(2, 3, 1),
+    )
+    verify_qlinearmatmul_ref([2, 3], [3, 4], a_dtype="int8", b_dtype="uint8", y_dtype="int8")
+
+
+def test_qlinearmatmul_float8_unsupported():
+    """Verify that float8 inputs and outputs in QLinearMatMul are rejected with NotImplementedError."""
+    node = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    # TensorProto.FLOAT8E4M3FN is type 17
+    graph = helper.make_graph(
+        [node],
+        "test_float8",
+        inputs=[
+            helper.make_tensor_value_info("a", 17, [2, 3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("a_zp", 17, []),
+            helper.make_tensor_value_info("b", 17, [3, 4]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("b_zp", 17, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", 17, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", 17, [2, 4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    with pytest.raises(NotImplementedError, match="Float8 operands and outputs"):
+        from_onnx(model, opset=21, keep_params_in_input=True)
+
+
+def test_qlinearmatmul_singleton_scales_output_shape():
+    """Singleton [1]-shape scales and zero points must not alter the MatMul output rank.
+
+    A valid a_scale:[1] on [3] @ [3,4] must still produce output [4], not [1,4].
+    """
+    a = np.array([2, 3, 4], dtype=np.uint8)
+    b = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.uint8)
+    # All quantization parameters as [1]-shape (singleton) arrays
+    a_scale = np.array([0.5], dtype=np.float32)
+    a_zp = np.array([0], dtype=np.uint8)
+    b_scale = np.array([0.5], dtype=np.float32)
+    b_zp = np.array([0], dtype=np.uint8)
+    y_scale = np.array([1.0], dtype=np.float32)
+    y_zp = np.array([0], dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph = helper.make_graph(
+        [node],
+        "singleton_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3, 4]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)])
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # Output must be rank-1, shape [4], not rank-2 [1,4]
+    assert tvm_val.shape == (4,), f"Expected shape (4,) but got {tvm_val.shape}"
+    # Reference: (a - a_zp) @ (b - b_zp) * (a_scale * b_scale / y_scale) + y_zp
+    ref = np.clip(
+        np.round(
+            np.matmul(a.astype(np.int32), b.astype(np.int32)).astype(np.float32) * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val, ref)
+
+    # Matrix-vector case: [4, 3] @ [3] -> [4]
+    a_mv = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [1, 0, 1]], dtype=np.uint8)
+    b_mv = np.array([2, 1, 0], dtype=np.uint8)
+    node_mv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_mv = helper.make_graph(
+        [node_mv],
+        "singleton_mv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [4, 3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [4])],
+    )
+    model_mv = helper.make_model(graph_mv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_mv = {
+        "a": a_mv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_mv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_mv = run_in_tvm(model_mv, inputs=inputs_mv, opset=10)
+    tvm_val_mv = (
+        tvm_out_mv[0].numpy() if isinstance(tvm_out_mv, list | tuple) else tvm_out_mv.numpy()
+    )
+    assert tvm_val_mv.shape == (4,), f"Expected shape (4,) but got {tvm_val_mv.shape}"
+    ref_mv = np.clip(
+        np.round(
+            np.matmul(a_mv.astype(np.int32), b_mv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_mv, ref_mv)
+
+    # Vector-vector dot product case: [3] @ [3] -> ()
+    a_vv = np.array([2, 3, 4], dtype=np.uint8)
+    b_vv = np.array([1, 2, 1], dtype=np.uint8)
+    node_vv = helper.make_node(
+        "QLinearMatMul",
+        inputs=["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+    )
+    graph_vv = helper.make_graph(
+        [node_vv],
+        "singleton_vv_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [3]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, [1]),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [])],
+    )
+    model_vv = helper.make_model(graph_vv, opset_imports=[helper.make_opsetid("", 10)])
+    inputs_vv = {
+        "a": a_vv,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b_vv,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out_vv = run_in_tvm(model_vv, inputs=inputs_vv, opset=10)
+    tvm_val_vv = (
+        tvm_out_vv[0].numpy() if isinstance(tvm_out_vv, list | tuple) else tvm_out_vv.numpy()
+    )
+    assert tvm_val_vv.shape == (), f"Expected scalar shape () but got {tvm_val_vv.shape}"
+    ref_vv = np.clip(
+        np.round(
+            np.matmul(a_vv.astype(np.int32), b_vv.astype(np.int32)).astype(np.float32)
+            * (0.5 * 0.5 / 1.0)
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    np.testing.assert_array_equal(tvm_val_vv, ref_vv)
+
+
+def test_dft():
+    """Verify numerical correctness of DFT against ONNX Runtime."""
+
+    def verify_dft(
+        x,
+        dft_length=None,
+        axis=1,
+        inverse=0,
+        onesided=0,
+        opset=17,
+    ):
+        inputs_list = ["x"]
+        graph_inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape))]
+        feed_inputs = {"x": x}
+
+        attrs = {"inverse": inverse, "onesided": onesided}
+        initializers = []
+        if opset < 20:
+            attrs["axis"] = axis
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+        else:
+            # opset 20: axis is 3rd input
+            if dft_length is not None:
+                inputs_list.append("dft_length")
+                initializers.append(
+                    helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length])
+                )
+            else:
+                inputs_list.append("")
+            inputs_list.append("axis")
+            initializers.append(helper.make_tensor("axis", TensorProto.INT64, [], [axis]))
+
+        node = helper.make_node("DFT", inputs=inputs_list, outputs=["y"], **attrs)
+
+        # Calculate expected output shape
+        y_shape = list(x.shape)
+        actual_axis = axis if axis >= 0 else len(x.shape) + axis
+        N = x.shape[actual_axis] if dft_length is None else dft_length
+        y_shape[actual_axis] = (N // 2 + 1) if onesided else N
+        y_shape[-1] = 2
+
+        graph = helper.make_graph(
+            [node],
+            "dft_test",
+            inputs=graph_inputs,
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, y_shape)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=10
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, atol=1e-4)
+
+    # 1. Real input, forward, full
+    x_real = np.random.randn(2, 6, 1).astype(np.float32)
+    verify_dft(x_real, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 2. Real input, forward, onesided
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 3. Complex input, inverse
+    x_comp = np.random.randn(2, 6, 2).astype(np.float32)
+    verify_dft(x_comp, axis=1, inverse=1, onesided=0, opset=17)
+
+    # 4. dft_length padding
+    verify_dft(x_real, dft_length=8, axis=1, inverse=0, onesided=0, opset=17)
+
+    # 5. dft_length truncating
+    verify_dft(x_real, dft_length=4, axis=1, inverse=0, onesided=1, opset=17)
+
+    # 6. Axis = 0
+    x_axis0 = np.random.randn(4, 3, 1).astype(np.float32)
+    verify_dft(x_axis0, axis=0, inverse=0, onesided=0, opset=17)
+
+    # 7. Opset 20
+    verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=20)
+
+
+def test_dft_validation_and_errors():
+    """Verify DFT parameter validation and unsupported dynamic inputs."""
+    # 1. Non-constant axis in opset 20
+    node = helper.make_node("DFT", inputs=["x", "", "axis"], outputs=["y"])
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_axis",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [4, 3, 1]),
+            helper.make_tensor_value_info("axis", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [4, 3, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant axis"):
+        from_onnx(model, opset=20, keep_params_in_input=True)
+
+    # 2. Non-constant dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_dyn_len",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1]),
+            helper.make_tensor_value_info("dft_length", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(NotImplementedError, match="Dynamic or non-constant dft_length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 3. Non-positive dft_length
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_neg_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 6, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [0])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 6, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="dft_length must be positive"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 4. dft_length exceeding MAX_DFT_LENGTH (4096)
+    node = helper.make_node("DFT", inputs=["x", "dft_length"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_large_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 5000, 1])],
+        initializer=[helper.make_tensor("dft_length", TensorProto.INT64, [], [5000])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 5000, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="exceeds maximum supported length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+
+def test_dft_float16_precision():
+    """Verify that 512-point float16 DFT phases do not overflow or produce NaNs."""
+    N = 512
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_dft",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    x_val = np.ones((1, N, 1), dtype=np.float16) * 0.01
+    tvm_out = run_in_tvm(model, inputs={"x": x_val}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert not np.isnan(res).any()
+    assert not np.isinf(res).any()
+    assert res.dtype == np.float16
+
+
+def test_dft_float16_inverse_overflow():
+    """Verify float16 inverse DFT does not overflow before normalization.
+
+    Two real float16 samples of 40000 have an unnormalized sum of 80000, which is
+    infinity in float16 (max representable ~65504).  The inverse normalization
+    divides by N=2 to recover 40000, but only if the intermediate arithmetic is kept
+    in float32.  Without the fix this test produces inf in the output.
+    """
+    # Build a minimal inverse DFT: N=2, complex input representing two 40000 samples
+    N = 2
+    # Complex representation: [[40000+0j, 40000+0j]] shaped [1, N, 2]
+    x_cplx = np.zeros((1, N, 2), dtype=np.float16)
+    x_cplx[0, 0, 0] = 40000.0  # real
+    x_cplx[0, 1, 0] = 40000.0  # real
+
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], inverse=1, axis=1)
+    graph = helper.make_graph(
+        [node],
+        "test_fp16_idft_overflow",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT16, [1, N, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT16, [1, N, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    tvm_out = run_in_tvm(model, inputs={"x": x_cplx}, opset=17)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # The output should be finite and representable in float16
+    assert not np.isnan(res).any(), f"Got NaN in inverse float16 DFT output: {res}"
+    assert not np.isinf(res).any(), f"Got Inf in inverse float16 DFT output: {res}"
+    assert res.dtype == np.float16
+
+
+def test_qlinearconv():
+    """Verify numerical correctness of QLinearConv against ONNX Runtime."""
+
+    def verify_qlinearconv(
+        x_shape,
+        w_shape,
+        strides=None,
+        pads=None,
+        dilations=None,
+        auto_pad=None,
+        group=1,
+        with_bias=True,
+        dtype="uint8",
+        w_scale_shape=(),
+        w_zp_shape=(),
+        opset=10,
+        seed=42,
+    ):
+        rng = np.random.RandomState(seed)
+        is_int8 = dtype == "int8"
+        proto = TensorProto.INT8 if is_int8 else TensorProto.UINT8
+        np_dtype = np.int8 if is_int8 else np.uint8
+
+        if is_int8:
+            x = rng.randint(-8, 8, size=x_shape).astype(np_dtype)
+            x_zp = np.array(0, dtype=np_dtype)
+            w = rng.randint(-8, 8, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 0, dtype=np_dtype)
+            y_zp = np.array(0, dtype=np_dtype)
+        else:
+            x = rng.randint(120, 136, size=x_shape).astype(np_dtype)
+            x_zp = np.array(128, dtype=np_dtype)
+            w = rng.randint(116, 128, size=w_shape).astype(np_dtype)
+            w_zp = np.full(w_zp_shape, 120, dtype=np_dtype)
+            y_zp = np.array(128, dtype=np_dtype)
+
+        x_scale = np.array(0.5, dtype=np.float32)
+        if len(w_scale_shape) > 0:
+            w_scale = np.linspace(
+                0.1, 0.5, num=int(np.prod(w_scale_shape)), dtype=np.float32
+            ).reshape(w_scale_shape)
+        else:
+            w_scale = np.array(0.25, dtype=np.float32)
+        y_scale = np.array(2.0, dtype=np.float32)
+
+        inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"]
+        graph_inputs = [
+            helper.make_tensor_value_info("x", proto, x_shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", proto, []),
+            helper.make_tensor_value_info("w", proto, w_shape),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, list(w_scale_shape)),
+            helper.make_tensor_value_info("w_zp", proto, list(w_zp_shape)),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", proto, []),
+        ]
+
+        feed_inputs = {
+            "x": x,
+            "x_scale": x_scale,
+            "x_zp": x_zp,
+            "w": w,
+            "w_scale": w_scale,
+            "w_zp": w_zp,
+            "y_scale": y_scale,
+            "y_zp": y_zp,
+        }
+
+        if with_bias:
+            B = rng.randint(-5, 5, size=[w_shape[0]]).astype(np.int32)
+            inputs_list.append("B")
+            graph_inputs.append(helper.make_tensor_value_info("B", TensorProto.INT32, [w_shape[0]]))
+            feed_inputs["B"] = B
+
+        kwargs = {"group": group, "kernel_shape": w_shape[2:]}
+        if strides is not None:
+            kwargs["strides"] = strides
+        if dilations is not None:
+            kwargs["dilations"] = dilations
+        if pads is not None:
+            kwargs["pads"] = pads
+        if auto_pad is not None:
+            kwargs["auto_pad"] = auto_pad
+
+        node = helper.make_node(
+            "QLinearConv",
+            inputs=inputs_list,
+            outputs=["y"],
+            **kwargs,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "qlinearconv_test",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_value_info("y", proto, None)],
+        )
+        model = helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=8
+        )
+        check_correctness(model, inputs=feed_inputs, opset=opset, check_dtypes=True)
+
+    # 1. 2D Conv with bias (in-range uint8)
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+    # 2. 2D Conv without bias
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], pads=[0, 0, 0, 0], with_bias=False)
+    # 3. Multi-channel 2D Conv
+    verify_qlinearconv([2, 3, 5, 5], [4, 3, 3, 3], pads=[1, 1, 1, 1], with_bias=True)
+    # 4. 1D Conv
+    verify_qlinearconv([1, 1, 8], [1, 1, 3], strides=[1], dilations=[1], pads=[0, 0])
+    # 5. 3D Conv
+    verify_qlinearconv(
+        [1, 1, 4, 4, 4],
+        [1, 1, 2, 2, 2],
+        strides=[1, 1, 1],
+        dilations=[1, 1, 1],
+        pads=[0, 0, 0, 0, 0, 0],
+    )
+    # 6. SAME_UPPER automatic padding (even kernel on odd spatial dimension to create asymmetric padding)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_UPPER")
+    # 7. SAME_LOWER automatic padding (even kernel on odd spatial dimension to distinguish from SAME_UPPER)
+    verify_qlinearconv([1, 1, 5, 5], [1, 1, 2, 2], auto_pad="SAME_LOWER")
+    # 8. VALID automatic padding
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 3, 3], auto_pad="VALID")
+    # 9. Non-unit strides and dilations
+    verify_qlinearconv(
+        [1, 1, 8, 8], [1, 1, 3, 3], strides=[2, 2], dilations=[2, 2], pads=[0, 0, 0, 0]
+    )
+    # 10. Grouped Conv
+    verify_qlinearconv([1, 4, 4, 4], [4, 2, 2, 2], group=2, pads=[0, 0, 0, 0])
+    # 11. Signed int8 quantization
+    verify_qlinearconv([1, 1, 4, 4], [1, 1, 2, 2], dtype="int8", pads=[0, 0, 0, 0], with_bias=True)
+    # 12. Distinct per-output-channel weight scales and zero-points
+    verify_qlinearconv(
+        [1, 2, 4, 4],
+        [4, 2, 2, 2],
+        w_scale_shape=(4,),
+        w_zp_shape=(4,),
+        pads=[0, 0, 0, 0],
+        with_bias=True,
+    )
+    # 13. Unequal input/output channels with bias
+    verify_qlinearconv([1, 3, 5, 5], [5, 3, 2, 2], pads=[0, 0, 0, 0], with_bias=True)
+
+
+def test_qlinearconv_precision_cancellation():
+    """Verify that 1x1 conv over 261 uint8 channels with large bias keeps precision in int32."""
+    channels = 261
+    x = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 254, dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(1.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+    bias = np.array([-16838675], dtype=np.int32)
+
+    inputs_list = ["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp", "B"]
+    graph_inputs = [
+        helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+        helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+        helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        helper.make_tensor_value_info("B", TensorProto.INT32, [1]),
+    ]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=inputs_list,
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_cancel_test",
+        inputs=graph_inputs,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+        "B": bias,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert tvm_val[0, 0, 0, 0] == 1
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_no_kernel_shape_attr():
+    """QLinearConv must work when kernel_shape attribute is omitted (inferred from weight shape).
+
+    Uses a 2D conv without supplying kernel_shape in the ONNX node attributes to
+    exercise the weight_norm.ty.shape.values[2:] inference path.
+    """
+    x = np.array(
+        [[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]], dtype=np.uint8
+    )
+    w = np.ones((1, 1, 2, 2), dtype=np.uint8)
+    x_scale = np.array(1.0, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(1.0, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(4.0, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    # NOTE: no kernel_shape attribute — it must be inferred from w.shape[2:]
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        # no kernel_shape here
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_no_kshape",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, 1, 4, 4]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, 1, 2, 2]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, None)],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=feed_inputs, opset=10, check_dtypes=True)
+
+
+def test_qlinearconv_scale_overflow():
+    """Combined scale x_scale * w_scale must not overflow float32.
+
+    With x_scale = w_scale = 2**65 and y_scale = 2**124, the correct uint8 output is 64,
+    but computing the product in float32 gives infinity and clips to 255.
+    The combined scale is computed in float64 to prevent this.
+    """
+    channels = 1
+    x = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    w = np.full([1, channels, 1, 1], 1, dtype=np.uint8)
+    x_scale = np.array(2.0**65, dtype=np.float32)
+    x_zp = np.array(0, dtype=np.uint8)
+    w_scale = np.array(2.0**65, dtype=np.float32)
+    w_zp = np.array(0, dtype=np.uint8)
+    y_scale = np.array(2.0**124, dtype=np.float32)
+    y_zp = np.array(0, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearConv",
+        inputs=["x", "x_scale", "x_zp", "w", "w_scale", "w_zp", "y_scale", "y_zp"],
+        outputs=["y"],
+        kernel_shape=[1, 1],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconv_scale_overflow_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("w", TensorProto.UINT8, [1, channels, 1, 1]),
+            helper.make_tensor_value_info("w_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("w_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 10)], ir_version=8)
+    feed_inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "w": w,
+        "w_scale": w_scale,
+        "w_zp": w_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    tvm_out = run_in_tvm(model, inputs=feed_inputs, opset=10)
+    tvm_val = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    # x=1, w=1 (no zero-point), matmul=1, scale=2^65*2^65/2^124 = 2^130/2^124 = 2^6 = 64
+    # Expected output: clip(round(1 * 64), 0, 255) = 64
+    assert tvm_val[0, 0, 0, 0] == 64, (
+        f"Expected 64 (scale product computed in float64) but got {tvm_val[0, 0, 0, 0]}. "
+        "Scale product likely overflowed float32."
+    )
+
+    # Also verify zero accumulator does not turn into NaN when multiplier overflows float32
+    feed_inputs_zero = dict(feed_inputs)
+    feed_inputs_zero["x"] = np.zeros([1, channels, 1, 1], dtype=np.uint8)
+    feed_inputs_zero["y_zp"] = np.array(128, dtype=np.uint8)
+    tvm_out_zero = run_in_tvm(model, inputs=feed_inputs_zero, opset=10)
+    tvm_val_zero = (
+        tvm_out_zero[0].numpy() if isinstance(tvm_out_zero, list | tuple) else tvm_out_zero.numpy()
+    )
+    assert tvm_val_zero[0, 0, 0, 0] == 128, (
+        f"Expected 128 for zero accumulator with scale overflow, but got {tvm_val_zero[0, 0, 0, 0]}"
+    )
 
 
 if __name__ == "__main__":
