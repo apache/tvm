@@ -660,6 +660,23 @@ def _get_prefill_kernel_config(
             merged_kv,
             max_shared_memory_per_block,
         )
+    if target.kind.name == "cuda":
+        # These kernels use static shared memory, whose CUDA limit is 48 KiB.
+        tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(
+            tile_x,
+            tile_y,
+            tile_z,
+            original_tile_z,
+            max_tile_x,
+            d,
+            d_v,
+            dtype,
+            LOAD_VEC,
+            bdx,
+            num_warps,
+            merged_kv,
+            min(int(target.attrs.get("max_shared_memory_per_block", 49152)), 49152),
+        )
     if target.kind.name == "opencl" and (
         ("android" in str(target.host)) or ("adreno" in str(target.attrs))
     ):
