@@ -4990,6 +4990,12 @@ def test_cat():
         def forward(self, x, y):
             return torch.cat((x, y), dim=0)
 
+    class CatMutate(Module):
+        def forward(self, x, indices, values):
+            y = torch.cat((x,), dim=0)
+            y.index_put_((indices,), values)
+            return x
+
     @I.ir_module
     class Expected1:
         @R.function
@@ -5025,15 +5031,35 @@ def test_cat():
             inp_1: R.Tensor((2, 3), dtype="float32"),
         ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
-                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (inp_1,)
+                lv: R.Tensor((2, 3), dtype="float32") = R.concat((inp_1,), axis=0)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+            
+    @I.ir_module
+    class Expected4:
+        @R.function
+        def main(
+            x: R.Tensor((3,), dtype="float32"),
+            indices: R.Tensor((1,), dtype="int64"),
+            values: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (x,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
     example_args_empty = (torch.tensor([], dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
+    example_args_mutate = (
+        torch.randn(3, dtype=torch.float32),
+        torch.tensor([0], dtype=torch.int64),
+        torch.randn(1, dtype=torch.float32),
+    )
     verify_model(Cat0(), example_args, {}, Expected1)
     verify_model(Cat1(), example_args, {}, Expected2)
     verify_model(Cat2(), example_args_empty, {}, Expected3)
+    verify_model(CatMutate(), example_args_mutate, {}, Expected4)
 
 
 def test_cumsum():
