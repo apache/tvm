@@ -2370,17 +2370,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return k - offset if k >= offset else -1
 
         own_axes = [own_extent_axis(k, idx) for k, idx in enumerate(adv_indices)]
-        if adjacent and all(axis is not None for axis in own_axes):
+        broadcast_ndim = max(idx.ty.ndim for idx in adv_indices)
+        if adjacent and broadcast_ndim == num_adv and all(axis is not None for axis in own_axes):
             result = data
             for axis, idx, own_axis in reversed(list(zip(adv_axes, adv_indices, own_axes))):
                 if own_axis == -1:
                     idx = self.block_builder.emit(relax.op.reshape(idx, [1]))
                 elif idx.ty.ndim > 1:
-                    if is_one(idx.ty.shape.values[own_axis]):
+                    own_dim = idx.ty.shape.values[own_axis]
+                    if isinstance(own_dim, int | tvm_tirx.ir.IntImm) and not is_one(own_dim):
+                        idx = self.block_builder.emit(relax.op.squeeze(idx))
+                    else:
                         squeeze_axes = [a for a in range(idx.ty.ndim) if a != own_axis]
                         idx = self.block_builder.emit(relax.op.squeeze(idx, squeeze_axes))
-                    else:
-                        idx = self.block_builder.emit(relax.op.squeeze(idx))
                 result = self.block_builder.emit(relax.op.take(result, idx, axis=axis))
             return result
 

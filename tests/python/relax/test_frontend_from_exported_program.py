@@ -7502,6 +7502,8 @@ def test_take():
         # orthogonal index shapes, as in decomposed interpolate
         (lambda x, h, w: x[:, :, h, w], (1, 3, 4, 5), ([[0], [1], [3]], [4, 0])),
         (lambda x, h, w: x[:, h, w], (2, 4, 5), ([[3]], [4, 0, 1])),
+        # broadcast rank below the number of index tensors
+        (lambda x, i, j, k: x[:, i, j, k], (2, 3, 4, 5), ([[2]], [[0], [3]], [4, 1])),
     ],
 )
 def test_index_tensor_with_sliced_dims(index_fn, data_shape, indices):
@@ -7512,6 +7514,25 @@ def test_index_tensor_with_sliced_dims(index_fn, data_shape, indices):
     x = torch.arange(int(np.prod(data_shape)), dtype=torch.float32).reshape(data_shape)
     example_args = (x, *(torch.tensor(idx) for idx in indices))
     verify_model_numerically(Index(), example_args)
+
+
+@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
+def test_index_tensor_with_sliced_dims_symbolic_index_extents():
+    class Index(Module):
+        def forward(self, x, h, w):
+            return x[:, :, h, w]
+
+    example_args = (
+        torch.arange(60, dtype=torch.float32).reshape(1, 3, 4, 5),
+        torch.tensor([[0], [1], [3]]),
+        torch.tensor([4, 0]),
+    )
+    dynamic_shapes = {
+        "x": None,
+        "h": {0: torch.export.Dim("n", max=4)},
+        "w": {0: torch.export.Dim("m", max=5)},
+    }
+    verify_model_numerically(Index(), example_args, dynamic_shapes=dynamic_shapes)
 
 
 def test_any():
