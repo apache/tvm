@@ -172,6 +172,7 @@ def relax_check_gradients(
             orig = grad_bb.emit(call)
             # op_grad_func returns a list of Exprs representing the gradients
             grad_call = op_grad_func(orig, call, grad_var, grad_bb)
+            assert len(grad_call) == len(call.args)
 
             # Check ignore_grads
             for i, grad in enumerate(grad_call):
@@ -313,11 +314,12 @@ def test_ones_zeros(create_op_func):
     )
 
 
+@pytest.mark.parametrize("k", [0, 1])
 @pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
-def test_triu():
+def test_triu(k):
     target = "llvm"
     data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
-    relax_check_gradients(relax.op.triu, [data_numpy], target, k=0)
+    relax_check_gradients(relax.op.triu, [data_numpy], target, ignore_grads=[1], k=k)
 
 
 ##################### Statistical #####################
