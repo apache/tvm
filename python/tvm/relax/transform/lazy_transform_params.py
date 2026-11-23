@@ -23,6 +23,8 @@ from tvm import relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm_tirx import IRModule
 
+from . import _ffi_api
+
 
 @visitor
 class ForwardCollector(PyExprVisitor):
@@ -347,7 +349,8 @@ class LazyTransformParams:
     Convert transform_params functions into a lazy version.
     (Load the input to memory on demand, and immediately free it after the last use.)
 
-    Note: ToNonDataflow() and RemovePurityTracking() should be invoked before this pass.
+    Parameter transform functions are converted to ordinary binding blocks before
+    this pass inserts impure callbacks.
 
     Parameters
     ----------
@@ -394,7 +397,7 @@ class LazyTransformParams:
                 func = mod[gv]
                 if not isinstance(func, relax.Function):
                     continue
-                func = lazy_mutator.transform(func)
+                func = lazy_mutator.transform(_ffi_api.ToNonDataflowExpr(func))
                 builder.update_func(gv, func)
 
         return builder.get()

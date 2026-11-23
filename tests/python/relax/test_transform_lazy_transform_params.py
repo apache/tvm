@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
+import pytest
 import tvm_ffi
 
 import tvm
@@ -27,6 +28,30 @@ from tvm.relax.transform import LazyTransformParams
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import ir as I
 from tvm_tirx.script import tirx as T
+
+
+@pytest.mark.parametrize("bundle_first", [True, False])
+def test_lazy_transform_params_with_model_param_passes(bundle_first):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((4, 8), "float32"), weight: R.Tensor((8, 8), "float32")) -> R.Tensor(
+            (4, 8), "float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                transposed = R.permute_dims(weight)
+                result = R.matmul(x, transposed)
+                R.output(result)
+            return result
+
+    bundle = relax.transform.BundleModelParams()
+    lift = relax.transform.LiftTransformParams()
+    prepared = lift(bundle(Before)) if bundle_first else bundle(lift(Before))
+    after = LazyTransformParams()(prepared)
+
+    relax.analysis.check_well_formed(after)
+    tvm_tirx.ir.assert_structural_equal(after["main"], prepared["main"])
 
 
 def test_lazy_transform_params():
