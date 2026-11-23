@@ -145,6 +145,23 @@ def test_rewrite_cuda_graph():
     tvm_tirx.ir.assert_structural_equal(after, Expected)
 
 
+def test_capture_returned_packed_call_result():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float32")) -> R.Tensor((8,), "float32"):
+            R.func_attr({"num_input": 0, "relax.force_pure": True})
+            result = R.call_packed("dummy", x, ty_args=[R.Tensor((8,), "float32")])
+            return result
+
+    after = relax.transform.RewriteCUDAGraph()(Before)
+    relax.analysis.check_well_formed(after)
+    capture = after["main_cuda_graph_capture"]
+    tvm_tirx.ir.assert_structural_equal(
+        capture.ret_ty, relax.TupleType([relax.TensorType((8,), "float32")])
+    )
+
+
 def test_tuple():
     # fmt: off
     @I.ir_module

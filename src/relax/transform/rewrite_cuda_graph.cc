@@ -340,6 +340,14 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     current_function_scope_.alloc_storage_builder = nullptr;
   }
 
+  void VisitExpr_(const SeqExprObj* seq_expr) final {
+    ExprVisitor::VisitExpr_(seq_expr);
+    // The result is evaluated outside the capture regions in the binding blocks.
+    for (const Var& var : FreeVars(seq_expr->body)) {
+      MarkAsFuncOutput({var.get()});
+    }
+  }
+
   void VisitBindingBlock_(const BindingBlockObj* binding_block) final {
     BindingSBlockScope new_scope;
     std::swap(new_scope, current_block_scope_);
