@@ -2133,9 +2133,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 continue
             filtered.append(t)
 
-        # Handles singleton with rank and axis bounds validation
+        # Handles all-empty concatenation
         if not filtered:
             filtered = tensors
+            axis = 0
 
         if len(filtered) == 1:
             tensor = filtered[0]
