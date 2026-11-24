@@ -47,6 +47,7 @@ from ._kernel_common import (
     _get_seq_offset,
     _length_info_buffer,
     _make_prefill_macros,
+    _prefill_softmax_simd_width,
     _rope,
     _schedule_prefill_kernel,
 )
@@ -228,7 +229,7 @@ def _attention_prefill(
     if sliding_window:
         global_symbol += "_sliding_window"
 
-    init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size)
+    init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, tile_y, bdx, num_warps, group_size, softmax_simd_width=_prefill_softmax_simd_width(target))
 
     # pylint: disable=too-many-branches
     batch_size = T.dynamic("batch_size", "int32")
@@ -759,7 +760,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     if target.kind.name == "webgpu" and dtype == "float32" and d_qk == d_v == 512:
         return _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling)
     NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target, d_v=d_v)
-    init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size)
+    init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, _, advance_tile_batch, paged_store_output_lse, *_ = _make_prefill_macros(tile_x, tile_y, tile_z, d_v, bdx, num_warps, group_size, softmax_simd_width=_prefill_softmax_simd_width(target))
 
     batch_size = T.dynamic("batch_size", "int32")
     qo_len = T.dynamic("qo_len", "int32")

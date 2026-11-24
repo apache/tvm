@@ -196,7 +196,7 @@ def _alloc_tile_walk_state():
     """Return (tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len) int32 scalars for the paged/ragged/MLA tile-walk state machine."""
     return _var("int32"), _var("int32"), _var("int32"), _var("int32"), _var("int32"), _var("int32")
 
-def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_size):
+def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_size, softmax_simd_width=0):
     """Build @T.macro helpers shared across tiled online-softmax prefill kernels.
 
     Parameters
@@ -205,6 +205,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     tile_y : int  # QK reduction dim (head_dim for MHA, d_qk for MLA/ragged)
     tile_z : int  # key/value column tile
     tile_o : int  # output/V column dim (d for MHA/sequence, d_v for ragged, d_latent for MLA)
+    softmax_simd_width : int  # if > 0, split softmax_update_causal rows across lanes of SIMD groups this wide
     """
     @T.macro
     def init_states(
@@ -281,6 +282,66 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     d_smem[row] = d_new[i]
                     m_prev_smem[row] = m_prev[i]
         T.gpu_storage_sync("shared")
+
+    lanes = bdx * num_warps // tile_x
+    use_lanes = (
+        bdx * num_warps == tile_x * lanes
+        and 1 < lanes <= softmax_simd_width  # a row's lanes must share one SIMD group
+        and bdx % lanes == 0
+        and lanes & (lanes - 1) == 0
+        and tile_z % lanes == 0
+    )
+    shuffle_steps = lanes.bit_length() - 1
+
+    @T.macro
+    def shuffle_lane_pair(shuffled: T.Tensor, value: T.float32, offset: T.int32):
+        # Relative shuffles: a subgroup may span several threadIdx.y rows, so tx is not its lane id.
+        shuffled[0] = T.gpu_warp_shuffle_up(T.gpu_warp_activemask(), value, offset, softmax_simd_width, softmax_simd_width)
+        shuffled[1] = T.gpu_warp_shuffle_down(T.gpu_warp_activemask(), value, offset, softmax_simd_width, softmax_simd_width)
+
+    @T.macro
+    def softmax_update_causal_lanes(
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
+        ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
+        causal: T.int32, kv_len: T.int32, qo_len: T.int32, sliding_window_size: T.int32,
+    ):
+        row: T.let[T.int32] = (ty * bdx + tx) // lanes
+        lane: T.let[T.int32] = tx % lanes
+        row_: T.let[T.int32] = (LH_start + row) // group_size
+        with Ts.sblock("update"):
+            S_lane = Ts.sblock_alloc_tensor((tile_z // lanes,), "float32", scope="local")
+            # Values from lane +- offset, read by every lane before picking lane ^ offset.
+            shuffled = Ts.sblock_alloc_tensor((2,), "float32", scope="local")
+            m_prev[0] = m_smem[row]
+            m_new[0] = m_smem[row]
+            for jj in T.serial(tile_z // lanes):
+                S_lane[jj] = T.if_then_else(
+                    _causal_or_sliding_cross_mask(causal, row=row_, col=L_kv_start + jj * lanes + lane, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size),
+                    S_smem[row, jj * lanes + lane],
+                    -5e4,
+                )
+                m_new[0] = T.max(m_new[0], S_lane[jj])
+            for step in T.unroll(shuffle_steps):
+                shuffle_lane_pair(shuffled, m_new[0], (lanes // 2) >> step)
+                m_new[0] = T.max(m_new[0], T.if_then_else(T.bitwise_and(tx, (lanes // 2) >> step) != 0, shuffled[0], shuffled[1]))
+            d_new[0] = 0.0
+            for jj in T.serial(tile_z // lanes):
+                S_lane[jj] = T.exp2(S_lane[jj] - m_new[0])
+                d_new[0] += S_lane[jj]
+            for jj in T.serial(tile_z // lanes):
+                S_smem[row, jj * lanes + lane] = S_lane[jj]
+            for step in T.unroll(shuffle_steps):
+                shuffle_lane_pair(shuffled, d_new[0], (lanes // 2) >> step)
+                d_new[0] += T.if_then_else(T.bitwise_and(tx, (lanes // 2) >> step) != 0, shuffled[0], shuffled[1])
+            if lane == 0:
+                m_smem[row] = m_new[0]
+                d_smem[row] = d_smem[row] * T.exp2(m_prev[0] - m_new[0]) + d_new[0]
+                m_prev_smem[row] = m_prev[0]
+        T.gpu_storage_sync("shared")
+
+    if use_lanes:
+        softmax_update_causal = softmax_update_causal_lanes
 
     @T.macro
     def compute_o_gemm(
@@ -601,6 +662,15 @@ def _fit_prefill_config_to_shared_memory(
         f"initial tile requires {required} bytes, target allows "
         f"{max_shared_memory_per_block} bytes"
     )
+
+def _prefill_softmax_simd_width(target: Target) -> int:
+    """SIMD width for splitting prefill softmax rows across lanes, or 0 to keep one thread per row.
+
+    Only Metal enables it; other targets keep one thread per row.
+    """
+    if target.kind.name == "metal":
+        return int(target.attrs["thread_warp_size"])
+    return 0
 
 def _get_prefill_kernel_config(
     h_kv, h_q, d, dtype, target: Target, *, d_v=None, merged_kv=False
