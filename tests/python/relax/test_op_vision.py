@@ -1411,6 +1411,67 @@ def test_all_class_non_max_suppression_legalize_e2e():
     tvm_tirx.testing.assert_allclose(selected_indices.shape, (num_total_detections, 3))
 
 
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+@pytest.mark.parametrize(
+    "boxes, scores, iou_threshold, score_threshold, expected",
+    [
+        # Scores below -1 that pass score_threshold are kept.
+        (
+            [[0, 0, 4, 4], [10, 10, 14, 14], [20, 20, 24, 24]],
+            [-2.0, -3.0, -4.0],
+            0.5,
+            -5.0,
+            [[0, 0, 0], [0, 0, 1], [0, 0, 2]],
+        ),
+        # A box with a negative score is still suppressed by an overlapping box.
+        (
+            [[0, 0, 4, 4], [0.2, 0.2, 4.2, 4.2], [20, 20, 24, 24]],
+            [0.9, -0.2, -5.0],
+            0.5,
+            -1.0,
+            [[0, 0, 0]],
+        ),
+        # iou_threshold=0 suppresses any overlap but keeps disjoint boxes.
+        (
+            [[0, 0, 4, 4], [0.2, 0.2, 4.2, 4.2], [20, 20, 24, 24]],
+            [0.9, 0.8, 0.7],
+            0.0,
+            0.0,
+            [[0, 0, 0], [0, 0, 2]],
+        ),
+    ],
+)
+def test_all_class_non_max_suppression_e2e_non_positive_values(
+    boxes, scores, iou_threshold, score_threshold, expected
+):
+    @tvm_tirx.script.ir_module
+    class NMSModule:
+        @R.function
+        def main(
+            boxes: R.Tensor((1, 3, 4), "float32"),
+            scores: R.Tensor((1, 1, 3), "float32"),
+        ) -> R.Tuple(R.Tensor(dtype="int64", ndim=2), R.Tensor((1,), "int64")):
+            return R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(3, "int64"),
+                R.const(iou_threshold, "float32"),
+                R.const(score_threshold, "float32"),
+                "onnx",
+            )
+
+    exe = tvm.compile(LegalizeOps()(NMSModule), target="llvm")
+    vm = relax.VirtualMachine(exe, tvm_tirx.cpu())
+    result = vm["main"](
+        tvm_tirx.runtime.tensor(np.array([boxes], dtype=np.float32), tvm_tirx.cpu()),
+        tvm_tirx.runtime.tensor(np.array([[scores]], dtype=np.float32), tvm_tirx.cpu()),
+    )
+
+    num_total_detections = int(result[1].numpy()[0])
+    selected_indices = result[0].numpy()[:num_total_detections]
+    np.testing.assert_array_equal(selected_indices, np.array(expected, dtype=np.int64))
+
+
 def test_multibox_transform_loc_op_correctness():
     cls = relax.Var("cls", R.Tensor((1, 5, 10), "float32"))
     loc = relax.Var("loc", R.Tensor((1, 40), "float32"))
