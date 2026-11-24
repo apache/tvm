@@ -64,7 +64,9 @@ Pass ToNonDataflow() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.ToNonDataflow", ToNonDataflow);
+  refl::GlobalDef()
+      .def("relax.transform.ToNonDataflow", ToNonDataflow)
+      .def("relax.transform.ToNonDataflowExpr", relax::ToNonDataflow);
 }
 
 }  // namespace transform
