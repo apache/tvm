@@ -52,7 +52,7 @@ def rope(values, positions):
 
 @pytest.mark.gpu
 @pytest.mark.parametrize("device_type", ["cuda", "metal"])
-@pytest.mark.parametrize("layout", ["ragged", "paged", "sliding"])
+@pytest.mark.parametrize("layout", ["ragged", "ragged_sliding", "paged", "sliding"])
 @pytest.mark.parametrize("rotary", [0, 1])
 @pytest.mark.parametrize("causal", [0, 1])
 @pytest.mark.parametrize("first_kv_length", [1, 23])
@@ -90,6 +90,9 @@ def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
                 mask = np.arange(nk)[None, :] >= np.maximum(
                     nk - np.maximum(15 - np.arange(nq)[:, None], 0), 0
                 )
+            elif layout == "ragged_sliding":
+                pos = np.arange(nq)[:, None] + nk - nq
+                mask = (np.arange(nk)[None, :] <= pos) & (np.arange(nk)[None, :] > pos - 5)
             else:
                 mask = np.arange(nk)[None, :] <= np.arange(nq)[:, None] + nk - nq
         for row in range(nq):
@@ -109,9 +112,11 @@ def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
     def tensor(value):
         return tvm_tirx.runtime.tensor(value, device)
 
-    if layout == "ragged":
+    extra = []
+    if layout.startswith("ragged"):
         func = _attention_prefill_ragged_parallel(2, 8, {})
         args = [tensor(q), tensor(qi), tensor(k), tensor(v), tensor(ki), tensor(qp), tensor(kp)]
+        extra = [5 if layout == "ragged_sliding" else 0]
     else:
         sliding = layout == "sliding"
         offsets = [3, 17] if sliding else [0, 0]
@@ -145,7 +150,7 @@ def test_parallel_prefill(device_type, layout, rotary, causal, first_kv_length):
     module = tvm.compile(
         tvm_tirx.IRModule({"main": func.with_attr("global_symbol", "main")}), target=target
     )
-    module(*args, output, lse, causal, rotary, 1.0, 10000.0, scale)
+    module(*args, output, lse, causal, rotary, 1.0, 10000.0, scale, *extra)
     tvm_tirx.testing.assert_allclose(output.numpy(), reference, rtol=2e-4, atol=2e-5)
     tvm_tirx.testing.assert_allclose(lse.numpy(), reference_lse, rtol=2e-5, atol=2e-5)
 

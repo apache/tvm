@@ -160,6 +160,118 @@ def test_paged_prefill_layer_sliding_window_mask(device_type):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @pytest.mark.parametrize("device_type", ["cuda", "metal"])
+@pytest.mark.parametrize("sliding_window_size", [0, 3])
+# 200 tokens leave whole key tiles before the window for the later rows.
+@pytest.mark.parametrize("length", [6, 200])
+def test_ragged_prefill_sliding_window_mask(device_type, sliding_window_size, length):
+    if not device_enabled(device_type):
+        pytest.skip(f"{device_type} not enabled")
+
+    dev = tvm_ffi.device(device_type)
+    target = tvm_tirx.target.Target.from_device(dev)
+    head_dim, num_kv_heads, num_qo_heads = 64, 2, 4
+    tir_func = _attention_prefill_ragged(
+        num_kv_heads, num_qo_heads, head_dim, head_dim, "float16", {}, target
+    )
+    built = tvm_tirx.tirx.compile(tir_func, target=target).mod
+
+    # Zero queries give uniform weights, so each output is the mean of the visible values.
+    values = np.arange(1, length + 1, dtype="float16")
+    v = np.broadcast_to(values[:, None, None], (length, num_kv_heads, head_dim)).copy()
+    indptr = np.array([0, length], dtype="int32")
+    arrays = [
+        np.zeros((length, num_qo_heads, head_dim), dtype="float16"),  # q
+        indptr,
+        np.zeros((length, num_kv_heads, head_dim), dtype="float16"),  # k
+        v,
+        indptr,
+        np.arange(length, dtype="int32"),  # q_rope_position
+        np.array([0], dtype="int32"),  # k_rope_pos_offset
+        np.zeros((length, num_qo_heads, head_dim), dtype="float16"),  # output
+        np.zeros((length, num_qo_heads), dtype="float32"),  # lse
+    ]
+    args = [tvm_tirx.runtime.tensor(array, device=dev) for array in arrays]
+    window = sliding_window_size or length
+    expected = [values[max(0, row - window + 1) : row + 1].mean() for row in range(length)]
+
+    def run_and_check():
+        built.main(*args, 1, 0, 1.0, 10000.0, 1 / math.sqrt(head_dim), sliding_window_size)
+        tvm_tirx.testing.assert_allclose(args[7].numpy()[:, 0, 0], expected, rtol=1e-3, atol=1e-3)
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize("device_type", ["cuda", "metal"])
+def test_paged_attention_kv_cache_layer_sliding_window_long_prefill(device_type):
+    if not device_enabled(device_type):
+        pytest.skip(f"{device_type} not enabled")
+
+    head_dim, dtype, window = 64, "float16", 8
+    rng = np.random.default_rng(0)
+
+    def run_and_check():
+        global device, fattn_prefill_sliding_window
+        device = tvm_ffi.device(device_type)
+        target = tvm_tirx.target.Target.from_device(device)
+        set_global_func(head_dim, dtype, target)
+        # The cross-attention kernel bakes in the window, so it must match the cache's.
+        fattn_prefill_sliding_window = tvm_tirx.tirx.compile(
+            _attention_prefill(
+                num_kv_heads,
+                num_qo_heads,
+                head_dim,
+                dtype,
+                True,
+                rope_scaling,
+                target,
+                sliding_window_size=window,
+            ),
+            target=target,
+        ).mod.main
+        try:
+            # Layer 0 slides; the others are global, as in Gemma 3 and gpt-oss.
+            attn_kinds = [AttnKind.MHA_SLIDING] + [AttnKind.MHA] * (num_layers - 1)
+            cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False, attn_kinds, window)
+            fadd_sequence(cache, 0)
+            keys = np.zeros((0, num_kv_heads, head_dim), dtype="float32")
+            values = np.zeros((0, num_kv_heads, head_dim), dtype="float32")
+            # Both chunks are longer than the window; the second one also reads the cache.
+            for length in [20, 20]:
+                qkv = rng.random((length, num_qo_heads + 2 * num_kv_heads, head_dim)).astype(dtype)
+                fbegin_forward(cache, Shape([0]), Shape([length]))
+                output = tvm_tirx.runtime.empty(
+                    (length, num_qo_heads, head_dim), dtype, device=device
+                )
+                fattention_with_fuse_qkv(
+                    cache, 0, head_dim**-0.5, tvm_tirx.runtime.tensor(qkv, device=device), output
+                )
+                fend_forward(cache)
+
+                q = qkv[:, :num_qo_heads].astype("float32")
+                keys = np.concatenate([keys, qkv[:, num_qo_heads : num_qo_heads + num_kv_heads]])
+                values = np.concatenate([values, qkv[:, num_qo_heads + num_kv_heads :]])
+                group = num_qo_heads // num_kv_heads
+                k = np.repeat(keys, group, axis=1)
+                v = np.repeat(values, group, axis=1)
+                scores = np.einsum("qhd,khd->hqk", q, k) * head_dim**-0.5
+                pos = np.arange(length)[:, None] + len(keys) - length
+                col = np.arange(len(keys))[None, :]
+                scores = np.where((col <= pos) & (col > pos - window), scores, -np.inf)
+                weights = np.exp(scores - scores.max(axis=-1, keepdims=True))
+                weights /= weights.sum(axis=-1, keepdims=True)
+                expected = np.einsum("hqk,khd->qhd", weights, v)
+                tvm_tirx.testing.assert_allclose(output.numpy(), expected, rtol=1e-2, atol=1e-2)
+        finally:
+            device = None
+
+    tvm_tirx.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
+@pytest.mark.parametrize("device_type", ["cuda", "metal"])
 def test_paged_attention_kv_cache_sliding_window_two_sequences(device_type):
     if not device_enabled(device_type):
         pytest.skip(f"{device_type} not enabled")
@@ -291,7 +403,14 @@ def set_global_func(head_dim, dtype, target):
     ) = builts
 
 
-def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
+def create_kv_cache(
+    head_dim,
+    dtype,
+    rope_mode,
+    support_sliding_window,
+    attn_kinds=None,
+    layer_sliding_window_size=1024,
+):
     fcreate = tvm_ffi.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
         tvm_ffi.Shape(
@@ -301,6 +420,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
                 prefill_chunk_size,
                 page_size,
                 int(support_sliding_window),
+                layer_sliding_window_size,
             ]
         ),
         tvm_ffi.Shape([0, num_layers]),
@@ -308,7 +428,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         num_kv_heads,
         head_dim,
         head_dim,  # v_head_dim
-        tvm_ffi.Shape([int(AttnKind.MHA) for _ in range(num_layers)]),
+        tvm_ffi.Shape([int(kind) for kind in attn_kinds or [AttnKind.MHA] * num_layers]),
         False,  # enable_kv_transfer
         rope_mode,
         rope_scale,

@@ -87,6 +87,7 @@ def _parallel_prefill_body(
         page_values,
         length_info,
         part_idx=0,
+        ragged_window=0,
     ):
         for row in T.parallel(q.shape[0], annotations={"thread_binding": "blockIdx.x"}):
             for head in T.parallel(h_q, annotations={"thread_binding": "blockIdx.y"}):
@@ -129,7 +130,11 @@ def _parallel_prefill_body(
                                 count - T.max(sliding_window_size - (row - q_indptr[b[0]]) - 1, 0),
                                 0,
                             ),
-                            0,
+                            T.if_then_else(
+                                causal != 0 and ragged_window > 0,
+                                T.max(limit - ragged_window, 0),
+                                0,
+                            ),
                         )
                         width: T.let[T.int32] = T.ceildiv(T.max(limit - first, 0), partitions)
                         partition_first: T.let[T.int32] = T.min(limit, first + part_idx * width)
@@ -272,6 +277,7 @@ def _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling):
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        sliding_window_size: T.int32,
     ):
         body(
             q,
@@ -290,6 +296,7 @@ def _attention_prefill_ragged_parallel(h_kv, h_q, rope_scaling):
             sm_scale,
             kv_indptr,
             kv_indptr,
+            ragged_window=sliding_window_size,
         )
 
     return batch_prefill_ragged_kv.with_attr("tirx.is_scheduled", True)

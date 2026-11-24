@@ -716,7 +716,8 @@ def test_per_layer_sliding_window():
     rng = np.random.default_rng(0)
     cached_k = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
     cached_v = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
-    for append_length in [3, 2, 1]:
+    # The 7- and 5-token chunks exceed the window, so self-attention must slide too.
+    for append_length in [3, 2, 1, 7, 5]:
         past_length = cached_k.shape[0]
         q = rng.standard_normal((append_length, num_qo_heads, head_dim)).astype(dtype)
         current_k = rng.standard_normal((append_length, num_kv_heads, head_dim)).astype(dtype)
@@ -760,7 +761,8 @@ def test_attention_with_shared_kv(source_attn_kind, layer_window_size):
     rng = np.random.default_rng(0)
     cached_k = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
     cached_v = np.empty((0, num_kv_heads, head_dim), dtype=dtype)
-    for append_length in [3, 2, 1]:
+    # The 7- and 5-token chunks exceed the window, so self-attention must slide too.
+    for append_length in [3, 2, 1, 7, 5]:
         past_length = cached_k.shape[0]
         source_q = rng.standard_normal((append_length, num_qo_heads, head_dim)).astype(dtype)
         current_k = rng.standard_normal((append_length, num_kv_heads, head_dim)).astype(dtype)

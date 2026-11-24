@@ -130,11 +130,11 @@ def _causal_mask(causal, row, col, kv_len, qo_len):
         col < kv_len,
     )
 
-def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_window_size):
-    visible_past = T.max(sliding_window_size - row - 1, 0)
+def _sliding_window_mask(causal, row, col, kv_len, qo_len, sliding_window_size):
+    pos = kv_len - qo_len + row
     return T.if_then_else(
         tirx.And(causal > 0, sliding_window_size > 0),
-        tirx.And(col < kv_len, col >= T.max(kv_len - visible_past, 0)),
+        tirx.And(col < kv_len, tirx.And(col <= pos, col > pos - sliding_window_size)),
         _causal_mask(causal, row, col, kv_len, qo_len),
     )
 
@@ -255,7 +255,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
                     for j in T.serial(tile_z):
-                        if _causal_or_sliding_cross_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
+                        if _sliding_window_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         # Phase 2: exp-and-scale S_smem; masked-out entries use -inf
@@ -266,7 +266,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     # predicate sits inside loop so sync stays outside conditional branches
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
-                        if _causal_or_sliding_cross_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
+                        if _sliding_window_mask(causal, row=row_, col=L_kv_start + j, kv_len=kv_len, qo_len=qo_len, sliding_window_size=sliding_window_size):
                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                         else:
                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
