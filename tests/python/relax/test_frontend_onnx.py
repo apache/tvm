@@ -7978,6 +7978,25 @@ def test_constantofshape_initializer_shape_with_keep_params_in_input():
     assert tvm_model["main"].ret_ty.dtype == "int64"
 
 
+def test_constantofshape_runtime_shape():
+    """ConstantOfShape with a runtime shape input must be legalizable and compilable."""
+    node = helper.make_node(
+        "ConstantOfShape",
+        ["shape"],
+        ["y"],
+        value=helper.make_tensor("value", TensorProto.FLOAT, [1], [1.5]),
+    )
+    graph = helper.make_graph(
+        [node],
+        "constantofshape_runtime_shape_test",
+        inputs=[helper.make_tensor_value_info("shape", TensorProto.INT64, [3])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+    )
+    model = helper.make_model(graph, producer_name="constantofshape_runtime_shape_test")
+
+    check_correctness(model, inputs={"shape": np.array([2, 3, 4], dtype="int64")}, opset=17)
+
+
 def test_slice():
     def verify_slice(data_shape, output_shape, starts, ends, expected, axes=None, steps=None):
         if isinstance(starts, list):

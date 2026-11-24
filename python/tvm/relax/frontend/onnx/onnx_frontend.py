@@ -2728,9 +2728,16 @@ class ConstantOfShape(OnnxOpConverter):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
 
-        # Convert to shape expression from tensor if needed.
+        # Convert to shape expression from tensor if needed. When the shape length
+        # is known, bind each dim to a symbolic var so broadcast_to can be legalized.
         if not isinstance(shape, relax.ShapeExpr):
-            shape = relax.op.tensor_to_shape(shape)
+            shape_ndim = _get_known_tensor_length(shape)
+            if shape_ndim is None:
+                shape = relax.op.tensor_to_shape(shape)
+            else:
+                shape = _tensor_to_shape_expr(
+                    bb, _as_int64_tensor(bb, shape), shape_ndim, "constant_of_shape_dim"
+                )
 
         return relax.op.broadcast_to(relax.const(value, dtype), shape)
 
