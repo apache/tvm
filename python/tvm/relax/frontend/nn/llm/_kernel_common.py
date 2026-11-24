@@ -138,6 +138,14 @@ def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_wind
         _causal_mask(causal, row, col, kv_len, qo_len),
     )
 
+def _sliding_cross_kv_tile_begin(causal, row, kv_len, sliding_window_size, tile_z):
+    """First KV tile visible under the sliding cross mask, where ``row`` is the tile's
+    smallest query row. Rows with nothing visible keep the init state: zero output, lse -5e4."""
+    if sliding_window_size <= 0:
+        return 0
+    visible_past = T.max(sliding_window_size - row - 1, 0)
+    return T.if_then_else(causal > 0, T.max(kv_len - visible_past, 0) // tile_z, 0)
+
 def _length_info_buffer(batch_size, sliding_window, elem_offset):
     return (
         T.Tensor( (3, batch_size), "int32", layout=T.TileLayout(T.S[(3, batch_size)] + (elem_offset)))

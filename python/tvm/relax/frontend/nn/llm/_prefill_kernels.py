@@ -49,6 +49,7 @@ from ._kernel_common import (
     _make_prefill_macros,
     _rope,
     _schedule_prefill_kernel,
+    _sliding_cross_kv_tile_begin,
 )
 from ._prefill_parallel import (
     _attention_prefill_paged_parallel,
@@ -328,7 +329,7 @@ def _attention_prefill(
                                                 Q_smem[i, j] = 0.0
                                     T.gpu_storage_sync("shared")
 
-                                    for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
+                                    for iterator in T.serial(_sliding_cross_kv_tile_begin(causal, LH_start // group_size, kv_chunk_len[0], sliding_window_size if sliding_window else 0, tile_z), T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
                                         for lz, ly in T.grid(tile_z, tile_y):
                                             with Ts.sblock("K_load"):
