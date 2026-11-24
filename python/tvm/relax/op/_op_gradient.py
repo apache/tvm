@@ -45,7 +45,6 @@ from .manipulate import (
     collapse_sum_to,
     concat,
     expand_dims,
-    flatten,
     permute_dims,
     reshape,
     split,
@@ -822,23 +821,23 @@ def cumsum_grad(
     """Gradient of cumsum.
 
     Forward Form:
-        `y = relax.cumsum(x, axis)`
+        `y = relax.cumsum(x, axis, exclusive=exclusive)`
 
     Backward:
-        The "reversed" cumsum along the same axis. Implemented by some tricks now.
+        Sum the output gradients that follow each input along the scan axis.
+        An inclusive scan also includes the gradient at the current position.
     """
 
     axis = orig_call.attrs.axis
     dtype = orig_call.attrs.dtype
-    x_shape = _get_shape(orig_call.args[0])
-
     if axis is not None:
         axis = int(axis)
-        grad = sum(output_grad, axis, keepdims=True) - cumsum(output_grad, axis) + output_grad
-    else:
-        grad = reshape(
-            sum(output_grad, keepdims=True) - cumsum(output_grad) + flatten(output_grad), x_shape
-        )
+
+    grad = sum(output_grad, axis, keepdims=True) - cumsum(output_grad, axis)
+    if not orig_call.attrs.exclusive:
+        grad = grad + output_grad
+    if axis is None:
+        grad = reshape(grad, _get_shape(orig_call.args[0]))
 
     if dtype is not None:
         grad = astype(grad, _get_dtype(orig_call.args[0]))

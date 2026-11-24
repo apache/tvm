@@ -480,25 +480,17 @@ def test_reshape():
 
 
 @pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
-def test_cumsum():
+@pytest.mark.parametrize("axis", [None, 1])
+@pytest.mark.parametrize("exclusive", [False, True])
+def test_cumsum(axis, exclusive):
     target = "llvm"
     data_numpy1 = np.random.uniform(1, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(
         relax.op.cumsum,
         [data_numpy1],
         target,
-        axis=1,
-    )
-
-
-@pytest.mark.skipif(not device_enabled("llvm"), reason="llvm not enabled")
-def test_cumsum_no_axis():
-    target = "llvm"
-    data_numpy1 = np.random.uniform(1, 16, (3, 3)).astype(np.float32)
-    relax_check_gradients(
-        relax.op.cumsum,
-        [data_numpy1],
-        target,
+        axis=axis,
+        exclusive=exclusive,
     )
 
 
