@@ -5487,9 +5487,10 @@ def test_masked_scatter():
                     inp_1, axis=0, dtype="int32", exclusive=False
                 )
                 lv1: R.Tensor((5,), dtype="int32") = R.subtract(lv, R.const(1, "int32"))
-                lv2: R.Tensor((5,), dtype="float32") = R.take(inp_2, lv1, axis=0)
-                lv3: R.Tensor((5,), dtype="float32") = R.where(inp_1, lv2, inp_0)
-                gv: R.Tensor((5,), dtype="float32") = lv3
+                lv2: R.Tensor((5,), dtype="int32") = R.maximum(lv1, R.const(0, "int32"))
+                lv3: R.Tensor((5,), dtype="float32") = R.take(inp_2, lv2, axis=0)
+                lv4: R.Tensor((5,), dtype="float32") = R.where(inp_1, lv3, inp_0)
+                gv: R.Tensor((5,), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
@@ -5507,11 +5508,12 @@ def test_masked_scatter():
                     lv, axis=0, dtype="int32", exclusive=False
                 )
                 lv2: R.Tensor((10,), dtype="int32") = R.subtract(lv1, R.const(1, "int32"))
-                lv3: R.Tensor((15,), dtype="float32") = R.reshape(inp_2, R.shape([15]))
-                lv4: R.Tensor((10,), dtype="float32") = R.take(lv3, lv2, axis=0)
-                lv5: R.Tensor((2, 5), dtype="float32") = R.reshape(lv4, R.shape([2, 5]))
-                lv6: R.Tensor((2, 5), dtype="float32") = R.where(inp_1, lv5, inp_0)
-                gv: R.Tensor((2, 5), dtype="float32") = lv6
+                lv3: R.Tensor((10,), dtype="int32") = R.maximum(lv2, R.const(0, "int32"))
+                lv4: R.Tensor((15,), dtype="float32") = R.reshape(inp_2, R.shape([15]))
+                lv5: R.Tensor((10,), dtype="float32") = R.take(lv4, lv3, axis=0)
+                lv6: R.Tensor((2, 5), dtype="float32") = R.reshape(lv5, R.shape([2, 5]))
+                lv7: R.Tensor((2, 5), dtype="float32") = R.where(inp_1, lv6, inp_0)
+                gv: R.Tensor((2, 5), dtype="float32") = lv7
                 R.output(gv)
             return gv
 

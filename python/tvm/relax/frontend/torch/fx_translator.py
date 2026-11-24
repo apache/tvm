@@ -701,27 +701,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         self.env[node.args[0]] = src
         return src
 
-    def _masked_scatter(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        source = self.env[node.args[2]]
-        ndim = len(mask.ty.shape)
-        if ndim == 1:
-            index = self.block_builder.emit(relax.op.cumsum(mask, 0, dtype="int32"))
-            index = self.block_builder.emit(relax.op.subtract(index, relax.const(1, "int32")))
-            gathered_source = self.block_builder.emit(relax.op.take(source, index, axis=0))
-        else:
-            f_mask = self.block_builder.emit(relax.op.reshape(mask, [-1]))
-            index = self.block_builder.emit(relax.op.cumsum(f_mask, 0, dtype="int32"))
-            index = self.block_builder.emit(relax.op.subtract(index, relax.const(1, "int32")))
-            source_shape = [-1] + [s for idx, s in enumerate(source.ty.shape) if idx >= ndim]
-            f_source = self.block_builder.emit(relax.op.reshape(source, source_shape))
-            gathered_source = self.block_builder.emit(relax.op.take(f_source, index, axis=0))
-            gathered_source = self.block_builder.emit(relax.op.reshape(gathered_source, x.ty.shape))
-        if ndim != len(x.ty.shape):
-            mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.ty.shape))
-        return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
-
     def _one_hot(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         num_classes = node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
