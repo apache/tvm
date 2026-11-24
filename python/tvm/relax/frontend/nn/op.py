@@ -397,7 +397,7 @@ def conv1d(
     bias : Optional[Tensor]
         Optional bias tensor of shape [O].
 
-    strides : Optional[int | Tuple]
+    stride : Optional[int | Tuple]
         The strides of convolution. It is required to have length 1.
 
     padding : Optional[int | Tuple | str]
@@ -585,22 +585,22 @@ def conv1d_transpose(
 
     This operator can be seen as the gradient operator of conv1d.
 
-    The output shape can be explained in the simple case when `data_layout == "NCW"` and
-    `kernel_layout == "IOW"`. Suppose `data` has shape `(N, in_channel, in_w)`, `weight` has
-    shape `(in_channel, out_channel, weight_w)`, we need to assure that `in_channel % groups == 0`.
-    The shape of the output will be `(N, out_channel * groups, out_w)`, where
+    The input and weight layouts are fixed to `NCW` and `IOW`. Suppose `x` has shape
+    `(N, in_channel, in_w)`, `weight` has shape `(in_channel, out_channel, weight_w)`, we need
+    to assure that `in_channel % groups == 0`. The shape of the output will be
+    `(N, out_channel * groups, out_w)`, where
 
-    - `out_w = ((in_w - 1) * strides[0] + weight_w - 2 * padding[0] + output_padding[0])`
+    - `out_w = ((in_w - 1) * stride[0] + weight_w - 2 * padding[0] + output_padding[0])`
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         The input data to the operator.
 
     weight : Tensor
         The weight tensor.
 
-    strides : Union[int, Tuple[int]]
+    stride : Union[int, Tuple[int]]
         The strides of convolution. It is required to have length 1.
 
     padding : Union[int, Tuple[int, ...]]
@@ -617,18 +617,6 @@ def conv1d_transpose(
     groups : int
         Number of groups to split the input into for grouped convolution.
         The number of input and output channels should be divisible by the number of groups.
-
-    data_layout : str
-        Layout of the input.
-
-    kernel_layout : str
-        Layout of the weight.
-
-    out_layout : Optional[str]
-        Layout of the output. If not specified, it is the same as data_layout
-
-    out_dtype : Optional[str | tvm_ffi.dtype]
-        Specifies the output data type for mixed precision conv2d.
 
     Returns
     -------
@@ -800,7 +788,7 @@ def repeat(x: Tensor, repeats: int, axis: int | None = None, name="repeat") -> T
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         The input tensor.
 
     repeats : int
@@ -963,7 +951,7 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         The input data
 
     name : str
@@ -1023,7 +1011,7 @@ def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
 
     Parameters
     ----------
-    data: Tensor
+    x : Tensor
         The input data to the operator.
 
     name : str
@@ -1048,7 +1036,7 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
 
     Parameters
     ----------
-    data: Tensor
+    x : Tensor
         The input data to the operator.
 
     axis: int
@@ -1079,7 +1067,7 @@ def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = 
 
     Parameters
     ----------
-    data : relax.Expr
+    x : Tensor
         The input data.
 
     beta : float, optional
@@ -1091,7 +1079,7 @@ def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = 
 
     Returns
     -------
-    result : relax.Expr
+    result : Tensor
         The computed result.
     """
     return wrap_nested(_op.nn.softplus(x._expr, beta=beta, threshold=threshold), name)
@@ -1405,7 +1393,7 @@ def rms_norm(
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         Input to which rms_norm will be applied.
 
     weight : Tensor
@@ -1459,7 +1447,7 @@ def group_norm(
     bias : Tensor
         The beta offset factor.
 
-    epsilon : float
+    eps : float
         Small float added to square mean to avoid dividing by zero.
 
     channel_axis: int
@@ -1501,11 +1489,11 @@ def triu(x: Tensor, diagonal: int = 0, name: str = "triu") -> Tensor:
         The tensor that triu will be applied to.
         It is required to have at least two dimensions.
 
-    k : int
+    diagonal : int
         The index indicating the diagonal below which to zero elements.
-        If k = 0, the diagonal is the main diagonal.
-        If k < 0, the diagonal is below the main diagonal.
-        If k > 0, the diagonal is above the main diagonal.
+        If diagonal = 0, the diagonal is the main diagonal.
+        If diagonal < 0, the diagonal is below the main diagonal.
+        If diagonal > 0, the diagonal is above the main diagonal.
 
     name : str
         Name hint.
@@ -1684,7 +1672,7 @@ def pad(
     pad : List[int]
         List in the format of [before_0, after_0, before_1, after_1, ...]
         indicating how much to pad each axis of x.
-    mod : str
+    mode : str
         Padding mode to use, constant implies padded elements will use
         value argument.
     value : float
@@ -1931,7 +1919,7 @@ def ccl_allreduce(x: Tensor, op_type: str = "sum", in_group: bool = True, name="
 
     Parameters
     ----------
-    x : relax.Expr
+    x : Tensor
       The input tensor.
 
     op_type : str
@@ -1957,7 +1945,7 @@ def ccl_allgather(x: Tensor, num_workers: int, name="ccl_allgather"):
 
     Parameters
     ----------
-    x : relax.Expr
+    x : Tensor
       The input tensor.
 
     num_workers : int

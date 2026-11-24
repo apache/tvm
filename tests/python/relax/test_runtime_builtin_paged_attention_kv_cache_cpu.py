@@ -75,9 +75,12 @@ fattention_with_shared_kv = None
 fis_empty = None
 fdebug_get_kv = None
 fget_checkpoint_metadata = None
+fget_checkpoint_metadata_at = None
 fexport_page_group = None
+fexport_page_range = None
 fprepare_import = None
 fimport_page_group = None
+fimport_page_range = None
 ffinish_import = None
 fget_sequence_length = None
 
@@ -103,8 +106,10 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fattention_with_shared_kv, fis_empty, fdebug_get_kv
-    global fget_checkpoint_metadata, fexport_page_group
-    global fprepare_import, fimport_page_group, ffinish_import, fget_sequence_length
+    global fget_checkpoint_metadata, fget_checkpoint_metadata_at
+    global fexport_page_group, fexport_page_range
+    global fprepare_import, fimport_page_group, fimport_page_range
+    global ffinish_import, fget_sequence_length
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
     global \
         fattn_prefill_ragged, \
@@ -137,9 +142,14 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
     fget_checkpoint_metadata = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
     )
+    fget_checkpoint_metadata_at = tvm_ffi.get_global_func(
+        "vm.builtin.attention_kv_cache_get_checkpoint_metadata_at"
+    )
     fexport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fexport_page_range = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_export_page_range")
     fprepare_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
     fimport_page_group = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    fimport_page_range = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_import_page_range")
     ffinish_import = tvm_ffi.get_global_func("vm.builtin.attention_kv_cache_finish_import")
     fget_sequence_length = tvm_ffi.get_global_func(
         "vm.builtin.attention_kv_cache_get_sequence_length"
@@ -194,8 +204,7 @@ def set_global_func(head_dim, dtype, layer_sliding_window_size=1024):
             _compact_kv_copy_cpu(num_kv_heads, head_dim, dtype),
         ]:
             mod = tvm_tirx.IRModule({"main": tir_func})
-            with target:
-                mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback(), target=target)(mod)
             f = tvm_tirx.tirx.compile(mod["main"], target=target).mod
             builts.append(f.main)
         builts = tuple(builts)
@@ -870,6 +879,141 @@ def test_paged_attention_kv_cache_import_page_group_round_trip():
     np.random.set_state(random_state)
     apply_attention(dst_cache, RopeMode.NONE, [(0, 1)], dst_cached_k, dst_cached_v)
     verify_debug_kv_equal(src_cache, dst_cache, 0, metadata["seq_length"] + 1)
+
+
+def export_page_ranges(kv_cache, seq_length, page_begin):
+    page_end = (seq_length + page_size - 1) // page_size
+    shape = (1, page_end - page_begin, 2, num_kv_heads, page_size, head_dim)
+    groups = []
+    for layer in range(num_layers):
+        group_data = tvm_tirx.runtime.empty(shape, dtype=dtype, device=device)
+        fexport_page_range(kv_cache, 0, layer, seq_length, page_begin, page_end, group_data, 0)
+        groups.append(group_data)
+    return groups
+
+
+def test_paged_attention_kv_cache_incremental_checkpoint_round_trip():
+    global head_dim, sm_scale, dtype
+    head_dim = 64
+    dtype = "float32"
+    sm_scale = head_dim ** (-0.5)
+    set_global_func(head_dim, dtype)
+    src_cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False)
+
+    cached_k = {}
+    cached_v = {}
+    base_length = page_size * 2 + 3
+    apply_attention(src_cache, RopeMode.NONE, [(0, base_length)], cached_k, cached_v)
+    assert fget_checkpoint_metadata_at(src_cache, 0, base_length) == fget_checkpoint_metadata(
+        src_cache, 0
+    )
+    base = [group.numpy() for group in export_page_ranges(src_cache, base_length, 0)]
+
+    # Append past the base, including a speculative tail that is popped. Pages
+    # below the base length must export identically while later positions grow.
+    apply_attention(src_cache, RopeMode.NONE, [(0, page_size * 2)], cached_k, cached_v)
+    apply_attention(src_cache, RopeMode.NONE, [(0, 3)], cached_k, cached_v)
+    fpopn(src_cache, 0, 3)
+    cached_k[0] = cached_k[0][:, :-3, ...]
+    cached_v[0] = cached_v[0][:, :-3, ...]
+    for layer, group in enumerate(export_page_ranges(src_cache, base_length, 0)):
+        np.testing.assert_array_equal(group.numpy(), base[layer])
+    np.testing.assert_array_equal(base[0][0, 2, :, :, 3:, :], 0)
+
+    tip_length = base_length + page_size * 2
+    delta_begin = base_length // page_size
+    delta = export_page_ranges(src_cache, tip_length, delta_begin)
+    metadata_json = fget_checkpoint_metadata_at(src_cache, 0, tip_length)
+    assert json.loads(metadata_json)["seq_length"] == tip_length
+
+    dst_cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False)
+    fprepare_import(dst_cache, 0, metadata_json)
+    for layer in range(num_layers):
+        base_data = tvm_tirx.runtime.tensor(base[layer], device=device)
+        fimport_page_range(dst_cache, 0, layer, 0, delta_begin + 1, base_data, 0)
+        with pytest.raises(RuntimeError, match="unimported"):
+            # The base ends at a partial page; its last page must be overwritten
+            # by the delta, which starts there, before later pages.
+            fimport_page_range(
+                dst_cache, 0, layer, delta_begin + 2, delta_begin + 3, delta[layer], 2
+            )
+        fimport_page_range(dst_cache, 0, layer, delta_begin, delta_begin + 3, delta[layer], 0)
+        if layer == 0:
+            with pytest.raises(RuntimeError, match="missing group"):
+                ffinish_import(dst_cache, 0)
+    ffinish_import(dst_cache, 0)
+    assert fget_sequence_length(dst_cache, 0) == tip_length
+    verify_debug_kv_equal(src_cache, dst_cache, 0, tip_length)
+
+    dst_cached_k = {0: cached_k[0].copy()}
+    dst_cached_v = {0: cached_v[0].copy()}
+    random_state = np.random.get_state()
+    apply_attention(src_cache, RopeMode.NONE, [(0, 1)], cached_k, cached_v)
+    np.random.set_state(random_state)
+    apply_attention(dst_cache, RopeMode.NONE, [(0, 1)], dst_cached_k, dst_cached_v)
+    verify_debug_kv_equal(src_cache, dst_cache, 0, tip_length + 1)
+
+
+def test_paged_attention_kv_cache_page_range_bounds_and_offsets():
+    global head_dim, sm_scale, dtype
+    head_dim = 64
+    dtype = "float32"
+    sm_scale = head_dim ** (-0.5)
+    set_global_func(head_dim, dtype)
+    src_cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False)
+    fadd_sequence(src_cache, 0)
+
+    # Preserve whole-group export/import of a sequence with no tokens.
+    empty_metadata = fget_checkpoint_metadata(src_cache, 0)
+    dst_cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False)
+    fprepare_import(dst_cache, 0, empty_metadata)
+    empty = tvm_tirx.runtime.empty((1, 0, 2, num_kv_heads, page_size, head_dim), dtype, device)
+    for layer in range(num_layers):
+        fexport_page_group(src_cache, 0, layer, empty)
+        fimport_page_group(dst_cache, 0, layer, empty)
+    ffinish_import(dst_cache, 0)
+    assert fget_sequence_length(dst_cache, 0) == 0
+
+    fclear(src_cache)
+    length = page_size + 3
+    apply_attention(src_cache, RopeMode.NONE, [(0, length)], {}, {})
+    expected = export_page_ranges(src_cache, length, 0)
+    padded = tvm_tirx.runtime.tensor(
+        np.full((1, 4, 2, num_kv_heads, page_size, head_dim), -1, dtype=dtype), device=device
+    )
+    for bad_length in [-1, length + 1]:
+        with pytest.raises(RuntimeError, match="outside the sequence length"):
+            fget_checkpoint_metadata_at(src_cache, 0, bad_length)
+    for group_id, begin, end, offset in [
+        (-1, 0, 1, 0),
+        (num_layers, 0, 1, 0),
+        (0, -1, 1, 0),
+        (0, 2, 1, 0),
+        (0, 0, 3, 0),
+        (0, 0, 2, -1),
+        (0, 0, 2, 3),
+        (0, 0, 2, 2**63 - 1),
+    ]:
+        with pytest.raises(RuntimeError, match="group id|page range|out of range"):
+            fexport_page_range(src_cache, 0, group_id, length, begin, end, padded, offset)
+    wrong_dtype = tvm_tirx.runtime.empty(padded.shape, "float16", device)
+    with pytest.raises(RuntimeError, match="dtype"):
+        fexport_page_range(src_cache, 0, 0, length, 0, 2, wrong_dtype, 0)
+
+    fprepare_import(dst_cache, 0, fget_checkpoint_metadata_at(src_cache, 0, length))
+    for layer in range(num_layers):
+        fexport_page_range(src_cache, 0, layer, length, 0, 2, padded, 1)
+        data = padded.numpy()
+        np.testing.assert_array_equal(data[:, 1:3], expected[layer].numpy())
+        np.testing.assert_array_equal(data[:, [0, 3]], -1)
+        # An empty range at the end of a partially filled page is a no-op.
+        fexport_page_range(src_cache, 0, layer, length, 2, 2, padded, 0)
+        np.testing.assert_array_equal(padded.numpy(), data)
+        with pytest.raises(RuntimeError, match="out of range"):
+            fimport_page_range(dst_cache, 0, layer, 0, 2, padded, 3)
+        fimport_page_range(dst_cache, 0, layer, 0, 2, padded, 1)
+    ffinish_import(dst_cache, 0)
+    verify_debug_kv_equal(src_cache, dst_cache, 0, length)
 
 
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
