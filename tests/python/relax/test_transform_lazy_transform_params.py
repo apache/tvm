@@ -677,6 +677,71 @@ def test_output():
         tvm_tirx.testing.assert_allclose(expected_i, transformed_i)
 
 
+def test_output_is_tuple_param():
+    """The output may be the tuple parameter itself
+
+    With `LiftTransformParams(shared_transform=True)`, a
+    `transform_params` function that returns its tuple parameter
+    unchanged may be generated.  Each element must still be loaded
+    with get_item and written with set_item.
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def f1(
+            x: R.Tensor((8, 16), "float32"),
+            w1: R.Tensor((16, 16), "float32"),
+            w2: R.Tensor((16, 16), "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1t = R.permute_dims(w1, axes=[1, 0])
+                h1 = R.nn.relu(R.matmul(x, w1t))
+                h2 = R.matmul(h1, w2)
+                R.output(h2)
+            return h2
+
+        @R.function
+        def f2(
+            x: R.Tensor((8, 16), "float32"),
+            w1: R.Tensor((16, 16), "float32"),
+            w2: R.Tensor((16, 16), "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w2t = R.permute_dims(w2, axes=[1, 0])
+                h1 = R.nn.relu(R.matmul(x, w1))
+                h2 = R.matmul(h1, w2t)
+                R.output(h2)
+            return h2
+
+    mod = relax.transform.LiftTransformParams(shared_transform=True)(Module)
+    mod = relax.transform.LazyTransformParams()(mod)
+    relax.analysis.check_well_formed(mod)
+
+    dev = tvm_tirx.cpu()
+    built = tvm.compile(mod, target="llvm")
+    params = [np.random.random(size=(16, 16)).astype("float32") for _ in range(2)]
+    transformed = {}
+
+    @tvm_ffi.register_global_func("get_item", override=True)
+    def get_item(i):
+        return tvm_tirx.runtime.tensor(params[i], dev)
+
+    @tvm_ffi.register_global_func("set_item", override=True)
+    def set_item(i, value):
+        assert i not in transformed, f"Set item called multiple times for index {i}"
+        transformed[i] = value.numpy()
+
+    vm = relax.VirtualMachine(built, dev)
+    vm["transform_params"]()
+
+    assert sorted(transformed) == [0, 1]
+    for i, param in enumerate(params):
+        tvm_tirx.testing.assert_allclose(transformed[i], param)
+
+
 def test_duplicate_outputs():
     """A tensor may be repeated in the output
 

@@ -138,12 +138,46 @@ class LazyTransformParamsFuncCreator:
         self.out_tuple_var = None
         self.memory_free_insertion = None
 
+    @staticmethod
+    def _bind_output_tuple(func: relax.Function) -> relax.Function:
+        """Ensure the function returns a var bound to a tuple literal.
+
+        The output may be a tuple-typed var that is not bound to a
+        tuple literal, such as a tuple parameter that is returned
+        unchanged.  Unpack each element through TupleGetItem and
+        rebuild the tuple, so every element gets a set_item call.
+        """
+        seq_expr = func.body
+        output = seq_expr.body
+        if not isinstance(output, relax.Var) or not isinstance(output.ty, relax.TupleType):
+            return func
+        for block in seq_expr.blocks:
+            for binding in block.bindings:
+                if binding.var.same_as(output) and isinstance(binding.value, relax.Tuple):
+                    return func
+
+        bindings = []
+        fields = []
+        for i, field_ty in enumerate(output.ty.fields):
+            field = relax.Var(f"{output.name}_{i}", field_ty)
+            bindings.append(relax.VarBinding(field, relax.TupleGetItem(output, i)))
+            fields.append(field)
+        new_output = relax.Var("output", output.ty)
+        bindings.append(relax.VarBinding(new_output, relax.Tuple(fields)))
+        new_body = relax.SeqExpr(
+            [*seq_expr.blocks, relax.BindingBlock(bindings)], new_output, seq_expr.loc
+        )
+        return relax.Function(
+            func.params, new_body, func.ret_ty, func.is_pure, func.attrs, func.loc
+        )
+
     def transform(self, func: relax.Function) -> relax.Function:
         if "num_input" in func.attrs:
             num_input = func.attrs["num_input"]
         else:
             num_input = 0
 
+        func = self._bind_output_tuple(func)
         seq_expr = func.body
         self.out_tuple_var = seq_expr.body
 
