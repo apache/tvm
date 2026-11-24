@@ -176,10 +176,11 @@ class AsyncLocalSession : public LocalSession {
         ffi::Any rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
-          const void* pf = encoded_args[0].as<ffi::FunctionObj>();
+          // EncodeReturn passes (type_index, handle) for objects.
+          void* pf = encoded_args[1].cast<void*>();
           TVM_FFI_ICHECK(pf != nullptr);
           // mark as async.
-          async_func_set_.insert(const_cast<void*>(pf));
+          async_func_set_.insert(pf);
           callback(RPCCode::kReturn, encoded_args);
         });
       } catch (const std::runtime_error& e) {
