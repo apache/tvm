@@ -430,10 +430,10 @@ def triu_grad(
         `y = relax.triu(x, k)`
 
     Backward:
-        Returns `[triu(y_grad, k)]`.
+        Returns `[triu(y_grad, k), no_grad(k)]`.
     """
     k = orig_call.args[1]
-    return [triu(output_grad, k)]
+    return [triu(output_grad, k), no_grad(k)]
 
 
 ##################### Unary #####################
