@@ -5110,6 +5110,10 @@ def test_cat():
             y.index_put_((indices,), values)
             return x
 
+    class CatAllEmptyNegDim(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y), dim=-2)
+
     @I.ir_module
     class Expected1:
         @R.function
@@ -5182,13 +5186,27 @@ def test_cat():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedAllEmpty:
+        @R.function
+        def main(
+            inp_0: R.Tensor((0,), dtype="float32"),
+            inp_1: R.Tensor((0,), dtype="float32"),
+        ) -> R.Tensor((0,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((0,), dtype="float32") = R.concat((inp_0, inp_1), axis=0)
+                gv: R.Tensor((0,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
     verify_model(Cat0(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
     verify_model(Cat1(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat2(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat3(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
     verify_model(Cat3(), [([0], "float32"), ([2, 3], "float32")], {}, Expected3)
     verify_model(CatMutate(), [([3], "float32"), ([1], "int64"), ([1], "float32")], {}, Expected4)
-    
+    verify_model(CatAllEmptyNegDim(), [([0], "float32"), ([0], "float32")], {}, ExpectedAllEmpty)
+
     # Build FX graph explicitly to test cat on an un-unpacked tuple-valued split node
     graph = fx.Graph()
     x = graph.placeholder("x")

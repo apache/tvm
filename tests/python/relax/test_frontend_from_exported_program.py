@@ -4996,6 +4996,10 @@ def test_cat():
             y.index_put_((indices,), values)
             return x
 
+    class CatAllEmptyNegDim(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y), dim=-2)
+
     @I.ir_module
     class Expected1:
         @R.function
@@ -5049,6 +5053,19 @@ def test_cat():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedAllEmpty:
+        @R.function
+        def main(
+            inp_0: R.Tensor((0,), dtype="float32"),
+            inp_1: R.Tensor((0,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((0,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((0,), dtype="float32") = R.concat((inp_0, inp_1), axis=0)
+                gv: R.Tuple(R.Tensor((0,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
     example_args_empty = (
         torch.tensor([], dtype=torch.float32),
@@ -5059,10 +5076,15 @@ def test_cat():
         torch.tensor([0], dtype=torch.int64),
         torch.randn(1, dtype=torch.float32),
     )
+    example_all_empty = (
+        torch.tensor([], dtype=torch.float32),
+        torch.tensor([], dtype=torch.float32),
+    )
     verify_model(Cat0(), example_args, {}, Expected1)
     verify_model(Cat1(), example_args, {}, Expected2)
     verify_model(Cat2(), example_args_empty, {}, Expected3)
     verify_model(CatMutate(), example_args_mutate, {}, Expected4)
+    verify_model(CatAllEmptyNegDim(), example_all_empty, {}, ExpectedAllEmpty)
 
 
 def test_cumsum():
