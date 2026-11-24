@@ -944,6 +944,8 @@ def _nms_loop(
     score_threshold=None,
 ):
     """NMS loop using modern IRBuilder. Must be called within IRBuilder context."""
+    # Scores can be negative, so mark suppressed boxes with -inf rather than -1.
+    suppressed = tvm_tirx.tirx.const(float("-inf"), "float32")
 
     def nms_inner_loop(i, j, nkeep, num_valid_boxes_local):
         on_new_valid_box_func(
@@ -963,16 +965,16 @@ def _nms_loop(
             with T.if_(
                 tvm_tirx.tirx.all(
                     k < nkeep,
-                    out_scores[(i, k)] > 0,  # is the box k still valid?
+                    out_scores[(i, k)] > suppressed,  # is the box k still valid?
                     needs_bbox_check_func(i, j, k),
                 )
             ):
                 with T.then_():
                     iou = calc_overlap_func(i, j, k)
 
-                    with T.if_(iou >= iou_threshold):
+                    with T.if_(iou > iou_threshold):
                         with T.then_():
-                            T.tensor_store(out_scores, (i, k), T.float32(-1.0))
+                            T.tensor_store(out_scores, (i, k), suppressed)
                             on_new_invalidated_box_func(i, k)
 
     with T.serial(0, batch_size) as i:
@@ -980,7 +982,7 @@ def _nms_loop(
             tvm_tirx.tirx.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i]
         )
 
-        with T.if_(tvm_tirx.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
+        with T.if_(valid_count[i] > te.const(0)):
             with T.then_():
                 num_valid_boxes_local_buf = T.bind_(
                     T.alloc_tensor(ty_args=[T.Tensor((1,), "int32", scope="local")])
@@ -993,7 +995,7 @@ def _nms_loop(
                 with T.serial(0, nkeep) as j:
                     with T.if_(
                         tvm_tirx.tirx.all(
-                            out_scores[(i, j)] > -1.0,  # box is still valid
+                            out_scores[(i, j)] > suppressed,  # box is still valid
                             num_valid_boxes_local[T.tensor_indices(num_valid_boxes_local, 0)]
                             < max_output_size,  # haven't reached max limit
                         )
