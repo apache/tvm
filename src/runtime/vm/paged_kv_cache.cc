@@ -1693,7 +1693,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
     if (attn_kind == AttnKind::kMHA) {
-      MHASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale);
+      MHASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale,
+                          /*sliding_window_size=*/0);
     } else {
       MLASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale);
     }
@@ -3009,7 +3010,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (!append_before_attn_) {
       // The first part of attention, which only involves the q and the newly appended k/v.
       is_first_kernel = false;
-      MHASelfAttnInternal(q_data, k_data, v_data, output, merged_attn_lse_view_.value(), sm_scale);
+      MHASelfAttnInternal(
+          q_data, k_data, v_data, output, merged_attn_lse_view_.value(), sm_scale,
+          attn_kinds_[layer_id] == AttnKind::kMHASliding ? layer_sliding_window_size_ : 0);
     }
     bool self_attn_computed = !is_first_kernel;
     bool cross_attn_computed = MHACrossAttnInternal(
@@ -3021,7 +3024,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   void MHASelfAttnInternal(ffi::Tensor q_data, ffi::Tensor k_data, ffi::Tensor v_data,
-                           ffi::Tensor o_data, ffi::Tensor lse_data, double sm_scale) {
+                           ffi::Tensor o_data, ffi::Tensor lse_data, double sm_scale,
+                           int64_t sliding_window_size) {
     TVM_FFI_ICHECK(q_data.defined());
     TVM_FFI_ICHECK(k_data.defined());
     TVM_FFI_ICHECK(v_data.defined());
@@ -3033,8 +3037,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       f_attention_prefill_ragged_->MHA(
           q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
           cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
-          k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, rope_mode_, rotary_scale_,
-          rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+          k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, sliding_window_size, rope_mode_,
+          rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
     } else {
       // The batch requires tree attention.
       TVM_FFI_ICHECK(f_attention_prefill_with_tree_mask_ != nullptr)
@@ -3062,8 +3066,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     f_attention_prefill_ragged_->MHA(
         q_data, k_data, v_data, cur_append_length_indptr_view_.value(),
         cur_append_length_indptr_view_.value(), q_rope_position_map_view_.value(),
-        k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, RoPEMode::kNone, rotary_scale_,
-        rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
+        k_ragged_rope_pos_offset_view_.value(), /*causal=*/true, /*sliding_window_size=*/0,
+        RoPEMode::kNone, rotary_scale_, rotary_theta_, sm_scale, o_data, lse_data, compute_stream_);
   }
 
   /*! \brief Compute cross-attention for MHA. Return if there is effective computation. */

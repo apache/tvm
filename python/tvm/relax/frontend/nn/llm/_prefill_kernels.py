@@ -40,8 +40,6 @@ from ._kernel_common import (
     _alloc_mla_qkvo_buffers,
     _alloc_softmax_state_buffers,
     _alloc_tile_walk_state,
-    _causal_mask,
-    _causal_or_sliding_cross_mask,
     _get_kv_chunk_len,
     _get_prefill_kernel_config,
     _get_seq_offset,
@@ -49,6 +47,7 @@ from ._kernel_common import (
     _make_prefill_macros,
     _rope,
     _schedule_prefill_kernel,
+    _sliding_window_mask,
 )
 from ._prefill_parallel import (
     _attention_prefill_paged_parallel,
@@ -176,12 +175,12 @@ def _attention_prefill_cpu(
 
                                 # update m_val, d_val , O_local
                                 new_m[0] = m_val[0]
-                                if _causal_or_sliding_cross_mask(
+                                if _sliding_window_mask(
                                     causal,
                                     row=q_idx,
                                     col=row_idx,
                                     kv_len=kv_chunk_len[0],
-                                    qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                    qo_len=(0 if sliding_window else q_indptr[b_idx + 1] - q_indptr[b_idx]),
                                     sliding_window_size=(sliding_window_size if sliding_window else 0),
                                 ):
                                     new_m[0] = T.max(m_val[0], S_val[0])
@@ -364,7 +363,7 @@ def _attention_prefill(
                                         T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window_size if sliding_window else 0)
+                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], (0 if sliding_window else q_indptr[b_idx + 1] - q_indptr[b_idx]), sliding_window_size if sliding_window else 0)
                                         compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
                                     paged_store_output_lse(output, lse, O_local, m_smem, d_smem, q_indptr, b_idx, by, LH_start)
@@ -673,6 +672,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
+        sliding_window_size: T.int32,
     ):
 
           # pylint: disable=unused-variable
@@ -703,12 +703,13 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
                         for h in T.serial(h_q):
                             h_kv_idx: T.let[T.int32] = h // group_size
 
-                            if _causal_mask(
+                            if _sliding_window_mask(
                                 causal,
                                 row=q_idx,
                                 col=k_idx,
                                 kv_len=kv_indptr[b + 1] - kv_indptr[b],
                                 qo_len=q_indptr[b + 1] - q_indptr[b],
+                                sliding_window_size=sliding_window_size,
                             ):
                                 result[0] = 0.0
                                 for d_idx in T.serial(d_qk):
@@ -783,7 +784,8 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
-        sm_scale: T.float32
+        sm_scale: T.float32,
+        sliding_window_size: T.int32,
     ):
 
           # pylint: disable=unused-variable
@@ -876,7 +878,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                         T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
-                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], 0)
+                                        softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window_size)
                                         compute_o_gemm(S_smem, V_smem, O_local, m_prev_smem, m_smem)
 
                                     paged_store_output_lse(output, lse, O_local, m_smem, d_smem, q_indptr, b_idx, by, LH_start)

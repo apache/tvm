@@ -130,7 +130,7 @@ def test_ragged_causal_runtime(device_type, dtype):
         args = [tvm_tirx.runtime.tensor(a, device) for a in arrays]
         output = tvm_tirx.runtime.tensor(np.full(reference.shape, np.nan, dtype=dtype), device)
         lse = tvm_tirx.runtime.tensor(np.full(reference_lse.shape, np.nan, dtype="float32"), device)
-        module(*args, output, lse, 1, 0, 1.0, 10000.0, scale)
+        module(*args, output, lse, 1, 0, 1.0, 10000.0, scale, 0)
         rtol, atol = (2e-3, 2e-3) if dtype == "float16" else (2e-4, 2e-5)
         np.testing.assert_allclose(output.numpy(), reference, rtol=rtol, atol=atol)
         np.testing.assert_allclose(lse.numpy(), reference_lse, rtol=0, atol=2e-5)

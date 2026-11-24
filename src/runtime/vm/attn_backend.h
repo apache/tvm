@@ -435,8 +435,8 @@ class RaggedPrefillFunc : public AttnBackendFunc {
 
   virtual void MHA(ffi::Tensor q, ffi::Tensor k, ffi::Tensor v, ffi::Tensor qo_indptr,
                    ffi::Tensor kv_indptr, ffi::Tensor q_rope_position,
-                   ffi::Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode,
-                   double rotary_scale, double rotary_theta, double sm_scale,
+                   ffi::Tensor k_rope_pos_offset, bool causal, int64_t sliding_window_size,
+                   RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
                    ffi::Tensor attn_output, ffi::Tensor attn_lse, TVMStreamHandle compute_stream) {
     TVM_FFI_ICHECK(q.defined());
     TVM_FFI_ICHECK(k.defined());
@@ -471,8 +471,8 @@ class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
 
   void MHA(ffi::Tensor q, ffi::Tensor k, ffi::Tensor v, ffi::Tensor qo_indptr,
            ffi::Tensor kv_indptr, ffi::Tensor q_rope_position, ffi::Tensor k_rope_pos_offset,
-           bool causal, RoPEMode rope_mode, double rotary_scale, double rotary_theta,
-           double sm_scale, ffi::Tensor attn_output, ffi::Tensor attn_lse,
+           bool causal, int64_t sliding_window_size, RoPEMode rope_mode, double rotary_scale,
+           double rotary_theta, double sm_scale, ffi::Tensor attn_output, ffi::Tensor attn_lse,
            TVMStreamHandle compute_stream) final {
     TVM_FFI_ICHECK(q.defined());
     TVM_FFI_ICHECK(k.defined());
@@ -486,7 +486,7 @@ class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
     attn_func_(q, qo_indptr, k, v, kv_indptr, q_rope_position, k_rope_pos_offset, attn_output,
                attn_lse, static_cast<int64_t>(causal),
                /*rotary_mode=*/static_cast<int64_t>(rope_mode == RoPEMode::kInline), rotary_scale,
-               rotary_theta, sm_scale);
+               rotary_theta, sm_scale, sliding_window_size);
   }
 };
 
@@ -503,8 +503,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
 
   void MHA(ffi::Tensor q, ffi::Tensor k, ffi::Tensor v, ffi::Tensor qo_indptr,
            ffi::Tensor kv_indptr, ffi::Tensor q_rope_position, ffi::Tensor k_rope_pos_offset,
-           bool causal, RoPEMode rope_mode, double rotary_scale, double rotary_theta,
-           double sm_scale, ffi::Tensor attn_output, ffi::Tensor attn_lse,
+           bool causal, int64_t sliding_window_size, RoPEMode rope_mode, double rotary_scale,
+           double rotary_theta, double sm_scale, ffi::Tensor attn_output, ffi::Tensor attn_lse,
            TVMStreamHandle compute_stream) final {
     TVM_FFI_ICHECK(q.defined());
     TVM_FFI_ICHECK(k.defined());
@@ -517,6 +517,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
     TVM_FFI_ICHECK(attn_lse.defined());
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
+    // The module is compiled without use_sliding_window and the plan is shared by all layers,
+    // so sliding_window_size is not applied here.
     attn_func_(float_workspace_buffer_.value(), int_workspace_buffer_.value(), plan_info_vec_, q, k,
                v, ZeroByteOffsetView(qo_indptr), ZeroByteOffsetView(kv_indptr), attn_output,
                attn_lse,
