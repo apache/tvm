@@ -101,7 +101,7 @@ def relax_check_gradients(
             return [_gen_weights(ty) for ty in out_ty.fields]
         else:
             assert isinstance(out_ty, TensorType)
-            return np.random.uniform(size=[int(i) for i in out_ty.shape]).astype(out_ty.dtype)
+            return np.random.uniform(size=[int(i) for i in out_ty.shape]).astype(str(out_ty.dtype))
 
     def _is_call_no_grad(expr):
         return isinstance(expr, Call) and expr.op == Op.get("relax.grad.no_grad")
@@ -800,6 +800,16 @@ def test_nll_loss_no_batch(nll_reduction1, nll_weighted1, nll_ignore_index1):
             (3, 2, 10, 10),
             (4, 1, 3, 3),
             {"groups": 2, "strides": (2, 2), "padding": (2, 2), "dilation": (1, 1)},
+        ),
+        (
+            (1, 2, 7, 8),
+            (3, 2, 3, 2),
+            {"padding": (2, 1), "dilation": (2, 3)},
+        ),
+        (
+            (1, 2, 8, 9),
+            (4, 1, 3, 2),
+            {"groups": 2, "strides": (2, 3), "padding": (1, 2, 2, 1), "dilation": (2, 3)},
         ),
     ],
 )
