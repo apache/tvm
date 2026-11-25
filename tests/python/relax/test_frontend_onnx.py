@@ -7782,6 +7782,27 @@ def test_expand():
     )
 
 
+@pytest.mark.parametrize("use_shape_op", [False, True])
+def test_expand_zero_extent(use_shape_op):
+    if use_shape_op:
+        target = helper.make_tensor("target", TensorProto.FLOAT, [0, 3], [])
+        shape_nodes = [helper.make_node("Shape", ["target"], ["shape"])]
+    else:
+        target = helper.make_tensor("shape", TensorProto.INT64, [2], [0, 3])
+        shape_nodes = []
+
+    graph = helper.make_graph(
+        [*shape_nodes, helper.make_node("Expand", ["x", "shape"], ["y"])],
+        "expand_zero_extent",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 3])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [0, 3])],
+        initializer=[target],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    mod = from_onnx(model, keep_params_in_input=False)
+    assert tuple(dim.value for dim in mod["main"].ret_ty.shape.values) == (0, 3)
+
+
 def test_expand_incompatible_broadcasting():
     """
     This test case reproduces the error where input tensor shape at dim 1 is 25
