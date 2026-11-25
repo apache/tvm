@@ -390,7 +390,7 @@ def test_call_packed():
     # the function has an annotated return type
     assert "ret_ty=AnyType()" in f_str
     # the purity attribute is set to false
-    assert "is_pure=False"
+    assert "is_pure=False" in f_str
 
     assert isinstance(f.body, rx.SeqExpr)
     extern_call = f.body.blocks[0].bindings[-1].value
