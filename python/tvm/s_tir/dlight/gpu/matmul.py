@@ -583,6 +583,20 @@ class Matmul(GPUScheduleRule):
                 return MetalMatmul().apply(func, target, _)
             except:  # pylint: disable=bare-except
                 pass
+        # Step 1b. RDNA (gfx11/gfx12, wave32): WMMA-tensorized schedule for fp16 -> fp32 GEMMs.
+        if target.kind.name == "rocm":
+            from .rocm_wmma_matmul import (  # pylint: disable=import-outside-toplevel
+                RocmWmmaMatmul,
+                is_rdna_target,
+            )
+
+            if is_rdna_target(target):
+                try:
+                    wmma_sch = RocmWmmaMatmul().apply(func, target)
+                    if wmma_sch is not None:
+                        return wmma_sch
+                except:  # pylint: disable=bare-except
+                    pass
 
         # Step 2. Schedule matmul
         y_kernel_size = config.vthread_y * config.block_size_y * config.micro_size_y
