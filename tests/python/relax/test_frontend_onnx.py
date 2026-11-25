@@ -4052,6 +4052,102 @@ def test_shape():
     tvm_tirx.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize("symbolic", [False, True], ids=["static", "symbolic"])
+@pytest.mark.parametrize("shape_input", ["left", "right", "both"])
+def test_shape_output_as_add_input(symbolic, shape_input):
+    input_shape = ["n", 3] if symbolic else [2, 3]
+    add_inputs = {
+        "left": ["shape", "offset"],
+        "right": ["offset", "shape"],
+        "both": ["shape", "shape"],
+    }[shape_input]
+    graph = helper.make_graph(
+        [
+            helper.make_node("Shape", ["data"], ["shape"]),
+            helper.make_node("Add", add_inputs, ["output"]),
+        ],
+        "shape_add_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, input_shape)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [2])],
+        initializer=[numpy_helper.from_array(np.array([1, 1], dtype="int64"), name="offset")],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 10
+
+    mod = from_onnx(model, keep_params_in_input=False)
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
+    for rows in [2, 5] if symbolic else [2]:
+        data = tvm_tirx.runtime.tensor(np.zeros((rows, 3), dtype="float32"))
+        actual = vm["main"](data).numpy()
+        expected = [rows * 2, 6] if shape_input == "both" else [rows + 1, 4]
+        np.testing.assert_array_equal(actual, np.array(expected, dtype="int64"))
+
+
+def test_unknown_rank_shape_output_as_add_input():
+    graph = helper.make_graph(
+        [
+            helper.make_node("Shape", ["data"], ["shape"]),
+            helper.make_node("Add", ["shape", "offset"], ["output"]),
+        ],
+        "unknown_rank_shape_add_test",
+        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, None)],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [None])],
+        initializer=[numpy_helper.from_array(np.array([1], dtype="int64"), name="offset")],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 10
+
+    mod = from_onnx(model, keep_params_in_input=False)
+    ops = collect_relax_call_ops(mod["main"])
+    assert "relax.shape_of" in ops
+    assert "relax.shape_to_tensor" in ops
+    assert "relax.add" in ops
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
+    for shape in [(), (3,), (2, 3)]:
+        data = tvm_tirx.runtime.tensor(np.zeros(shape, dtype="float32"))
+        actual = vm["main"](data).numpy()
+        np.testing.assert_array_equal(actual, np.array(shape, dtype="int64") + 1)
+
+
+def test_unknown_rank_shape_outputs_as_add_inputs():
+    graph = helper.make_graph(
+        [
+            helper.make_node("Shape", ["a"], ["a_shape"]),
+            helper.make_node("Shape", ["b"], ["b_shape"]),
+            helper.make_node("Add", ["a_shape", "b_shape"], ["output"]),
+        ],
+        "unknown_rank_shapes_add_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, None),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, None),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [None])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 10
+
+    mod = from_onnx(model, keep_params_in_input=False)
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
+    for shape_a, shape_b in [
+        ((), ()),
+        ((), (4,)),
+        ((4,), ()),
+        ((2, 3), (4,)),
+        ((4,), (2, 3)),
+        ((2, 3), (4, 5)),
+    ]:
+        a = tvm_tirx.runtime.tensor(np.zeros(shape_a, dtype="float32"))
+        b = tvm_tirx.runtime.tensor(np.zeros(shape_b, dtype="float32"))
+        actual = vm["main"](a, b).numpy()
+        expected = np.array(shape_a, dtype="int64") + np.array(shape_b, dtype="int64")
+        np.testing.assert_array_equal(actual, expected)
+
+    a = tvm_tirx.runtime.tensor(np.zeros((2, 3, 4), dtype="float32"))
+    b = tvm_tirx.runtime.tensor(np.zeros((4, 5), dtype="float32"))
+    with pytest.raises(ValueError, match="broadcast"):
+        vm["main"](a, b)
+
+
 def test_shape_scalar_input():
     # A rank-0 input has a known, empty static shape. It used to be imported as
     # a runtime R.shape_of because an empty ShapeExpr is falsy, which made the

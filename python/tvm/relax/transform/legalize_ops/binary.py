@@ -17,8 +17,11 @@
 # pylint: disable=invalid-name
 """Default legalization function for binary operators."""
 
-from tvm import topi
+from tvm import te, topi
+from tvm_tirx import tirx
 from tvm_tirx.ir import Call
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -31,6 +34,27 @@ from .common import (
 )
 
 
+def _dynamic_vector_add(a, b):
+    """Add vectors with runtime broadcast checks for their lengths."""
+    a_len, b_len = a.shape[0], b.shape[0]
+    out_len = tirx.Select(a_len == 1, b_len, a_len)
+    out_dtype = (a(0) + b(0)).ty.dtype
+
+    def compute(ins, outs):
+        with IRBuilder() as ib:
+            T.assert_(
+                tirx.any(a_len == b_len, a_len == 1, b_len == 1),
+                ("ValueError", ["incompatible broadcast lengths"]),
+            )
+            with T.serial(0, out_len) as i:
+                a_index = tirx.if_then_else(a_len == 1, 0, i)
+                b_index = tirx.if_then_else(b_len == 1, 0, i)
+                T.tensor_store(outs[0], (i,), ins[0][a_index] + ins[1][b_index])
+            return ib.get()
+
+    return te.extern((out_len,), [a, b], compute, dtype=str(out_dtype), name="dynamic_vector_add")
+
+
 def _binary(te_func: TEFunc) -> LegalizeFunc:
     """A common wrapper util for the legalization of binary operators.
 
@@ -41,6 +65,8 @@ def _binary(te_func: TEFunc) -> LegalizeFunc:
     def binary_call_te(bb: BlockBuilder, call: Call) -> Expr:
         # To simplify the created Function, we first check if arg1 is a constant scalar.
         # If it is not, we then check if arg0 is a constant scalar.
+        if te_func is topi.add and call.ty.shape is None:
+            return bb.call_te(_dynamic_vector_add, *call.args)
         arg0 = call.args[0]
         arg1 = _try_convert_to_scalar_const(call.args[1])
         if _is_relax_expr(arg1):
