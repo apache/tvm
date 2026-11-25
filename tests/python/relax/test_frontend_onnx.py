@@ -4735,6 +4735,21 @@ def test_prelu():
     _assert_prelu_ir([4, 5], ExpectedMultiAxisSlope, input_shape=(2, 3, 4, 5))
 
 
+@pytest.mark.parametrize("value", [-2.0, 2.0])
+def test_prelu_scalar_input(value):
+    graph = helper.make_graph(
+        [helper.make_node("PRelu", ["x", "slope"], ["y"])],
+        "prelu_scalar_input",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+        initializer=[helper.make_tensor("slope", TensorProto.FLOAT, [], [0.5])],
+    )
+    model = helper.make_model(graph)
+    check_correctness(
+        model, inputs={"x": np.array(value, dtype="float32")}, opset=13, check_dtypes=True
+    )
+
+
 def test_prelu_lower_rank_slope():
     input_shape = (1, 4, 3, 3)
     slope_shape = (4, 1, 1)

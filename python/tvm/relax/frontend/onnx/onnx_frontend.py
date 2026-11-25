@@ -2020,7 +2020,7 @@ class PRelu(OnnxOpConverter):
         ndim = len(x_shape)
         s_ndim = len(slope_shape)
 
-        if all(ss == 1 for ss in slope_shape):
+        if ndim > 0 and all(ss == 1 for ss in slope_shape):
             slope = relax.op.reshape(slope, (1,))
             return relax.op.nn.prelu(x, slope, ndim - 1)
 
@@ -2040,9 +2040,8 @@ class PRelu(OnnxOpConverter):
                 slope = relax.op.reshape(slope, (slope_shape[relative_axis],))
                 return relax.op.nn.prelu(x, slope, axis)
 
-            # Multiple non-broadcast axes (including a slope shaped like x):
-            # nn.prelu can only express a single per-axis slope, so lower
-            # PRelu(x, s) = where(x < 0, s * x, x) elementwise instead.
+            # A scalar input has no axis for nn.prelu, and a multi-axis slope
+            # cannot be represented by one axis either. Lower both elementwise.
             dtype = x.ty.dtype.dtype
             return relax.op.where(
                 relax.op.less(x, relax.const(0, dtype)),
