@@ -35,8 +35,10 @@ def mfma_schedule(
     mfma_fill_intrin,
     mfma_store_intrin,
     shared_scope="shared",
+    warp_size=64,
 ):
-    """Create a tensorized schedule for GEMM with MFMA intrinsics."""
+    """Create a tensorized schedule for GEMM with MFMA intrinsics (warp_size=64, CDNA) or
+    RDNA WMMA intrinsics (warp_size=32)."""
     import tvm
     import tvm_tirx
 
@@ -46,7 +48,6 @@ def mfma_schedule(
     wmma_m = 16
     wmma_n = 16
     wmma_k = k_inner
-    warp_size = 64
     block = sch.get_sblock("C")
     i, j, k = sch.get_loops(block)
     i, i_tc = sch.split(i, factors=[None, wmma_m])
