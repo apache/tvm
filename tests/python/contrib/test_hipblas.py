@@ -43,13 +43,17 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
 
         def run_and_check():
             dev = tvm_tirx.rocm(0)
-            a = tvm_tirx.runtime.tensor(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
-            b = tvm_tirx.runtime.tensor(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
-            c = tvm_tirx.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
+            # Integer inputs in [0, 128); float inputs in [0, 1) so fp16 results stay finite.
+            high = 128 if "int" in in_dtype else 1
+            a_np = np.random.uniform(0, high, size=(n, l)).astype(str(A.dtype))
+            b_np = np.random.uniform(0, high, size=(l, m)).astype(str(B.dtype))
+            a = tvm_tirx.runtime.tensor(a_np, dev)
+            b = tvm_tirx.runtime.tensor(b_np, dev)
+            c = tvm_tirx.runtime.tensor(np.zeros((n, m), dtype=str(C.dtype)), dev)
             f(a, b, c)
             tvm_tirx.testing.assert_allclose(
                 c.numpy(),
-                np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)),
+                np.dot(a.numpy().astype(str(C.dtype)), b.numpy().astype(str(C.dtype))),
                 rtol=rtol,
             )
 
@@ -75,14 +79,16 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
             a = tvm_tirx.runtime.tensor(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
             b = tvm_tirx.runtime.tensor(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
         else:
-            a = tvm_tirx.runtime.tensor(np.random.uniform(size=Ashape).astype(A.dtype), dev)
-            b = tvm_tirx.runtime.tensor(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+            a = tvm_tirx.runtime.tensor(np.random.uniform(size=Ashape).astype(str(A.dtype)), dev)
+            b = tvm_tirx.runtime.tensor(np.random.uniform(size=Bshape).astype(str(B.dtype)), dev)
 
-        c = tvm_tirx.runtime.tensor(np.zeros(Cshape, dtype=C.dtype), dev)
+        c = tvm_tirx.runtime.tensor(np.zeros(Cshape, dtype=str(C.dtype)), dev)
         f(a, b, c)
         tvm_tirx.testing.assert_allclose(
             c.numpy(),
-            np.matmul(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)).astype(C.dtype),
+            np.matmul(a.numpy().astype(str(C.dtype)), b.numpy().astype(str(C.dtype))).astype(
+                str(C.dtype)
+            ),
             rtol=rtol,
         )
 

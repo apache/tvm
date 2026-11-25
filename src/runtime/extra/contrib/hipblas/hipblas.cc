@@ -304,8 +304,9 @@ inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl)
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
-  hipblasDatatype_t hip_in_type = GetHipBlasDataType(A->dtype);
-  hipblasDatatype_t hip_out_type = GetHipBlasDataType(C->dtype);
+  HipBlasDataType hip_in_type = GetHipBlasDataType(A->dtype);
+  HipBlasDataType hip_out_type = GetHipBlasDataType(C->dtype);
+  HipBlasComputeType hip_compute_type = GetHipBlasComputeType(C->dtype);
   hipblasGemmAlgo_t algo = HIPBLAS_GEMM_DEFAULT;
   void *alpha_ptr = nullptr, *beta_ptr = nullptr;
   auto alpha_int = static_cast<int32_t>(alpha);
@@ -328,7 +329,7 @@ inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl)
       hipblasGemmEx(hdl, HIPBLASBooleanToTranspose(transb), HIPBLASBooleanToTranspose(transa),
                     ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa), alpha_ptr,
                     B_data, hip_in_type, ColumnStride(B), A_data, hip_in_type, ColumnStride(A),
-                    beta_ptr, C_data, hip_out_type, ColumnStride(C), hip_out_type, algo));
+                    beta_ptr, C_data, hip_out_type, ColumnStride(C), hip_compute_type, algo));
 }
 
 inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl) {
@@ -381,8 +382,9 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
     TVM_FFI_ICHECK_EQ(batch_size_b, batch_size);
   }
 
-  hipblasDatatype_t hip_in_type = GetHipBlasDataType(A->dtype);
-  hipblasDatatype_t hip_out_type = GetHipBlasDataType(C->dtype);
+  HipBlasDataType hip_in_type = GetHipBlasDataType(A->dtype);
+  HipBlasDataType hip_out_type = GetHipBlasDataType(C->dtype);
+  HipBlasComputeType hip_compute_type = GetHipBlasComputeType(C->dtype);
   hipblasGemmAlgo_t algo = HIPBLAS_GEMM_DEFAULT;
   void *alpha_ptr = nullptr, *beta_ptr = nullptr;
   auto alpha_int = static_cast<int32_t>(alpha);
@@ -404,7 +406,8 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
       hdl, HIPBLASBooleanToTranspose(transb), HIPBLASBooleanToTranspose(transa),
       ColumnCount3D(B, transb), RowCount3D(A, transa), ColumnCount3D(A, transa), alpha_ptr, B_data,
       hip_in_type, ColumnStride3D(B), B_stride, A_data, hip_in_type, ColumnStride3D(A), A_stride,
-      beta_ptr, C_data, hip_out_type, ColumnStride3D(C), C_stride, batch_size, hip_out_type, algo));
+      beta_ptr, C_data, hip_out_type, ColumnStride3D(C), C_stride, batch_size, hip_compute_type,
+      algo));
 }
 
 // matrix multiplication for row major
