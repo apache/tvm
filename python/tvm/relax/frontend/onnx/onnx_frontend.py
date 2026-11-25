@@ -4919,7 +4919,7 @@ class ReduceSum(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
-        axes = attr.get("axes", None)
+        axes = attr.get("axes") or None
         keepdims = attr.get("keepdims", 1)
         return relax.op.sum(data, axes, keepdims)
 
@@ -5885,17 +5885,13 @@ class NonMaxSuppression(OnnxOpConverter):
         else:
             max_output_boxes_per_class = 0  # Default value
 
-        if iou_threshold is not None and isinstance(iou_threshold, tvm_tirx.ir.GenericConst):
-            iou_threshold = float(iou_threshold.value.numpy().item())
-        elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name
-            if var_name in params[1]:
-                _, param_value = params[1][var_name]
-                iou_threshold = float(param_value.numpy().item())
-            else:
-                iou_threshold = 0.0  # Default value
-        else:
-            iou_threshold = 0.0  # Default value
+        if iou_threshold is None:
+            iou_threshold = relax.const(0.0, dtype="float32")
+        elif isinstance(iou_threshold, tvm_tirx.ir.GenericConst):
+            iou_threshold = relax.const(float(iou_threshold.value.numpy().item()), dtype="float32")
+        elif isinstance(iou_threshold, relax.Var) and iou_threshold.name in params[1]:
+            _, param_value = params[1][iou_threshold.name]
+            iou_threshold = relax.const(float(param_value.numpy().item()), dtype="float32")
 
         if score_threshold is not None and isinstance(score_threshold, tvm_tirx.ir.GenericConst):
             score_threshold = float(score_threshold.value.numpy().item())
@@ -5928,7 +5924,7 @@ class NonMaxSuppression(OnnxOpConverter):
                 boxes,
                 scores,
                 relax.const(max_output_boxes_per_class, dtype="int64"),
-                relax.const(iou_threshold, dtype="float32"),
+                iou_threshold,
                 relax.const(score_threshold, dtype="float32"),
                 output_format="onnx",
             )
@@ -6532,7 +6528,7 @@ class ONNXGraphImporter:
         """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
             op_name = node.op_type
-            attr = self._parse_attr(node.attribute)
+            attr = self._parse_attr(node)
             # Create and populate input list.
             inputs = onnx_input()
             for i in node.input:
@@ -6638,10 +6634,10 @@ class ONNXGraphImporter:
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return tvm_tirx.runtime.tensor(np_array)
 
-    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> dict[str, Any]:
-        """Convert a list of AttributeProto to a dict, with names as keys."""
+    def _parse_attr(self, node: onnx.NodeProto) -> dict[str, Any]:
+        """Convert a node's attributes to a dict, with names as keys."""
         attrs = {}
-        for a in attr_proto:
+        for a in node.attribute:
             for f in ["f", "i", "s", "g"]:
                 if a.HasField(f):
                     attrs[a.name] = getattr(a, f)
@@ -6650,8 +6646,13 @@ class ONNXGraphImporter:
                     attrs[a.name] = getattr(a, f)
             for f in ["floats", "ints", "strings", "tensors", "type_protos", "graphs"]:
                 values = getattr(a, f, None)
+                allow_empty = (node.op_type, a.name, f) in {
+                    ("Constant", "value_floats", "floats"),
+                    ("Constant", "value_ints", "ints"),
+                    ("ReduceSum", "axes", "ints"),
+                }
                 if values is not None and (
-                    values or a.type == getattr(onnx.AttributeProto, f.upper(), None)
+                    values or (allow_empty and a.type == getattr(onnx.AttributeProto, f.upper()))
                 ):
                     assert a.name not in attrs, "Only one type of attr is allowed"
                     attrs[a.name] = tuple(values)
@@ -6712,7 +6713,7 @@ class ONNXGraphImporter:
 
             for node in graph.node:
                 op_name = node.op_type
-                attr = self._parse_attr(node.attribute)
+                attr = self._parse_attr(node)
 
                 inputs = onnx_input()
                 for i in node.input:

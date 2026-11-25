@@ -6901,6 +6901,22 @@ def test_reduce_funcs_axes_attr_numerical(func, opset, dynamic, keepdims):
     )
 
 
+def test_reduce_sum_legacy_empty_axes():
+    node = helper.make_node("ReduceSum", ["x"], ["y"], keepdims=0)
+    node.attribute.append(helper.make_attribute("axes", [], attr_type=onnx.AttributeProto.INTS))
+    graph = helper.make_graph(
+        [node],
+        "reduce_sum_empty_axes",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 11)])
+    data = np.arange(6, dtype="float32").reshape(2, 3)
+    executable = relax.build(from_onnx(model), target="llvm")
+    vm = relax.VirtualMachine(executable, tvm_tirx.cpu())
+    np.testing.assert_array_equal(vm["main"](tvm_tirx.runtime.tensor(data)).numpy(), data.sum())
+
+
 def _make_reduce_expected_ir(
     func: str,
     input_shape: list[int],
@@ -12398,6 +12414,32 @@ def test_nms_default_iou_threshold(second_box):
         opset=11,
         check_dtypes=True,
     )
+
+
+@pytest.mark.parametrize("shape", [[], [1]])
+def test_nms_runtime_iou_threshold(shape):
+    node = helper.make_node(
+        "NonMaxSuppression", ["boxes", "scores", "max_output", "iou"], ["selected"]
+    )
+    graph = helper.make_graph(
+        [node],
+        "nms_runtime_iou_threshold",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, [1, 2, 4]),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, [1, 1, 2]),
+            helper.make_tensor_value_info("iou", TensorProto.FLOAT, shape),
+        ],
+        outputs=[helper.make_tensor_value_info("selected", TensorProto.INT64, [None, 3])],
+        initializer=[helper.make_tensor("max_output", TensorProto.INT64, [1], [10])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 11)])
+    executable = relax.build(from_onnx(model), target="llvm")
+    vm = relax.VirtualMachine(executable, tvm_tirx.cpu())
+    boxes = tvm_tirx.runtime.tensor(np.array([[[0, 0, 2, 2], [1, 1, 3, 3]]], dtype="float32"))
+    scores = tvm_tirx.runtime.tensor(np.array([[[0.9, 0.8]]], dtype="float32"))
+    for threshold, expected in [(0.0, [[0, 0, 0]]), (0.5, [[0, 0, 0], [0, 0, 1]])]:
+        iou = tvm_tirx.runtime.tensor(np.array(threshold, dtype="float32").reshape(shape))
+        np.testing.assert_array_equal(vm["main"](boxes, scores, iou).numpy(), expected)
 
 
 # align_corners=None omits the attribute, exercising the ONNX default of 0.
