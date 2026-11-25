@@ -160,3 +160,46 @@ def test_rdna_matmul_wmma_numeric(tmp_path, kind, m, rows):
     f(*args, out)
     dev.sync()
     np.testing.assert_allclose(out.numpy().astype("float32"), ref, rtol=1e-2, atol=1e-2)
+
+
+def _gemm_bf16(m, n, k):
+    """bf16 x bf16 -> fp32 GEMM (B in [N, K])."""
+    rows = _rows(m)
+    a = te.placeholder((rows, k), "bfloat16", name="A")
+    b = te.placeholder((n, k), "bfloat16", name="B")
+    r = te.reduce_axis((0, k), name="k")
+    c = te.compute(
+        (rows, n),
+        lambda i, j: te.sum(a[i, r].astype("float32") * b[j, r].astype("float32"), axis=r),
+        name="C",
+    )
+    return tvm_tirx.IRModule({"main": te.create_function([a, b, c])})
+
+
+@pytest.mark.parametrize("m", [None, 512])
+def test_rdna_matmul_selects_wmma_bf16(m):
+    mod = _schedule(_gemm_bf16(m, 2048, 1536), tvm_tirx.target.Target(RDNA_TARGET))
+    assert "wmma" in mod["main"].script()
+    assert _all_blocks_in_kernels(mod)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not _has_rdna_wmma(), reason="needs an RDNA GPU with WMMA")
+@pytest.mark.parametrize("m, rows", [(512, 512), (None, 300)])
+def test_rdna_matmul_wmma_numeric_bf16(tmp_path, m, rows):
+    ml_dtypes = pytest.importorskip("ml_dtypes")
+    n, k = 1024, 512
+    target = tvm_tirx.target.Target({"kind": "rocm", "thread_warp_size": 32})
+    lib = tvm.compile(_schedule(_gemm_bf16(m, n, k), target), target=target)
+    lib.export_library(str(tmp_path / "gemm.so"))
+    f = tvm_tirx.runtime.load_module(str(tmp_path / "gemm.so"))["main"]
+    rng = np.random.default_rng(0)
+    a_np = rng.uniform(-1, 1, (rows, k)).astype(ml_dtypes.bfloat16)
+    b_np = rng.uniform(-1, 1, (n, k)).astype(ml_dtypes.bfloat16)
+    dev = tvm_tirx.rocm(0)
+    a, b = tvm_tirx.runtime.tensor(a_np, dev), tvm_tirx.runtime.tensor(b_np, dev)
+    c = tvm_tirx.runtime.tensor(np.zeros((rows, n), "float32"), dev)
+    f(a, b, c)
+    dev.sync()
+    ref = a_np.astype("float32") @ b_np.astype("float32").T
+    np.testing.assert_allclose(c.numpy(), ref, rtol=1e-2, atol=1e-2)

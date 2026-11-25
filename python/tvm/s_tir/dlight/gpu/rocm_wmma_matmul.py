@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""dlight schedule for RDNA (gfx11/gfx12) WMMA: fp16 x fp16 -> fp32 GEMMs on wave32.
+"""dlight schedule for RDNA (gfx11/gfx12) WMMA: fp16 or bf16 x same -> fp32 GEMMs on wave32.
 
 Applies to a matmul already normalized by `Matmul` into C[S, I, J] += A[S, I, K] * B[S, J, K]
 (B in [N, K] layout). The block tile is (16 * TI * WY) x (16 * TJ * WX): WY x WX waves per
@@ -143,9 +143,12 @@ class RocmWmmaMatmul:
     ):
         # pylint: disable=import-outside-toplevel
         from tvm.s_tir.tensor_intrin.rocm_wmma import (
+            ROCM_WMMA_BF16BF16F32_INTRIN,
             ROCM_WMMA_F16F16F32_INTRIN,
             ROCM_WMMA_FILL_16x16_F32_INTRIN,
+            ROCM_WMMA_LOAD_16x16_A_SHARED_BF16_INTRIN,
             ROCM_WMMA_LOAD_16x16_A_SHARED_F16_INTRIN,
+            ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_BF16_INTRIN,
             ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_F16_INTRIN,
             ROCM_WMMA_STORE_16x16_F32_INTRIN,
             ROCM_WMMA_STORE_16x16_F32_SHARED_INTRIN,
@@ -153,8 +156,21 @@ class RocmWmmaMatmul:
             shared_16x16_to_local_32x16_layout_A,
         )
 
-        if in_dtype != "float16" or out_dtype != "float32":
+        intrins = {
+            "float16": (
+                ROCM_WMMA_LOAD_16x16_A_SHARED_F16_INTRIN,
+                ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_F16_INTRIN,
+                ROCM_WMMA_F16F16F32_INTRIN,
+            ),
+            "bfloat16": (
+                ROCM_WMMA_LOAD_16x16_A_SHARED_BF16_INTRIN,
+                ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_BF16_INTRIN,
+                ROCM_WMMA_BF16BF16F32_INTRIN,
+            ),
+        }
+        if in_dtype not in intrins or out_dtype != "float32":
             return None
+        load_a_intrin, load_b_intrin, mma_intrin = intrins[in_dtype]
         TI, TJ, WY, WX, KS = self.TI, self.TJ, self.WY, self.WX, self.KS
         warp = 32
         BM, BN, BK = 16 * TI * WY, 16 * TJ * WX, 16 * KS
@@ -244,9 +260,9 @@ class RocmWmmaMatmul:
             b_loc, ("write", 0), tile(shared_16x16_to_local_32x16_layout_A)
         )  # B is [N, K]
         sch.transform_layout(c_loc, ("read", 0), tile(shared_16x16_to_local_32x8_layout_C))
-        sch.tensorize(la, ROCM_WMMA_LOAD_16x16_A_SHARED_F16_INTRIN)
-        sch.tensorize(lb, ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_F16_INTRIN)
-        sch.tensorize(sch.get_loops(block_inner)[-3], ROCM_WMMA_F16F16F32_INTRIN)
+        sch.tensorize(la, load_a_intrin)
+        sch.tensorize(lb, load_b_intrin)
+        sch.tensorize(sch.get_loops(block_inner)[-3], mma_intrin)
         inner_init = sch.get_child_blocks(init)
         init_loops = sch.get_loops(inner_init[0] if inner_init else init)
         sch.tensorize(init_loops[-2], ROCM_WMMA_FILL_16x16_F32_INTRIN)

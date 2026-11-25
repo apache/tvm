@@ -184,9 +184,20 @@ def get_wmma_load_intrin(dtype="float16", scope="shared", is_b=False, transposed
 
 
 def get_wmma_intrin(in_dtype="float16", out_dtype="float32"):
-    """D = A x B + C, 16x16x16, wave32. f16 x f16 -> f32 (v_wmma_f32_16x16x16_f16)."""
-    assert in_dtype == "float16" and out_dtype == "float32", "only f16 -> f32 for now"
-    intrin = "llvm.amdgcn.wmma.f32.16x16x16.f16"
+    """D = A x B + C, 16x16x16, wave32: f16 x f16 -> f32 (v_wmma_f32_16x16x16_f16) or
+    bf16 x bf16 -> f32 (v_wmma_f32_16x16x16_bf16)."""
+    assert in_dtype in ("float16", "bfloat16") and out_dtype == "float32", (in_dtype, out_dtype)
+    intrin = (
+        "llvm.amdgcn.wmma.f32.16x16x16.f16"
+        if in_dtype == "float16"
+        else "llvm.amdgcn.wmma.f32.16x16x16.bf16"
+    )
+    # On gfx11 the bf16 intrinsic takes the bf16 values as <16 x i16> bit patterns.
+    operand = (
+        (lambda v: v)
+        if in_dtype == "float16"
+        else (lambda v: T.reinterpret(v, ty=f"int16x{AB_LOCAL}"))
+    )
     d_a = T.dynamic("wmma_desc_a_offset", "int32")
     d_b = T.dynamic("wmma_desc_b_offset", "int32")
     d_c = T.dynamic("wmma_desc_c_offset", "int32")
@@ -251,8 +262,8 @@ def get_wmma_intrin(in_dtype="float16", out_dtype="float32"):
             _tx = T.launch_thread("threadIdx.x", WARP_SIZE)
             C[0, T.ramp(0, 1, C_LOCAL)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(intrin),
-                A[0, T.ramp(0, 1, AB_LOCAL)],
-                B[0, T.ramp(0, 1, AB_LOCAL)],
+                operand(A[0, T.ramp(0, 1, AB_LOCAL)]),
+                operand(B[0, T.ramp(0, 1, AB_LOCAL)]),
                 C[0, T.ramp(0, 1, C_LOCAL)],
                 ty=f"{out_dtype}x{C_LOCAL}",
             )
@@ -321,6 +332,22 @@ TensorIntrin.register(
 )
 ROCM_WMMA_F16F16F32_INTRIN = "rocm_wmma_f16f16f32"
 TensorIntrin.register(ROCM_WMMA_F16F16F32_INTRIN, *get_wmma_intrin("float16", "float32"))
+ROCM_WMMA_LOAD_16x16_A_SHARED_BF16_INTRIN = "rocm_wmma_load_16x16_a_shared_bf16"
+TensorIntrin.register(
+    ROCM_WMMA_LOAD_16x16_A_SHARED_BF16_INTRIN, *get_wmma_load_intrin("bfloat16", "shared")
+)
+ROCM_WMMA_LOAD_16x16_B_SHARED_BF16_INTRIN = "rocm_wmma_load_16x16_b_shared_bf16"
+TensorIntrin.register(
+    ROCM_WMMA_LOAD_16x16_B_SHARED_BF16_INTRIN,
+    *get_wmma_load_intrin("bfloat16", "shared", is_b=True),
+)
+ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_BF16_INTRIN = "rocm_wmma_load_16x16_b_trans_shared_bf16"
+TensorIntrin.register(
+    ROCM_WMMA_LOAD_16x16_B_TRANS_SHARED_BF16_INTRIN,
+    *get_wmma_load_intrin("bfloat16", "shared", is_b=True, transposed=True),
+)
+ROCM_WMMA_BF16BF16F32_INTRIN = "rocm_wmma_bf16bf16f32"
+TensorIntrin.register(ROCM_WMMA_BF16BF16F32_INTRIN, *get_wmma_intrin("bfloat16", "float32"))
 ROCM_WMMA_STORE_16x16_F32_INTRIN = "rocm_wmma_store_16x16_f32"
 TensorIntrin.register(ROCM_WMMA_STORE_16x16_F32_INTRIN, *get_wmma_store_intrin("float32", "global"))
 ROCM_WMMA_STORE_16x16_F32_SHARED_INTRIN = "rocm_wmma_store_16x16_f32_shared"
