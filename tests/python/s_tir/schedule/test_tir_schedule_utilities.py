@@ -21,130 +21,139 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import tirx
-from tvm.ir import IRModule
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.ir import IRModule, Range
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+@Ts.function
+def matmul(
+    A: T.Tensor([128, 128], "float32"),
+    B: T.Tensor([128, 128], "float32"),
+    C: T.Tensor([128, 128], "float32"),
+) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
-def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+@Ts.function
+def matmul_relu(
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
+) -> None:
+    C = Ts.sblock_alloc_tensor((1024, 1024))
+
     for i, j, k in T.grid(1024, 1024, 1024):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@T.prim_func(s_tir=True)
-def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+@Ts.function
+def matmul_relu_ann1(
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
+) -> None:
+    C = Ts.sblock_alloc_tensor((1024, 1024))
+
     for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
         for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
             for k in T.serial(0, 1024):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@T.prim_func(s_tir=True)
-def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (1024, 1024))
-    B = T.match_buffer(b, (1024, 1024))
-    C = T.sblock_alloc_buffer((1024, 1024))
-    D = T.match_buffer(d, (1024, 1024))
+@Ts.function
+def matmul_relu_ann2(
+    A: T.Tensor((1024, 1024), "float32"),
+    B: T.Tensor((1024, 1024), "float32"),
+    D: T.Tensor((1024, 1024), "float32"),
+) -> None:
+    C = Ts.sblock_alloc_tensor((1024, 1024))
+
     for i, j, k in T.grid(1024, 1024, 1024):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
-            T.sblock_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
+            Ts.sblock_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
     for i, j in T.grid(1024, 1024):
-        with T.sblock("relu"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.sblock_attr({"test2": 0.22, "test3": ["aa", 1]})
+        with Ts.sblock("relu"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.sblock_attr({"test2": 0.22, "test3": ["aa", 1]})
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class ModuleWithMultipleFuncs:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def vector_add(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
-            with T.sblock("init"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("init"):
+                vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def vector_add_2(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
-            with T.sblock("init"):
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock("init"):
+                vi = Ts.axis.remap("S", [i])
                 B[vi] = A[vi]
 
 
-@T.prim_func(s_tir=True)
-def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "float32")) -> None:
+@Ts.function
+def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
-    with T.sblock("root"):
-        T.reads()
-        T.writes()
-        data_red_temp_v0 = T.sblock_alloc_buffer([4], dtype="float32")
-        data_red_temp_v1 = T.sblock_alloc_buffer([4], dtype="float32")
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        data_red_temp_v0 = Ts.sblock_alloc_tensor([4], dtype="float32")
+        data_red_temp_v1 = Ts.sblock_alloc_tensor([4], dtype="float32")
         for i0, i1 in T.grid(4, 32):
-            with T.sblock("data_red_temp"):
-                ax0, k1 = T.axis.remap("SR", [i0, i1])
-                T.reads(data[ax0, k1])
-                T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
-                with T.init():
+            with Ts.sblock("data_red_temp"):
+                ax0, k1 = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(data[ax0, k1])
+                Ts.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                with Ts.init():
                     data_red_temp_v0[ax0] = T.float32(0)
                     data_red_temp_v1[ax0] = T.float32(0)
                 v_data_red_temp_v0: T.let[T.float32] = data_red_temp_v0[ax0] + data[ax0, k1]
@@ -154,21 +163,27 @@ def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "f
                 data_red_temp_v0[ax0] = v_data_red_temp_v0
                 data_red_temp_v1[ax0] = v_data_red_temp_v1
         for i0 in range(4):
-            with T.sblock("T_add"):
-                ax0 = T.axis.remap("S", [i0])
-                T.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
-                T.writes(T_add[ax0])
+            with Ts.sblock("T_add"):
+                ax0 = Ts.axis.remap("S", [i0])
+                Ts.reads(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
+                Ts.writes(T_add[ax0])
                 T_add[ax0] = data_red_temp_v0[ax0] + data_red_temp_v1[ax0]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
-use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
+
+@pytest.fixture(
+    params=[pytest.param(False, id="block_obj"), pytest.param(True, id="block_name")],
+    scope="session",
+)
+def use_block_name(request):
+    return request.param
 
 
 def test_tir_schedule_creation():
     # Tests:
-    # - Schedule.__init__ for PrimFunc and IRModule
+    # - Schedule.__init__ for Function and IRModule
     # - Schedule.mod
     # - Schedule.state
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
@@ -189,7 +204,7 @@ def test_tir_schedule_get_sblock():
     assert block.name_hint == "update"
     assert block_sref.stmt.same_as(block)
     assert sch.state.get_sref(block).same_as(block_sref)
-    assert block.same_as(matmul.body.block.body.body.body[1].body.block)
+    assert block.same_as(matmul.body[0].block.body[0].body[0].body[1].body[0].block)
 
 
 def test_tir_schedule_work_on():
@@ -208,9 +223,9 @@ def test_tir_schedule_get_loops(use_block_name):
     sch = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block = "update" if use_block_name else sch.get_sblock(name="update")
     i, j, k = sch.get_loops(block)
-    assert sch.get(i).loop_var.name == "i"
-    assert sch.get(j).loop_var.name == "j"
-    assert sch.get(k).loop_var.name == "k"
+    assert sch.get(i).var.name == "i"
+    assert sch.get(j).var.name == "j"
+    assert sch.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_1(use_block_name):
@@ -219,15 +234,15 @@ def test_tir_schedule_copy_1(use_block_name):
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_sblock(name="update")
     i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
-    assert sch_1.get(i).loop_var.name == "i"
-    assert sch_1.get(j).loop_var.name == "j"
-    assert sch_1.get(k).loop_var.name == "k"
+    assert sch_1.get(i).var.name == "i"
+    assert sch_1.get(j).var.name == "j"
+    assert sch_1.get(k).var.name == "k"
 
     sch_2 = sch_1.copy()
     assert sch_2.get(block_rv).name_hint == "update"
-    assert sch_2.get(i).loop_var.name == "i"
-    assert sch_2.get(j).loop_var.name == "j"
-    assert sch_2.get(k).loop_var.name == "k"
+    assert sch_2.get(i).var.name == "i"
+    assert sch_2.get(j).var.name == "j"
+    assert sch_2.get(k).var.name == "k"
 
 
 def test_tir_schedule_copy_2():
@@ -243,8 +258,14 @@ def test_tir_schedule_copy_2():
     i_0, i_1 = sch.split(i, factors=[None, 64])
     j_0, j_1 = sch_copy.split(j, factors=[None, 32])
 
-    assert sch.get_sref(i_0).stmt.extent == 2
-    assert sch.get_sref(i_1).stmt.extent == 64
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_0).stmt.begin, sch.get_sref(i_0).stmt.end)
+        == 2
+    )
+    assert (
+        Range.get_extent_from_begin_end(sch.get_sref(i_1).stmt.begin, sch.get_sref(i_1).stmt.end)
+        == 64
+    )
     with pytest.raises(IndexError):
         sch_copy.get_sref(i_0)
     with pytest.raises(IndexError):
@@ -254,8 +275,18 @@ def test_tir_schedule_copy_2():
         sch.get_sref(j_0)
     with pytest.raises(IndexError):
         sch.get_sref(j_1)
-    assert sch_copy.get_sref(j_0).stmt.extent == 4
-    assert sch_copy.get_sref(j_1).stmt.extent == 32
+    assert (
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_0).stmt.begin, sch_copy.get_sref(j_0).stmt.end
+        )
+        == 4
+    )
+    assert (
+        Range.get_extent_from_begin_end(
+            sch_copy.get_sref(j_1).stmt.begin, sch_copy.get_sref(j_1).stmt.end
+        )
+        == 32
+    )
     verify_trace_roundtrip(sch, mod=matmul)
     verify_trace_roundtrip(sch_copy, mod=matmul)
 
@@ -292,18 +323,18 @@ def test_get_producers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "relu" if use_block_name else sch.get_sblock("relu")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("matmul")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_producers_multiple_buffer_depdencies(use_block_name):
+def test_get_producers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_sblock("T_add")
     (producer,) = sch.get_producers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_sblock("data_red_temp")).stmt,
     )
@@ -313,18 +344,18 @@ def test_get_consumers(use_block_name):
     sch = tvm.s_tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_sblock("matmul")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("relu")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_consumers_multiple_buffer_depdencies(use_block_name):
+def test_get_consumers_multiple_tensor_depdencies(use_block_name):
     sch = tvm.s_tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_sblock("data_red_temp")
     (consumer,) = sch.get_consumers(block)
-    tvm.ir.assert_structural_equal(
+    tvm_tirx.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_sblock("T_add")).stmt,
     )
@@ -389,17 +420,17 @@ def test_get_output_blocks_multiple_outputs():
 
 
 def test_get_output_blocks_nested():
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def blockized(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
     ) -> None:
-        with T.sblock("blockized_B"):
-            vio = T.axis.spatial(1, 0)
-            vjo = T.axis.spatial(1, 0)
+        with Ts.sblock("blockized_B"):
+            vio = Ts.axis.spatial(1, 0)
+            vjo = Ts.axis.spatial(1, 0)
             for i, j in T.grid(128, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] * 2.0
 
     sch = tvm.s_tir.Schedule(mod=blockized, debug_mask="all")
@@ -424,4 +455,4 @@ def test_get_output_blocks_nested():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -22,37 +22,39 @@ import sys
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import s_tir, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import s_tir
+from tvm.s_tir import script as Ts
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV, Trace
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.sblock_alloc_buffer((128, 128))
-    C = T.match_buffer(c, (128, 128))
+@Ts.function
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
+    B = Ts.sblock_alloc_tensor((128, 128))
+
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def elementwise_inlined(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    C = T.match_buffer(c, (128, 128))
+@Ts.function
+def elementwise_inlined(
+    A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
@@ -90,7 +92,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[T.bool(True), T.bool(False)],
+        attrs=[True, False],
         outputs=outputs,
     )
 
@@ -328,7 +330,10 @@ def test_apply_json_to_schedule_sample_categorical():
             Instruction(
                 kind=InstructionKind.get("SampleCategorical"),
                 inputs=[],
-                attrs=[[tvm.tirx.IntImm("int32", 3)], [tvm.tirx.FloatImm("float32", 1.0)]],
+                attrs=[
+                    [tvm_tirx.ir.IntImm("int32", 3)],
+                    [tvm_tirx.ir.FloatImm("float32", 1.0)],
+                ],
                 outputs=[var],
             )
         ],
@@ -363,19 +368,20 @@ def _test_apply_annotation_trace_from_json(annotation: str):
     sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
 
-    @T.prim_func(s_tir=True)
-    def elementwise_expected(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128))
-        B = T.sblock_alloc_buffer((128, 128))
-        C = T.match_buffer(c, (128, 128))
+    @Ts.function
+    def elementwise_expected(
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+    ) -> None:
+        B = Ts.sblock_alloc_tensor((128, 128))
+
         for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                T.sblock_attr({"meta_schedule.auto_tensorize": annotation})
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                Ts.sblock_attr({"meta_schedule.auto_tensorize": annotation})
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
     assert_structural_equal_ignore_global_symbol(elementwise_expected, sch.mod["main"])
@@ -396,4 +402,4 @@ def test_apply_annotation_from_json():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -19,4 +19,4 @@
 
 """Namespace for driver APIs"""
 
-from .build_module import build, compile
+from .build_module import compile

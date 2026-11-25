@@ -24,9 +24,8 @@ from typing import Any
 import numpy as np  # type: ignore
 from tvm_ffi import Array, Function, Map, get_global_func, register_global_func
 
-from tvm.ir import IRModule
 from tvm.rpc import RPCSession
-from tvm.tirx import FloatImm, IntImm
+from tvm_tirx.ir import FloatImm, IntImm, IRModule
 
 
 @register_global_func("s_tir.meta_schedule.cpu_count")
@@ -160,7 +159,7 @@ def get_global_func_with_default_on_worker(
         return get_global_func(name)
     except (ValueError, RuntimeError) as error:
         raise ValueError(
-            "Function '{name}' is not registered on the worker process. "
+            f"Function '{name}' is not registered on the worker process. "
             "The build function and export function should be registered in the worker process. "
             "Note that the worker process is only aware of functions registered in TVM package, "
             "if there are extra functions to be registered, "

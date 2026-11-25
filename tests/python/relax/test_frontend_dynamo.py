@@ -25,14 +25,17 @@ import torch._dynamo as dynamo
 from packaging import version
 
 import tvm
-import tvm.testing
-from tvm import relax, tirx
+import tvm_tirx
+import tvm_tirx.testing
+from tvm import relax
+from tvm.relax import script as R
 from tvm.relax.frontend.torch import relax_dynamo
 from tvm.s_tir import meta_schedule as ms
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
-from tvm.testing import env
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
+from tvm_tirx.testing import env
 
 torch_version = torch.__version__
 
@@ -49,40 +52,40 @@ def test_relax_dynamo():
     model = Input1()
 
     ### construct the database
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input1_ir:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def main(
-            inp_0: T.Buffer((T.int64(10), T.int64(100)), "float32"),
-            param_0: T.Buffer((T.int64(100), T.int64(10)), "float32"),
-            param_1: T.Buffer(T.int64(10), "float32"),
-            compute: T.Buffer((T.int64(10), T.int64(10)), "float32"),
+            inp_0: T.Tensor((T.int64(10), T.int64(100)), "float32"),
+            param_0: T.Tensor((T.int64(100), T.int64(10)), "float32"),
+            param_1: T.Tensor(T.int64(10), "float32"),
+            compute: T.Tensor((T.int64(10), T.int64(10)), "float32"),
         ):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
             # body
-            # with T.sblock("root")
-            matmul = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
-            T_add = T.sblock_alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
+            # with Ts.sblock("root")
+            matmul = Ts.sblock_alloc_tensor([T.int64(10), T.int64(10)], dtype="float32")
+            T_add = Ts.sblock_alloc_tensor([T.int64(10), T.int64(10)], dtype="float32")
             for i0, i1, k in T.grid(T.int64(10), T.int64(10), T.int64(100)):
-                with T.sblock("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(inp_0[v_i0, v_k], param_0[v_k, v_i1])
-                    T.writes(matmul[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(inp_0[v_i0, v_k], param_0[v_k, v_i1])
+                    Ts.writes(matmul[v_i0, v_i1])
+                    with Ts.init():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + inp_0[v_i0, v_k] * param_0[v_k, v_i1]
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(matmul[v_ax0, v_ax1], param_1[v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(matmul[v_ax0, v_ax1], param_1[v_ax1])
+                    Ts.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = matmul[v_ax0, v_ax1] + param_1[v_ax1]
             for i0, i1 in T.grid(T.int64(10), T.int64(10)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_add[v_i0, v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(T_add[v_i0, v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.max(T_add[v_i0, v_i1], T.float32(0))
 
     db = ms.Database.create("memory")
@@ -124,7 +127,7 @@ def test_relax_dynamo():
 
     default_output = model(inp).detach().numpy()
     optimized_output = opt_model(inp).detach().numpy()
-    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
+    tvm_tirx.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
 def test_relax_dynamo_scalar_params():
@@ -143,7 +146,7 @@ def test_relax_dynamo_scalar_params():
 
     default_output = model().detach().numpy()
     optimized_output = opt_model().detach().numpy()
-    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
+    tvm_tirx.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
 def test_relax_dynamo_dynamic():
@@ -160,7 +163,7 @@ def test_relax_dynamo_dynamic():
     opt_model = torch.compile(model, backend=relax_dynamo(), dynamic=True)
 
     inp = torch.randn(10, 100)
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(
         opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
     )
 
@@ -177,7 +180,7 @@ def test_relax_dynamo_dynamic():
         x = torch.randn(s, 100)
         y = torch.randn(s, 100)
         with torch.no_grad():
-            tvm.testing.assert_allclose(Func1(x, y), opt_func(x, y))
+            tvm_tirx.testing.assert_allclose(Func1(x, y), opt_func(x, y))
 
 
 def test_relax_dynamo_dynamic_sym_input_reference():
@@ -195,7 +198,7 @@ def test_relax_dynamo_dynamic_sym_input_reference():
     with torch.no_grad():
         for s in (1, 2, 4):
             inp = torch.randn(s, 3, 8, 8)
-            tvm.testing.assert_allclose(
+            tvm_tirx.testing.assert_allclose(
                 opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
             )
 
@@ -213,7 +216,7 @@ def test_subgraph_capture():
         def forward(self, x):
             return torch.nn.functional.relu(self.lin(x))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected1:
         @R.function
         def subgraph_0(
@@ -233,7 +236,7 @@ def test_subgraph_capture():
 
     model = Input1()
     mod = dynamo_capture_subgraphs(model, torch.randn(10, 100))
-    tvm.ir.assert_structural_equal(mod, Expected1)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected1)
 
     def Input2(a, b):
         x = a / (torch.sin(a) + 1)
@@ -241,7 +244,7 @@ def test_subgraph_capture():
             b = b * -1
         return x * b
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected2:
         @R.function
         def subgraph_0(
@@ -273,7 +276,7 @@ def test_subgraph_capture():
             return gv
 
     mod = dynamo_capture_subgraphs(Input2, torch.randn(10), torch.ones(10))
-    tvm.ir.assert_structural_equal(mod, Expected2)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected2)
 
     class Input3(torch.nn.Module):
         def __init__(self):
@@ -285,7 +288,7 @@ def test_subgraph_capture():
                 x = x + 1
             return torch.nn.functional.relu(self.lin(x))
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected3:
         @R.function
         def subgraph_0(
@@ -306,7 +309,7 @@ def test_subgraph_capture():
 
     model = Input3()
     mod = dynamo_capture_subgraphs(model, torch.randn(10, 100), add_one=True)
-    tvm.ir.assert_structural_equal(mod, Expected3)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected3)
 
 
 def verify_dynamo_model(torch_model, input_info, binding, expected):
@@ -320,9 +323,9 @@ def verify_dynamo_model(torch_model, input_info, binding, expected):
         args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
     graph_model = dynamo.export(torch_model)(*args)[0]
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
-    binding = {k: tvm.runtime.tensor(v) for k, v in binding.items()}
+    binding = {k: tvm_tirx.runtime.tensor(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm_tirx.ir.assert_structural_equal(mod, expected)
 
 
 def _convert_data_type(input_type):
@@ -374,7 +377,7 @@ def test_ones():
         def forward(self, input):
             return torch.ones((10, 10), dtype=torch.float32)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def main(
@@ -406,7 +409,7 @@ def test_full():
         def forward(self, input):
             return torch.full((10, 10), 1, dtype=torch.float32)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def main(
@@ -442,7 +445,7 @@ def test_gelu():
         def forward(self, input):
             return torch.nn.functional.gelu(input, approximate="tanh")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class ExpectedGeLU:
         @R.function
         def main(
@@ -454,7 +457,7 @@ def test_gelu():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class ExpectedGeLUTanh:
         @R.function
         def main(
@@ -496,7 +499,7 @@ def test_masked_fill():
             input.masked_fill_(mask, 0)
             return input
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def main(
@@ -530,7 +533,7 @@ def test_getitem():
             result = input1[:, input2.argmax(dim=-1), :]
             return result
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def main(
@@ -553,7 +556,7 @@ def test_getitem():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected2:
         @R.function
         def main(
@@ -606,7 +609,7 @@ def test_arange():
             result = mask_cond + 1
             return result
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected1:
         @R.function
         def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):
@@ -623,4 +626,4 @@ def test_arange():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

@@ -20,6 +20,7 @@
 #include "linear_algebra.h"
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr.h>
 
 #include <algorithm>
 namespace tvm {
@@ -62,8 +63,8 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   }
   int output_ndim = std::max(x1_ndim, x2_ndim) - x1_prepended - x2_appended;
 
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprObj>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprObj>();
   if (x1_shape == nullptr || x2_shape == nullptr) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "input of distributed operator must have shape";
   }
@@ -96,7 +97,12 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType output_tensor_ty(ShapeExpr(output_shape), out_dtype);
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphMatmul);
 }
-TVM_REGISTER_OP("relax.matmul").set_attr<FInferType>("dist.FInferType", InferDistTypeMatmul);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.matmul")
+      .set_attr(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeMatmul);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

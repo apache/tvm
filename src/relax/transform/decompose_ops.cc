@@ -21,14 +21,17 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/op/nn.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 
 #include <unordered_set>
 
+#include "../op/op_common.h"
+#include "../op/tensor/datatype.h"
 #include "utils.h"
 
 namespace tvm {
@@ -94,9 +97,10 @@ Expr MutateBatchNormForTraining(Call call) {
 
   TensorType ty = MatchTensorType(data);
 
+  int axis = NormalizeAxis(call, ty->ndim, attrs->axis);
   ffi::Array<int64_t> reduce_axes;
   for (int i = 0; i < ty->ndim; ++i) {
-    if (i != attrs->axis) {
+    if (i != axis) {
       reduce_axes.push_back(i);
     }
   }
@@ -125,13 +129,19 @@ Expr DecomposeLayerNorm(const Call& call) {
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
 
-  Expr data_mean = mean(data, attrs->axes, true);
-  Expr data_var = variance(data, attrs->axes, true);
+  const bool is_float16 = ty->dtype.value() == PrimType::Float(16);
+  Expr stats_data = is_float16 ? astype(data, PrimType::Float(32)->dtype) : data;
+  Expr data_mean = mean(stats_data, attrs->axes, true);
+  Expr data_var = variance(stats_data, attrs->axes, true);
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype.value()->dtype);
+  Expr epsilon = MakeConstantScalar(
+      attrs->epsilon, is_float16 ? PrimType::Float(32)->dtype : ty->dtype.value()->dtype);
   Expr sqrt_var = sqrt(add(data_var, epsilon));
-  Expr out = divide(subtract(data, data_mean), sqrt_var);
+  Expr out = divide(subtract(stats_data, data_mean), sqrt_var);
+  if (is_float16) {
+    out = astype(out, ty->dtype.value()->dtype);
+  }
 
   if (attrs->scale) {
     out = multiply(out, gamma);
@@ -144,13 +154,13 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+  TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
   Expr expr = call_node->args[0];
-  const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
+  const ShapeTypeObj* ty = GetTypeAs<ShapeTypeObj>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
-  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
   Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
                                 {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
                                 {ffi::GetRef<ShapeType>(ty)}));
@@ -160,7 +170,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < ty->ndim; i++) {
-    shape_var.push_back(tirx::Var("x", PrimType::Int(64)).as_or_throw<PrimExpr>());
+    shape_var.push_back(tvm::Var("x", PrimType::Int(64)).as_or_throw<PrimExpr>());
   }
   // bind symbolic variables to the shape tuple
   tvm::Var var("y", ShapeType(shape_var));
@@ -177,7 +187,7 @@ class TrainingOperatorMutator : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return MutateBatchNormForTraining(call);
@@ -191,15 +201,15 @@ class TrainingOperatorMutator : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& layer_norm_op_ = Op::Get("relax.nn.layer_norm");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op layer_norm_op_ = Op::Get("relax.nn.layer_norm");
 };
 
 class OpDecomposer : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr VisitExpr_(const CallObj* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
     if (call->op.same_as(batch_norm_op_)) {
       return DecomposeBatchNorm(call);
@@ -210,8 +220,8 @@ class OpDecomposer : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
 };
 
 namespace transform {
@@ -234,11 +244,11 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
 
     for (auto [gvar, func] : mod->functions) {
       if (gvar->name_hint == func_name) {
-        if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value()) {
+        if (!func->GetAttr(tvm::attr::kGlobalSymbol).has_value()) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
           internal_functions.insert(gvar->name_hint);
-          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol.name, gvar->name_hint);
         }
       } else {
         // Replace non-target functions with stubs to keep references intact.
@@ -262,7 +272,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           write_ptr->Remove((*it).second);
         }
         if (internal_functions.count(gvar->name_hint)) {
-          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol.name);
         }
         write_ptr->Add(gvar, func);
       }
@@ -271,7 +281,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
   };
 
   std::string pass_name = "ApplyDecomposeTo" + std::string(func_name);
-  return CreateModulePass(pass_func, 0, pass_name, {});
+  return CreateModulePass(pass_func, 0, pass_name);
 }
 
 }  // namespace
@@ -283,8 +293,7 @@ Pass MutateOpsForTraining() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"MutateOpsForTraining",
-                            /*required=*/{});
+                            /*pass_name=*/"MutateOpsForTraining");
 }
 
 Pass DecomposeOps() {
@@ -294,8 +303,7 @@ Pass DecomposeOps() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"DecomposeOps",
-                            /*required=*/{});
+                            /*pass_name=*/"DecomposeOps");
 }
 
 Pass DecomposeOpsForInference(ffi::Optional<ffi::String> func_name) {

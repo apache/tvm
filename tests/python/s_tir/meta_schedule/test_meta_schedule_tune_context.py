@@ -23,26 +23,30 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule import TuneContext
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
-@tvm.script.ir_module
+@tvm_tirx.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def main(
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -60,4 +64,4 @@ def test_tune_context_create():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

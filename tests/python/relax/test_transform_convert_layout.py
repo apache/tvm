@@ -17,11 +17,12 @@
 # ruff: noqa: E501, F841
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import ConvertLayout, Normalize
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected, extra_ops={}, cb=None):
@@ -29,7 +30,7 @@ def verify(input, expected, extra_ops={}, cb=None):
     desired_layouts.update(extra_ops)
     mod = ConvertLayout(desired_layouts, cb)(input)
     mod = Normalize()(mod)
-    tvm.ir.assert_structural_equal(mod, expected)
+    tvm_tirx.ir.assert_structural_equal(mod, expected)
 
 
 def test_conv2d():
@@ -118,6 +119,11 @@ def test_conv2d_onlydim():
 
 
 def test_conv2d_symbolic():
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+
     @I.ir_module
     class Input:
         @R.function
@@ -125,11 +131,15 @@ def test_conv2d_symbolic():
             None, "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), T.int64(), T.int64(), T.int64()
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 gv: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, w, out_dtype="float32")
                 R.output(gv)
             return gv
+
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
 
     @I.ir_module
     class Expected:
@@ -137,10 +147,6 @@ def test_conv2d_symbolic():
         def main(
             x: R.Tensor(dtype="float32", ndim=4), w: R.Tensor(dtype="float32", ndim=4)
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N = T.int64()
-            C = T.int64()
-            H = T.int64()
-            W = T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, C, H, W), dtype="float32") = R.match_cast(
                     x, R.Tensor((N, C, H, W), dtype="float32")
@@ -167,6 +173,11 @@ def test_conv2d_symbolic():
 
 
 def test_conv2d_matchcast_bias():
+    N = T.dynamic("N", "int64")
+    C = T.dynamic("C", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+
     @I.ir_module
     class Input:
         @R.function
@@ -175,11 +186,15 @@ def test_conv2d_matchcast_bias():
         ):
             with R.dataflow():
                 lv0: R.Tensor("float32", ndim=4) = R.nn.conv2d(x, w, out_dtype="float32")
-                N, C, H, W = T.int64(), T.int64(), T.int64(), T.int64()
                 lv1 = R.match_cast(lv0, R.Tensor((N, C, H, W), "float32"))
                 gv = R.add(lv1, w)
                 R.output(gv)
             return gv
+
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    C = T.dynamic("C", "int64")
 
     @I.ir_module
     class Expected:
@@ -187,10 +202,6 @@ def test_conv2d_matchcast_bias():
         def main(
             x: R.Tensor(dtype="float32", ndim=4), w: R.Tensor(dtype="float32", ndim=4)
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N = T.int64()
-            H = T.int64()
-            W = T.int64()
-            C = T.int64()
             with R.dataflow():
                 lv: R.Tensor(dtype="float32", ndim=4) = R.permute_dims(x, axes=[0, 2, 3, 1])
                 lv1: R.Tensor(dtype="float32", ndim=4) = R.permute_dims(w, axes=[0, 2, 3, 1])
@@ -276,7 +287,7 @@ def test_relu_conv2d_relu():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1519,7 +1530,7 @@ def test_conv2d_unknown_bias_dim():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1567,7 +1578,7 @@ def test_binary_broadcast():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -1909,6 +1920,12 @@ def test_conv2d_NHWC_sub_indexed():
 
 
 def test_conv2d_symbolic_sub_indexed():
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+
     @I.ir_module
     class Input:
         @R.function
@@ -1916,20 +1933,19 @@ def test_conv2d_symbolic_sub_indexed():
             "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(16)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                lv0 = R.match_cast(x, R.Tensor((N, 16, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 16, Hw, Ww), "float32"))
                 gv: R.Tensor(
                     (N, T.int64(4), H + T.int64(1) - Hw, W + T.int64(1) - Ww), "float32"
                 ) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
                 R.output(gv)
             return gv
+
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
 
     @I.ir_module
     class Expected:
@@ -1937,11 +1953,6 @@ def test_conv2d_symbolic_sub_indexed():
         def main(
             x: R.Tensor(dtype="float32", ndim=4), w: R.Tensor(dtype="float32", ndim=4)
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N = T.int64()
-            H = T.int64()
-            W = T.int64()
-            Hw = T.int64()
-            Ww = T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
                     x, R.Tensor((N, 16, H, W), dtype="float32")
@@ -1989,6 +2000,16 @@ def test_conv2d_symbolic_sub_indexed():
 
 
 def test_conv2d_matchcast_bias_sub_indexed():
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+    Nb = T.dynamic("Nb", "int64")
+    Cb = T.dynamic("Cb", "int64")
+    Hb = T.dynamic("Hb", "int64")
+    Wb = T.dynamic("Wb", "int64")
+
     @I.ir_module
     class Input:
         @R.function
@@ -1998,21 +2019,23 @@ def test_conv2d_matchcast_bias_sub_indexed():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(16)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                lv0 = R.match_cast(x, R.Tensor((N, 16, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 16, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
-                Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
                 lv_bias = R.match_cast(bias, R.Tensor((Nb, Cb, Hb, Wb), "float32"))
                 gv = R.add(lv2, lv_bias)
                 R.output(gv)
             return gv
+
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+    Nb = T.dynamic("Nb", "int64")
+    Cb = T.dynamic("Cb", "int64")
+    Hb = T.dynamic("Hb", "int64")
+    Wb = T.dynamic("Wb", "int64")
 
     @I.ir_module
     class Expected_NHWC4c:
@@ -2022,14 +2045,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(16)),
-                T.int64(),
-                T.int64(),
-            )
-            Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
                     x, R.Tensor((N, 16, H, W), dtype="float32")
@@ -2087,6 +2102,16 @@ def test_conv2d_matchcast_bias_sub_indexed():
                 R.output(gv)
             return gv
 
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+    Nb = T.dynamic("Nb", "int64")
+    Cb = T.dynamic("Cb", "int64")
+    Hb = T.dynamic("Hb", "int64")
+    Wb = T.dynamic("Wb", "int64")
+
     @I.ir_module
     class Expected_NCHW4c:
         @R.function
@@ -2095,14 +2120,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(16)),
-                T.int64(),
-                T.int64(),
-            )
-            Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 16, H, W), dtype="float32") = R.match_cast(
                     x, R.Tensor((N, 16, H, W), dtype="float32")
@@ -2161,6 +2178,16 @@ def test_conv2d_matchcast_bias_sub_indexed():
 
 
 def test_conv2d_layout_incompatible_fallback():
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+    Nb = T.dynamic("Nb", "int64")
+    Cb = T.dynamic("Cb", "int64")
+    Hb = T.dynamic("Hb", "int64")
+    Wb = T.dynamic("Wb", "int64")
+
     @I.ir_module
     class Input:
         @R.function
@@ -2170,21 +2197,23 @@ def test_conv2d_layout_incompatible_fallback():
             bias: R.Tensor("float32", ndim=4),
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(15)),
-                    T.int64(),
-                    T.int64(),
-                )
-                lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
-                lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
+                lv0 = R.match_cast(x, R.Tensor((N, 15, H, W), "float32"))
+                lv1 = R.match_cast(w, R.Tensor((4, 15, Hw, Ww), "float32"))
                 lv2: R.Tensor("float32", ndim=4) = R.nn.conv2d(lv0, lv1, out_dtype="float32")
-                Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
                 lv_bias = R.match_cast(bias, R.Tensor((Nb, Cb, Hb, Wb), "float32"))
                 gv = R.add(lv2, lv_bias)
                 R.output(gv)
             return gv
+
+    N = T.dynamic("N", "int64")
+    H = T.dynamic("H", "int64")
+    W = T.dynamic("W", "int64")
+    Hw = T.dynamic("Hw", "int64")
+    Ww = T.dynamic("Ww", "int64")
+    Nb = T.dynamic("Nb", "int64")
+    Cb = T.dynamic("Cb", "int64")
+    Hb = T.dynamic("Hb", "int64")
+    Wb = T.dynamic("Wb", "int64")
 
     @I.ir_module
     class Expected:
@@ -2194,14 +2223,6 @@ def test_conv2d_layout_incompatible_fallback():
             w: R.Tensor(dtype="float32", ndim=4),
             bias: R.Tensor(dtype="float32", ndim=4),
         ) -> R.Tensor(dtype="float32", ndim=4):
-            N, C, H, W = T.int64(), I.meta_var(T.int64(15)), T.int64(), T.int64()
-            Nw, Cw, Hw, Ww = (
-                I.meta_var(T.int64(4)),
-                I.meta_var(T.int64(15)),
-                T.int64(),
-                T.int64(),
-            )
-            Nb, Cb, Hb, Wb = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 lv0: R.Tensor((N, 15, H, W), dtype="float32") = R.match_cast(
                     x, R.Tensor((N, 15, H, W), dtype="float32")
@@ -2339,7 +2360,7 @@ def test_relu_conv2d_relu_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -2378,7 +2399,7 @@ def test_relu_conv2d_relu_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NHWC4c:
         @R.function
         def main(
@@ -4414,7 +4435,7 @@ def test_conv2d_unknown_bias_dim_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -4471,7 +4492,7 @@ def test_binary_broadcast_sub_indexed():
                 R.output(gv2)
             return gv2
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected_NCHW4c:
         @R.function
         def main(
@@ -5564,4 +5585,4 @@ def test_layout_cb():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

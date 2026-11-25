@@ -18,11 +18,10 @@
 """Relax transformations."""
 
 from .transform import (
-    AdjustMatmulOrder,
     AllocateWorkspace,
     AlterOpImpl,
     AnnotateTIROpPattern,
-    AttachAttrLayoutFreeBuffers,
+    AttachAttrLayoutFreeTensors,
     AttachGlobalSymbol,
     BindParams,
     BindSymbolicVars,
@@ -81,9 +80,8 @@ from .transform import (
     TopologicalSort,
     UpdateParamType,
     UpdateVDevice,
-    VMBuiltinLower,
     VMShapeLower,
-    SpecializePrimFuncBasedOnCallSite,
+    SpecializeFunctionBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )

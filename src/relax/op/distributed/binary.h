@@ -49,8 +49,8 @@ Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_c
       << "Unknown ndim is not supported for distributed operators.";
   int output_ndim = std::max(x1_ty->ndim, x2_ty->ndim);
 
-  const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
+  const auto* x1_shape = x1_ty->shape.as<ShapeExprObj>();
+  const auto* x2_shape = x2_ty->shape.as<ShapeExprObj>();
   Type output_tensor_ty = Type::Missing();
   // Shapes and ndims
   if (x1_shape && x2_shape) {
@@ -72,14 +72,6 @@ Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_c
 Type InferDistTypeBroadcastArith(const Call& call, const BlockBuilder& ctx);
 
 Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx);
-
-#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                             \
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith)
-
-#define RELAX_REGISTER_CMP_DIST_INFER_TYPE(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                \
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP)
 
 }  // namespace distributed
 }  // namespace relax

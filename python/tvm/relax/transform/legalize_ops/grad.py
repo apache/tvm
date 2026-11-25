@@ -19,11 +19,11 @@
 
 import logging
 
-from tvm import te, tirx, topi
-from tvm.ir import Call
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
-from tvm.tirx.script.builder.utils import buffer_proxy
+from tvm import te, topi
+from tvm_tirx import tirx
+from tvm_tirx.ir import Call
+from tvm_tirx.script.ir_builder import IRBuilder
+from tvm_tirx.tirx.script import ir_builder as T
 
 from ...block_builder import BlockBuilder
 from ...expr import Expr
@@ -113,7 +113,7 @@ def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
         *call.args,
         reduction=call.attrs.reduction,
         ignore_index=call.attrs.ignore_index,
-        primfunc_name_hint="nll_loss_backward",
+        function_name_hint="nll_loss_backward",
     )
 
 
@@ -133,7 +133,7 @@ def _grad_max_pool2d_backward(bb: BlockBuilder, call: Call) -> Expr:
         ceil_mode=call.attrs.ceil_mode,
         count_include_pad=call.attrs.count_include_pad,
         layout=call.attrs.layout,
-        primfunc_name_hint="max_pool2d_backward",
+        function_name_hint="max_pool2d_backward",
     )
 
 
@@ -153,7 +153,7 @@ def _grad_avg_pool2d_backward(bb: BlockBuilder, call: Call) -> Expr:
         ceil_mode=call.attrs.ceil_mode,
         count_include_pad=call.attrs.count_include_pad,
         layout=call.attrs.layout,
-        primfunc_name_hint="avg_pool2d_backward",
+        function_name_hint="avg_pool2d_backward",
     )
 
 
@@ -166,10 +166,10 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
     def te_take_backward(output_grad, x, indices):
         def gen_ir(output_grad_ptr, x_ptr, indices_ptr, out_ptr):
             # pylint: disable=invalid-name
-            # Use buffer_proxy for flat indexing on multi-dimensional buffers
-            out = buffer_proxy(out_ptr)
-            grad = buffer_proxy(output_grad_ptr)
-            idx = buffer_proxy(indices_ptr)
+            # Keep the original buffers and translate logical flat indices at each access.
+            out = out_ptr
+            grad = output_grad_ptr
+            idx = indices_ptr
 
             fused_shape = 1
             for i in x_ptr.shape:
@@ -179,55 +179,64 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
             indices_len = indices_ptr.shape[0]
 
             with IRBuilder() as ib:
-                with T.seq_scope():
-                    # Init loop (zero-fill output buffer)
-                    with T.serial(fused_shape) as i:
-                        out[i] = tirx.const(0, dtype=x_ptr.dtype)
+                # Init loop (zero-fill output buffer)
+                with T.serial(fused_shape) as i:
+                    T.tensor_store(out, T.tensor_indices(out, i), tirx.const(0, dtype=x_ptr.dtype))
 
-                    # Accumulation loop
-                    if axis is not None:
-                        fused_output_grad_shape_pre = 1
-                        fused_output_grad_shape_nxt = 1
-                        for i in range(len(output_grad_ptr.shape)):
-                            if i < axis:
-                                fused_output_grad_shape_pre *= output_grad_ptr.shape[i]
-                            elif i > axis:
-                                fused_output_grad_shape_nxt *= output_grad_ptr.shape[i]
+                # Accumulation loop
+                if axis is not None:
+                    fused_output_grad_shape_pre = 1
+                    fused_output_grad_shape_nxt = 1
+                    for i in range(len(output_grad_ptr.shape)):
+                        if i < axis:
+                            fused_output_grad_shape_pre *= output_grad_ptr.shape[i]
+                        elif i > axis:
+                            fused_output_grad_shape_nxt *= output_grad_ptr.shape[i]
 
-                        x_axis_len = x_ptr.shape[axis]
+                    x_axis_len = x_ptr.shape[axis]
 
-                        with T.serial(
-                            fused_output_grad_shape_pre * fused_output_grad_shape_nxt
-                        ) as fused:
-                            i = fused // fused_output_grad_shape_nxt
-                            j = fused % fused_output_grad_shape_nxt
-                            with T.serial(indices_len) as loop_l:
-                                out_idx = (
-                                    i * fused_output_grad_shape_nxt * x_axis_len
-                                    + idx[loop_l] * fused_output_grad_shape_nxt
-                                    + j
-                                )
-                                grad_idx = (
-                                    i * fused_output_grad_shape_nxt * indices_len
-                                    + loop_l * fused_output_grad_shape_nxt
-                                    + j
-                                )
-                                out[out_idx] = out[out_idx] + grad[grad_idx]
-                    else:
+                    with T.serial(
+                        fused_output_grad_shape_pre * fused_output_grad_shape_nxt
+                    ) as fused:
+                        i = fused // fused_output_grad_shape_nxt
+                        j = fused % fused_output_grad_shape_nxt
                         with T.serial(indices_len) as loop_l:
-                            out[idx[loop_l]] = out[idx[loop_l]] + grad[loop_l]
+                            out_idx = (
+                                i * fused_output_grad_shape_nxt * x_axis_len
+                                + idx[T.tensor_indices(idx, loop_l)] * fused_output_grad_shape_nxt
+                                + j
+                            )
+                            grad_idx = (
+                                i * fused_output_grad_shape_nxt * indices_len
+                                + loop_l * fused_output_grad_shape_nxt
+                                + j
+                            )
+                            T.tensor_store(
+                                out,
+                                T.tensor_indices(out, out_idx),
+                                out[T.tensor_indices(out, out_idx)]
+                                + grad[T.tensor_indices(grad, grad_idx)],
+                            )
+                else:
+                    with T.serial(indices_len) as loop_l:
+                        T.tensor_store(
+                            out,
+                            T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)])),
+                            out[T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)]))]
+                            + grad[T.tensor_indices(grad, loop_l)],
+                        )
 
                 return ib.get()
 
         shape = x.shape
-        out_buf = tirx.decl_buffer(shape, x.dtype, "out_buf", layout=None)
+        out_buf = tirx.Var("out_buf", tirx.TensorType(shape, x.dtype, layout=None))
 
         return te.extern(
             [shape],
             [output_grad, x, indices],
             lambda ins, outs: gen_ir(ins[0], ins[1], ins[2], outs[0]),
             dtype=x.dtype,
-            out_buffers=[out_buf],
+            out_tensors=[out_buf],
             name="take_backward",
             tag="take_backward",
         )
@@ -237,5 +246,5 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.args[1],
         call.args[2],
-        primfunc_name_hint="take_backward",
+        function_name_hint="take_backward",
     )

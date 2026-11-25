@@ -18,9 +18,10 @@
 
 
 import tvm
-import tvm.testing
-from tvm.script import relax as R
-from tvm.script import tirx as T
+import tvm_tirx
+import tvm_tirx.testing
+from tvm.relax import script as R
+from tvm_tirx.script import tirx as T
 
 
 def _analyze_func(func: tvm.relax.Function) -> list[str]:
@@ -134,10 +135,11 @@ def test_dataflow_vars():
 def test_compile_time_symbolic_shape():
     """Compile-time bindings may contain symbolic shapes"""
 
+    n = T.dynamic("n", "int64")
+
     @R.function
-    def func(A: R.Tensor([1], "int32"), B: R.Tensor(["n"], "int32")):
+    def func(A: R.Tensor([1], "int32"), B: R.Tensor([n], "int32")):
         R.func_attr({"num_input": 1})
-        n = T.int64()
 
         C: R.Tensor([n], "int32") = R.add(B, B)
         D: R.Tensor([], "int32") = R.max(C, axis=0)
@@ -150,11 +152,12 @@ def test_compile_time_symbolic_shape():
 def test_symbolic_variables_from_match_binding():
     """Symbolic vars may be inferred from compile-time bindings"""
 
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
     @R.function
     def func(A: R.Tensor(ndim=1, dtype="int32"), B: R.Tensor(ndim=1, dtype="int32")):
         R.func_attr({"num_input": 1})
-        n = T.int64()
-        m = T.int64()
 
         A2 = R.match_cast(A, R.Tensor([n], "int32"))
         B2 = R.match_cast(B, R.Tensor([m], "int32"))
@@ -177,11 +180,12 @@ def test_compile_time_expressions_may_not_use_runtime_symbolic_variables():
     first knowing `A`, and is therefore unknown at compile-time.
     """
 
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
     @R.function
-    def func(A: R.Tensor(["n"], "int32"), B: R.Tensor(["m"], "int32")):
+    def func(A: R.Tensor([n], "int32"), B: R.Tensor([m], "int32")):
         R.func_attr({"num_input": 1})
-        n = T.int64()
-        m = T.int64()
 
         C = R.ones([m], "int32")
         D = R.ones([n], "int32")
@@ -200,10 +204,11 @@ def test_compile_time_expressions_may_infer_same_variable_as_run_time():
     can also be inferred from the compile-time parameter `B`.
     """
 
+    n = T.dynamic("n", "int64")
+
     @R.function
-    def func(A: R.Tensor(["n"], "int32"), B: R.Tensor(["n"], "int32")):
+    def func(A: R.Tensor([n], "int32"), B: R.Tensor([n], "int32")):
         R.func_attr({"num_input": 1})
-        n = T.int64()
 
         C = R.ones([n], "int32")
         D = R.ones([n], "int32")
@@ -223,11 +228,12 @@ def test_compile_time_expressions_may_use_variables_from_match_cast():
     first knowing `A`, and is therefore unknown at compile-time.
     """
 
+    n = T.dynamic("n", "int64")
+    m = T.dynamic("m", "int64")
+
     @R.function
-    def func(A: R.Tensor(["n"], "int32"), B: R.Tensor(ndim=1, dtype="int32")):
+    def func(A: R.Tensor([n], "int32"), B: R.Tensor(ndim=1, dtype="int32")):
         R.func_attr({"num_input": 1})
-        n = T.int64()
-        m = T.int64()
 
         B2 = R.match_cast(B, R.Tensor([m], "int32"))
 
@@ -241,4 +247,4 @@ def test_compile_time_expressions_may_use_variables_from_match_cast():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

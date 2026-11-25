@@ -22,12 +22,13 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm import tirx as _tirx
-from tvm.ir import Call, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
-from tvm.ir.utils import derived_object
-from tvm.runtime import Object
+import tvm_tirx
+from tvm import te as _te
+from tvm.s_tir.utils import derived_object
+from tvm_tirx import tirx as _tirx
+from tvm_tirx.ir import Call, DataTypeImm, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
+from tvm_tirx.ir.module import IRModule
 
-from ..ir.module import IRModule
 from . import _ffi_api
 from .block_builder import BlockBuilder
 from .expr import (
@@ -39,11 +40,11 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
-    If,
+    IfExpr,
+    Location,
     MatchCast,
     SeqExpr,
     ShapeExpr,
-    Span,
     Tuple,
     TupleGetItem,
     Var,
@@ -203,27 +204,29 @@ class ExprFunctor:
             ret = self.visit_not_(expr)
         elif isinstance(expr, _tirx.Select):
             ret = self.visit_select_(expr)
-        elif isinstance(expr, _tirx.Ramp):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Ramp):
             ret = self.visit_ramp_(expr)
-        elif isinstance(expr, _tirx.Broadcast):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Broadcast):
             ret = self.visit_broadcast_(expr)
-        elif isinstance(expr, _tirx.Shuffle):
+        elif isinstance(expr, tvm_tirx.ir.prim.vector_expr.Shuffle):
             ret = self.visit_shuffle_(expr)
-        elif isinstance(expr, _tirx.IntImm):
+        elif isinstance(expr, tvm_tirx.ir.IntImm):
             ret = self.visit_int_imm_(expr)
-        elif isinstance(expr, _tirx.FloatImm):
+        elif isinstance(expr, tvm_tirx.ir.FloatImm):
             ret = self.visit_float_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
-        elif isinstance(expr, If):  # type: ignore
-            ret = self.visit_if_(expr)
+        elif isinstance(expr, IfExpr):  # type: ignore
+            ret = self.visit_if_expr_(expr)
         elif isinstance(expr, Op):
             ret = self.visit_op_(expr)
         elif isinstance(expr, TupleGetItem):
             ret = self.visit_tuple_getitem_(expr)
+        elif isinstance(expr, DataTypeImm):
+            ret = self.visit_data_type_imm_(expr)
         elif isinstance(expr, StringImm):
             ret = self.visit_string_imm_(expr)
-        elif isinstance(expr, _tirx.Let | _tirx.Reduce):
+        elif isinstance(expr, _tirx.Let | _te.Reduce):
             raise TypeError(f"Relax does not support {type(expr).__name__} expressions")
         elif isinstance(expr, Expr):
             if is_prim_expr(expr):
@@ -342,25 +345,25 @@ class ExprFunctor:
     def visit_select_(self, op: _tirx.Select):
         return self.visit_expr_fallback_(op)
 
-    def visit_ramp_(self, op: _tirx.Ramp):
+    def visit_ramp_(self, op: tvm_tirx.ir.prim.vector_expr.Ramp):
         return self.visit_expr_fallback_(op)
 
-    def visit_broadcast_(self, op: _tirx.Broadcast):
+    def visit_broadcast_(self, op: tvm_tirx.ir.prim.vector_expr.Broadcast):
         return self.visit_expr_fallback_(op)
 
-    def visit_shuffle_(self, op: _tirx.Shuffle):
+    def visit_shuffle_(self, op: tvm_tirx.ir.prim.vector_expr.Shuffle):
         return self.visit_expr_fallback_(op)
 
-    def visit_int_imm_(self, op: _tirx.IntImm):
+    def visit_int_imm_(self, op: tvm_tirx.ir.IntImm):
         return self.visit_expr_fallback_(op)
 
-    def visit_float_imm_(self, op: _tirx.FloatImm):
+    def visit_float_imm_(self, op: tvm_tirx.ir.FloatImm):
         return self.visit_expr_fallback_(op)
 
     def visit_seq_expr_(self, op: SeqExpr):
         raise NotImplementedError()
 
-    def visit_if_(self, op: If):
+    def visit_if_expr_(self, op: IfExpr):
         raise NotImplementedError()
 
     def visit_op_(self, op: Op):
@@ -373,6 +376,9 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_string_imm_(self, op: StringImm):
+        raise NotImplementedError()
+
+    def visit_data_type_imm_(self, op: DataTypeImm):
         raise NotImplementedError()
 
     def visit_var_binding_(self, binding: VarBinding):
@@ -442,11 +448,12 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_function_: Callable | None = None,
         f_visit_call_: Callable | None = None,
         f_visit_seq_expr_: Callable | None = None,
-        f_visit_if_: Callable | None = None,
+        f_visit_if_expr_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
+        f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
         f_visit_var_binding_: Callable | None = None,
         f_visit_match_cast_: Callable | None = None,
@@ -456,7 +463,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_var_def: Callable | None = None,
         f_visit_var_def_: Callable | None = None,
         f_visit_dataflow_var_def_: Callable | None = None,
-        f_visit_span: Callable | None = None,
+        f_visit_loc: Callable | None = None,
     ) -> None:
         """Constructor."""
 
@@ -473,11 +480,12 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_function_,
             f_visit_call_,
             f_visit_seq_expr_,
-            f_visit_if_,
+            f_visit_if_expr_,
             f_visit_op_,
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
             f_visit_string_imm_,
+            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -487,7 +495,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_span,
+            f_visit_loc,
         )
 
     def visit_expr(self, expr: Expr) -> None:
@@ -567,11 +575,12 @@ class PyExprVisitor:
             "visit_function_",
             "visit_call_",
             "visit_seq_expr_",
-            "visit_if_",
+            "visit_if_expr_",
             "visit_op_",
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
             "visit_string_imm_",
+            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -581,7 +590,7 @@ class PyExprVisitor:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_span",
+            "visit_loc",
         ],
     }
 
@@ -638,7 +647,7 @@ class PyExprVisitor:
 
     def visit_generic_const_(self, op: GenericConst) -> None:
         """Visit GenericConst.
-        Users can customized this function to overwrite VisitExpr_(const GenericConstNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GenericConstObj* op)
         on the C++ side.
 
         Parameters
@@ -651,7 +660,7 @@ class PyExprVisitor:
 
     def visit_tuple_(self, op: Tuple) -> None:
         """Visit Tuple.
-        Users can customized this function to overwrite VisitExpr_(const TupleNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleObj* op)
         on the C++ side.
 
         Parameters
@@ -664,7 +673,7 @@ class PyExprVisitor:
 
     def visit_var_(self, op: Var) -> None:
         """Visit Var.
-        Users can customized this function to overwrite VisitExpr_(const VarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const VarObj* op)
         on the C++ side.
 
         Parameters
@@ -677,7 +686,7 @@ class PyExprVisitor:
 
     def visit_dataflow_var_(self, op: DataflowVar) -> None:
         """Visit DataflowVar.
-        Users can customized this function to overwrite VisitExpr_(const DataflowVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const DataflowVarObj* op)
         on the C++ side.
 
         Parameters
@@ -690,7 +699,7 @@ class PyExprVisitor:
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         """Visit ShapeExpr.
-        Users can customized this function to overwrite VisitExpr_(const ShapeExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ShapeExprObj* op)
         on the C++ side.
 
         Parameters
@@ -703,7 +712,7 @@ class PyExprVisitor:
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         """Visit ExternFunc.
-        Users can customized this function to overwrite VisitExpr_(const ExternFuncNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ExternFuncObj* op)
         on the C++ side.
 
         Parameters
@@ -716,7 +725,7 @@ class PyExprVisitor:
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         """Visit GlobalVar.
-        Users can customized this function to overwrite VisitExpr_(const GlobalVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GlobalVarObj* op)
         on the C++ side.
 
         Parameters
@@ -729,7 +738,7 @@ class PyExprVisitor:
 
     def visit_function_(self, op: Function) -> None:
         """Visit Function.
-        Users can customized this function to overwrite VisitExpr_(const FunctionNode* op)
+        Users can customized this function to overwrite VisitExpr_(const FunctionObj* op)
         on the C++ side.
 
         Parameters
@@ -742,7 +751,7 @@ class PyExprVisitor:
 
     def visit_call_(self, op: Call) -> None:
         """Visit Call.
-        Users can customized this function to overwrite VisitExpr_(const CallNode* op)
+        Users can customized this function to overwrite VisitExpr_(const CallObj* op)
         on the C++ side.
 
         Parameters
@@ -755,7 +764,7 @@ class PyExprVisitor:
 
     def visit_seq_expr_(self, op: SeqExpr) -> None:
         """Visit SeqExpr.
-        Users can customized this function to overwrite VisitExpr_(const SeqExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const SeqExprObj* op)
         on the C++ side.
 
         Parameters
@@ -766,22 +775,22 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_if_(self, op: If) -> None:
-        """Visit If.
-        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+    def visit_if_expr_(self, op: IfExpr) -> None:
+        """Visit IfExpr.
+        Users can customized this function to overwrite VisitExpr_(const IfExprObj* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : If
-            The If to be visited.
+        op : IfExpr
+            The IfExpr to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_op_(self, op: Op) -> None:
         """Visit Op.
-        Users can customized this function to overwrite VisitExpr_(const OpNode* op)
+        Users can customized this function to overwrite VisitExpr_(const OpObj* op)
         on the C++ side.
 
         Parameters
@@ -794,7 +803,7 @@ class PyExprVisitor:
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
         """Visit TupleGetItem.
-        Users can customized this function to overwrite VisitExpr_(const TupleGetItemNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleGetItemObj* op)
         on the C++ side.
 
         Parameters
@@ -818,7 +827,7 @@ class PyExprVisitor:
 
     def visit_string_imm_(self, op: StringImm) -> None:
         """Visit StringImm.
-        Users can customized this function to overwrite VisitExpr_(const StringImmNode* op)
+        Users can customized this function to overwrite VisitExpr_(const StringImmObj* op)
         on the C++ side.
 
         Parameters
@@ -829,9 +838,22 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
+    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
+        """Visit DataTypeImm.
+        Users can customized this function to overwrite VisitExpr_(const DataTypeImmObj* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : DataTypeImm
+            The DataTypeImm to be visited.
+        """
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
+
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
-        Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const VarBindingObj* binding)
         on the C++ side.
 
         Parameters
@@ -844,7 +866,7 @@ class PyExprVisitor:
 
     def visit_match_cast_(self, binding: MatchCast) -> None:
         """Visit MatchCast.
-        Users can customized this function to overwrite VisitBinding_(const MatchCastNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const MatchCastObj* binding)
         on the C++ side.
 
         Parameters
@@ -857,7 +879,7 @@ class PyExprVisitor:
 
     def visit_binding_block_(self, block: BindingBlock) -> None:
         """Visit BindingBlock.
-        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockObj*
         block) on the C++ side.
 
         Parameters
@@ -870,7 +892,7 @@ class PyExprVisitor:
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> None:
         """Visit DataflowBlock.
-        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockObj*
         block) on the C++ side.
 
         Parameters
@@ -883,7 +905,7 @@ class PyExprVisitor:
 
     def visit_var_def_(self, var: Var) -> None:
         """Visit the Var definition site.
-        Users can customized this function to overwrite VisitVarDef_(const VarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const VarObj* var)
         on the C++ side.
 
         Parameters
@@ -896,7 +918,7 @@ class PyExprVisitor:
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Visit the DataflowVar definition site.
-        Users can customized this function to overwrite VisitVarDef_(const DataflowVarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const DataflowVarObj* var)
         on the C++ side.
 
         Parameters
@@ -907,21 +929,21 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_span(self, span: Span) -> None:
-        """Visit Span.
-        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
+    def visit_loc(self, loc: Location) -> None:
+        """Visit Location.
+        Override this function to customize VisitLoc(const Location& loc) on the C++ side.
 
         Parameters
         ----------
-        span : Span
-            The Span to be visited.
+        loc : Location
+            The Location to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
+        return _ffi_api.ExprVisitorVisitLoc(self._outer(), loc)  # type: ignore
 
 
 @tvm_ffi.register_object("expr_functor.PyExprMutator")
-class _PyExprMutator(Object):
+class _PyExprMutator(tvm_ffi.Object):
     """
     A TVM object to support customization of ExprMutator on the python side.
     This is the decorated result returned from mutator decorator.
@@ -945,11 +967,12 @@ class _PyExprMutator(Object):
         f_visit_function_: Callable | None = None,
         f_visit_call_: Callable | None = None,
         f_visit_seq_expr_: Callable | None = None,
-        f_visit_if_: Callable | None = None,
+        f_visit_if_expr_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
+        f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
         f_visit_var_binding_: Callable | None = None,
         f_visit_match_cast_: Callable | None = None,
@@ -959,7 +982,7 @@ class _PyExprMutator(Object):
         f_visit_var_def: Callable | None = None,
         f_visit_var_def_: Callable | None = None,
         f_visit_dataflow_var_def_: Callable | None = None,
-        f_visit_span: Callable | None = None,
+        f_visit_loc: Callable | None = None,
     ) -> None:
         """Constructor."""
 
@@ -977,11 +1000,12 @@ class _PyExprMutator(Object):
             f_visit_function_,
             f_visit_call_,
             f_visit_seq_expr_,
-            f_visit_if_,
+            f_visit_if_expr_,
             f_visit_op_,
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
             f_visit_string_imm_,
+            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -991,7 +1015,7 @@ class _PyExprMutator(Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_span,
+            f_visit_loc,
         )
 
     def visit_expr(self, expr: Expr) -> Expr:
@@ -1087,11 +1111,12 @@ class PyExprMutator:
             "visit_function_",
             "visit_call_",
             "visit_seq_expr_",
-            "visit_if_",
+            "visit_if_expr_",
             "visit_op_",
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
             "visit_string_imm_",
+            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -1101,7 +1126,7 @@ class PyExprMutator:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_span",
+            "visit_loc",
         ],
     }
 
@@ -1177,7 +1202,7 @@ class PyExprMutator:
 
     def visit_generic_const_(self, op: GenericConst) -> Expr:
         """Visit GenericConst.
-        Users can customized this function to overwrite VisitExpr_(const GenericConstNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GenericConstObj* op)
         on the C++ side.
 
         Parameters
@@ -1195,7 +1220,7 @@ class PyExprMutator:
 
     def visit_tuple_(self, op: Tuple) -> Expr:
         """Visit Tuple.
-        Users can customized this function to overwrite VisitExpr_(const TupleNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleObj* op)
         on the C++ side.
 
         Parameters
@@ -1213,7 +1238,7 @@ class PyExprMutator:
 
     def visit_var_(self, op: Var) -> Expr:
         """Visit Var.
-        Users can customized this function to overwrite VisitExpr_(const VarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const VarObj* op)
         on the C++ side.
 
         Parameters
@@ -1231,7 +1256,7 @@ class PyExprMutator:
 
     def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         """Visit DataflowVar.
-        Users can customized this function to overwrite VisitExpr_(const DataflowVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const DataflowVarObj* op)
         on the C++ side.
 
         Parameters
@@ -1249,7 +1274,7 @@ class PyExprMutator:
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         """Visit ShapeExpr.
-        Users can customized this function to overwrite VisitExpr_(const ShapeExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ShapeExprObj* op)
         on the C++ side.
 
         Parameters
@@ -1267,7 +1292,7 @@ class PyExprMutator:
 
     def visit_extern_func_(self, op: ExternFunc) -> Expr:
         """Visit ExternFunc.
-        Users can customized this function to overwrite VisitExpr_(const ExternFuncNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ExternFuncObj* op)
         on the C++ side.
 
         Parameters
@@ -1285,7 +1310,7 @@ class PyExprMutator:
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
         """Visit GlobalVar.
-        Users can customized this function to overwrite VisitExpr_(const GlobalVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GlobalVarObj* op)
         on the C++ side.
 
         Parameters
@@ -1303,7 +1328,7 @@ class PyExprMutator:
 
     def visit_function_(self, op: Function) -> Expr:
         """Visit Function.
-        Users can customized this function to overwrite VisitExpr_(const FunctionNode* op)
+        Users can customized this function to overwrite VisitExpr_(const FunctionObj* op)
         on the C++ side.
 
         Parameters
@@ -1321,7 +1346,7 @@ class PyExprMutator:
 
     def visit_call_(self, op: Call) -> Expr:
         """Visit Call.
-        Users can customized this function to overwrite VisitExpr_(const CallNode* op)
+        Users can customized this function to overwrite VisitExpr_(const CallObj* op)
         on the C++ side.
 
         Parameters
@@ -1339,7 +1364,7 @@ class PyExprMutator:
 
     def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         """Visit SeqExpr.
-        Users can customized this function to overwrite VisitExpr_(const SeqExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const SeqExprObj* op)
         on the C++ side.
 
         Parameters
@@ -1355,15 +1380,15 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_if_(self, op: If) -> Expr:
-        """Visit If.
-        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+    def visit_if_expr_(self, op: IfExpr) -> Expr:
+        """Visit IfExpr.
+        Users can customized this function to overwrite VisitExpr_(const IfExprObj* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : If
-            The If to be visited.
+        op : IfExpr
+            The IfExpr to be visited.
 
         Returns
         -------
@@ -1375,7 +1400,7 @@ class PyExprMutator:
 
     def visit_op_(self, op: Op) -> Expr:
         """Visit Op.
-        Users can customized this function to overwrite VisitExpr_(const OpNode* op)
+        Users can customized this function to overwrite VisitExpr_(const OpObj* op)
         on the C++ side.
 
         Parameters
@@ -1393,7 +1418,7 @@ class PyExprMutator:
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         """Visit TupleGetItem.
-        Users can customized this function to overwrite VisitExpr_(const TupleGetItemNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleGetItemObj* op)
         on the C++ side.
 
         Parameters
@@ -1427,7 +1452,7 @@ class PyExprMutator:
 
     def visit_string_imm_(self, op: StringImm) -> Expr:
         """Visit StringImm.
-        Users can customized this function to overwrite VisitExpr_(const StringImmNode* op)
+        Users can customized this function to overwrite VisitExpr_(const StringImmObj* op)
         on the C++ side.
 
         Parameters
@@ -1443,9 +1468,27 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
+    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
+        """Visit DataTypeImm.
+        Users can customized this function to overwrite VisitExpr_(const DataTypeImmObj* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : DataTypeImm
+            The DataTypeImm to be visited.
+
+        Returns
+        -------
+        result : Expr
+            The Expr after transformation
+        """
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
+
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
-        Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const VarBindingObj* binding)
         on the C++ side.
 
         Parameters
@@ -1458,7 +1501,7 @@ class PyExprMutator:
 
     def visit_match_cast_(self, binding: MatchCast) -> None:
         """Visit MatchCast.
-        Users can customized this function to overwrite VisitBinding_(const MatchCastNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const MatchCastObj* binding)
         on the C++ side.
 
         Parameters
@@ -1471,7 +1514,7 @@ class PyExprMutator:
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Visit BindingBlock.
-        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockObj*
         block) on the C++ side.
 
         Parameters
@@ -1489,7 +1532,7 @@ class PyExprMutator:
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         """Visit DataflowBlock.
-        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockObj*
         block) on the C++ side.
 
         Parameters
@@ -1507,7 +1550,7 @@ class PyExprMutator:
 
     def visit_var_def_(self, var: Var) -> Var:
         """Visit the Var definition site.
-        Users can customized this function to overwrite VisitVarDef_(const VarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const VarObj* var)
         on the C++ side.
 
         Parameters
@@ -1525,7 +1568,7 @@ class PyExprMutator:
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         """Visit the DataflowVar definition site.
-        Users can customized this function to overwrite VisitVarDef_(const DataflowVarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const DataflowVarObj* var)
         on the C++ side.
 
         Parameters
@@ -1541,19 +1584,19 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_span(self, span: Span) -> Span:
-        """Visit Span.
-        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
+    def visit_loc(self, loc: Location) -> Location:
+        """Visit Location.
+        Override this function to customize VisitLoc(const Location& loc) on the C++ side.
 
         Parameters
         ----------
-        span : Span
-            The Span to be visited.
+        loc : Location
+            The Location to be visited.
 
         Returns
         -------
-        result : Span
-            The span after transformation.
+        result : Location
+            The loc after transformation.
         """
         raise NotImplementedError
 
@@ -1587,7 +1630,7 @@ class PyExprMutator:
             self._outer(), old_var, new_var
         )
 
-    def get_var_remap(self, var: Var) -> Var:
+    def get_var_remap(self, var: Var) -> Var | None:
         """Remap a var to a new var in use-site.
 
         Parameters
@@ -1598,13 +1641,13 @@ class PyExprMutator:
         Returns
         -------
         var : Var
-            The remapped var.
+            The remapped var, or None if no mapping exists.
         """
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), var)  # type: ignore
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
-        """Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+        """Rewrite the expr with a new scope, used in a Function's body and the branches of IfExpr.
 
         Parameters
         ----------

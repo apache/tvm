@@ -22,76 +22,80 @@ import sys
 import time
 
 import pytest
+import tvm_ffi
 from tvm_ffi import register_global_func
 
-import tvm.testing
-from tvm import script
-from tvm.runtime import Module
+import tvm
+import tvm_tirx.testing
+from tvm.s_tir import script as Ts
 from tvm.s_tir.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
     LocalBuilder,
     PyBuilder,
 )
-from tvm.script import tirx as T
-from tvm.target import Target
+from tvm_tirx import script
+from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
 @script.ir_module
 class MatmulModule:
-    @T.prim_func(s_tir=True)
-    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.function
+    def matmul(
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "matmul", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @script.ir_module
 class MatmulReluModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def matmul_relu(  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, d: T.handle
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        D: T.Tensor((1024, 1024), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "matmul_relu", "tirx.noalias": True})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        D = T.match_buffer(d, (1024, 1024), "float32")
-        C = T.sblock_alloc_buffer((1024, 1024), "float32")
+
+        C = Ts.sblock_alloc_tensor((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(1024, 1024):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 @script.ir_module
 class BatchMatmulModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def batch_matmul(  # pylint: disable=no-self-argument
-        a: T.handle, b: T.handle, c: T.handle
+        A: T.Tensor([16, 128, 128], "float32"),
+        B: T.Tensor([16, 128, 128], "float32"),
+        C: T.Tensor([16, 128, 128], "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "batch_matmul", "tirx.noalias": True})
-        A = T.match_buffer(a, [16, 128, 128])
-        B = T.match_buffer(b, [16, 128, 128])
-        C = T.match_buffer(c, [16, 128, 128])
+
         for n, i, j, k in T.grid(16, 128, 128, 128):
-            with T.sblock("update"):
-                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
-                with T.init():
+            with Ts.sblock("update"):
+                vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
+                with Ts.init():
                     C[vn, vi, vj] = 0.0
                 C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
@@ -166,7 +170,7 @@ def test_meta_schedule_error_handle_build_func():
 
     def initializer():
         @register_global_func("meta_schedule.builder.test_build")
-        def test_build(mod: Module, target: Target, _) -> None:  # pylint: disable=unused-variable
+        def test_build(mod: tvm_ffi.Module, target: Target, _) -> None:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (build func).")
 
     builder = LocalBuilder(f_build="meta_schedule.builder.test_build", initializer=initializer)
@@ -186,7 +190,7 @@ def test_meta_schedule_error_handle_export_func():
 
     def initializer():
         @register_global_func("meta_schedule.builder.test_export")
-        def test_build(mod: Module) -> str:  # pylint: disable=unused-variable
+        def test_build(mod: tvm_ffi.Module) -> str:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (export func).")
 
     builder = LocalBuilder(f_export="meta_schedule.builder.test_export", initializer=initializer)
@@ -231,4 +235,4 @@ def test_meta_schedule_missing_build_func():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()

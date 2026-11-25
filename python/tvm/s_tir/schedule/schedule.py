@@ -20,14 +20,15 @@ import inspect
 from collections.abc import Callable
 from typing import Literal
 
+import tvm_ffi
+from tvm_ffi import register_error
 from tvm_ffi import register_object as _register_object
 
-from tvm.error import register_error
-from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
-from tvm.runtime import DataTypeCode, Object
 from tvm.s_tir import SBlock
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, is_buffer_var
-from tvm.tirx.function import IndexMap
+from tvm_tirx.ir import Expr, FloatImm, For, GlobalVar, IntImm, IRModule, is_prim_expr
+from tvm_tirx.runtime import DataTypeCode, MemoryScope
+from tvm_tirx.tirx import Function, Var, is_tensor_var
+from tvm_tirx.tirx.index_map import IndexMap
 
 from . import _ffi_api
 from ._type_checker import type_checked
@@ -41,7 +42,7 @@ class ScheduleError(RuntimeError):
 
 
 @_register_object("s_tir.LoopRV")
-class LoopRV(Object):
+class LoopRV(tvm_ffi.Object):
     """A random variable that refers to a loop"""
 
     def __init__(self) -> None:
@@ -52,7 +53,7 @@ class LoopRV(Object):
 
 
 @_register_object("s_tir.SBlockRV")
-class SBlockRV(Object):
+class SBlockRV(tvm_ffi.Object):
     """A random variable that refers to a block"""
 
     def __init__(self) -> None:
@@ -105,21 +106,21 @@ def _parse_seed(seed: int | None) -> int:
 def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
         return str(i.var.ty)
-    for buffer_region in list(block.reads) + list(block.writes):
-        for dom in buffer_region.region:
-            return str(dom.min.ty)
+    for tensor_region in list(block.reads) + list(block.writes):
+        for dom in tensor_region.region:
+            return str(dom.begin.ty)
     return "int64"
 
 
 @_register_object("s_tir.Schedule")
-class Schedule(Object):
+class Schedule(tvm_ffi.Object):
     """The user-facing schedule class
 
     A schedule is a set of transformations that change the order of computation but
     preserve the semantics of computation. Some example of schedules:
     1) Split a loop into two;
     2) Reorder two loops;
-    3) Inline the computation of a specific buffer into its consumer
+    3) Inline the computation of a specific tensor into its consumer
 
     The schedule class stores auxiliary information to schedule correctly and efficiently.
 
@@ -129,7 +130,7 @@ class Schedule(Object):
     @type_checked
     def __init__(
         self,
-        mod: PrimFunc | IRModule,
+        mod: Function | IRModule,
         *,
         seed: int | None = None,
         debug_mask: str | int = "none",
@@ -140,8 +141,8 @@ class Schedule(Object):
 
         Parameters
         ----------
-        mod : PrimFunc | IRModule
-            The IRModule or PrimFunc to be scheduled
+        mod : Function | IRModule
+            The IRModule or Function to be scheduled
         seed: Optional[int]
             The seed value for schedule's random state
             Note that None and -1 means use device random, otherwise only integer between 1 and
@@ -186,7 +187,7 @@ class Schedule(Object):
 
     @staticmethod
     def _create_non_traced(
-        mod: PrimFunc | IRModule,
+        mod: Function | IRModule,
         *,
         seed: int | None = None,
         debug_mask: str | int = "none",
@@ -289,12 +290,12 @@ class Schedule(Object):
 
         trace = self.trace
         if trace is not None:
-            # Trace.show only supports the style and black_format arguments
+            # Trace.show only supports the style argument
             param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
             param_binding.apply_defaults()
             bound_args = param_binding.arguments
 
-            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
+            trace.show(style=bound_args["style"])
 
     ########## Lookup ##########
 
@@ -391,7 +392,7 @@ class Schedule(Object):
         n: int,
         max_innermost_factor: int = 16,
         decision: list[int] | None = None,
-    ) -> list[ExprRV]:
+    ) -> list[ExprRV | None]:
         """Sample the factors to perfect tile a specific loop
 
         Parameters
@@ -407,8 +408,9 @@ class Schedule(Object):
 
         Returns
         -------
-        result : List[ExprRV]
-            A list of length `n`, the random perfect tile sizes sampled
+        result : List[Optional[ExprRV]]
+            A list of length `n`, the random perfect tile sizes sampled.
+            A dynamic factor is represented by None.
         """
         return list(
             _ffi_api.ScheduleSamplePerfectTile(  # type: ignore  # pylint: disable=no-member
@@ -578,8 +580,8 @@ class Schedule(Object):
     @type_checked
     def get_output_blocks(self, scope_block: SBlockRV | str) -> list[SBlockRV]:
         """Get the list of output blocks within the given scope
-        An output block is a block which has atleast one buffer being written
-        to, but is not allocated within the PrimFunc
+        An output block is a block which has atleast one tensor being written
+        to, but is not allocated within the Function
 
         Parameters
         ----------
@@ -589,7 +591,7 @@ class Schedule(Object):
         Returns
         -------
         output_blocks : List[SBlockRV]
-            A list of all blocks that write to some output buffer
+            A list of all blocks that write to some output tensor
 
         """
         scope_block = self._normalize_block_arg(scope_block)
@@ -622,18 +624,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def before_merge(
+                A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -650,25 +652,26 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def after_fuse(
+                A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+            ) -> None:
+
                 # the 2 loops are merged into 1
                 for i_m in range(128):
                     for j in range(128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i_m, j])
-                            T.reads(A[vi, vj])
-                            T.writes(B[vi, vj])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i_m, j])
+                            Ts.reads(A[vi, vj])
+                            Ts.writes(B[vi, vj])
                             B[vi, vj] = A[vi, vj] * T.float32(2)
                     for j in range(128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i_m, j])
-                            T.reads(A[vi, vj])
-                            T.writes(C[vi, vj])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i_m, j])
+                            Ts.reads(A[vi, vj])
+                            Ts.writes(C[vi, vj])
                             C[vi, vj] = A[vi, vj] * T.float32(2)
+
         """
         return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
 
@@ -698,13 +701,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_fuse(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -720,15 +723,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_fuse(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 # the 2 loops are fused into 1
                 for i_j_fused in T.serial(0, 16384):
-                    with T.sblock("B"):
-                        vi = T.axis.S(128, T.floordiv(i_j_fused, 128))
-                        vj = T.axis.S(128, T.floormod(i_j_fused, 128))
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.S(128, T.floordiv(i_j_fused, 128))
+                        vj = Ts.axis.S(128, T.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -788,13 +791,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do split:
@@ -810,15 +813,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 # the original loop is split into 2 loops
                 for i0, i1, j in T.grid(2, 64, 128):
-                    with T.sblock("B"):
-                        vi = T.axis.S(128, i0 * 64 + i1)
-                        vj = T.axis.S(128, j)
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.S(128, i0 * 64 + i1)
+                        vj = Ts.axis.S(128, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -875,13 +878,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_partition(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do partition:
@@ -897,44 +900,44 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            def after_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_partition(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 # the original loop is partition into 3 loops
-                with T.sblock("root"):
-                    T.reads()
-                    T.writes()
-                    with T.sblock("B_i_common"):
-                        T.reads()
-                        T.writes()
-                        with T.sblock("B_i0_partition"):
-                            T.reads()
-                            T.writes()
+                with Ts.sblock("root"):
+                    Ts.reads()
+                    Ts.writes()
+                    with Ts.sblock("B_i_common"):
+                        Ts.reads()
+                        Ts.writes()
+                        with Ts.sblock("B_i0_partition"):
+                            Ts.reads()
+                            Ts.writes()
                             for i0, j in T.grid(2, 128):
-                                with T.sblock("B_i0"):
-                                    vi, vj = T.axis.remap("SS", [i0, j])
-                                    T.reads(A[0:2, 0:128])
-                                    T.writes(B[0:2, 0:128])
+                                with Ts.sblock("B_i0"):
+                                    vi, vj = Ts.axis.remap("SS", [i0, j])
+                                    Ts.reads(A[0:2, 0:128])
+                                    Ts.writes(B[0:2, 0:128])
                                     B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.sblock("B_i1_partition"):
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("B_i1_partition"):
+                            Ts.reads()
+                            Ts.writes()
                             for i1 in range(2, 66):
                                 for j in range(128):
-                                    with T.sblock("B_i1"):
-                                        vi, vj = T.axis.remap("SS", [i1, j])
-                                        T.reads(A[2:66, 0:128])
-                                        T.writes(B[2:66, 0:128])
+                                    with Ts.sblock("B_i1"):
+                                        vi, vj = Ts.axis.remap("SS", [i1, j])
+                                        Ts.reads(A[2:66, 0:128])
+                                        Ts.writes(B[2:66, 0:128])
                                         B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.sblock("B_partition_2"):
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("B_partition_2"):
+                            Ts.reads()
+                            Ts.writes()
                             for i2 in range(66, 128):
                                 for j in range(128):
-                                    with T.sblock("B_i2"):
-                                        vi, vj = T.axis.remap("SS", [i2, j])
-                                        T.reads(A[66:128, 0:128])
-                                        T.writes(B[66:128, 0:128])
+                                    with Ts.sblock("B_i2"):
+                                        vi, vj = Ts.axis.remap("SS", [i2, j])
+                                        Ts.reads(A[66:128, 0:128])
+                                        Ts.writes(B[66:128, 0:128])
                                         B[vi, vj] = A[vi, vj] * T.float32(2)
         """
         return list(
@@ -969,13 +972,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_reorder(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do reorder:
@@ -991,14 +994,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_reorder(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 # Here j and i are reordered
                 for j, i in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1022,16 +1025,16 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def matmul(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32"),
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32"),
             ) -> None:
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.sblock("C"):
-                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                        with T.init():
+                    with Ts.sblock("C"):
+                        vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                        with Ts.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -1047,18 +1050,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def matmul_after_reorder_block_iter_var(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32"),
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32"),
             ):
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.sblock("C"):
-                        vk, vj, vi = T.axis.remap("RSS", [k, j, i])
-                        T.reads(A[vi, vk], B[vj, vk])
-                        T.writes(C[vi, vj])
-                        with T.init():
+                    with Ts.sblock("C"):
+                        vk, vj, vi = Ts.axis.remap("RSS", [k, j, i])
+                        Ts.reads(A[vi, vk], B[vj, vk])
+                        Ts.writes(C[vi, vj])
+                        with Ts.init():
                             C[vi, vj] = T.float32(0)
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -1090,14 +1093,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_add_unit_loop(
-                A: T.Buffer((), "int32"),
-                B: T.Buffer((), "int32"),
-                C: T.Buffer((), "int32"),
+                A: T.Tensor((), "int32"),
+                B: T.Tensor((), "int32"),
+                C: T.Tensor((), "int32"),
             ) -> None:
-                with T.sblock("C"):
-                    vi = T.axis.spatial(1, 0)
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(1, 0)
                     C[()] = A[()] + B[()]
 
         Create the schedule and do add-unit-loop:
@@ -1112,15 +1115,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_add_unit_loop(
-                A: T.Buffer((), "int32"),
-                B: T.Buffer((), "int32"),
-                C: T.Buffer((), "int32"),
+                A: T.Tensor((), "int32"),
+                B: T.Tensor((), "int32"),
+                C: T.Tensor((), "int32"),
             ) -> None:
                 for u in T.serial(1):
-                    with T.sblock("C"):
-                        vi = T.axis.spatial(1, 0)
+                    with Ts.sblock("C"):
+                        vi = Ts.axis.spatial(1, 0)
                         C[()] = A[()] + B[()]
         """
         # pylint: disable-next=no-member
@@ -1150,13 +1153,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_parallel(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do parallel:
@@ -1171,14 +1174,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_parallel(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i in T.parallel(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1206,13 +1209,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_vectorize(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do vectorize:
@@ -1227,14 +1230,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_vectorize(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i in T.serial(0, 128):
                     for j in T.vectorized(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1267,13 +1270,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_bind(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do bind:
@@ -1289,14 +1292,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
-                    for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+            @Ts.function
+            def after_bind(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
+                for i in T.parallel(0, 128, annotations={"thread_binding": "blockIdx.x"}):
+                    for j in T.parallel(0, 128, annotations={"thread_binding": "threadIdx.x"}):
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1318,13 +1321,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_unroll(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do unroll:
@@ -1339,14 +1342,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_unroll(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i in T.unroll(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1358,28 +1361,28 @@ class Schedule(Object):
     def cache_read(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Buffer,
-        storage_scope: str,
+        read_tensor_index: int | str | Var,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a read cache. It requires:
+        """Create a block that reads a tensor region into a read cache. It requires:
 
 
-        1) There is at most one block who write the buffer in the scope.
+        1) There is at most one block who write the tensor in the scope.
 
         2) The scope block have stage-pipeline property.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The consumer block of the target buffer.
+            The consumer block of the target tensor.
 
-        buffer: int | str | Buffer
-            The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Buffer object
+        tensor: int | str | Var
+            The index of the tensor in block's read region, the unique
+            name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
@@ -1397,13 +1400,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_read:
@@ -1419,21 +1422,23 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                A_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.function
+            def after_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
+                A_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_local[vi, vj] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1441,45 +1446,45 @@ class Schedule(Object):
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
-        if not isinstance(read_buffer_index, int):
-            _, read_buffer_index, _ = self._normalize_buffer_arg(
-                block, read_buffer_index, required_buffer_type="read"
+        if not isinstance(read_tensor_index, int):
+            _, read_tensor_index, _ = self._normalize_tensor_arg(
+                block, read_tensor_index, required_tensor_type="read"
             )
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, consumer_blocks
+            self, block, read_tensor_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def cache_write(
         self,
         block: SBlockRV | str,
-        write_buffer_index: int | str | Buffer,
-        storage_scope: str,
+        write_tensor_index: int | str | Var,
+        storage_scope: str | MemoryScope,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a write cache. It requires:
+        """Create a block that reads a tensor region into a write cache. It requires:
 
 
-        1) There is only one block who write the buffer in the scope.
+        1) There is only one block who write the tensor in the scope.
 
         2) The scope block have stage-pipeline property.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the target buffer.
+            The producer block of the target tensor.
 
-        write_buffer_index: int
-            The index of the buffer in block's write region, the unique
-            name of a write buffer in the block, or a Buffer object
+        write_tensor_index: int
+            The index of the tensor in block's write region, the unique
+            name of a write tensor in the block, or a Var object
             that is within the blocks write region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
         consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
-            If not specified, all consumers will read from the original buffer.
+            If not specified, all consumers will read from the original tensor.
 
         Returns
         -------
@@ -1492,13 +1497,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_write:
@@ -1514,21 +1519,23 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                B_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.function
+            def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
+                B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_local[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi, vj]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         if consumer_blocks is None:
             consumer_blocks = []
 
@@ -1536,27 +1543,27 @@ class Schedule(Object):
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
-        if not isinstance(write_buffer_index, int):
-            _, write_buffer_index, _ = self._normalize_buffer_arg(
-                block, write_buffer_index, required_buffer_type="write"
+        if not isinstance(write_tensor_index, int):
+            _, write_tensor_index, _ = self._normalize_tensor_arg(
+                block, write_tensor_index, required_tensor_type="write"
             )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, consumer_blocks
+            self, block, write_tensor_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def reindex_cache_read(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int,
-        storage_scope: str,
+        read_tensor_index: int,
+        storage_scope: str | MemoryScope,
         index_map: IndexMap | Callable,
     ) -> SBlockRV:
-        """Create a block that reads a buffer region into a read cache using customized
-        indices specified by index map. The read region of the buffer must be a single point.
+        """Create a block that reads a tensor region into a read cache using customized
+        indices specified by index map. The read region of the tensor must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding
+        If a block itervar does not appear in the tensor access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
 
@@ -1566,13 +1573,13 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV
-            The consumer block of the target buffer.
-        read_buffer_index: int
-            The index of the buffer in block's read region.
-        storage_scope: str
+            The consumer block of the target tensor.
+        read_tensor_index: int
+            The index of the tensor in block's read region.
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: IndexMap | Callable
-            User defined indices to access allocated cache buffer, maps from block iter vars.
+            User defined indices to access allocated cache tensor, maps from block iter vars.
 
         Returns
         -------
@@ -1585,13 +1592,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_reindex_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and reindex_cache_read:
@@ -1607,18 +1614,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                A_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.function
+            def after_reindex_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
+                A_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_local[vj, vi] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vj, vi] * 2.0
 
         See Also
@@ -1629,6 +1636,8 @@ class Schedule(Object):
         cache_read
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1638,22 +1647,22 @@ class Schedule(Object):
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope, index_map
+            self, block, read_tensor_index, storage_scope, index_map
         )
 
     @type_checked
     def reindex_cache_write(
         self,
         block: SBlockRV | str,
-        write_buffer_index: int,
-        storage_scope: str,
+        write_tensor_index: int,
+        storage_scope: str | MemoryScope,
         index_map: Callable | IndexMap,
     ) -> SBlockRV:
-        r"""Create a block that reads a buffer region into a write cache using customized
-        indices specified by index map. The write region of the buffer must be a single point.
+        r"""Create a block that reads a tensor region into a write cache using customized
+        indices specified by index map. The write region of the tensor must be a single point.
 
         The cache stage block follows the original order of loops and block itervars in the block.
-        If a block itervar does not appear in the buffer access region, it and its corresponding
+        If a block itervar does not appear in the tensor access region, it and its corresponding
         loop variables will be omitted. User can then use `transform_block_layout` primitive to
         reorder the block itervars and surrounding loops of the cache read/write block.
 
@@ -1663,16 +1672,16 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The consumer block of the target buffer.
-        write_buffer_index: int
-            The index of the buffer in block's write region.
-        storage_scope: str
+            The consumer block of the target tensor.
+        write_tensor_index: int
+            The index of the tensor in block's write region.
+        storage_scope: str | MemoryScope
             The target storage scope.
         index_map: Callable | IndexMap
-            User defined indices to access allocated cache buffer, maps from block iter vars.
+            User defined indices to access allocated cache tensor, maps from block iter vars.
         consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
-            If not specified, all consumers will read from the original buffer.
+            If not specified, all consumers will read from the original tensor.
 
         Returns
         -------
@@ -1685,13 +1694,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_reindex_cache_write(
+                A: T.Tensor((128, 128)), B: T.Tensor((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and reindex_cache_write:
@@ -1707,18 +1717,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (64, 2, 128))
-                B_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.function
+            def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((64, 2, 128))) -> None:
+
+
+                B_local = Ts.sblock_alloc_tensor((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_local[vi % 2, vi // 2, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi % 2, vi // 2, vj]
 
         See Also
@@ -1729,6 +1739,8 @@ class Schedule(Object):
         cache_write
         reindex
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
@@ -1738,31 +1750,31 @@ class Schedule(Object):
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
-            self, block, write_buffer_index, storage_scope, index_map
+            self, block, write_tensor_index, storage_scope, index_map
         )
 
     @type_checked
     def cache_inplace(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Buffer,
-        storage_scope: str,
+        read_tensor_index: int | str | Var,
+        storage_scope: str | MemoryScope,
     ) -> list[SBlockRV]:
-        """Create blocks that reads & write a buffer region into a cache block.
-        It requires the target block both read & write the target buffer.
+        """Create blocks that reads & write a tensor region into a cache block.
+        It requires the target block both read & write the target tensor.
         Mainly for inplace operation.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The target block operates on the target buffer.
+            The target block operates on the target tensor.
 
-        read_buffer_index: int
-            The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Buffer object
+        read_tensor_index: int
+            The index of the tensor in block's read region, the unique
+            name of a read tensor in the block, or a Var object
             that is within the blocks read region.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The target storage scope.
 
 
@@ -1777,13 +1789,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_cache_inplace(data_io: T.Buffer((64), "int32")):
+            @Ts.function
+            def before_cache_inplace(data_io: T.Tensor((64), "int32")):
                 for i0 in T.serial(1):
-                    with T.sblock("A"):
-                        T.reads(data_io[:64])
-                        T.writes(data_io[:64])
-                        T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+                    with Ts.sblock("A"):
+                        Ts.reads(data_io[:64])
+                        Ts.writes(data_io[:64])
+                        T.evaluate(T.call_extern("call_impl", data_io.data, ty="void"))
 
         Create the schedule and cache_inplace:
 
@@ -1798,41 +1810,43 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def cache_inplace(data_io: T.Buffer(64, "int32")) -> None:
-                data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
+            @Ts.function
+            def cache_inplace(data_io: T.Tensor(64, "int32")) -> None:
+                data_io_local = Ts.sblock_alloc_tensor([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
                     for ax0 in T.serial(64):
-                        with T.sblock("data_io_local"):
-                            v0 = T.axis.spatial(64, ax0)
-                            T.reads(data_io[v0])
-                            T.writes(data_io_local[v0])
+                        with Ts.sblock("data_io_local"):
+                            v0 = Ts.axis.spatial(64, ax0)
+                            Ts.reads(data_io[v0])
+                            Ts.writes(data_io_local[v0])
                             data_io_local[v0] = data_io[v0]
-                    with T.sblock("A"):
-                        T.reads(data_io_local[0 : 64])
-                        T.writes(data_io_local[0 : 64])
-                        T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+                    with Ts.sblock("A"):
+                        Ts.reads(data_io_local[0 : 64])
+                        Ts.writes(data_io_local[0 : 64])
+                        T.evaluate(T.call_extern("call_impl", data_io_local.data, ty="void"))
                     for ax0 in T.serial(64):
-                        with T.sblock("data_io_local"):
-                            v0 = T.axis.spatial(64, ax0)
-                            T.reads(data_io_local[v0])
-                            T.writes(data_io[v0])
+                        with Ts.sblock("data_io_local"):
+                            v0 = Ts.axis.spatial(64, ax0)
+                            Ts.reads(data_io_local[v0])
+                            Ts.writes(data_io[v0])
                             data_io[v0] = data_io_local[v0]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
-        if not isinstance(read_buffer_index, int):
-            _, read_buffer_index, _ = self._normalize_buffer_arg(
-                block, read_buffer_index, required_buffer_type="read"
+        if not isinstance(read_tensor_index, int):
+            _, read_tensor_index, _ = self._normalize_tensor_arg(
+                block, read_tensor_index, required_tensor_type="read"
             )
         return _ffi_api.ScheduleCacheInplace(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope
+            self, block, read_tensor_index, storage_scope
         )
 
     @type_checked
     def cache_index(
-        self, block: SBlockRV | str, storage_scope: str, cse_thresh: int = 0
+        self, block: SBlockRV | str, storage_scope: str | MemoryScope, cse_thresh: int = 0
     ) -> list[SBlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
@@ -1840,9 +1854,9 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The target block operates on the target buffer.
+            The target block operates on the target tensor.
 
-        storage_scope: str
+        storage_scope: str | MemoryScope
             The storage scope of cached block.
 
         cse_thresh: int
@@ -1853,7 +1867,7 @@ class Schedule(Object):
         Returns
         -------
         cached_blocks : List[SBlockRV]
-            The blocks of the stage writing the cache buffers
+            The blocks of the stage writing the cache tensors
 
         Examples
         --------
@@ -1861,13 +1875,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def resize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (1, 3, 40, 40))
-                B = T.match_buffer(b, (1, 3, 80, 80))
+            @Ts.function
+            def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
+
+
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.sblock("A"):
-                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    with Ts.sblock("A"):
+                        n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                         B[n, c, vi, vj] = A[n, c, vi//4 + vj//4, vj//2]
 
         Create the schedule and cache_index:
@@ -1883,33 +1897,35 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def resize_cache_index(
-                A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
+                A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = T.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
-                index_var_1 = T.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_tensor([80, 80], dtype="int32")
+                index_var_1 = Ts.sblock_alloc_tensor([80], dtype="int32")
                 for ax0, ax1 in T.grid(80, 80):
-                    with T.sblock("index_0"):
-                        v0 = T.axis.spatial(80, ax0)
-                        v1 = T.axis.spatial(80, ax1)
-                        T.reads()
-                        T.writes(index_var_0[v0, v1])
+                    with Ts.sblock("index_0"):
+                        v0 = Ts.axis.spatial(80, ax0)
+                        v1 = Ts.axis.spatial(80, ax1)
+                        Ts.reads()
+                        Ts.writes(index_var_0[v0, v1])
                         index_var_0[v0, v1] = v0 // 4 + v1 // 4
                 for ax0 in T.serial(80):
-                    with T.sblock("index_1"):
-                        v0 = T.axis.spatial(80, ax0)
-                        T.reads()
-                        T.writes(index_var_1[v0])
+                    with Ts.sblock("index_1"):
+                        v0 = Ts.axis.spatial(80, ax0)
+                        Ts.reads()
+                        Ts.writes(index_var_1[v0])
                         index_var_1[v0] = v0 // 2
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.sblock("A"):
-                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
-                        T.writes(B[n, c, vi, vj])
+                    with Ts.sblock("A"):
+                        n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
+                        Ts.writes(B[n, c, vi, vj])
                         B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
 
         return _ffi_api.ScheduleCacheIndex(  # type: ignore # pylint: disable=no-member
@@ -1917,36 +1933,36 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reindex(self, block: SBlockRV | str, buffer: tuple[str, int] | str | Buffer) -> SBlockRV:
-        """Create a block that read/write a buffer region into a read/write cache with reindexing.
+    def reindex(self, block: SBlockRV | str, tensor: tuple[str, int] | str | Var) -> SBlockRV:
+        """Create a block that read/write a tensor region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
-        the buffer. It requires:
+        the tensor. It requires:
 
-        1) There is only one block who reads/writes the target buffer
-        2) There is only one buffer load/store of this buffer in the block
+        1) There is only one block who reads/writes the target tensor
+        2) There is only one tensor load/store of this tensor in the block
 
         Parameters
         ----------
         block : SBlockRV | str
 
-            The block that accesses the target buffer.  If a string,
+            The block that accesses the target tensor.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Buffer, str]
+        tensor: Union[Tuple[str,int], Var, str]
 
-            The buffer to be transformed, or a specification of how to
-            identify the buffer to be transformed.
+            The tensor to be transformed, or a specification of how to
+            identify the tensor to be transformed.
 
-            If `buffer` if a tuple of ``(str,int)``, the first item
+            If `tensor` if a tuple of ``(str,int)``, the first item
             should be either "read" or "write", and the second item is
             an index into the block's read or write regions.
 
-            If `buffer` is a string, it is the name of the buffer,
+            If `tensor` is a string, it is the name of the tensor,
             which must exist within the reads/writes of the block.  In
             addition, the reads/writes of the block may not contain
-            more than one buffer with this name.
+            more than one tensor with this name.
 
-            If `buffer` is a Buffer object, it must exist within the
+            If `tensor` is a Var object, it must exist within the
             reads/writes of the block.
 
         Returns
@@ -1961,14 +1977,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_reindex(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32")
             ) -> None:
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vj, vi] * 2.0
 
         Create the schedule and do reindex:
@@ -1983,44 +1999,56 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_reindex(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32")
             ) -> None:
-                A_reindex = T.sblock_alloc_buffer((128, 128), "float32")
+                A_reindex = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_reindex"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_reindex"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_reindex[vi, vj] = A[vj, vi]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_reindex[vi, vj] * 2.0
 
         """
         block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
-        assert buffer_index_type in ["read", "write"], "Invalid buffer_index_type"
-        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        tensor_index_type, tensor_index, _ = self._normalize_tensor_arg(block, tensor)
+        assert tensor_index_type in ["read", "write"], "Invalid tensor_index_type"
+        tensor_index_type_enum = 0 if tensor_index_type == "read" else 1
         return _ffi_api.ScheduleReIndex(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type_enum
+            self, block, tensor_index, tensor_index_type_enum
         )
 
     ########## Schedule: Data movement ##########
 
     def read_at(
-        self, loop: LoopRV, block: SBlockRV, read_buffer_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        read_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleReadAt(  # type: ignore # pylint: disable=no-member
-            self, loop, block, read_buffer_index, storage_scope
+            self, loop, block, read_tensor_index, storage_scope
         )
 
     def write_at(
-        self, loop: LoopRV, block: SBlockRV, write_buffer_index: int, storage_scope: str
+        self,
+        loop: LoopRV,
+        block: SBlockRV,
+        write_tensor_index: int,
+        storage_scope: str | MemoryScope,
     ) -> SBlockRV:
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         return _ffi_api.ScheduleWriteAt(  # type: ignore # pylint: disable=no-member
-            self, loop, block, write_buffer_index, storage_scope
+            self, loop, block, write_tensor_index, storage_scope
         )
 
     ########## Schedule: Compute location ##########
@@ -2034,7 +2062,7 @@ class Schedule(Object):
         index: int = -1,
     ) -> None:
         """Compute-At. Move a producer block under the specific loop, and regenerate the
-        loops induced by the block so that the buffer region produced by the producer block could
+        loops induced by the block so that the tensor region produced by the producer block could
         cover those regions consumed by its consumer blocks under the given loop. It requires:
 
 
@@ -2046,7 +2074,7 @@ class Schedule(Object):
         dataflow condition. i.e. all the blocks in the scope block's subtree must be either
         complete block or reduction block
 
-        4) The block is not an output block with regard to the scope block, i.e. the buffers written
+        4) The block is not an output block with regard to the scope block, i.e. the tensors written
         by the block are allocated under the scope block
 
         5) All the consumers of the block are under the given loop
@@ -2075,18 +2103,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def before_compute_at(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-at:
@@ -2103,19 +2133,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def after_compute_at(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -2133,7 +2165,7 @@ class Schedule(Object):
         index: int = -1,
     ) -> None:
         """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
-        loops induced by the block so that the buffer region consumed by the consumer block could
+        loops induced by the block so that the tensor region consumed by the consumer block could
         cover those regions produced by its producer blocks under the given loop. It requires:
 
 
@@ -2171,18 +2203,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def before_reverse_compute_at(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-at:
@@ -2199,19 +2233,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def after_reverse_compute_at(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -2225,11 +2261,11 @@ class Schedule(Object):
         """Inline a block into its consumer(s). It requires:
 
 
-        1) The block is a complete non-root block, which only produces one buffer
+        1) The block is a complete non-root block, which only produces one tensor
 
         2) The block must not be the only leaf in the scope.
 
-        3) The body of the block must be a BufferStore statement in
+        3) The body of the block must be a TensorStore statement in
            the form of, ``A[i, j, k, ...] = ...`` where the indices of
            the LHS are all distinct atomic variables, and no variables
            other than those indexing variables are allowed in the
@@ -2247,18 +2283,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-inline:
@@ -2273,13 +2309,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def after_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -2291,16 +2327,16 @@ class Schedule(Object):
         """Inline a block into its only producer. It requires:
 
 
-        1) The block is a complete non-root block, which only produces and consumes one buffer
+        1) The block is a complete non-root block, which only produces and consumes one tensor
 
         2) The block must not be the only leaf in the scope.
 
         3) The only producer of the block is a read-after-write producer and a
            complete non-root block
 
-        4) The body of the block must be a BufferStore statement in the form of,
+        4) The body of the block must be a TensorStore statement in the form of,
            ``B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)`` where the
-           indices of each `BufferLoad` on the RHS are all distinct atomic
+           indices of each `TensorLoad` on the RHS are all distinct atomic
            variables, and no variables other than those indexing variables are
            allowed in the statement.
 
@@ -2316,18 +2352,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-inline:
@@ -2342,13 +2378,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def after_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -2449,14 +2485,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tirx.match_buffer(a, [128, 128])
-                B = tirx.match_buffer(b, [128, 128])
-                C = tirx.match_buffer(c, [128, 128])
-                for i, j, k in tirx.grid(128, 128, 128):
-                    with tirx.block([128, 128, tirx.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
-                        with tirx.init():
+            @Ts.function
+            def before_decompose(
+                A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
+            ) -> None:
+
+                for i, j, k in T.grid(128, 128, 128):
+                    with Ts.sblock("C"):
+                        vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                        with Ts.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2474,11 +2511,11 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tirx.match_buffer(a, [128, 128])
-                B = tirx.match_buffer(b, [128, 128])
-                C = tirx.match_buffer(c, [128, 128])
+            @Ts.function
+            def after_decompose(
+                A: Ts.Tensor([128, 128]), B: Ts.Tensor([128, 128]), C: Ts.Tensor([128, 128])
+            ) -> None:
+
                 for i in tirx.serial(128):
                     for j in tirx.serial(128):
                         with tirx.block([128, 128]) as [vi, vj]:
@@ -2500,12 +2537,12 @@ class Schedule(Object):
         because it leads to potential race condition during accumulation.
         Alternatively, the reduction could be factorized on a loop with the following steps:
         - Step 1: evenly slice the reduction into `n` separate chunks, where `n` is the loop extent
-        - Step 2: compute the chunks separately and write the result into `n` intermediate buffers;
-        - Step 3: accumulate the `n` separate buffer into the result buffer.
+        - Step 2: compute the chunks separately and write the result into `n` intermediate tensors;
+        - Step 3: accumulate the `n` separate tensor into the result tensor.
         Note that the Step 2 above introduces opportunities for parallelization.
 
         RFactor is a schedule primitive that implements the transformation described above:
-        Given a block that writes to buffer `B`, it factorizes a loop of extent `n`.
+        Given a block that writes to tensor `B`, it factorizes a loop of extent `n`.
 
         For example, the pseudocode below accumulates `B[i] = sum(A[i, : , : ])`:
 
@@ -2517,9 +2554,9 @@ class Schedule(Object):
                         B[i] = B[i] + A[i, j, k]
 
         Suppose RFactor is applied on the innermost loop `k` and `factor_axis = 1`.
-        RFactor then creates an intermediate buffer and two blocks.
+        RFactor then creates an intermediate tensor and two blocks.
 
-        1. The intermediate buffer, or "rf-buffer" is a buffer of rank `ndim(B) + 1` and
+        1. The intermediate tensor, or "rf-tensor" is a tensor of rank `ndim(B) + 1` and
         size `size(B) * n`, whose shape expands from `shape(B)` by adding an axis of `n`
         at the position specified by `factor_axis`. For example,
 
@@ -2528,21 +2565,21 @@ class Schedule(Object):
             * shape(B) = [1, 2, 3], factor_axis = 2  => shape(B_rf) = [1, 2, n, 3]
             * shape(B) = [1, 2, 3], factor_axis = 3  => shape(B_rf) = [1, 2, 3, n]
 
-        2. The rfactor block, or "rf-block", is a block that writes to the `rf-buffer` without
+        2. The rfactor block, or "rf-block", is a block that writes to the `rf-tensor` without
         accumulating over the loop `k`, i.e. the loop `k` is converted from a reduction loop
         to a data parallel loop. In our example, the rf-block is:
 
         .. code-block:: python
 
-            B_rf = np.zeros((128, 128))     # the rf-buffer
+            B_rf = np.zeros((128, 128))     # the rf-tensor
             for k in range(128):            # loop k is converted to a data parallel loop
                 for i in range(128):        # loop i is a data parallel loop (unchanged)
                     for j in range(128):    # loop j is a reduction loop (unchanged)
                         B_rf[i, k] = B_rf[i, k] + A[i, j, k]
 
 
-        3. The write-back block, or `wb-block`, is a block that accumulates the rf-buffer into
-        the result buffer. All the reduction loops are removed except the loop `k` for accumulation.
+        3. The write-back block, or `wb-block`, is a block that accumulates the rf-tensor into
+        the result tensor. All the reduction loops are removed except the loop `k` for accumulation.
         In our example, the wb-block is:
 
         .. code-block:: python
@@ -2558,7 +2595,7 @@ class Schedule(Object):
         loop : LoopRV
             The loop outside block for which we want to do rfactor
         factor_axis : int
-            The position where the new dimension is placed in the new introduced rfactor buffer
+            The position where the new dimension is placed in the new introduced rfactor tensor
 
         Returns
         -------
@@ -2573,16 +2610,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128, 128))
-                B = T.match_buffer(b, (128,))
+            @Ts.function
+            def before_rfactor(A: T.Tensor((128, 128, 128)), B: T.Tensor((128,))) -> None:
                 for ii, i, j in T.grid(128, 128, 128):
-                with T.sblock("B"):
-                    vii, vi, vj = T.axis.remap("SRR", [ii, i, j])
-                    with T.init():
-                        B[vii] = 0.0
-                    B[vii] = B[vii] + A[vii, vi, vj]
+                    with Ts.sblock("B"):
+                        vii, vi, vj = Ts.axis.remap("SRR", [ii, i, j])
+                        with Ts.init():
+                            B[vii] = 0.0
+                        B[vii] = B[vii] + A[vii, vi, vj]
 
         Create the schedule and do rfactor:
 
@@ -2597,21 +2632,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, [128, 128, 128])
-                B = T.match_buffer(b, [128])
-                B_rf = T.sblock_alloc_buffer([128, 128])
+            @Ts.function
+            def after_rfactor(A: T.Tensor([128, 128, 128]), B: T.Tensor([128])) -> None:
+
+
+                B_rf = Ts.sblock_alloc_tensor([128, 128])
                 for i2, ii, i in T.grid(128, 128, 128):
-                    with T.sblock("B_rf"):
-                        vi2, vii, vi = T.axis.remap("SSR", [i2, ii, i])
-                        with T.init():
+                    with Ts.sblock("B_rf"):
+                        vi2, vii, vi = Ts.axis.remap("SSR", [i2, ii, i])
+                        with Ts.init():
                             B_rf[vi2, vii] = 0.0
                         B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
                 for ii, i2 in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vii, vi2 = T.axis.remap("SR", [ii, i2])
-                        with T.init():
+                    with Ts.sblock("B"):
+                        vii, vi2 = Ts.axis.remap("SR", [ii, i2])
+                        with Ts.init():
                             B[vii] = 0.0
                         B[vii] = B[vii] + B_rf[vi2, vii]
 
@@ -2630,13 +2665,13 @@ class Schedule(Object):
         6) The outermost reduction loop should have only one child block;
         7) An unary extent loop that is not bound to any reduction or data parallel variables in
         the block binding should not appear under some reduction loop;
-        8) The reduction block should write to only one buffer, and its init and body are both
-        simple `BufferStore`s, and the pattern is registered as an associative reducer.
+        8) The reduction block should write to only one tensor, and its init and body are both
+        simple `TensorStore`s, and the pattern is registered as an associative reducer.
         The pre-defined patterns include: plus, multiplication, min and max;
         9) Each of the loops on top of the block cannot be bound to a data parallel and a
         reduction block binding at the same time;
         10) `factor_axis` should be in range `[-ndim(B) - 1, ndim(B)]`,
-        where `B` is the buffer that the reduction block writes to.
+        where `B` is the tensor that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
         """
         # pylint: disable-next=no-member
@@ -2646,7 +2681,7 @@ class Schedule(Object):
 
     @type_checked
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: SBlockRV | str, buffer_index: int, axis: int, factor: int, offset: int
+        self, block: SBlockRV | str, tensor_index: int, axis: int, factor: int, offset: int
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
@@ -2656,9 +2691,9 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer.
-        buffer_index : int
-            The index of the buffer in block's write region.
+            The producer block of the tensor.
+        tensor_index : int
+            The index of the tensor in block's write region.
         axis : int
             The dimension to be specified for alignment.
         factor : int
@@ -2673,18 +2708,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def before_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do storage_align:
@@ -2692,53 +2727,53 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_storage_align)
-            sch.storage_align(sch.get_sblock("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            sch.storage_align(sch.get_sblock("B"), tensor_index=0, axis=0, factor=128, offset=1)
             print(sch.mod["main"].script())
 
         After applying storage_align, the IR becomes:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.function
+            def after_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        T.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        Ts.sblock_attr({"tensor_dim_align": [[[0, 128, 1]]]})
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        After lowering passes, buffer B will have strides as [129, 1].
+        After lowering passes, tensor B will have strides as [129, 1].
 
         Note
         ----
-        Storage_align requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        Storage_align requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleStorageAlign(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, axis, factor, offset
+            self, block, tensor_index, axis, factor, offset
         )
 
     @type_checked
     def set_scope(
-        self, block: SBlockRV | str, buffer_index: int | str | Buffer, storage_scope: str
+        self, block: SBlockRV | str, tensor_index: int | str | Var, storage_scope: str | MemoryScope
     ) -> None:
-        """Set the storage scope of a buffer, where the buffer is
+        """Set the storage scope of a tensor, where the tensor is
         specified by the a block and a write-index.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer
-        buffer_index : int
-            The index of the buffer in block's write region
-        storage_scope : str
+            The producer block of the tensor
+        tensor_index : int
+            The index of the tensor in block's write region
+        storage_scope : str or MemoryScope
             The storage scope to be set
 
         Examples
@@ -2748,19 +2783,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_set_scope(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do set_scope:
@@ -2768,44 +2803,46 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_set_scope)
-            sch.set_scope(sch.get_sblock("B"), buffer_index=0, storage_scope="shared")
+            sch.set_scope(sch.get_sblock("B"), tensor_index=0, storage_scope="shared")
             print(sch.mod["main"].script())
 
         After applying set_scope, the IR becomes:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_set_scope(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+                B_shared = Ts.sblock_alloc_tensor([128, 128], dtype="float32", scope="shared")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_shared[vi, vj] = A[vi, vj] * T.float32(2)
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
         Note
         ----
-        `set_scope` requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        `set_scope` requires the tensor to be an intermediate tensor defined via `alloc_tensor`.
         """
+        if isinstance(storage_scope, MemoryScope):
+            storage_scope = storage_scope.name
         block = self._normalize_block_arg(block)
-        if not isinstance(buffer_index, int):
-            _, buffer_index, _ = self._normalize_buffer_arg(
-                block, buffer_index, required_buffer_type="write"
+        if not isinstance(tensor_index, int):
+            _, tensor_index, _ = self._normalize_tensor_arg(
+                block, tensor_index, required_tensor_type="write"
             )
         _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, storage_scope
+            self, block, tensor_index, storage_scope
         )
 
     @type_checked
-    def unsafe_set_dtype(self, block: SBlockRV | str, buffer_index: int, dtype: str) -> None:
-        """Set the data type of a buffer, where the buffer is
+    def unsafe_set_dtype(self, block: SBlockRV | str, tensor_index: int, dtype: str) -> None:
+        """Set the data type of a tensor, where the tensor is
         specified by the a block and write-index.
 
         This schedule primitive is unsafe and may change the correctness of program because of
@@ -2814,9 +2851,9 @@ class Schedule(Object):
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer
-        buffer_index : int
-            The index of the buffer in block's write region
+            The producer block of the tensor
+        tensor_index : int
+            The index of the tensor in block's write region
         dtype : str
             The data type to be set
 
@@ -2827,19 +2864,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_set_dtype(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j]
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j]
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do unsafe_set_dtype:
@@ -2847,36 +2884,36 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_set_dtype)
-            sch.unsafe_set_dtype("B", buffer_index=0, dtype="float16")
+            sch.unsafe_set_dtype("B", tensor_index=0, dtype="float16")
             print(sch.mod["main"].script())
 
         After applying set_dtype, the IR becomes:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_set_dtype(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float16")
+                B = Ts.sblock_alloc_tensor((128, 128), dtype="float16")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        B[vi, vj] = T.cast(A[vi, vj] * 2.0, ty="float16")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j]
-                        C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j]
+                        C[vi, vj] = T.cast(B[vi, vj], ty="float32") + 1.0
 
         Note
         ----
-        `unsafe_set_dtype` requires the buffer to be an intermediate buffer defined via
-        `alloc_buffer`.
+        `unsafe_set_dtype` requires the tensor to be an intermediate tensor defined via
+        `alloc_tensor`.
         """
         block = self._normalize_block_arg(block)
         _ffi_api.ScheduleUnsafeSetDType(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, dtype
+            self, block, tensor_index, dtype
         )
 
     ########## Schedule: Blockize & Tensorize ##########
@@ -2906,17 +2943,17 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_blockize(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32")
             ) -> None:
                 for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
-                    with T.sblock("B"):
-                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
-                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
-                        T.reads(A[vi, vj])
-                        T.writes(B[vi, vj])
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = Ts.axis.spatial(128, j_0 * 16 + j_1)
+                        Ts.reads(A[vi, vj])
+                        Ts.writes(B[vi, vj])
                         B[vi, vj] = A[vi, vj] * T.float32(2)
 
         Create the schedule and do set_scope:
@@ -2933,21 +2970,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_blockize(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32")
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32")
             )-> None:
                 for i_0, j_0 in T.grid(8, 8):
-                    with T.sblock("B_o"):
-                        vio, vjo = T.axis.remap("SS", [i_0, j_0])
-                        T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                    with Ts.sblock("B_o"):
+                        vio, vjo = Ts.axis.remap("SS", [i_0, j_0])
+                        Ts.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        Ts.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         for i_1, j_1 in T.grid(16, 16):
-                            with T.sblock("B"):
-                                vi, vj = T.axis.remap("SS", [i_1, j_1])
-                                T.reads(A[vio * 16 + vi, vjo * 16 + vj])
-                                T.writes(B[vio * 16 + vi, vjo * 16 + vj])
+                            with Ts.sblock("B"):
+                                vi, vj = Ts.axis.remap("SS", [i_1, j_1])
+                                Ts.reads(A[vio * 16 + vi, vjo * 16 + vj])
+                                Ts.writes(B[vio * 16 + vi, vjo * 16 + vj])
                                 B[vio * 16 + vi, vjo * 16 + vj] = A[vio * 16 + vi, vjo * 16 + vj] \
                                                                   * T.float32(2)
 
@@ -2985,61 +3022,62 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_tensorize(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32"),
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.sblock("root")
+                # with Ts.sblock("root")
                 for i_0, j_0, k_0, i_1, j_1, k_1 in T.grid(8, 8, 8, 16, 16, 16):
-                    with T.sblock("update"):
-                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
-                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
-                        vk = T.axis.reduce(128, k_0 * 16 + k_1)
-                        T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-                        T.writes(C[vi, vj])
+                    with Ts.sblock("update"):
+                        vi = Ts.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = Ts.axis.spatial(128, j_0 * 16 + j_1)
+                        vk = Ts.axis.reduce(128, k_0 * 16 + k_1)
+                        Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                        Ts.writes(C[vi, vj])
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         Declare and register the tensor intrinsic:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+            @Ts.function
+            def mma_desc(
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
+            ) -> None:
 
-                with T.sblock("root"):
-                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    T.writes(C[0 : 16, 0 : 16])
+                with Ts.sblock("root"):
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     for i, j, k in T.grid(16, 16, 16):
-                        with T.sblock("update"):
-                            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with Ts.sblock("update"):
+                            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
+            @Ts.function
+            def mma_intrin(
+                A: T.Tensor((16, 16), align=128),
+                B: T.Tensor((16, 16), align=128),
+                C: T.Tensor((16, 16), align=128),
+            ) -> None:
 
-            @T.prim_func(s_tir=True)
-            def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
-
-                with T.sblock("root"):
-                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    T.writes(C[0 : 16, 0 : 16])
+                with Ts.sblock("root"):
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     T.evaluate(
-                        T.tvm_mma_sync(
+                        T.gpu_mma_sync(
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             A.data,
-                            A.elem_offset // 256,
+                            A.layout.apply(0, 0)["m"] // 256,
                             B.data,
-                            B.elem_offset // 256,
+                            B.layout.apply(0, 0)["m"] // 256,
                             C.data,
-                            C.elem_offset // 256,
+                            C.layout.apply(0, 0)["m"] // 256,
                             dtype="void",
                         )
                     )
@@ -3060,51 +3098,51 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_tensorize(
-                A: T.Buffer((128, 128), "float32"),
-                B: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32"),
+                A: T.Tensor((128, 128), "float32"),
+                B: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.sblock("root")
+                # with Ts.sblock("root")
                 for i_0, j_0, k_0 in T.grid(8, 8, 8):
-                    with T.sblock("update_o"):
-                        vio, vjo, vko = T.axis.remap("SSR", [i_0, j_0, k_0])
-                        T.reads(
+                    with Ts.sblock("update_o"):
+                        vio, vjo, vko = Ts.axis.remap("SSR", [i_0, j_0, k_0])
+                        Ts.reads(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                         )
-                        T.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        A_1 = T.match_buffer(
+                        Ts.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        A_1 = Ts.match_tensor(
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
-                        B_1 = T.match_buffer(
+                        B_1 = Ts.match_tensor(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
-                        C_1 = T.match_buffer(
+                        C_1 = Ts.match_tensor(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
-                            offset_factor=1,
+
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            T.gpu_mma_sync(
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 A_1.data,
-                                A_1.elem_offset // 256,
+                                A_1.layout.apply(0, 0)["m"] // 256,
                                 B_1.data,
-                                B_1.elem_offset // 256,
+                                B_1.layout.apply(0, 0)["m"] // 256,
                                 C_1.data,
-                                C_1.elem_offset // 256,
+                                C_1.layout.apply(0, 0)["m"] // 256,
                                 dtype="void",
                             )
                         )
@@ -3144,13 +3182,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_annotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do annotate:
@@ -3165,14 +3203,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_annotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.sblock_attr({"ann_key", "ann_value"})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -3198,14 +3236,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def before_unannotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.sblock_attr({"ann_key", "ann_value"})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do annotate:
@@ -3220,13 +3258,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.function
+            def after_unannotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -3242,108 +3280,108 @@ class Schedule(Object):
 
         return block
 
-    def _normalize_buffer_arg(
+    def _normalize_tensor_arg(
         self,
         block: SBlockRV,
-        buffer: tuple[str, int] | int | str | Buffer,
-        required_buffer_type=None,
-    ) -> tuple[str, int, Buffer]:
+        tensor: tuple[str, int] | int | str | Var,
+        required_tensor_type=None,
+    ) -> tuple[str, int, Var]:
         block_obj: SBlock = self.get(block)
         block_name = block_obj.name_hint
 
-        def iter_buffers():
+        def iter_tensors():
             for i, read in enumerate(block_obj.reads):
                 yield "read", i, read.source
             for i, write in enumerate(block_obj.writes):
                 yield "write", i, write.source
 
-        if isinstance(buffer, int):
-            buffer = (required_buffer_type, buffer)
+        if isinstance(tensor, int):
+            tensor = (required_tensor_type, tensor)
 
-        if isinstance(buffer, str):
-            possible_buffers = {}
+        if isinstance(tensor, str):
+            possible_tensors = {}
             # String lookup requires ensuring that the name is unique
-            for buffer_index_type, buffer_index, buf in iter_buffers():
-                if buf.name == buffer:
-                    possible_buffers[buf] = (buffer_index_type, buffer_index)
+            for tensor_index_type, tensor_index, candidate_tensor in iter_tensors():
+                if candidate_tensor.name == tensor:
+                    possible_tensors[candidate_tensor] = (tensor_index_type, tensor_index)
 
-            assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
-            assert len(possible_buffers) == 1, (
-                f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            assert possible_tensors, f"Could not find tensor '{tensor}' in block '{block_name}'"
+            assert len(possible_tensors) == 1, (
+                f"Multiple tensors named '{tensor}' in block '{block_name}'"
             )
-            buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
+            tensor_obj, (tensor_index_type, tensor_index) = next(iter(possible_tensors.items()))
 
-        elif is_buffer_var(buffer):
-            # Buffer lookup has unique id, can break out early
+        elif is_tensor_var(tensor):
+            # Var lookup has unique id, can break out early
             found = False
-            for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
-                if buffer_obj.same_as(buffer):
+            for tensor_index_type, tensor_index, tensor_obj in iter_tensors():
+                if tensor_obj.same_as(tensor):
                     found = True
                     break
 
-            assert found, f"Could not find buffer '{buffer.name}' in block '{block_name}'"
+            assert found, f"Could not find tensor '{tensor.name}' in block '{block_name}'"
 
-        elif isinstance(buffer, tuple):
-            buffer_index_type, buffer_index = buffer
-            assert buffer_index_type in ["read", "write"], (
-                f"Invalid buffer_index_type.  "
+        elif isinstance(tensor, tuple):
+            tensor_index_type, tensor_index = tensor
+            assert tensor_index_type in ["read", "write"], (
+                f"Invalid tensor_index_type.  "
                 f"Expected 'read' or 'write', "
-                f"but received {buffer_index_type}"
+                f"but received {tensor_index_type}"
             )
-            buffer_list = block_obj.reads if buffer_index_type == "read" else block_obj.writes
-            assert 0 <= buffer_index < len(buffer_list), (
-                f"Invalid buffer_index {buffer_index}.  "
+            tensor_list = block_obj.reads if tensor_index_type == "read" else block_obj.writes
+            assert 0 <= tensor_index < len(tensor_list), (
+                f"Invalid tensor_index {tensor_index}.  "
                 f"Block {block_name} has only "
-                f"{len(buffer_list)} {buffer_index_type} buffers."
+                f"{len(tensor_list)} {tensor_index_type} tensors."
             )
-            buffer_obj = buffer_list[buffer_index].source
+            tensor_obj = tensor_list[tensor_index].source
 
         else:
-            raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+            raise TypeError(f"Invalid type for argument 'tensor': {type(tensor)}")
 
-        if required_buffer_type is not None:
-            assert buffer_index_type == required_buffer_type, (
-                f"Expected buffer to be read buffer, "
-                f"but {buffer_obj.name} was a {buffer_index_type} buffer "
+        if required_tensor_type is not None:
+            assert tensor_index_type == required_tensor_type, (
+                f"Expected tensor to be read tensor, "
+                f"but {tensor_obj.name} was a {tensor_index_type} tensor "
                 f"in the specified block"
             )
 
-        return (buffer_index_type, buffer_index, buffer_obj)
+        return (tensor_index_type, tensor_index, tensor_obj)
 
     @type_checked
     def transform_layout(
         self,
         block: SBlockRV | str,
-        buffer: tuple[str, int] | str | Buffer,
+        tensor: tuple[str, int] | str | Var,
         index_map: IndexMap | Callable,
         pad_value: int | float | Expr | IndexMap | Callable | None = None,
         *,
         assume_injective_transform: bool = False,
     ) -> None:
-        """Apply a transformation represented by IndexMap to buffer
+        """Apply a transformation represented by IndexMap to tensor
 
         Parameters
         ----------
         block : SBlockRV | str
 
-            The block that accesses the target buffer.  If a string,
+            The block that accesses the target tensor.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Buffer, str]
+        tensor: Union[Tuple[str,int], Var, str]
 
-            The buffer to be transformed, or a specification of how to
-            identify the buffer to be transformed.
+            The tensor to be transformed, or a specification of how to
+            identify the tensor to be transformed.
 
-            If `buffer` if a tuple of ``(str,int)``, the first item
+            If `tensor` if a tuple of ``(str,int)``, the first item
             should be either "read" or "write", and the second item is
             an index into the block's read or write regions.
 
-            If `buffer` is a string, it is the name of the buffer,
+            If `tensor` is a string, it is the name of the tensor,
             which must exist within the reads/writes of the block.  In
             addition, the reads/writes of the block may not contain
-            more than one buffer with this name.
+            more than one tensor with this name.
 
-            If `buffer` is a Buffer object, it must exist within the
+            If `tensor` is a Var object, it must exist within the
             reads/writes of the block.
 
         index_map : IndexMap | Callable
@@ -3354,18 +3392,18 @@ class Schedule(Object):
 
             The value to be used for any padding introduced by the
             transformation.  If the schedule contains a producer block
-            for the specified buffer, the pad value will be written as
+            for the specified tensor, the pad value will be written as
             part of the producer block if possible, or after the producer
-            block otherwise.  Otherwise, if the buffer is an input, will
+            block otherwise.  Otherwise, if the tensor is an input, will
             insert an annotation block to state that the padding contains
             the known value.
 
-            The pad value may not contain instances of BufferLoad,
-            except where it loads a value from the buffer being
-            transformed (e.g. to create a circular buffer with
+            The pad value may not contain instances of TensorLoad,
+            except where it loads a value from the tensor being
+            transformed (e.g. to create a circular tensor with
             padding that consists of repeated elements).
 
-            Note: If applied to an input buffer, the calling scope is
+            Note: If applied to an input tensor, the calling scope is
             responsible for ensuring that the pad_value is present.
             Algebraic symplifications, branch elimination, and other
             optimizations may assume that this precondition is met, and
@@ -3393,18 +3431,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_transform_layout(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def before_transform_layout(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do transform_layout:
@@ -3412,7 +3452,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_sblock("B"), buffer=("write",0),
+            sch.transform_layout(sch.get_sblock("B"), tensor=("write",0),
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -3420,25 +3460,27 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((8, 8, 16, 16), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.function
+            def two_elementwise_transformed_intermediate_tensor(
+                A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_tensor((8, 8, 16, 16), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
         """
         block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
+        tensor_index_type, tensor_index, tensor_obj = self._normalize_tensor_arg(block, tensor)
 
-        ndim = len(buffer_obj.ty.shape)
+        ndim = len(tensor_obj.ty.shape)
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
@@ -3456,29 +3498,29 @@ class Schedule(Object):
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
-            # buffer's type.  If the default `tvm.runtime.convert`
+            # tensor's type.  If the default `tvm_ffi.convert`
             # behavior is applied, these would be converted to
-            # int32/float32, which may not match the buffer's type.
-            if buffer_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
+            # int32/float32, which may not match the tensor's type.
+            if tensor_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
                 pad_value, int
             ):
-                pad_value = IntImm(buffer_obj.ty.dtype.dtype, pad_value)
-            elif buffer_obj.ty.dtype.matches_code(
+                pad_value = IntImm(tensor_obj.ty.dtype.dtype, pad_value)
+            elif tensor_obj.ty.dtype.matches_code(
                 DataTypeCode.FLOAT, DataTypeCode.BFLOAT
             ) and isinstance(pad_value, float):
-                pad_value = FloatImm(buffer_obj.ty.dtype.dtype, pad_value)
+                pad_value = FloatImm(tensor_obj.ty.dtype.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
 
-        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        tensor_index_type_enum = 0 if tensor_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self,
             block,
-            buffer_index,
-            buffer_index_type_enum,
+            tensor_index,
+            tensor_index_type_enum,
             index_map,
             pad_value,
             assume_injective_transform,
@@ -3503,14 +3545,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_transform_block_layout(
-                A: T.Buffer((16, 16), "float32"),
-                B: T.Buffer((16, 16), "float32")
+                A: T.Tensor((16, 16), "float32"),
+                B: T.Tensor((16, 16), "float32")
             ) -> None:
                 for i, j in T.grid(16, 16):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do transform_block_layout:
@@ -3525,14 +3567,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_transform_block_layout(
-                A: T.Buffer((16, 16), "float32"),
-                B: T.Buffer((16, 16), "float32")
+                A: T.Tensor((16, 16), "float32"),
+                B: T.Tensor((16, 16), "float32")
             ) -> None:
                 for i in range(256):
-                    with T.sblock("B"):
-                        vi, = T.axis.remap("S", [i])
+                    with Ts.sblock("B"):
+                        vi, = Ts.axis.remap("S", [i])
                         B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
         """
         block = self._normalize_block_arg(block)
@@ -3582,11 +3624,11 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
+            @Ts.function
+            def before_decompose(x: T.Tensor(128, "int32"), y: T.Tensor(140, "int32")):
                 for i in range(140):
-                    with T.sblock("block"):
-                        vi = T.axis.remap("S", [i])
+                    with Ts.sblock("block"):
+                        vi = Ts.axis.remap("S", [i])
                         y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
 
         Create the schedule and do decompose-padding with specified loop:
@@ -3602,15 +3644,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
+            @Ts.function
+            def after_decompose(x: T.Tensor(128, "int32"), y: T.Tensor(140, "int32")):
                 for i in T.serial(140):
-                    with T.sblock("block_pad_const"):
-                        vi = T.axis.spatial(140, i)
+                    with Ts.sblock("block_pad_const"):
+                        vi = Ts.axis.spatial(140, i)
                         y[vi] = 0
                 for i in T.serial(128):
-                    with T.sblock("block"):
-                        vi = T.axis.spatial(128, i)
+                    with Ts.sblock("block"):
+                        vi = Ts.axis.spatial(128, i)
                         y[vi + 6] = x[vi]
         """
         block = self._normalize_block_arg(block)
@@ -3630,10 +3672,10 @@ class Schedule(Object):
 
         On a block with trivial binding, this primitive pads the iteration domain of the block by
         the given padding factors, for example, 127 -> 128, 132 -> 144 when padding factor is 16.
-        Extra producer and consumer padding blocks will be generated to avoid out-of-bound buffer
+        Extra producer and consumer padding blocks will be generated to avoid out-of-bound tensor
         access.
 
-        Einsum pattern means all the indices on the buffer access are either by constants
+        Einsum pattern means all the indices on the tensor access are either by constants
         (e.g. B[0]) or by variables (e.g. B[i]), but not by composite expressions (e.g. B[i + 1]).
 
         Parameters
@@ -3651,16 +3693,16 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_pad_einsum(
-                A: T.Buffer((127, 127), "float32"),
-                B: T.Buffer((127, 127), "float32"),
-                C: T.Buffer((127, 127), "float32"),
+                A: T.Tensor((127, 127), "float32"),
+                B: T.Tensor((127, 127), "float32"),
+                C: T.Tensor((127, 127), "float32"),
             ) -> None:
                 for i0, i1, i2 in T.grid(127, 127, 127):
-                    with T.sblock("C_shared"):
-                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                        with T.init():
+                    with Ts.sblock("C_shared"):
+                        i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+                        with Ts.init():
                             C[i, j] = T.float32(0)
                         C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -3677,41 +3719,41 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def main(
-                A: T.Buffer((127, 127), "float32"),
-                B: T.Buffer((127, 127), "float32"),
-                C: T.Buffer((127, 127), "float32"),
+                A: T.Tensor((127, 127), "float32"),
+                B: T.Tensor((127, 127), "float32"),
+                C: T.Tensor((127, 127), "float32"),
             ):
-                # with T.sblock("root"):
-                A_pad = T.sblock_alloc_buffer((128, 128))
-                B_pad = T.sblock_alloc_buffer((128, 128))
-                C_pad = T.sblock_alloc_buffer((128, 128))
+                # with Ts.sblock("root"):
+                A_pad = Ts.sblock_alloc_tensor((128, 128))
+                B_pad = Ts.sblock_alloc_tensor((128, 128))
+                C_pad = Ts.sblock_alloc_tensor((128, 128))
                 for i0, i1 in T.grid(128, 128):
-                    with T.sblock("A_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("A_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         A_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
                             A[v0, v1],
                             T.float32(0),
                         )
                 for i0, i1 in T.grid(128, 128):
-                    with T.sblock("B_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("B_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         B_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
                             B[v0, v1],
                             T.float32(0),
                         )
                 for i0, i1, i2 in T.grid(128, 128, 128):
-                    with T.sblock("C_shared"):
-                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                        with T.init():
+                    with Ts.sblock("C_shared"):
+                        i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+                        with Ts.init():
                             C_pad[i, j] = T.float32(0)
                         C_pad[i, j] = C_pad[i, j] + A_pad[i, k] * B_pad[k, j]
                 for i0, i1 in T.grid(127, 127):
-                    with T.sblock("C_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("C_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         C[v0, v1] = C_pad[v0, v1]
 
         """
@@ -3720,32 +3762,32 @@ class Schedule(Object):
             self, block, padding
         )
 
-    ######## Schedule: Buffer transformation ########
+    ######## Schedule: Var transformation ########
 
     @type_checked
-    def rolling_buffer(self, block: SBlockRV | str, write_buffer_index: int) -> None:
-        """Compute the target buffer via rolling buffering, select the outermost rollable
+    def rolling_buffer(self, block: SBlockRV | str, write_tensor_index: int) -> None:
+        """Compute the target tensor via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
-        as `rolling axis`, fold and circularize the buffer along the rolling dimension,
+        as `rolling axis`, fold and circularize the tensor along the rolling dimension,
         append block predicate to avoid recomputing overlapping elements. It requires:
 
 
         1) The block is not an output block and has only RAW dependencies.
 
-        2) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+        2) The tensor to be an intermediate tensor defined via `alloc_tensor`.
 
-        3) The LCA of the producer and consumer of the buffer is a for loop, typically,
-        the producer and consumer of the buffer are cascaded through compute_at.
+        3) The LCA of the producer and consumer of the tensor is a for loop, typically,
+        the producer and consumer of the tensor are cascaded through compute_at.
 
-        4) The access region of the buffer has at least one dimension that contains
+        4) The access region of the tensor has at least one dimension that contains
         a positive bound overlap.
 
         Parameters
         ----------
         block : SBlockRV | str
-            The producer block of the buffer.
-        write_buffer_index : int
-            The index of the buffer in block's write region.
+            The producer block of the tensor.
+        write_tensor_index : int
+            The index of the tensor in block's write region.
 
         Examples
         --------
@@ -3754,27 +3796,27 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def before_rolling_buffer(
-                A: T.Buffer((12, 12), "int8"), C: T.Buffer((8, 8), "int8")
+                A: T.Tensor((12, 12), "int8"), C: T.Tensor((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.sblock("root")
-                B = T.sblock_alloc_buffer([10, 10], dtype="int8")
+                # with Ts.sblock("root")
+                B = Ts.sblock_alloc_tensor([10, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.sblock("B"):
-                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("B"):
+                            ax0_1 = Ts.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             B[ax0_1, ax1_1] = T.max(
                                 B[ax0_1, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.sblock("C"):
-                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("C"):
+                            ax0_1 = Ts.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             C[ax0_1, ax1_1] = T.max(
                                 C[ax0_1, ax1_1], B[ax0_1 + rv0, ax1_1 + rv1]
                             )
@@ -3784,47 +3826,47 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tvm.s_tir.Schedule(before_rolling_buffer)
-            sch.rolling_buffer(sch.get_sblock("B"), write_buffer_index=0)
+            sch.rolling_buffer(sch.get_sblock("B"), write_tensor_index=0)
             print(sch.mod["main"].script())
 
         After applying rolling_buffer, the IR becomes:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def after_rolling_buffer(
-                A: T.Buffer((12, 12), "int8"),
-                C: T.Buffer((8, 8), "int8")
+                A: T.Tensor((12, 12), "int8"),
+                C: T.Tensor((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.sblock("root")
-                B = T.sblock_alloc_buffer([6, 10], dtype="int8")
+                # with Ts.sblock("root")
+                B = Ts.sblock_alloc_tensor([6, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.sblock("B"):
-                            T.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
-                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("B"):
+                            Ts.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
+                            ax0_1 = Ts.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             B[ax0_1 % 6, ax1_1] = T.max(
                                 B[ax0_1 % 6, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.sblock("C"):
-                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("C"):
+                            ax0_1 = Ts.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             C[ax0_1, ax1_1] = T.max(
                                 C[ax0_1, ax1_1], B[ax0_1 % 6 + rv0, ax1_1 + rv1]
                             )
 
         Note
         ----
-        The region_cover property of the consumer block of the target buffer will become false.
+        The region_cover property of the consumer block of the target tensor will become false.
         """
         block = self._normalize_block_arg(block)
         # pylint: disable-next=no-member
-        return _ffi_api.ScheduleRollingBuffer(self, block, write_buffer_index)  # type: ignore
+        return _ffi_api.ScheduleRollingBuffer(self, block, write_tensor_index)  # type: ignore
 
     ########## Schedule: Misc ##########
 
@@ -3834,39 +3876,39 @@ class Schedule(Object):
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def unsafe_hide_buffer_access(
-        self, block: SBlockRV, buf_type: str, buf_index_array: list[int]
+    def unsafe_hide_tensor_access(
+        self, block: SBlockRV, tensor_type: str, tensor_index_array: list[int]
     ) -> None:
-        """Hide some buffer access in a given block. This is an unsafe schedule primitive.
+        """Hide some tensor access in a given block. This is an unsafe schedule primitive.
 
         Parameters
         ----------
         block : SBlockRV
             The block where we hide read access.
-        buf_type : str
-            The buffer type: "read"/"write".
-        buf_index_array : List[int]
-            The array of buffer indices we hide access.
+        tensor_type : str
+            The tensor type: "read"/"write".
+        tensor_index_array : List[int]
+            The array of tensor indices we hide access.
 
         Note
         ----
         This schedule primitive is unsafe, and may fail dependency analysis.
-        One use case of `unsafe_hide_buffer_access` is to hide the buffer access
-        to indices buffers (e.g. in sparse computation) so that we can further tensorize
-        the block (the indices buffers appeared in read/write regions may fail the pattern
-        matching in `tensorize` primitive, and hide the access to these buffers could address
+        One use case of `unsafe_hide_tensor_access` is to hide the tensor access
+        to indices tensors (e.g. in sparse computation) so that we can further tensorize
+        the block (the indices tensors appeared in read/write regions may fail the pattern
+        matching in `tensorize` primitive, and hide the access to these tensors could address
         the issue).
         """
-        _ffi_api.ScheduleUnsafeHideBufferAccess(  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleUnsafeHideTensorAccess(  # type: ignore # pylint: disable=no-member
             self,
             block,
-            buf_type,
-            buf_index_array,
+            tensor_type,
+            tensor_index_array,
         )
 
     @type_checked
-    def annotate_buffer_access(
-        self, block: SBlockRV, buffer_index: int, buf_type: str, gen_new_ranges: Callable
+    def annotate_tensor_access(
+        self, block: SBlockRV, tensor_index: int, tensor_type: str, gen_new_ranges: Callable
     ) -> None:
         """Annotate the read or write region of a block
 
@@ -3874,73 +3916,73 @@ class Schedule(Object):
         ----------
         block : SBlockRV
             The block to be annotated
-        buffer_index : int
-            The index of the buffer in block's read or write region
-        buf_type : str
-            The buffer type: "read" or "write"
+        tensor_index : int
+            The index of the tensor in block's read or write region
+        tensor_type : str
+            The tensor type: "read" or "write"
         gen_new_ranges : Callable
             A function that takes the block's iter_vars and returns a
             Tuple[Union[Expr, Tuple[Expr, Expr]], ...]
-            which defines the new read or write region for the buffer.
+            which defines the new read or write region for the tensor.
             Each element in the tuple can be:
             - A single Expr representing the iter_var itself
             - A tuple of two PrimExprs representing the range (begin, end)
 
         Examples
         --------
-        Annotate a 2D read region for a buffer.
-        Before annotate_buffer_access, in TensorIR, the IR is:
+        Annotate a 2D read region for a tensor.
+        Before annotate_tensor_access, in TensorIR, the IR is:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_annotate_buffer_access(
-                A: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32")
+            @Ts.function
+            def before_annotate_tensor_access(
+                A: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        Create the schedule and do annotate_buffer_access:
+        Create the schedule and do annotate_tensor_access:
 
         .. code-block:: python
 
-            sch = tvm.s_tir.Schedule(before_annotate_buffer_access)
+            sch = tvm.s_tir.Schedule(before_annotate_tensor_access)
             block = sch.get_sblock("B")
-            sch.annotate_buffer_access(block, 0, "read",
+            sch.annotate_tensor_access(block, 0, "read",
             lambda vi, vj: ((vi - 1, vi + 1), (vj - 1, vj + 1)))
             print(sch.mod["main"].script())
 
-        After applying annotate_buffer_access, the IR becomes:
+        After applying annotate_tensor_access, the IR becomes:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_annotate_buffer_access(
-                A: T.Buffer((128, 128), "float32"),
-                C: T.Buffer((128, 128), "float32")
+            @Ts.function
+            def after_annotate_tensor_access(
+                A: T.Tensor((128, 128), "float32"),
+                C: T.Tensor((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_tensor((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
-                        T.writes(B[vi, vj])
-                        T.sblock_attr({"explicit_read_region": 0})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
+                        Ts.writes(B[vi, vj])
+                        Ts.sblock_attr({"explicit_read_region": 0})
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
-        This annotates the read region for buffer A (index 0) in block "B" to be
+        This annotates the read region for tensor A (index 0) in block "B" to be
         [vi-1:vi+1, vj-1:vj+1] for each (vi, vj) in the block's iteration domain.
 
         Note
@@ -3948,16 +3990,16 @@ class Schedule(Object):
         This function allows manual specification of read or write regions, which
         can be useful in cases where the compiler cannot accurately infer the
         access pattern, such as complex data-dependent accesses.
-        It overrides the automatically inferred region for the specified buffer.
+        It overrides the automatically inferred region for the specified tensor.
         The function adds an annotation to the block, indicating that an explicit
-        region has been provided for the buffer at the given index. This annotation
-        is used in the CompactBufferAllocation pass to respect the manually specified
+        region has been provided for the tensor at the given index. This annotation
+        is used in the CompactTensorAllocation pass to respect the manually specified
         region instead of relying on automatic inference.
 
         Caution should be exercised when using this function, as incorrect annotations
         may lead to incorrect code generation or runtime errors. It's crucial to
         ensure that the specified region covers all actual reads or writes performed
-        by the block for the given buffer.
+        by the block for the given tensor.
 
         """
         block_obj = self.get(block)
@@ -3989,13 +4031,13 @@ class Schedule(Object):
             inverse_index_map=None,
         )
 
-        if buf_type == "read":
-            buffer_index_type = 0
-        elif buf_type == "write":
-            buffer_index_type = 1
+        if tensor_type == "read":
+            tensor_index_type = 0
+        elif tensor_type == "write":
+            tensor_index_type = 1
         else:
-            raise ValueError(f"Invalid buf_type: {buf_type}. Expected 'read' or 'write'.")
+            raise ValueError(f"Invalid tensor_type: {tensor_type}. Expected 'read' or 'write'.")
 
-        return _ffi_api.ScheduleAnnotateBufferAccess(
-            self, block, buffer_index, buffer_index_type, index_map
+        return _ffi_api.ScheduleAnnotateTensorAccess(
+            self, block, tensor_index, tensor_index_type, index_map
         )

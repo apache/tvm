@@ -14,24 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F841
 
 import pytest
 
 import tvm
-import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.transform import DeadCodeElimination
-from tvm.script.parser import ir as I
-from tvm.script.parser import relax as R
-from tvm.script.parser import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script.parser import ir as I
+from tvm_tirx.script.parser import relax as R
+from tvm_tirx.script.parser import tirx as T
 
 
 def verify(input, expected):
-    tvm.ir.assert_structural_equal(DeadCodeElimination()(input), expected)
+    tvm_tirx.ir.assert_structural_equal(DeadCodeElimination()(input), expected)
 
 
 def test_simple():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -62,7 +64,7 @@ def test_simple():
                 R.output(gv2)
             return gv2
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -92,7 +94,7 @@ def test_simple():
 
 
 def test_2block():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -124,7 +126,7 @@ def test_2block():
             gv3 = R.astype(gv2, dtype="float16")
             return gv3
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
         @R.function
         def main(
@@ -160,17 +162,17 @@ def check_if_func_exists(mod, func_name):
 
 
 def test_unused_relax_func():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -182,7 +184,9 @@ def test_unused_relax_func():
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -193,21 +197,23 @@ def test_unused_relax_func():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-provide_entry_func_name = tvm.testing.parameter(True, False)
+@pytest.fixture(params=[True, False], scope="session")
+def provide_entry_func_name(request):
+    return request.param
 
 
 def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -219,7 +225,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -238,17 +246,17 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
 
 
 def test_tracking_through_externally_exposed_func(provide_entry_func_name):
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def tir_add(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -260,7 +268,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
         @R.function
@@ -280,36 +290,48 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
 
 def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
-    @tvm.script.ir_module(check_well_formed=False)
+    m_tir_matmul = T.dynamic("m", "int64")
+    n_tir_matmul = T.dynamic("n", "int64")
+    k_tir_matmul = T.dynamic("k", "int64")
+    m_unused_func = T.dynamic("m", "int64")
+    n_unused_func = T.dynamic("n", "int64")
+    k_unused_func = T.dynamic("k", "int64")
+    m_main = T.dynamic("m", "int64")
+    k_main = T.dynamic("k", "int64")
+    n_main = T.dynamic("n", "int64")
+
+    @tvm_tirx.script.ir_module(check_well_formed=False)
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_matmul(
-            x_handle: T.handle,
-            y_handle: T.handle,
-            z_handle: T.handle,
+            x: T.Tensor((m_tir_matmul, n_tir_matmul), "float32"),
+            y: T.Tensor((n_tir_matmul, k_tir_matmul), "float32"),
+            z: T.Tensor((m_tir_matmul, k_tir_matmul), "float32"),
         ) -> None:
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
-            x = T.match_buffer(x_handle, (m, n), "float32")
-            y = T.match_buffer(y_handle, (n, k), "float32")
-            z = T.match_buffer(z_handle, (m, k), "float32")
-            for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
+                    with Ts.init():
                         z[vi, vj] = 0.0
                     z[vi, vj] = z[vi, vj] + x[vi, vk] * y[vk, vj]
 
         @R.function(private=True)
-        def unused_func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
+        def unused_func(
+            x: R.Tensor((m_unused_func, n_unused_func), "float32"),
+            w: R.Tensor((n_unused_func, k_unused_func), "float32"),
+        ):
             gv0 = R.add(x, w)
             return gv0
 
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
-            m, k = T.int64(), T.int64()
-            gv0 = R.call_tir(InputModule.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+        def main(
+            x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
+        ):
+            gv0 = R.call_tir(
+                InputModule.tir_matmul,
+                (x, w),
+                ty_args=[R.Tensor((m_main, k_main), dtype="float32")],
+            )
             return gv0
 
     mod = InputModule
@@ -321,19 +343,19 @@ def test_unused_relax_func_symbolic_shape():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-def test_unused_prim_func():
-    @tvm.script.ir_module
+def test_unused_function():
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def unused_func(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
@@ -357,8 +379,8 @@ def test_unused_prim_func():
     assert check_if_func_exists(new_mod, "unused_func")
 
 
-def test_preserve_indirectly_used_prim_func():
-    @tvm.script.ir_module
+def test_preserve_indirectly_used_function():
+    @tvm_tirx.script.ir_module
     class InputModule:
         @R.function
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
@@ -367,22 +389,22 @@ def test_preserve_indirectly_used_prim_func():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_ty=R.Tensor((16, 16), "float32"),
+                ty_args=[R.Tensor((16, 16), "float32")],
             )
             return gv0
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def tir_add_tensors(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def tir_add_float32(x: T.float32, y: T.float32) -> T.float32:
             return x + y
 
@@ -390,22 +412,22 @@ def test_preserve_indirectly_used_prim_func():
     assert mod
     new_mod = DeadCodeElimination()(mod)
 
-    tvm.ir.assert_structural_equal(mod, new_mod)
+    tvm_tirx.ir.assert_structural_equal(mod, new_mod)
 
 
 def test_multiple_unused_funcs():
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class InputModule:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def unused_func1(
-            x: T.Buffer((16, 16), "float32"),
-            y: T.Buffer((16, 16), "float32"),
-            z: T.Buffer((16, 16), "float32"),
+            x: T.Tensor((16, 16), "float32"),
+            y: T.Tensor((16, 16), "float32"),
+            z: T.Tensor((16, 16), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.sblock("add"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("add"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function(private=True)
@@ -432,7 +454,7 @@ def test_multiple_unused_funcs():
 
 def test_unused_dfb():
     # test if an unused dataflow block can be removed.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -465,7 +487,7 @@ def test_unused_dfb():
                 R.output(lv4)
             return gv3
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -494,7 +516,7 @@ def test_unused_dfb():
 
 def test_unused_dfb2():
     # test if an unused dataflow block can be removed.
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Input:
         @R.function
         def main(
@@ -532,7 +554,7 @@ def test_unused_dfb2():
                 R.output(lv3)
             return lv3
 
-    @tvm.script.ir_module
+    @tvm_tirx.script.ir_module
     class Expected:
         @R.function
         def main(
@@ -586,7 +608,7 @@ def test_recursively_defined_lambda():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
@@ -623,7 +645,7 @@ def test_recursively_defined_closure():
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
@@ -654,4 +676,4 @@ def test_recursively_defined_closure():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    tvm_tirx.testing.main()
