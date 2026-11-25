@@ -1479,7 +1479,7 @@ inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name =
 inline Tensor dyn_tile(const Tensor& x, ffi::Array<PrimExpr> new_shape, size_t rdim,
                        std::string name = "T_tile", std::string tag = kBroadcast) {
   size_t ndim = x->shape.size();
-  if (is_empty_shape(new_shape)) {
+  if (is_empty_shape(x->shape) || is_empty_shape(new_shape)) {
     return compute(
         new_shape,
         [&](const ffi::Array<PrimVar>& indices) { return tvm::prim::cast(0, PrimType(x->dtype)); },

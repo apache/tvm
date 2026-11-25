@@ -9780,6 +9780,27 @@ def test_tile_dynamic_repeats():
         )
 
 
+def test_tile_dynamic_repeats_empty_input():
+    data = np.empty((0, 3), dtype="float32")
+    graph = helper.make_graph(
+        [helper.make_node("Tile", ["x", "repeats"], ["y"])],
+        "empty_tile",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, data.shape),
+            helper.make_tensor_value_info("repeats", TensorProto.INT64, [2]),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, ["N", "M"])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    mod = from_onnx(model, shape_dict={"x": data.shape})
+    vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+    x = tvm_tirx.runtime.tensor(data)
+    for repeats in ([1, 2], [1, 0]):
+        result = vm["main"](x, tvm_tirx.runtime.tensor(np.array(repeats, dtype="int64")))
+        assert result.dtype == "float32"
+        np.testing.assert_array_equal(result.numpy(), np.tile(data, repeats))
+
+
 def test_reverse_sequence_ir():
     """Verify lowered Relax IR for the ReverseSequence ONNX operator."""
 
