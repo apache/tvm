@@ -5765,11 +5765,14 @@ class NonZero(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
         ndim = inputs[0].ty.ndim
-        ndim = 1 if ndim == 0 else ndim
         nonzero_numbers = tirx.Var("nonzero_numbers", "int64")
-        return bb.match_cast(
-            relax.op.nonzero(inputs[0]), relax.TensorType((ndim, nonzero_numbers), "int64")
+        coords = bb.match_cast(
+            relax.op.nonzero(inputs[0]), relax.TensorType((ndim or 1, nonzero_numbers), "int64")
         )
+        if ndim == 0:
+            # Relax returns one coordinate row for scalars; ONNX requires zero rows.
+            return relax.op.strided_slice(coords, axes=[0], begin=[0], end=[0])
+        return coords
 
 
 class Upsample(OnnxOpConverter):
