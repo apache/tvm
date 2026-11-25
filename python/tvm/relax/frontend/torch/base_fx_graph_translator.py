@@ -2077,6 +2077,32 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _masked_scatter(self, node: fx.Node) -> relax.Var:
+        x, mask, source = self.retrieve_args(node)[:3]
+        ndim = len(mask.ty.shape)
+        zero = relax.const(0, "int32")
+        one = relax.const(1, "int32")
+        # take(mode="fast") does no bounds checking. Positions before the first True
+        # in the mask would index -1; those lanes are discarded by `where`, but the
+        # read itself must stay in bounds, so clamp the index at 0.
+        if ndim == 1:
+            index = self.block_builder.emit(relax.op.cumsum(mask, 0, dtype="int32"))
+            index = self.block_builder.emit(relax.op.subtract(index, one))
+            index = self.block_builder.emit(relax.op.maximum(index, zero))
+            gathered_source = self.block_builder.emit(relax.op.take(source, index, axis=0))
+        else:
+            f_mask = self.block_builder.emit(relax.op.reshape(mask, [-1]))
+            index = self.block_builder.emit(relax.op.cumsum(f_mask, 0, dtype="int32"))
+            index = self.block_builder.emit(relax.op.subtract(index, one))
+            index = self.block_builder.emit(relax.op.maximum(index, zero))
+            source_shape = [-1] + [s for idx, s in enumerate(source.ty.shape) if idx >= ndim]
+            f_source = self.block_builder.emit(relax.op.reshape(source, source_shape))
+            gathered_source = self.block_builder.emit(relax.op.take(f_source, index, axis=0))
+            gathered_source = self.block_builder.emit(relax.op.reshape(gathered_source, x.ty.shape))
+        if ndim != len(x.ty.shape):
+            mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.ty.shape))
+        return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
+
     def _where(self, node: fx.Node) -> relax.Var:
         condition = self.env[node.args[0]]
         x = self.env[node.args[1]]

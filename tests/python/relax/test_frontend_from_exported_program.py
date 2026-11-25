@@ -9210,3 +9210,31 @@ def test_affine_grid_numerically():
 
 if __name__ == "__main__":
     tvm_tirx.testing.main()
+
+
+@pytest.mark.parametrize(
+    "x_shape, source_shape",
+    [
+        ((8,), (8,)),  # 1-D mask
+        ((2, 5), (3, 5)),  # source has more rows than the mask selects
+        ((2, 3, 4), (24,)),  # flat source, 3-D mask
+        ((2, 3, 4), (2, 3, 4)),  # source shaped like x
+    ],
+)
+@pytest.mark.parametrize("leading_false", [False, True])
+def test_masked_scatter(x_shape, source_shape, leading_false):
+    class MaskedScatter(Module):
+        def forward(self, x, mask, source):
+            return x.masked_scatter(mask, source)
+
+    torch.manual_seed(0)
+    x = torch.randn(*x_shape)
+    mask = torch.rand(*x_shape) > 0.5
+    if leading_false:
+        # No True before position 0, so the cumsum index there is -1 and must be
+        # clamped: take(mode="fast") does not bounds-check.
+        mask.view(-1)[0] = False
+        mask.view(-1)[-1] = True
+    source = torch.randn(*source_shape)
+
+    verify_model_numerically(MaskedScatter(), (x, mask, source))
