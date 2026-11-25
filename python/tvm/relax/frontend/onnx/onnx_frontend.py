@@ -3717,11 +3717,11 @@ class Expand(OnnxOpConverter):
                         # -1 means preserve the input dimension
                         target_shape[i] = data_shape[i]
                     elif isinstance(data_shape[i], tvm_tirx.ir.IntImm) and data_shape[i].value == 1:
-                        # Input dimension is 1, can broadcast to any target dimension >= 1
-                        if s.value < 1:
+                        # A singleton dimension can broadcast to any non-negative extent.
+                        if s.value < 0:
                             raise ValueError(
                                 f"ONNX Expand: Invalid target dimension {s.value} "
-                                f"at possition {i}. Target dimensions must be >= 1."
+                                f"at position {i}. Target dimensions must be >= 0."
                             )
                     elif (
                         isinstance(data_shape[i], tvm_tirx.ir.IntImm)
@@ -3769,11 +3769,11 @@ class Expand(OnnxOpConverter):
                     # -1 means preserve the input dimension
                     new_shape[i] = data_shape[i]
                 elif data_shape[i] == 1:
-                    # Input dimension is 1, can broadcast to any target dimension >= 1
-                    if new_shape[i] < 1:
+                    # A singleton dimension can broadcast to any non-negative extent.
+                    if new_shape[i] < 0:
                         raise ValueError(
                             f"ONNX Expand: Invalid target dimension {new_shape[i]} "
-                            f"at possition {i}. Target dimensions must be >= 1."
+                            f"at position {i}. Target dimensions must be >= 0."
                         )
                 elif new_shape[i] == data_shape[i]:
                     # Dimensions match, no change needed
