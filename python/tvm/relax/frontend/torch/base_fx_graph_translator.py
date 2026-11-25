@@ -3054,6 +3054,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Others ##########
 
+    def _check_getitem_extent(self, extent, required, axis):
+        static_extent = self._static_dim(extent)
+        if static_extent is not None:
+            if static_extent < required:
+                raise IndexError(f"Index out of bounds for tensor axis {axis}")
+            return
+        # MatchCast checks the runtime shape without making the FX function impure.
+        checked = self.block_builder.emit(relax.ShapeExpr([tirx.min(extent, required)]))
+        self.block_builder.match_cast(checked, relax.ShapeType([required]))
+
     def _getitem(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -3067,56 +3077,87 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.ty, relax.TensorType)
-            if isinstance(node.args[1], int):
-                return x
-            if not isinstance(node.args[1], list | tuple):
-                indices = [node.args[1]]
-            else:
-                indices = node.args[1]
-            take_indices = []
-            take_axes = []
+            key = node.args[1]
+            indices = key if isinstance(key, tuple) else (key,)
+            advanced = None
+            take_rank_delta = 0
             stride_begin = []
             stride_end = []
             stride = []
             stride_axes = []
+            squeeze_axes = []
             expand_dim = []
+            empty_axis = None
+            has_boolean_index = False
             i = 0
             shape = self.shape_of(x)
-            non_ellipsis_cnt = 0
+            indexed_axes = sum(
+                index is not None and index is not Ellipsis and not isinstance(index, bool)
+                for index in indices
+            )
+            if indexed_axes > len(shape):
+                raise IndexError("Too many indices for tensor")
             for index in indices:
-                if isinstance(index, int | slice | torch.fx.Node):
-                    non_ellipsis_cnt += 1
-            for index in indices:
-                if isinstance(index, int):
-                    stride_begin.append(index)
-                    stride_end.append(index + 1)
+                if index is None or isinstance(index, bool):
+                    axis = i - len(squeeze_axes) + len(expand_dim) + take_rank_delta
+                    expand_dim.append(axis)
+                    if isinstance(index, bool):
+                        if has_boolean_index or advanced is not None:
+                            raise ValueError("Multiple advanced indices are not yet supported")
+                        has_boolean_index = True
+                        if not index:
+                            empty_axis = axis
+                elif isinstance(index, int):
+                    self._check_getitem_extent(shape[i], -index if index < 0 else index + 1, i)
+                    start = shape[i] + index if index < 0 else index
+                    stride_begin.append(start)
+                    stride_end.append(start + 1)
                     stride.append(1)
                     stride_axes.append(i)
-                    i = i + 1
+                    squeeze_axes.append(i)
+                    i += 1
                 elif isinstance(index, slice):
                     stride_begin.append(0 if index.start is None else index.start)
                     stride_end.append(shape[i] if index.stop is None else index.stop)
                     stride.append(1 if index.step is None else index.step)
                     stride_axes.append(i)
-                    i = i + 1
-                elif index is None:
-                    expand_dim.append(len(stride_axes) + len(expand_dim))
+                    i += 1
                 elif index is Ellipsis:
-                    for _ in range(len(shape) - non_ellipsis_cnt):
+                    for _ in range(len(shape) - indexed_axes):
                         stride_begin.append(0)
                         stride_end.append(shape[i])
                         stride.append(1)
                         stride_axes.append(i)
                         i += 1
-                elif isinstance(index, torch.fx.Node):
-                    node_index = self.env[index]
-                    if not isinstance(node_index, relax.Expr):
-                        raise ValueError(
-                            "Unsupported index type for relax.op.take: " + str(type(node_index))
-                        )
-                    take_indices.append(node_index)
-                    take_axes.append(i)
-                    i = i + 1
+                elif isinstance(index, list | torch.fx.Node):
+                    if advanced is not None or has_boolean_index:
+                        raise ValueError("Multiple advanced indices are not yet supported")
+                    if isinstance(index, list):
+                        if any(type(item) is not int for item in index):
+                            raise ValueError("Only integer index lists are supported")
+                        required = max(max(index, default=-1) + 1, -min(index, default=0))
+                        self._check_getitem_extent(shape[i], required, i)
+                        index_expr = relax.const(index, "int64")
+                        mode = "wrap"
+                    else:
+                        index_expr = self.env[index]
+                        if not isinstance(index_expr, relax.Expr):
+                            raise ValueError("Expected a tensor index for relax.op.take")
+                        mode = "fast"
+                    if isinstance(index_expr.ty, PrimType):
+                        if tvm_tirx.ir.is_prim_expr(index_expr):
+                            extent = shape[i]
+                            valid = tirx.And(index_expr >= -extent, index_expr < extent)
+                            guard = self.block_builder.emit(
+                                relax.ShapeExpr([tirx.Cast("int64", valid)])
+                            )
+                            self.block_builder.match_cast(guard, relax.ShapeType([1]))
+                        take_rank_delta = -1
+                        mode = "wrap"
+                    else:
+                        take_rank_delta = index_expr.ty.ndim - 1
+                    advanced = (index_expr, i, mode)
+                    i += 1
                 else:
                     raise ValueError("Unsupported index type: " + str(type(index)))
             while i < len(shape):
@@ -3125,18 +3166,35 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 stride.append(1)
                 stride_axes.append(i)
                 i += 1
-            taken = x
-            if len(take_indices) > 1:
-                raise ValueError("Multiple tensors as index not yet supported")
-            for each_index, each_axis in zip(take_indices, take_axes):
-                taken = self.block_builder.emit(relax.op.take(taken, each_index, each_axis))
-            sliced = self.block_builder.emit(
-                relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
-            )
+
+            sliced = x
+            if advanced is not None:
+                index_expr, axis, mode = advanced
+                sliced = self.block_builder.emit(relax.op.take(x, index_expr, axis, mode=mode))
+                # take replaces the indexed input axis with the shape of the indices.
+                stride_axes = [a + take_rank_delta if a > axis else a for a in stride_axes]
+                squeeze_axes = [a + take_rank_delta if a > axis else a for a in squeeze_axes]
+            if stride_axes:
+                sliced = self.block_builder.emit(
+                    relax.op.strided_slice(sliced, stride_axes, stride_begin, stride_end, stride)
+                )
+            if squeeze_axes:
+                sliced = self.block_builder.emit(relax.op.squeeze(sliced, squeeze_axes))
+            if squeeze_axes and not expand_dim:
+                return sliced
             sliced_shape = list(self.shape_of(sliced))
-            for i in expand_dim:
-                sliced_shape.insert(i, 1)
-            return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
+            has_zero_extent = any(self._static_dim(dim) == 0 for dim in sliced_shape)
+            if (squeeze_axes or has_boolean_index) and not has_zero_extent:
+                expanded = self.block_builder.emit(relax.op.expand_dims(sliced, expand_dim))
+            else:
+                for axis in expand_dim:
+                    sliced_shape.insert(axis, 1)
+                expanded = self._emit_torch_reshape(sliced, sliced_shape)
+            if empty_axis is not None:
+                return self.block_builder.emit(
+                    relax.op.strided_slice(expanded, [empty_axis], [0], [0])
+                )
+            return expanded
         elif isinstance(x, tvm_tirx.ir.GenericConst):
             dtype = x.ty.dtype
             return relax.const(x.value.numpy()[node.args[1]], dtype)
