@@ -2112,7 +2112,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
+        tensors = args[0]
+
+        if not isinstance(tensors, list | tuple):
+            # Keep tuple-valued expressions on the original lowering path
+            return self.block_builder.emit(relax.op.concat(tensors, axis=axis))
+
+        # Rejects mixed dtype from filtering
+        if tensors and any(t.ty.dtype != tensors[0].ty.dtype for t in tensors[1:]):
+            return self.block_builder.emit(relax.op.concat(tensors, axis=axis))
+
+        filtered = []
+        for t in tensors:
+            shape = self.shape_of(t)
+            if (
+                isinstance(shape, relax.ShapeExpr)
+                and len(shape) == 1
+                and self._static_dim(shape[0]) == 0
+            ):
+                continue
+            filtered.append(t)
+
+        # Handles all-empty concatenation
+        if not filtered:
+            filtered = tensors
+            axis = 0
+
+        if len(filtered) == 1:
+            tensor = filtered[0]
+            ndim = tensor.ty.ndim
+            if isinstance(axis, int) and ndim >= 0 and not -ndim <= axis < ndim:
+                raise ValueError(f"cat dim {axis} is out of range for a tensor of rank {ndim}")
+
+        return self.block_builder.emit(relax.op.concat(filtered, axis=axis))
 
     def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

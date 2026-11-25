@@ -5104,6 +5104,16 @@ def test_cat():
         def forward(self, x, y):
             return torch.concat((x, y), dim=0)
 
+    class CatMutate(Module):
+        def forward(self, x, indices, values):
+            y = torch.cat((x,), dim=0)
+            y.index_put_((indices,), values)
+            return x
+
+    class CatAllEmptyNegDim(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y), dim=-2)
+
     @I.ir_module
     class Expected1:
         @R.function
@@ -5130,10 +5140,83 @@ def test_cat():
                 R.output(gv)
             return gv
 
+    # Expected IR: Concatenate a 1D empty tensor with any tensor
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((0,), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.concat((inp_1,), axis=0)
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected4:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3,), dtype="float32"),
+            inp_1: R.Tensor((1,), dtype="int64"),
+            inp_2: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.concat((inp_0,), axis=0)
+                lv1: R.Tensor((3,), dtype="float32") = R.index_put(  # noqa: F841
+                    lv, R.tuple(inp_1), inp_2, accumulate=False
+                )
+                gv: R.Tensor((3,), dtype="float32") = inp_0
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected5:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 3), dtype="float32"),
+        ) -> R.Tensor((4, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")
+                ) = R.split(inp_0, indices_or_sections=[2], axis=0)
+                lv1: R.Tensor((4, 3), dtype="float32") = R.concat(lv, axis=0)
+                gv: R.Tensor((4, 3), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAllEmpty:
+        @R.function
+        def main(
+            inp_0: R.Tensor((0,), dtype="float32"),
+            inp_1: R.Tensor((0,), dtype="float32"),
+        ) -> R.Tensor((0,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((0,), dtype="float32") = R.concat((inp_0, inp_1), axis=0)
+                gv: R.Tensor((0,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
     verify_model(Cat0(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
     verify_model(Cat1(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat2(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat3(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
+    verify_model(Cat3(), [([0], "float32"), ([2, 3], "float32")], {}, Expected3)
+    verify_model(CatMutate(), [([3], "float32"), ([1], "int64"), ([1], "float32")], {}, Expected4)
+    verify_model(CatAllEmptyNegDim(), [([0], "float32"), ([0], "float32")], {}, ExpectedAllEmpty)
+
+    # Build FX graph explicitly to test cat on an un-unpacked tuple-valued split node
+    graph = fx.Graph()
+    x = graph.placeholder("x")
+    split = graph.call_function(torch.split, args=(x, 2), kwargs={"dim": 0})
+    cat = graph.call_function(torch.cat, args=(split,), kwargs={"dim": 0})
+    graph.output(cat)
+    graph_model = fx.GraphModule(Module(), graph)
+    with torch.no_grad():
+        mod = from_fx(graph_model, [([4, 3], "float32")])
+    tvm_tirx.ir.assert_structural_equal(mod, Expected5)
 
 
 def test_max():
