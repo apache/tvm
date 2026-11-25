@@ -11473,13 +11473,12 @@ def test_unique(axis: int | None, sorted: int, num_outputs: int):
 
 def test_nonzero():
     def verify_nonzero(shape, expected):
-        ndim = max(len(shape), 1)
         node = helper.make_node("NonZero", ["x"], ["y"])
         graph = helper.make_graph(
             [node],
             "nonzero_structural_test",
             inputs=[helper.make_tensor_value_info("x", TensorProto.BOOL, shape)],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [ndim, None])],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [len(shape), None])],
         )
         model = helper.make_model(graph, producer_name="nonzero_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
@@ -11496,7 +11495,9 @@ def test_nonzero():
                 lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
                     R.nonzero(x), R.Tensor((1, nonzero_numbers), dtype="int64")
                 )
-                gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
+                gv: R.Tensor((0, nonzero_numbers), dtype="int64") = R.strided_slice(
+                    lv, axes=[0], begin=[0], end=[0]
+                )
                 R.output(gv)
             return gv
 
@@ -11565,6 +11566,22 @@ def test_nonzero():
     verify_nonzero((2, 3), ExpectedRank2)
     verify_nonzero((4, 5, 6), ExpectedRank3)
     verify_nonzero((7, 8, 9, 10), ExpectedRank4)
+
+
+@pytest.mark.parametrize("value, count", [(False, 0), (True, 1)])
+def test_nonzero_scalar(value, count):
+    graph = helper.make_graph(
+        [helper.make_node("NonZero", ["x"], ["y"]), helper.make_node("Shape", ["y"], ["shape"])],
+        "scalar_nonzero",
+        [helper.make_tensor_value_info("x", TensorProto.BOOL, [])],
+        [
+            helper.make_tensor_value_info("y", TensorProto.INT64, [0, None]),
+            helper.make_tensor_value_info("shape", TensorProto.INT64, [2]),
+        ],
+    )
+    coords, shape = run_in_tvm(helper.make_model(graph), {"x": np.array(value)}, opset=13)
+    assert coords.dtype == "int64"
+    assert tuple(coords.shape) == tuple(shape) == (0, count)
 
 
 def test_depth_to_space():
