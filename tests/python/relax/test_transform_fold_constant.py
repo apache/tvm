@@ -458,6 +458,119 @@ def test_fold_shape_computation():
     tvm_tirx.ir.assert_structural_equal(after, expected)
 
 
+def test_fold_shape_to_tensor_symbolic_shape():
+    extent = T.dynamic("m", "int64")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((extent,), "float32")):
+            with R.dataflow():
+                shape = R.shape_of(x)
+                shape_tensor = R.shape_to_tensor(shape)
+                R.output(shape_tensor)
+            return shape_tensor
+
+    after = relax.transform.FoldConstant()(Module)
+    tvm_tirx.ir.assert_structural_equal(after, Module)
+
+
+def test_fold_shape_to_tensor_dynamic_reshape():
+    extent = T.dynamic("m", "int64")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((extent,), "float32")):
+            with R.dataflow():
+                shape = R.shape_of(x)
+                shape_tensor = R.shape_to_tensor(shape)
+                target_shape = R.tensor_to_shape(shape_tensor)
+                R.output(target_shape)
+            with R.dataflow():
+                result = R.reshape(x, target_shape)
+                R.output(result)
+            return result
+
+    after = relax.transform.FoldConstant()(Module)
+    relax.analysis.check_well_formed(after)
+    tvm_tirx.ir.assert_structural_equal(after, Module)
+
+
+def test_fold_shape_to_tensor_symbolic_shape_without_legalize():
+    extent = T.dynamic("m", "int64")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((extent,), "float32")):
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([extent]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+    op = tvm_tirx.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(Module)
+        tvm_tirx.ir.assert_structural_equal(after, Module)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
+def test_fold_shape_to_tensor_static_shape_without_legalize():
+    @I.ir_module
+    class Module:
+        @R.function
+        def before():
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([2, 3]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+        @R.function
+        def expected(shape_tensor: R.Tensor((2,), "int64")):
+            return shape_tensor
+
+    before = gen_mod(Module, "before", {})
+    expected = gen_mod(Module, "expected", {"shape_tensor": np.array([2, 3], dtype="int64")})
+
+    op = tvm_tirx.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(before)
+        tvm_tirx.ir.assert_structural_equal(after, expected)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
+def test_fold_shape_to_tensor_mixed_shape_without_legalize():
+    extent = T.dynamic("m", "int64")
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, extent, 3), "float32")):
+            with R.dataflow():
+                shape_tensor = R.shape_to_tensor(R.shape([2, extent, 3]))
+                R.output(shape_tensor)
+            return shape_tensor
+
+    op = tvm_tirx.ir.Op.get("relax.shape_to_tensor")
+    original_legalize = op.get_attr("FLegalize")
+    op.reset_attr("FLegalize")
+    try:
+        after = relax.transform.FoldConstant()(Module)
+        tvm_tirx.ir.assert_structural_equal(after, Module)
+    finally:
+        if original_legalize is not None:
+            op.set_attr("FLegalize", original_legalize)
+
+
 def test_fold_tuple_output():
     @tvm_tirx.script.ir_module
     class Module:
