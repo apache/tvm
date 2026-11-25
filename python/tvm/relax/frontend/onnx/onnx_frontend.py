@@ -2443,13 +2443,38 @@ class ConvTranspose(OnnxOpConverter):
         else:
             kernel_shape = [int(s) for s in inputs[1].ty.shape.values[2:]]
 
+        output_shape = attr.get("output_shape")
+        auto_pad = attr.get("auto_pad")
+        if isinstance(auto_pad, bytes):
+            auto_pad = auto_pad.decode("utf-8")
+        if output_shape is not None:
+            try:
+                input_shape = [int(s) for s in inputs[0].ty.shape.values[2:]]
+            except TypeError as err:
+                raise ValueError(
+                    "ConvTranspose with output_shape requires static input spatial dimensions."
+                ) from err
+            total_padding = [
+                strides[i] * (input_shape[i] - 1)
+                + output_padding[i]
+                + (kernel_shape[i] - 1) * dilations[i]
+                + 1
+                - output_shape[i]
+                for i in range(spatial_dims)
+            ]
+            if auto_pad == "SAME_UPPER":
+                pads_begin = [value // 2 for value in total_padding]
+            else:
+                pads_begin = [value - value // 2 for value in total_padding]
+            pads_end = [total_padding[i] - pads_begin[i] for i in range(spatial_dims)]
+            if any(value < 0 for value in pads_begin + pads_end):
+                raise ValueError("ConvTranspose output_shape requires negative padding.")
+            attr["pads"] = pads_begin + pads_end
+
         # Resolve `auto_pad` per ONNX ConvTranspose spec. Unlike Conv, the spec
         # derives `pads` from `output_shape`/`strides` when auto_pad is SAME_*,
         # so we cannot reuse `autopad()` (which pads the input data instead).
         if "auto_pad" in attr:
-            auto_pad = attr["auto_pad"]
-            if isinstance(auto_pad, bytes):
-                auto_pad = auto_pad.decode("utf-8")
             if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
                 # Per ONNX ConvTranspose spec, when output_shape is unspecified
                 # the target output size is `input_size * stride`. Substituting
@@ -2458,22 +2483,27 @@ class ConvTranspose(OnnxOpConverter):
                 # kernel/dilation/stride/output_padding attributes. Avoiding the
                 # input shape keeps the converter usable when spatial dims are
                 # symbolic (`tir.Var`).
-                pads_begin: list[int] = []
-                pads_end: list[int] = []
-                for i in range(spatial_dims):
-                    total_pad = (
-                        (kernel_shape[i] - 1) * dilations[i] + 1 + output_padding[i] - strides[i]
-                    )
-                    total_pad = max(total_pad, 0)
-                    if auto_pad == "SAME_UPPER":
-                        pad_begin = total_pad // 2
-                    else:
-                        pad_begin = total_pad - total_pad // 2
-                    pads_begin.append(pad_begin)
-                    pads_end.append(total_pad - pad_begin)
-                attr["pads"] = pads_begin + pads_end
+                if output_shape is None:
+                    pads_begin: list[int] = []
+                    pads_end: list[int] = []
+                    for i in range(spatial_dims):
+                        total_pad = (
+                            (kernel_shape[i] - 1) * dilations[i]
+                            + 1
+                            + output_padding[i]
+                            - strides[i]
+                        )
+                        total_pad = max(total_pad, 0)
+                        if auto_pad == "SAME_UPPER":
+                            pad_begin = total_pad // 2
+                        else:
+                            pad_begin = total_pad - total_pad // 2
+                        pads_begin.append(pad_begin)
+                        pads_end.append(total_pad - pad_begin)
+                    attr["pads"] = pads_begin + pads_end
             elif auto_pad == "VALID":
-                attr["pads"] = [0] * (2 * spatial_dims)
+                if output_shape is None:
+                    attr["pads"] = [0] * (2 * spatial_dims)
             elif auto_pad == "NOTSET":
                 pass
             else:
@@ -2686,16 +2716,25 @@ class Constant(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
-        if "value" not in attr:
-            raise ValueError("no value in Constant")
-        value = attr.pop("value")
-        # Constants may rarely have string types. These are likely exported
-        # from other frameworks and not actually used in TVM. We'll just use
-        # a zero valued constant for compatibility.
-        if isinstance(value, bytes):
-            np_value = _np.asarray([0]).astype("int64")
+        if "value" in attr:
+            value = attr.pop("value")
+            # Constants may rarely have string types. These are likely exported
+            # from other frameworks and not actually used in TVM. We'll just use
+            # a zero valued constant for compatibility.
+            if isinstance(value, bytes):
+                np_value = _np.asarray([0]).astype("int64")
+            else:
+                np_value = get_numpy(value)
+        elif "value_float" in attr:
+            np_value = _np.asarray(attr.pop("value_float"), dtype="float32")
+        elif "value_floats" in attr:
+            np_value = _np.asarray(attr.pop("value_floats"), dtype="float32")
+        elif "value_int" in attr:
+            np_value = _np.asarray(attr.pop("value_int"), dtype="int64")
+        elif "value_ints" in attr:
+            np_value = _np.asarray(attr.pop("value_ints"), dtype="int64")
         else:
-            np_value = get_numpy(value)
+            raise ValueError("no value in Constant")
         dtype = np_value.dtype.name
         value = relax.const(np_value, dtype)
         return value
@@ -5175,7 +5214,7 @@ class ReduceSum(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
-        axes = attr.get("axes", None)
+        axes = attr.get("axes") or None
         keepdims = attr.get("keepdims", 1)
         return relax.op.sum(data, axes, keepdims)
 
@@ -6141,17 +6180,13 @@ class NonMaxSuppression(OnnxOpConverter):
         else:
             max_output_boxes_per_class = 0  # Default value
 
-        if iou_threshold is not None and isinstance(iou_threshold, tvm_tirx.ir.GenericConst):
-            iou_threshold = float(iou_threshold.value.numpy().item())
-        elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name
-            if var_name in params[1]:
-                _, param_value = params[1][var_name]
-                iou_threshold = float(param_value.numpy().item())
-            else:
-                iou_threshold = 0.5  # Default value
-        else:
-            iou_threshold = 0.5  # Default value
+        if iou_threshold is None:
+            iou_threshold = relax.const(0.0, dtype="float32")
+        elif isinstance(iou_threshold, tvm_tirx.ir.GenericConst):
+            iou_threshold = relax.const(float(iou_threshold.value.numpy().item()), dtype="float32")
+        elif isinstance(iou_threshold, relax.Var) and iou_threshold.name in params[1]:
+            _, param_value = params[1][iou_threshold.name]
+            iou_threshold = relax.const(float(param_value.numpy().item()), dtype="float32")
 
         if score_threshold is not None and isinstance(score_threshold, tvm_tirx.ir.GenericConst):
             score_threshold = float(score_threshold.value.numpy().item())
@@ -6184,7 +6219,7 @@ class NonMaxSuppression(OnnxOpConverter):
                 boxes,
                 scores,
                 relax.const(max_output_boxes_per_class, dtype="int64"),
-                relax.const(iou_threshold, dtype="float32"),
+                iou_threshold,
                 relax.const(score_threshold, dtype="float32"),
                 output_format="onnx",
             )
@@ -7189,7 +7224,7 @@ class ONNXGraphImporter:
         """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
             op_name = node.op_type
-            attr = self._parse_attr(node.attribute)
+            attr = self._parse_attr(node)
             # Create and populate input list.
             inputs = onnx_input()
             for i in node.input:
@@ -7297,28 +7332,28 @@ class ONNXGraphImporter:
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return tvm_tirx.runtime.tensor(np_array)
 
-    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> dict[str, Any]:
-        """Convert a list of AttributeProto to a dict, with names as keys."""
+    def _parse_attr(self, node: onnx.NodeProto) -> dict[str, Any]:
+        """Convert a node's attributes to a dict, with names as keys."""
         attrs = {}
-        for a in attr_proto:
+        for a in node.attribute:
             for f in ["f", "i", "s", "g"]:
                 if a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ["floats", "ints", "strings"]:
-                if list(getattr(a, f)):
-                    assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
             for f in ["t", "tp"]:
                 if hasattr(a, f) and a.HasField(f):
                     attrs[a.name] = getattr(a, f)
-            for f in ["tensors", "type_protos"]:
-                if hasattr(a, f) and list(getattr(a, f)):
+            for f in ["floats", "ints", "strings", "tensors", "type_protos", "graphs"]:
+                values = getattr(a, f, None)
+                allow_empty = (node.op_type, a.name, f) in {
+                    ("Constant", "value_floats", "floats"),
+                    ("Constant", "value_ints", "ints"),
+                    ("ReduceSum", "axes", "ints"),
+                }
+                if values is not None and (
+                    values or (allow_empty and a.type == getattr(onnx.AttributeProto, f.upper()))
+                ):
                     assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
-            for f in ["graphs"]:
-                if list(getattr(a, f)):
-                    assert a.name not in attrs, "Only one type of attr is allowed"
-                    attrs[a.name] = tuple(getattr(a, f))
+                    attrs[a.name] = tuple(values)
             if a.name not in attrs:
                 raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return attrs
@@ -7376,7 +7411,7 @@ class ONNXGraphImporter:
 
             for node in graph.node:
                 op_name = node.op_type
-                attr = self._parse_attr(node.attribute)
+                attr = self._parse_attr(node)
 
                 inputs = onnx_input()
                 for i in node.input:
