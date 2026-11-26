@@ -1442,12 +1442,15 @@ class Gather(OnnxOpConverter):
         # as q + r - 1 (q = rank of indices); since the shape is rank 1, a
         # non-scalar index such as (1,) must keep its rank, so only a true
         # 0-D index collapses to a scalar.
-        if isinstance(data, relax.ShapeExpr):
-            if isinstance(indices, tvm_tirx.ir.GenericConst) and indices.value.numpy().ndim == 0:
-                np_index = int(indices.value.numpy().item())
-                shape_val = data[np_index]
-                return relax.prim_value(shape_val)
+        if (
+            isinstance(data, relax.ShapeExpr)
+            and isinstance(indices, tvm_tirx.ir.GenericConst)
+            and indices.value.numpy().ndim == 0
+        ):
+            np_index = int(indices.value.numpy().item())
+            return relax.prim_value(data[np_index])
 
+        if isinstance(data.ty, relax.ShapeType):
             data = bb.normalize(relax.op.shape_to_tensor(data))
 
         if isinstance(indices, relax.ShapeExpr):
@@ -3363,6 +3366,8 @@ class Slice(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
+        if isinstance(data.ty, relax.ShapeType) and not isinstance(data, relax.ShapeExpr):
+            data = bb.normalize(relax.op.shape_to_tensor(data))
         starts = get_constant(inputs[1], params)
         ends = get_constant(inputs[2], params)
         axes = get_constant(inputs[3], params)
