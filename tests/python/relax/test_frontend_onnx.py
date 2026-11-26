@@ -2249,6 +2249,40 @@ def test_gather_elements(data_shape, indices_shape, axis):
     check_correctness(model, inputs=input_values)
 
 
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize(
+    "data_shape,indices_shape,axis",
+    [
+        ((2, 3), (0, 3), 0),
+        ((2, 3), (2, 0), -1),
+        ((0, 3), (0, 3), 0),
+        ((0, 3), (0, 2), 1),
+        ((2, 3), (1, 3), 0),
+    ],
+)
+def test_gather_elements_with_empty_indices(data_shape, indices_shape, axis):
+    graph = helper.make_graph(
+        [helper.make_node("GatherElements", ["data", "indices"], ["y"], axis=axis)],
+        "gather_elements_with_empty_indices",
+        [
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, indices_shape)],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    onnx.checker.check_model(model)
+    # Give the importer concrete input shapes to isolate TOPI lowering.
+    mod = from_onnx(model, shape_dict={"data": data_shape, "indices": indices_shape})
+    vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+
+    data = np.arange(np.prod(data_shape), dtype=np.float32).reshape(data_shape)
+    indices = np.zeros(indices_shape, dtype=np.int64)
+    actual = vm["main"](tvm_tirx.runtime.tensor(data), tvm_tirx.runtime.tensor(indices)).numpy()
+    expected = np.take_along_axis(data, indices, axis)
+    np.testing.assert_array_equal(actual, expected, strict=True)
+
+
 @pytest.mark.parametrize(
     "data_shape, indices_shape, axis",
     [
