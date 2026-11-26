@@ -15979,5 +15979,306 @@ def test_qlinearconv_scale_overflow():
     )
 
 
+def _microsoft_opset_imports(onnx_opset=13):
+    return [helper.make_opsetid("", onnx_opset), helper.make_opsetid("com.microsoft", 1)]
+
+
+def _check_qlinear_binary_ms(op_name, a, b, shape):
+    """ORT check for com.microsoft QLinear binary ops (Add/Mul)."""
+    a_scale = np.array(0.5, dtype=np.float32)
+    b_scale = np.array(0.25, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    a_zp = np.array(128, dtype=np.uint8)
+    b_zp = np.array(120, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        op_name,
+        ["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+        ["y"],
+        domain="com.microsoft",
+    )
+    graph = helper.make_graph(
+        [node],
+        f"{op_name.lower()}_test",
+        [
+            helper.make_tensor_value_info("a", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, shape)],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=inputs, opset=13)
+
+def test_qlinearadd():
+    """Verify QLinearAdd (com.microsoft) against ONNX Runtime."""
+    shape = [2, 3]
+    a = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    b = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    _check_qlinear_binary_ms("QLinearAdd", a, b, shape)
+
+
+def test_qlinearmul():
+    """Verify QLinearMul (com.microsoft) against ONNX Runtime."""
+    shape = [2, 3]
+    a = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    b = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    _check_qlinear_binary_ms("QLinearMul", a, b, shape)
+
+
+def test_qgemm():
+    """Verify QGemm (com.microsoft) against ONNX Runtime."""
+    m, k, n = 3, 4, 5
+    a = rg.integers(0, 255, size=(m, k), dtype=np.uint8)
+    b = rg.integers(0, 255, size=(n, k), dtype=np.uint8)
+    a_scale = np.array(0.5, dtype=np.float32)
+    b_scale = np.array(0.25, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    a_zp = np.array(128, dtype=np.uint8)
+    b_zp = np.array(120, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QGemm",
+        ["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "", "y_scale", "y_zp"],
+        ["y"],
+        transB=1,
+        domain="com.microsoft",
+    )
+    graph = helper.make_graph(
+        [node],
+        "qgemm_test",
+        [
+            helper.make_tensor_value_info("a", TensorProto.UINT8, [m, k]),
+            helper.make_tensor_value_info("a_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("a_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("b", TensorProto.UINT8, [n, k]),
+            helper.make_tensor_value_info("b_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("b_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [m, n])],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    inputs = {
+        "a": a,
+        "a_scale": a_scale,
+        "a_zp": a_zp,
+        "b": b,
+        "b_scale": b_scale,
+        "b_zp": b_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=inputs, opset=13)
+
+
+def test_qlinearconcat():
+    """Verify QLinearConcat (com.microsoft) against ONNX Runtime."""
+    shape0, shape1 = [2, 3], [2, 2]
+    x0 = rg.integers(0, 255, size=shape0, dtype=np.uint8)
+    x1 = rg.integers(0, 255, size=shape1, dtype=np.uint8)
+    x0_scale = np.array(0.5, dtype=np.float32)
+    x1_scale = np.array(0.25, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    x0_zp = np.array(128, dtype=np.uint8)
+    x1_zp = np.array(120, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearConcat",
+        [
+            "y_scale",
+            "y_zp",
+            "x0",
+            "x0_scale",
+            "x0_zp",
+            "x1",
+            "x1_scale",
+            "x1_zp",
+        ],
+        ["y"],
+        axis=1,
+        domain="com.microsoft",
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearconcat_test",
+        [
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("x0", TensorProto.UINT8, shape0),
+            helper.make_tensor_value_info("x0_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x0_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("x1", TensorProto.UINT8, shape1),
+            helper.make_tensor_value_info("x1_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x1_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 5])],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    inputs = {
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+        "x0": x0,
+        "x0_scale": x0_scale,
+        "x0_zp": x0_zp,
+        "x1": x1,
+        "x1_scale": x1_scale,
+        "x1_zp": x1_zp,
+    }
+    check_correctness(model, inputs=inputs, opset=13)
+
+
+def _check_qlinear_unary_ms(op_name, x, shape, y_shape=None, extra_node_kwargs=None):
+    """ORT check for com.microsoft QLinear unary ops."""
+    y_shape = shape if y_shape is None else y_shape
+    x_scale = np.array(0.5, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    x_zp = np.array(128, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+    extra_node_kwargs = extra_node_kwargs or {}
+
+    node = helper.make_node(
+        op_name,
+        ["x", "x_scale", "x_zp", "y_scale", "y_zp"],
+        ["y"],
+        domain="com.microsoft",
+        **extra_node_kwargs,
+    )
+    graph = helper.make_graph(
+        [node],
+        f"{op_name.lower()}_test",
+        [
+            helper.make_tensor_value_info("x", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, y_shape)],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    inputs = {
+        "x": x,
+        "x_scale": x_scale,
+        "x_zp": x_zp,
+        "y_scale": y_scale,
+        "y_zp": y_zp,
+    }
+    check_correctness(model, inputs=inputs, opset=13)
+
+
+def test_qlinearleakyrelu():
+    """Verify QLinearLeakyRelu (com.microsoft) against ONNX Runtime."""
+    shape = [2, 4]
+    x = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    _check_qlinear_unary_ms("QLinearLeakyRelu", x, shape, extra_node_kwargs={"alpha": 0.1})
+
+
+def test_qlinearsigmoid():
+    """Verify QLinearSigmoid (com.microsoft) against ONNX Runtime."""
+    shape = [2, 4]
+    x = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    _check_qlinear_unary_ms("QLinearSigmoid", x, shape)
+
+
+def test_qlinearsoftmax():
+    """Verify QLinearSoftmax (com.microsoft) against ONNX Runtime."""
+    shape = [2, 4]
+    x = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    _check_qlinear_unary_ms(
+        "QLinearSoftmax", x, shape, extra_node_kwargs={"axis": 1, "opset": 13}
+    )
+
+
+def test_qlinearaveragepool():
+    """Verify QLinearAveragePool (com.microsoft) against ONNX Runtime."""
+    shape = [1, 1, 4, 4]
+    x = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    x_scale = np.array(0.5, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    x_zp = np.array(128, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearAveragePool",
+        ["x", "x_scale", "x_zp", "y_scale", "y_zp"],
+        ["y"],
+        domain="com.microsoft",
+        kernel_shape=[2, 2],
+        strides=[2, 2],
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearaveragepool_test",
+        [
+            helper.make_tensor_value_info("x", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 1, 2, 2])],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    check_correctness(
+        model,
+        inputs={"x": x, "x_scale": x_scale, "x_zp": x_zp, "y_scale": y_scale, "y_zp": y_zp},
+        opset=13,
+    )
+
+
+def test_qlinearglobalaveragepool():
+    """Verify QLinearGlobalAveragePool (com.microsoft) against ONNX Runtime."""
+    shape = [1, 2, 4, 4]
+    x = rg.integers(0, 255, size=shape, dtype=np.uint8)
+    x_scale = np.array(0.5, dtype=np.float32)
+    y_scale = np.array(0.1, dtype=np.float32)
+    x_zp = np.array(128, dtype=np.uint8)
+    y_zp = np.array(10, dtype=np.uint8)
+
+    node = helper.make_node(
+        "QLinearGlobalAveragePool",
+        ["x", "x_scale", "x_zp", "y_scale", "y_zp"],
+        ["y"],
+        domain="com.microsoft",
+    )
+    graph = helper.make_graph(
+        [node],
+        "qlinearglobalaveragepool_test",
+        [
+            helper.make_tensor_value_info("x", TensorProto.UINT8, shape),
+            helper.make_tensor_value_info("x_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("x_zp", TensorProto.UINT8, []),
+            helper.make_tensor_value_info("y_scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("y_zp", TensorProto.UINT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [1, 2, 1, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=_microsoft_opset_imports())
+    check_correctness(
+        model,
+        inputs={"x": x, "x_scale": x_scale, "x_zp": x_zp, "y_scale": y_scale, "y_zp": y_zp},
+        opset=13,
+    )
+
 if __name__ == "__main__":
     tvm_tirx.testing.main()
