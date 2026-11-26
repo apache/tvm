@@ -1466,6 +1466,54 @@ def test_avgpool2d():
     verify_model(AvgPool2d4(), input_info, {}, expected3)
 
 
+def test_avgpool_divisor_override():
+    class AvgPool2d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool2d(kernel_size=3, stride=2, padding=1, divisor_override=2)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool2dFunctional(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=3, stride=2, padding=1, divisor_override=2
+            )
+
+    @tvm_tirx.script.ir_module
+    class expected:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv1 = R.multiply(lv, R.const(4.5, "float32"))
+                gv = lv1
+                R.output(gv)
+            return gv
+
+    class AvgPool2dOneElementKernel(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(
+                input, kernel_size=(3,), stride=2, padding=1, divisor_override=2
+            )
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(AvgPool2d(), input_info, {}, expected)
+    verify_model(AvgPool2dFunctional(), input_info, {}, expected)
+    verify_model(AvgPool2dOneElementKernel(), input_info, {}, expected)
+
+
 def test_avgpool3d():
     input_info = [([1, 3, 8, 8, 8], "float32")]
 

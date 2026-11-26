@@ -929,6 +929,35 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
+    def _scale_for_divisor_override(
+        self,
+        result: relax.Expr,
+        kernel_size: int | tuple[int, ...],
+        ndim: int,
+        divisor_override: int | None,
+        ceil_mode: bool | None,
+    ) -> relax.Expr:
+        """Turn the average over the whole window into a sum divided by `divisor_override`.
+
+        The pooling op was built with ``count_include_pad=True``, so it divided by the window size.
+        """
+        if divisor_override is None:
+            return result
+        if ceil_mode:
+            raise NotImplementedError(
+                "avg_pool with divisor_override and ceil_mode=True is not supported."
+            )
+        sizes = kernel_size if isinstance(kernel_size, list | tuple) else (kernel_size,) * ndim
+        if len(sizes) == 1:
+            sizes = tuple(sizes) * ndim
+        window = math.prod(sizes)
+        if window == divisor_override:
+            return result
+        dtype = result.ty.dtype
+        return self.block_builder.emit(
+            relax.op.multiply(result, relax.const(window / divisor_override, dtype))
+        )
+
     def _avg_pool1d_impl(
         self,
         x: relax.Expr,
@@ -979,6 +1008,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: int | None = 0,
         ceil_mode: bool | None = False,
         count_include_pad: bool | None = True,
+        divisor_override: int | None = None,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.ty.ndim
@@ -993,9 +1023,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 strides=stride,
                 padding=padding,
                 ceil_mode=ceil_mode,
-                count_include_pad=count_include_pad,
+                # divisor_override takes the place of the divisor that count_include_pad selects
+                count_include_pad=count_include_pad or divisor_override is not None,
                 layout="NCHW",
             )
+        )
+        result = self._scale_for_divisor_override(
+            result, kernel_size, 2, divisor_override, ceil_mode
         )
         # Remove added batch dim from result
         if x_ndim == 3:
@@ -1010,7 +1044,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
-        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
+        divisor_override = args[6] if len(args) > 6 else kwargs.get("divisor_override", None)
+        return self._avg_pool2d_impl(
+            x, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override
+        )
 
     def _avg_pool3d_impl(
         self,
@@ -1020,6 +1057,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: int | None = 0,
         ceil_mode: bool | None = False,
         count_include_pad: bool | None = True,
+        divisor_override: int | None = None,
     ) -> relax.Var:
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.ty.ndim
@@ -1034,9 +1072,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 strides=stride,
                 padding=padding,
                 ceil_mode=ceil_mode,
-                count_include_pad=count_include_pad,
+                count_include_pad=count_include_pad or divisor_override is not None,
                 layout="NCDHW",
             )
+        )
+        result = self._scale_for_divisor_override(
+            result, kernel_size, 3, divisor_override, ceil_mode
         )
         # Remove added batch dim from result
         if x_ndim == 4:
@@ -1051,8 +1092,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+        divisor_override = args[6] if len(args) > 6 else kwargs.get("divisor_override", None)
 
-        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
+        return self._avg_pool3d_impl(
+            x, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override
+        )
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
