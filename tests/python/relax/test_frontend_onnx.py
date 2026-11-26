@@ -4118,6 +4118,33 @@ def test_shape_unknown_rank_input():
     assert "relax.shape_of" in op_names
 
 
+@pytest.mark.parametrize(
+    "op, operands",
+    [("Gather", ["shape", "zero"]), ("Slice", ["shape", "zero", "one"])],
+)
+def test_index_runtime_shape(op, operands):
+    # The first slice has a runtime end, so Shape cannot fold to a ShapeExpr.
+    graph = helper.make_graph(
+        [
+            helper.make_node("Slice", ["x", "one", "end"], ["rows"]),
+            helper.make_node("Shape", ["rows"], ["shape"]),
+            helper.make_node(op, operands, ["y"]),
+        ],
+        "index_runtime_shape",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [5, 7]),
+            helper.make_tensor_value_info("end", TensorProto.INT64, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [1])],
+        initializer=[
+            helper.make_tensor("zero", TensorProto.INT64, [1], [0]),
+            helper.make_tensor("one", TensorProto.INT64, [1], [1]),
+        ],
+    )
+    inputs = {"x": np.zeros((5, 7), dtype="float32"), "end": np.array([3], dtype="int64")}
+    check_correctness(helper.make_model(graph), inputs=inputs, opset=18, check_dtypes=True)
+
+
 def test_slice_of_scalar_shape():
     # Slice consuming Shape of a rank-0 input used to raise "Slice requires a
     # statically known input rank", because Shape handed it an opaque value
