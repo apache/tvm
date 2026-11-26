@@ -94,48 +94,50 @@ def get_3d_indices(indices, layout="NCDHW"):
     return n, c, z, y, x, cc
 
 
-def get_1d_pixel(data, layout, image_width, n, c, x, cc, ib, ic):
+def get_1d_pixel(data, layout, image_width, n, c, x, cc, ib, ic, dtype="float32"):
     """Get 1d pixel"""
     x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
     if layout == "NWC":
-        return data(n, x, c).astype("float")
+        return data(n, x, c).astype(dtype)
     if layout == "NCW":
-        return data(n, c, x).astype("float")
+        return data(n, c, x).astype(dtype)
     if ncw_pack_layout(layout):
-        return data(n, c, x, ib, ic).astype("float")
+        return data(n, c, x, ib, ic).astype(dtype)
 
     # else must be NCHWxc
     assert ncw_xc_layout(layout)
-    return data(n, c, x, cc).astype("float")
+    return data(n, c, x, cc).astype(dtype)
 
 
-def get_2d_pixel(data, layout, image_height, image_width, n, c, y, x, cc, ib, ic):
+def get_2d_pixel(data, layout, image_height, image_width, n, c, y, x, cc, ib, ic, dtype="float32"):
     """Get 2d pixel"""
     y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
     x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
     if layout == "NHWC":
-        return data(n, y, x, c).astype("float")
+        return data(n, y, x, c).astype(dtype)
     if layout == "NCHW":
-        return data(n, c, y, x).astype("float")
+        return data(n, c, y, x).astype(dtype)
     if nchw_pack_layout(layout):
-        return data(n, c, y, x, ib, ic).astype("float")
+        return data(n, c, y, x, ib, ic).astype(dtype)
 
     # else must be NCHWxc
     assert nchw_xc_layout(layout)
-    return data(n, c, y, x, cc).astype("float")
+    return data(n, c, y, x, cc).astype(dtype)
 
 
-def get_3d_pixel(data, layout, image_depth, image_height, image_width, n, c, z, y, x, cc):
+def get_3d_pixel(
+    data, layout, image_depth, image_height, image_width, n, c, z, y, x, cc, dtype="float32"
+):
     """Get 3d pixel"""
     z = tvm.te.max(tvm.te.min(z, image_depth - 1), 0)
     y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
     x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
     if layout == "NDHWC":
-        return data(n, z, y, x, c).astype("float")
+        return data(n, z, y, x, c).astype(dtype)
     if layout == "NCDHW":
-        return data(n, c, z, y, x).astype("float")
+        return data(n, c, z, y, x).astype(dtype)
     # else must be NCDHWxc
-    return data(n, c, z, y, x, cc).astype("float")
+    return data(n, c, z, y, x, cc).astype(dtype)
 
 
 def get_inx(
@@ -327,7 +329,18 @@ def _resize_1d(
 
         closest_x_index = get_closest_index(in_x, rounding_method, boxes)
 
-        value = get_1d_pixel(data, layout, image_width, box_idx, c, closest_x_index, cc, inum, ic)
+        value = get_1d_pixel(
+            data,
+            layout,
+            image_width,
+            box_idx,
+            c,
+            closest_x_index,
+            cc,
+            inum,
+            ic,
+            dtype=out_dtype or data.dtype,
+        )
     elif method == "linear":
         x_int = te.floor(in_x).astype("int32")
 
@@ -363,6 +376,7 @@ def _resize_1d(
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
         # use extrapolation_value if in_x is out of boundary
+        extrapolation_value = tvm_tirx.tirx.const(extrapolation_value, value.ty)
         value = tvm_tirx.tirx.if_then_else(
             in_x < 0,
             extrapolation_value,
@@ -652,6 +666,7 @@ def _resize_2d(
             cc,
             inum,
             ic,
+            dtype=out_dtype or data.dtype,
         )
     elif method == "linear":
         y_int = te.floor(in_y).astype("int32")
@@ -730,6 +745,7 @@ def _resize_2d(
         raise ValueError("Unknown resize method:", method)
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
+        extrapolation_value = tvm_tirx.tirx.const(extrapolation_value, value.ty)
         out = tvm_tirx.tirx.if_then_else(
             in_y < 0,
             extrapolation_value,
@@ -1094,6 +1110,7 @@ def _resize_3d(
             closest_y_index,
             closest_x_index,
             cc,
+            dtype=out_dtype or data.dtype,
         )
     elif method == "linear":
         z_int = te.floor(in_z).astype("int32")
@@ -1194,6 +1211,7 @@ def _resize_3d(
         raise ValueError("Unknown resize method:", method)
 
     if coordinate_transformation_mode == "tf_crop_and_resize":
+        extrapolation_value = tvm_tirx.tirx.const(extrapolation_value, value.ty)
         out = tvm_tirx.tirx.if_then_else(
             in_z < 0,
             extrapolation_value,
