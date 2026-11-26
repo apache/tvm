@@ -16,9 +16,13 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+import numpy as np
+import pytest
+
 import tvm
 import tvm_tirx
 import tvm_tirx.testing
+from tvm import relax
 from tvm.relax.transform import ConvertLayout, Normalize
 from tvm_tirx.script.parser import ir as I
 from tvm_tirx.script.parser import relax as R
@@ -861,6 +865,76 @@ def test_conv2d_transpose():
             return gv2
 
     verify(Input, Expected)
+
+
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize(
+    "shape,axis", [((), -1), ((2, 3), -3), ((2, 3), -2), ((2, 3), -1), ((2, 3), 2)]
+)
+def test_stack_layout_axes(shape, axis):
+    x = relax.Var("x", relax.TensorType(shape, "float32"))
+    y = relax.Var("y", relax.TensorType(shape, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x, y]):
+        with bb.dataflow():
+            stacked = bb.emit_output(relax.op.stack((x, y), axis=axis))
+        bb.emit_func_output(stacked)
+
+    mod = ConvertLayout({})(bb.get())
+    vm = relax.VirtualMachine(tvm.compile(mod, target="llvm"), tvm_tirx.cpu())
+    a = np.arange(max(1, int(np.prod(shape))), dtype=np.float32).reshape(shape)
+    b = np.asarray(a + 10, dtype=np.float32)
+    result = vm["main"](tvm_tirx.runtime.tensor(a), tvm_tirx.runtime.tensor(b))
+    np.testing.assert_array_equal(result.numpy(), np.stack((a, b), axis=axis), strict=True)
+
+
+def test_stack_after_conv2d_layout_conversion():
+    @I.ir_module
+    class Input:
+        @R.function
+        def main(x: R.Tensor((1, 4, 4, 5), "float32"), w: R.Tensor((4, 4, 2, 2), "float32")):
+            with R.dataflow():
+                a = R.nn.conv2d(x, w, out_dtype="float32")
+                b = R.negative(a)
+                out = R.stack((a, b), axis=-3)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 4, 4, 5), "float32"), w: R.Tensor((4, 4, 2, 2), "float32")):
+            with R.dataflow():
+                image = R.permute_dims(x, axes=[0, 2, 3, 1])
+                weight = R.permute_dims(w, axes=[0, 2, 3, 1])
+                a = R.nn.conv2d(
+                    image,
+                    weight,
+                    data_layout="NHWC",
+                    kernel_layout="OHWI",
+                    out_layout="NHWC",
+                    out_dtype="float32",
+                )
+                b = R.negative(a)
+                stacked = R.stack((a, b), axis=2)
+                out = R.permute_dims(stacked, axes=[0, 4, 2, 1, 3])
+                R.output(out)
+            return out
+
+    verify(Input, Expected)
+
+    blocked = ConvertLayout({"relax.nn.conv2d": ["NCHW4c", "OIHW4o"]})(Input)
+    stack_calls = []
+
+    def collect_stack(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm_tirx.ir.Op.get("relax.stack"):
+            stack_calls.append(expr)
+
+    relax.analysis.post_order_visit(blocked["main"].body, collect_stack)
+    (stack,) = stack_calls
+    assert stack.attrs.axis == 2
+    assert [arg.ty.ndim for arg in stack.args[0].fields] == [4, 4]
+    assert [dim.value for dim in stack.ty.shape.values] == [1, 4, 2, 3, 4]
 
 
 def test_expand_dims_scalar():
