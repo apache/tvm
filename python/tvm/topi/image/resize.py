@@ -152,7 +152,8 @@ def get_inx(
     if coordinate_transformation_mode == "half_pixel":
         in_x = (x + 0.5) * scale_x - 0.5
     elif coordinate_transformation_mode == "align_corners":
-        in_x = (image_width - 1).astype("float") / (target_width - 1) * x
+        # A singleton output has only x=0, which maps to the first input sample.
+        in_x = (image_width - 1).astype("float") / te.max(target_width - 1, 1) * x
     elif coordinate_transformation_mode == "asymmetric":
         if use_int_div:
             in_x = te.div(x, te.div(target_width, image_width))

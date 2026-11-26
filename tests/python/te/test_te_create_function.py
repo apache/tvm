@@ -808,6 +808,23 @@ def test_resize2d_symbolic():
     _check_workload(te_resize2d_symbolic, tir_resize2d_symbolic, index_dtype_override="int64")
 
 
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
+def test_resize1d_align_corners_symbolic_width():
+    width = tirx.Var("width", "int64")
+    data = te.placeholder((1, 1, 5), "float32", name="data")
+    resized = topi.image.resize1d(
+        data, (0.0, 0.0), (width,), coordinate_transformation_mode="align_corners"
+    )
+    resize = tvm.compile(te.create_function([data, resized]), target="llvm")
+
+    values = tvm_tirx.runtime.tensor(np.arange(5, dtype="float32").reshape(1, 1, 5))
+    for output_width in (1, 3):
+        actual = tvm_tirx.runtime.empty((1, 1, output_width), "float32")
+        resize(values, actual)
+        expected = np.linspace(0, 4, output_width, dtype="float32").reshape(1, 1, output_width)
+        np.testing.assert_array_equal(actual.numpy(), expected, strict=True)
+
+
 def test_extern_with_explicit_buffer_access():
     def te_extern():
         A = te.placeholder((128, 128), name="A")
