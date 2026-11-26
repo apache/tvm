@@ -159,11 +159,7 @@ Type InferTypeAttention(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), q_ty->dtype, q_ty->vdevice);
 }
 
-Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
-  return attention(call->args[0], call->args[1], call->args[2], std::nullopt, std::nullopt,
-                   std::nullopt, std::nullopt)
-      .as_or_throw<Call>();
-}
+Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) { return call; }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.attention")

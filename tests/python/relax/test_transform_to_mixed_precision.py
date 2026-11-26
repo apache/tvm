@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm_tirx
 import tvm_tirx.testing
@@ -1152,6 +1153,54 @@ def test_dynamic_strided_slice():
             return gv
 
     _assert_test(Input, Expected)
+
+
+@pytest.mark.parametrize("kind", ["attention", "attention_bias", "attention_var_len"])
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {},
+        {"scale": 0.5, "causal_mask": "TopLeft"},
+        {"scale": 0.25, "causal_mask": "BottomRight", "window_size": 2},
+    ],
+)
+@pytest.mark.parametrize("out_dtype", ["float32", "float16"])
+def test_attention_preserves_semantics(kind, attrs, out_dtype):
+    def make_module(convert):
+        q = relax.Var("q", relax.TensorType((1, 4, 2, 8), "float32"))
+        k = relax.Var("k", relax.TensorType((1, 4, 2, 8), "float32"))
+        v = relax.Var("v", relax.TensorType((1, 4, 2, 8), "float32"))
+        params = [q, k, v]
+        if kind == "attention_bias":
+            params.append(relax.Var("bias", relax.TensorType((1, 2, 4, 4), "float32")))
+        elif kind == "attention_var_len":
+            params.extend(
+                [
+                    relax.Var("seqstart_q", relax.TensorType((3,), "int32")),
+                    relax.Var("max_seqlen_q", relax.TensorType((), "int32")),
+                    relax.Var("seqstart_k", relax.TensorType((3,), "int32")),
+                    relax.Var("max_seqlen_k", relax.TensorType((), "int32")),
+                ]
+            )
+        bb = relax.BlockBuilder()
+        with bb.function("main", params):
+            with bb.dataflow():
+                args = [
+                    bb.emit(relax.op.astype(arg, "float16"))
+                    if convert and i < (4 if kind == "attention_bias" else 3)
+                    else arg
+                    for i, arg in enumerate(params)
+                ]
+                result = bb.emit(getattr(relax.op.nn, kind)(*args, **attrs))
+                if convert:
+                    result = relax.op.astype(result, "float32")
+                output = bb.emit_output(result)
+            bb.emit_func_output(output)
+        return bb.get()
+
+    before = make_module(False)
+    after = ToMixedPrecision(out_dtype=out_dtype)(before)
+    tvm_tirx.ir.assert_structural_equal(after, make_module(True))
 
 
 if __name__ == "__main__":
