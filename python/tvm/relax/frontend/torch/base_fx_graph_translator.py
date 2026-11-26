@@ -692,8 +692,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         from torch import fx
 
         def convert(node: fx.Node) -> relax.Var:
+            def materialize_prim_scalar(tensor, scalar):
+                # An integer primitive value (e.g. from `Tensor.item()`) takes the dtype of the
+                # tensor operand, as a Python int does in PyTorch.
+                if (
+                    isinstance(getattr(tensor, "ty", None), relax.TensorType)
+                    and isinstance(getattr(scalar, "ty", None), PrimType)
+                    and tensor.ty.dtype.matches_code(
+                        DataTypeCode.FLOAT, DataTypeCode.BFLOAT, DataTypeCode.INT, DataTypeCode.UINT
+                    )
+                    and scalar.ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT)
+                ):
+                    return self._prim_value_to_scalar_tensor(scalar, str(tensor.ty.dtype))
+                return scalar
+
             def promote_binary_op_args(lhs, rhs):
                 if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    rhs = materialize_prim_scalar(lhs, rhs)
+                    lhs = materialize_prim_scalar(rhs, lhs)
                     lhs_si = getattr(lhs, "ty", None)
                     rhs_si = getattr(rhs, "ty", None)
                     if isinstance(lhs_si, relax.TensorType) and isinstance(
