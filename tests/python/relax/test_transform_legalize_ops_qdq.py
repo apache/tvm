@@ -15,12 +15,50 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
+import pytest
+
+import tvm
 import tvm_tirx
 import tvm_tirx.testing
+from tvm import relax
 from tvm.relax import script as R
 from tvm.relax.transform import LegalizeOps
 from tvm.s_tir import script as Ts
 from tvm_tirx.script import tirx as T
+
+
+@pytest.mark.skipif(not tvm_tirx.testing.device_enabled("llvm"), reason="LLVM is required")
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+@pytest.mark.parametrize("out_dtype", ["int16", "uint16"])
+def test_quantize_16bit_saturation(dtype, out_dtype):
+    data = np.array(
+        [
+            [65504, 32768, 32752, -65504, -32768],
+            [65504, 4096, 0, -4096, -65504],
+            [65504, 32768, 32752, -65504, 0],
+        ],
+        dtype=dtype,
+    )
+    scales = np.array([1, 2, 0.5], dtype=dtype)
+    zero_points = np.array([0, 15, 31], dtype=out_dtype)
+    x = relax.Var("x", relax.TensorType(data.shape, dtype))
+    scale = relax.Var("scale", relax.TensorType(scales.shape, dtype))
+    zp = relax.Var("zp", relax.TensorType(zero_points.shape, out_dtype))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x, scale, zp]):
+        bb.emit_func_output(relax.op.quantize(x, scale, zp, axis=0, out_dtype=out_dtype))
+
+    executable = tvm.compile(bb.get(), target="llvm")
+    vm = relax.VirtualMachine(executable, tvm_tirx.cpu())
+    actual = vm["main"](*map(tvm_tirx.runtime.tensor, (data, scales, zero_points))).numpy()
+
+    # All quotients in this fixture are integers. Compute the values before clipping
+    # without rounding either a 16-bit integer bound or a shifted value to float16.
+    bounds = np.iinfo(out_dtype)
+    wide = data.astype(np.float64) / scales[:, None] + zero_points[:, None]
+    expected = np.clip(wide, bounds.min, bounds.max).astype(out_dtype)
+    np.testing.assert_array_equal(actual, expected, strict=True)
 
 
 def test_quantize_fp32_to_int8():

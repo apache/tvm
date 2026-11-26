@@ -80,7 +80,15 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
                 zp_value = zp[(0,) * len(zp.shape)]
             else:
                 zp_value = zp[indices[axis]]
-            scaled = data[indices] / scale_value
+            data_value = data[indices]
+            if out_dtype in ("int16", "uint16"):
+                # The upper saturation bounds and many interior codes are not
+                # representable in float16. Keep the quantization arithmetic wide
+                # until it has been clipped to the output range.
+                data_value = data_value.astype("float32")
+                scale_value = scale_value.astype("float32")
+                zp_value = zp_value.astype("float32")
+            scaled = data_value / scale_value
             round_val = (te.round(scaled) if "int" in out_dtype else scaled) + zp_value
             return clip_cast(round_val, out_dtype)
 
