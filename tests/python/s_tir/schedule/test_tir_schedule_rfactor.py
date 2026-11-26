@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 # ruff: noqa: E501, F401, F841
+import numpy as np
 import pytest
 
 import tvm
@@ -1198,7 +1199,7 @@ def argmax_topi_rfactor(
                 placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1]
             )
             with Ts.init():
-                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = 2147483647
                 placeholder_red_temp_v1_rf[ax0, vi1_1] = -2147483648
             v_placeholder_red_temp_v0_rf: T.let[T.int32] = T.Select(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1]
@@ -1222,7 +1223,7 @@ def argmax_topi_rfactor(
             Ts.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
             Ts.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
             with Ts.init():
-                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v0[ax0] = 2147483647
                 placeholder_red_temp_v1[ax0] = -2147483648
             v_placeholder_red_temp_v0: T.let[T.int32] = T.Select(
                 placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1]
@@ -1265,7 +1266,7 @@ def argmin_topi_rfactor(
                 placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1]
             )
             with Ts.init():
-                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = 2147483647
                 placeholder_red_temp_v1_rf[ax0, vi1_1] = 2147483647
             v_placeholder_red_temp_v0_rf: T.let[T.int32] = T.Select(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1]
@@ -1289,7 +1290,7 @@ def argmin_topi_rfactor(
             Ts.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
             Ts.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
             with Ts.init():
-                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v0[ax0] = 2147483647
                 placeholder_red_temp_v1[ax0] = 2147483647
             v_placeholder_red_temp_v0: T.let[T.int32] = T.Select(
                 placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1]
@@ -1438,6 +1439,46 @@ def argmin_topi_select_last_rfactor(
                 placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1],
                 placeholder_red_temp_v1[ax0],
                 placeholder_red_temp_v1_rf[ax0, vi1_1],
+            )
+            placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
+            placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
+    for i0 in T.serial(1):
+        with Ts.sblock("placeholder_red"):
+            ax0 = Ts.axis.spatial(1, i0)
+            Ts.reads(placeholder_red_temp_v0[ax0])
+            Ts.writes(placeholder_red[ax0])
+            placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
+
+
+@Ts.function
+def argmax_topi_old_identity(
+    placeholder: T.Tensor((1, 32), "int32"), placeholder_red: T.Tensor(1, "int32")
+) -> None:
+    # topi.argmax as it was created when the identity index was -1
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    placeholder_red_temp_v0 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    placeholder_red_temp_v1 = Ts.sblock_alloc_tensor([1], dtype="int32")
+    for i0, i1 in T.grid(1, 32):
+        with Ts.sblock("placeholder_red_temp"):
+            ax0, k1 = Ts.axis.remap("SR", [i0, i1])
+            Ts.reads(placeholder[ax0, k1])
+            Ts.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
+            with Ts.init():
+                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v1[ax0] = -2147483648
+            v_placeholder_red_temp_v0: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder[ax0, k1]
+                or (
+                    placeholder_red_temp_v1[ax0] == placeholder[ax0, k1]
+                    and placeholder_red_temp_v0[ax0] < k1
+                ),
+                placeholder_red_temp_v0[ax0],
+                k1,
+            )
+            v_placeholder_red_temp_v1: T.let[T.int32] = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder[ax0, k1],
+                placeholder_red_temp_v1[ax0],
+                placeholder[ax0, k1],
             )
             placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
             placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
@@ -1867,6 +1908,40 @@ def test_reduction_rfactor_topi_argmin_select_last_index():
     assert s.get(rf_block).same_as(s.get(s.get_sblock("placeholder_red_temp_rf")))
     assert s.get(argmin).same_as(s.get(s.get_sblock("placeholder_red_temp")))
     verify_trace_roundtrip(s, mod=argmin_topi)
+
+
+def test_reduction_rfactor_topi_argmax_old_identity():
+    s = tvm.s_tir.Schedule(argmax_topi_old_identity, debug_mask="all")
+    argmax = s.get_sblock("placeholder_red_temp")
+    _, k = s.get_loops(argmax)
+    _, ki = s.split(k, [None, 8])
+    rf_block = s.rfactor(ki, 1)
+    assert s.get(rf_block).init.seq[0].value.value == -1
+    verify_trace_roundtrip(s, mod=argmax_topi_old_identity)
+
+
+@pytest.mark.parametrize("func", [topi.argmax, topi.argmin])
+@pytest.mark.parametrize("select_last_index", [False, True])
+def test_reduction_rfactor_topi_arg_reduce_extreme_values(func, select_last_index):
+    lowest, largest = np.finfo("float32").min, np.finfo("float32").max
+    rows = [[v] * 32 for v in (lowest, largest, -np.inf, np.inf)]
+    rows += [[np.inf] + [largest] * 31, [-np.inf] + [lowest] * 31]
+    data = np.array(rows, dtype="float32")
+    A = te.placeholder(data.shape, dtype="float32", name="A")
+    B = func(A, axis=1, select_last_index=select_last_index)
+    s = tvm.s_tir.Schedule(te.create_function([A, B]), debug_mask="all")
+    _, k = s.get_loops(s.get_sblock("A_red_temp"))
+    _, ki = s.split(k, [None, 8])
+    s.rfactor(ki, 1)
+    f = tvm.compile(s.mod, target="llvm")
+    out = tvm_tirx.runtime.tensor(np.zeros(len(rows), dtype="int32"))
+    f(tvm_tirx.runtime.tensor(data), out)
+    np_func = np.argmax if func is topi.argmax else np.argmin
+    if select_last_index:
+        expected = data.shape[1] - 1 - np_func(data[:, ::-1], axis=1)
+    else:
+        expected = np_func(data, axis=1)
+    np.testing.assert_array_equal(out.numpy(), expected)
 
 
 def test_reduction_rfactor_int64():

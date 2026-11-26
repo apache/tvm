@@ -7631,6 +7631,37 @@ def test_arg_min_max(axis, keepdims):
     verify_arg_min_max([3, 4, 4], "ArgMin", axis, keepdims)
 
 
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+@pytest.mark.parametrize("dtype", ["float32", "int32"])
+@pytest.mark.parametrize("select_last_index", [0, 1])
+def test_arg_min_max_extreme_values(op_name, dtype, select_last_index):
+    """Return a valid index when the values are the largest or lowest of the type, or infinite."""
+    if dtype == "float32":
+        lowest, largest = np.finfo(dtype).min, np.finfo(dtype).max
+        rows = [[v] * 3 for v in (lowest, largest, -np.inf, np.inf)]
+        rows += [[np.inf, largest, largest], [-np.inf, lowest, lowest]]
+    else:
+        lowest, largest = np.iinfo(dtype).min, np.iinfo(dtype).max
+        rows = [[lowest] * 3, [largest] * 3, [largest, lowest, lowest], [lowest, largest, largest]]
+    data = np.array(rows, dtype=dtype)
+
+    node = helper.make_node(
+        op_name, ["data"], ["out"], axis=1, keepdims=1, select_last_index=select_last_index
+    )
+    graph = helper.make_graph(
+        [node],
+        "arg_extreme_values_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "data", helper.np_dtype_to_tensor_dtype(data.dtype), data.shape
+            )
+        ],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [len(rows), 1])],
+    )
+    model = helper.make_model(graph, producer_name="arg_extreme_values_test")
+    check_correctness(model, inputs={"data": data})
+
+
 @pytest.mark.parametrize("axis", [-1, 0, 1])
 @pytest.mark.parametrize("largest", [True, False])
 def test_topk(axis: int, largest: int):
