@@ -739,7 +739,7 @@ class Pow(BinaryBase):
 
     @staticmethod
     def _integer_power(bb, base, exponent):
-        """ONNX Pow for an integer base. The result keeps the dtype of the base.""""
+        """ONNX Pow for an integer base. The result keeps the dtype of the base."""
         n = None
         if isinstance(exponent, tvm_tirx.ir.GenericConst) and _relax_dtype_is_integer(
             str(exponent.ty.dtype.dtype)

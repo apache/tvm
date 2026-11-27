@@ -684,7 +684,7 @@ def _check_pow(base, exponent, exponent_mode):
     return model
 
 
-@pytest.mark.parametrize("np_dtype", [np.int32, np.int64]):
+@pytest.mark.parametrize("np_dtype", [np.int32, np.int64])
 def test_pow_integer_tensor_exponent(np_dtype):
     base = np.array([[2, 3], [-4, 5]], dtype=np_dtype)
     exponent = np.array([[2, 3], [2, 4]], dtype=np_dtype)
@@ -778,7 +778,7 @@ def test_pow_folded_mixed_dtype_constants_can_feed_reshape():
             ["b"],
             value=numpy_helper.from_array(np.array([1, 1], dtype=np.int64), name="b_value"),
         ),
-        helper.make_node("Pow", ["a", "b"], ["p"])
+        helper.make_node("Pow", ["a", "b"], ["p"]),
         helper.make_node("Cast", ["p"], ["shape"], to=TensorProto.INT64),
         helper.make_node("Reshape", ["x", "shape"], ["y"]),
     ]
