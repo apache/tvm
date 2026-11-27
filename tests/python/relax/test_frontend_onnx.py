@@ -797,7 +797,7 @@ def test_pow_integer_constant_folding(exponent):
     a = make_constant_node("a", TensorProto.INT32, [2], [2, 3])
     b = make_constant_node("b", TensorProto.INT32, [2], exponent)
     graph = helper.make_graph(
-        [a, b, helper.make_mode("Pow", ["a", "b"], ["y"])],
+        [a, b, helper.make_node("Pow", ["a", "b"], ["y"])],
         "pow_const_fold",
         [],
         [helper.make_tensor_value_info("y", TensorProto.INT32, [2])],
