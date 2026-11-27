@@ -8791,7 +8791,9 @@ def test_torchvision_roi_align():
     verify_model(ROIAlign(), example_args, {}, expected)
 
 
-def test_torchvision_roi_align_aligned():
+@pytest.mark.parametrize("spatial_scale", [1.0, 0.5])
+@pytest.mark.parametrize("aligned", [True, False])
+def test_torchvision_roi_align_numerical(spatial_scale, aligned):
     torchvision = pytest.importorskip("torchvision")
 
     class ROIAlign(Module):
@@ -8800,14 +8802,14 @@ def test_torchvision_roi_align_aligned():
                 input,
                 rois,
                 output_size=(1, 1),
-                spatial_scale=1.0,
+                spatial_scale=spatial_scale,
                 sampling_ratio=2,
-                aligned=True,
+                aligned=aligned,
             )
 
     example_args = (
-        torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4),
-        torch.tensor([[0.0, 1.0, 1.0, 1.2, 1.2]], dtype=torch.float32),
+        torch.arange(32, dtype=torch.float32).reshape(2, 1, 4, 4),
+        torch.tensor([[1.0, 1.0, 1.0, 1.2, 1.2]], dtype=torch.float32),
     )
     verify_model_numerically(ROIAlign(), example_args, rtol=1e-5, atol=1e-5)
 

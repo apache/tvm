@@ -13457,13 +13457,12 @@ def test_roi_align():
             with R.dataflow():
                 lv: R.Tensor((2, 1), dtype="int64") = R.expand_dims(batch_indices, axis=1)
                 lv1: R.Tensor((2, 1), dtype="float32") = R.astype(lv, dtype="float32")
-                lv2: R.Tensor((2, 4), dtype="float32") = R.add(
-                    rois, R.const([-0.5, -0.5, -0.5, -0.5], "float32")
-                )
-                lv3: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, lv2), axis=1)
+                lv2: R.Tensor((2, 4), dtype="float32") = R.multiply(rois, R.const(1.0, "float32"))
+                lv3: R.Tensor((2, 4), dtype="float32") = R.subtract(lv2, R.const(0.5, "float32"))
+                lv4: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, lv3), axis=1)
                 gv: R.Tensor((2, 4, 3, 3), dtype="float32") = R.vision.roi_align(
                     X,
-                    lv3,
+                    lv4,
                     pooled_size=(3, 3),
                     spatial_scale=1.0,
                     sample_ratio=2,
@@ -13510,6 +13509,35 @@ def test_roi_align():
         np.array([[1.0, 1.0, 1.2, 1.2], [2.0, 0.5, 1.1, 1.1]], dtype="float32"),
         ExpectedRoiAlignHalfPixel,
     )
+
+
+@pytest.mark.parametrize("coordinate_transformation_mode", ["half_pixel", "output_half_pixel"])
+def test_roi_align_spatial_scale(coordinate_transformation_mode):
+    node = helper.make_node(
+        "RoiAlign",
+        ["X", "rois", "batch_indices"],
+        ["Y"],
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        spatial_scale=0.5,
+        sampling_ratio=1,
+    )
+    graph = helper.make_graph(
+        [node],
+        "roi_align_spatial_scale",
+        [
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 1, 10, 10]),
+            helper.make_tensor_value_info("rois", TensorProto.FLOAT, [1, 4]),
+            helper.make_tensor_value_info("batch_indices", TensorProto.INT64, [1]),
+        ],
+        [helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 1, 1])],
+    )
+    model = helper.make_model(graph)
+    inputs = {
+        "X": np.arange(200, dtype="float32").reshape(2, 1, 10, 10),
+        "rois": np.array([[4, 4, 12, 12]], dtype="float32"),
+        "batch_indices": np.array([1], dtype="int64"),
+    }
+    check_correctness(model, inputs, opset=16)
 
 
 def test_if():

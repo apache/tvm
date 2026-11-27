@@ -1376,9 +1376,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.strided_slice(rois, axes=[1], begin=[1], end=[5])
             )
             boxes = self.block_builder.emit(
+                relax.op.multiply(boxes, relax.const(spatial_scale, rois.ty.dtype))
+            )
+            boxes = self.block_builder.emit(
                 relax.op.subtract(boxes, relax.const(0.5, rois.ty.dtype))
             )
             rois = self.block_builder.emit(relax.op.concat([batch_indices, boxes], axis=1))
+            spatial_scale = 1.0
 
         return self.block_builder.emit(
             relax.op.vision.roi_align(
