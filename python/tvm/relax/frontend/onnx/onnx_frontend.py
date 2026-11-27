@@ -67,6 +67,11 @@ from tvm_tirx.runtime import DataTypeCode
 from ..common import autopad
 
 
+def _relax_dtype_is_integer(dtype: str) -> bool:
+    """Whether a Relax dtype string is a (signed or unsigned) integer type."""
+    return tvm_ffi.dtype(dtype).type_code in (DataTypeCode.INT, DataTypeCode.UINT)
+
+
 def _relax_dtype_is_floating_point(dtype: str) -> bool:
     """Whether a Relax dtype string is a floating point type."""
     try:
@@ -732,8 +737,57 @@ class Pow(BinaryBase):
     numpy_op = _np.power
     relax_op = relax.op.power
 
+    @staticmethod
+    def _integer_power(bb, base, exponent):
+        """ONNX Pow for an integer base. The result keeps the dtype of the base.""""
+        n = None
+        if isinstance(exponent, tvm_tirx.ir.GenericConst) and _relax_dtype_is_integer(
+            str(exponent.ty.dtype.dtype)
+        ):
+            value = exponent.value.numpy()
+            if value.size == 1 and value.ndim <= base.ty.ndim and value.reshape(-1)[0] >= 0:
+                n = int(value.reshape(-1)[0])
+        if n is None:
+            fp_base = bb.emit(relax.op.astype(base, "float64"))
+            fp_exponent = relax.op.astype(exponent, "float64")
+            return relax.op.astype(relax.op.power(fp_base, fp_exponent), base.ty.dtype.dtype)
+        if n == 0:
+            return relax.op.ones_like(base)
+        result = None
+        square = base
+        while n:
+            if n & 1:
+                result = square if result is None else bb.emit(relax.op.multiply(result, square))
+            n >>= 1
+            if n:
+                square = bb.emit(relax.op.multiply(square, square))
+        return result
+
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
+        if all(isinstance(getattr(inp, "ty", None), relax.TensorType) for inp in inputs):
+            base_dtype = str(inputs[0].ty.dtype.dtype)
+            exponent_dtype = str(inputs[1].ty.dtype.dtype)
+            if _relax_dtype_is_integer(base_dtype):
+                if all(isinstance(inp, tvm_tirx.ir.GenericConst) for inp in inputs):
+                    base = inputs[0].value.numpy()
+                    exponent = inputs[1].value.numpy()
+                    with _np.errstate(all="ignore"):
+                        if _relax_dtype_is_integer(exponent_dtype) and (exponent >= 0).all():
+                            output = _np.power(base, exponent)
+                        else:
+                            output = _np.power(base.astype("float64"), exponent.astype("float64"))
+                            output = _np.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
+                        output = output.astype(base_dtype)
+                    return relax.const(output, base_dtype)
+                return cls._integer_power(bb, inputs[0], inputs[1])
+            if exponent_dtype != base_dtype:
+                exponent = inputs[1]
+                if isinstance(exponent, tvm_tirx.ir.GenericConst):
+                    exponent = relax.const(exponent.value.numpy().astype(base_dtype), base_dtype)
+                else:
+                    exponent = relax.op.astype(exponent, base_dtype)
+                inputs = [inputs[0], exponent]
         return cls.base_impl(bb, inputs, attr, params)
 
 

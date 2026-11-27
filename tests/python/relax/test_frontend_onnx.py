@@ -641,6 +641,171 @@ def test_binary(op_name: str):
     verify_binary_scalar(op_name)
 
 
+def _make_pow_model(base, exponent, exponent_mode):
+    """Build a one-node Pow model. ``base`` is always a graph input.
+
+    ``exponent_mode`` selects how the exponent enters the graph: "input" (graph input),
+    "initializer" (an initializer, a relax.Var when imported with keep_params_in_input=True) or
+    "constant" (a Constant node, which is always imported as a relax constant).
+    """
+    base_dtype = helper.np_dtype_to_tensor_dtype(base.dtype)
+    inputs = [helper.make_tensor_value_info("x", base_dtype, list(base.shape))]
+    nodes = []
+    initializers = []
+    if exponent_mode == "initializer":
+        initializers.append(numpy_helper.from_array(exponent, name="e"))
+    elif exponent_mode == "constant":
+        nodes.append(
+            helper.make_node(
+                "Constant", [], ["e"], value=numpy_helper.from_array(exponent, name="e_value")
+            )
+        )
+    else:
+        exponent_dtype = helper.np_dtype_to_tensor_dtype(exponent.dtype)
+        inputs.append(helper.make_tensor_value_info("e", exponent_dtype, list(exponent.shape)))
+    nodes.append(helper.make_node("Pow", ["x", "e"], ["y"]))
+    out_shape = list(np.broadcast_shapes(base.shape, exponent.shape))
+    graph = helper.make_graph(
+        nodes,
+        "pow_test",
+        inputs,
+        [helper.make_tensor_value_info("y", base_dtype, out_shape)],
+        initializer=initializers,
+    )
+    model = helper.make_model(graph, producer_name="pow_test")
+    model.ir_version = 8
+    return model
+
+
+def _check_pow(base, exponent, exponent_mode):
+    model = _make_pow_model(base, exponent, exponent_mode)
+    inputs = {"x": base} if exponent_mode != "input" else {"x": base, "e": exponent}
+    check_correctness(model, inputs=inputs, check_dtypes=True)
+    return model
+
+
+@pytest.mark.parametrize("np_dtype", [np.int32, np.int64]):
+def test_pow_integer_tensor_exponent(np_dtype):
+    base = np.array([[2, 3], [-4, 5]], dtype=np_dtype)
+    exponent = np.array([[2, 3], [2, 4]], dtype=np_dtype)
+    _check_pow(base, exponent, "input")
+
+
+@pytest.mark.parametrize(
+    "np_dtype, exponent",
+    [(np.int32, 0), (np.int32, 1), (np.int32, 3), (np.int32, 8), (np.int64, 5)],
+)
+def test_pow_integer_constant_exponent_expands_to_multiplications(np_dtype, exponent):
+    base = np.array([[2, 3], [-4, 5]], dtype=np_dtype)
+    model = _check_pow(base, np.array(exponent, dtype=np_dtype), "constant")
+
+    script = from_onnx(model, opset=14).script()
+    assert "R.power" not in script
+    assert "float64" not in script
+    if exponent == 0:
+        assert "R.ones_like" in script
+    elif exponent > 1:
+        assert "R.multiply" in script
+    else:
+        # x ** 1 is the identity.
+        assert "R.multiply" not in script
+
+
+@pytest.mark.parametrize("exponent_mode", ["initializer", "constant"])
+@pytest.mark.parametrize("exponent", [-3, 3])
+def test_pow_integer_scalar_exponent_modes(exponent_mode, exponent):
+    base = np.array([[1, -1], [2, 3]], dtype=np.int32)
+    _check_pow(base, np.array(exponent, dtype=np.int32), exponent_mode)
+
+
+@pytest.mark.parametrize("exponent_mode", ["input", "initializer", "constant"])
+@pytest.mark.parametrize("exponent", [0.5, 2.5, [[1.5]]])
+def test_pow_integer_base_float_exponent_truncates(exponent_mode, exponent):
+    base = np.array([[2, 3], [4, 9]], dtype=np.int32)
+    _check_pow(base, np.array(exponent, dtype=np.float32), exponent_mode)
+
+
+def test_pow_integer_constant_exponent_with_higher_rank_than_base():
+    base = np.array([2, 3], dtype=np.int32)
+    _check_pow(base, np.array([[2]], dtype=np.int32), "constant")
+
+
+@pytest.mark.parametrize(
+    "np.dtype, exponent_mode",
+    [(np.int32, "input"), (np.int64, "initializer"), (np.int32, "constant")],
+)
+def test_pow_float_base_integer_exponent(np_dtype, exponent_mode):
+    base = np.array([[2.0, 3.0], [4.0, 5.0]], dtype=np.float32)
+    _check_pow(base, np.full((2, 2), 2, dtype=np_dtype), exponent_mode)
+
+
+@pytest.mark.parametrize("exponent_np_dtype", [np.int64, np.int32, np.float64])
+def test_pow_float_constant_with_different_dtype_exponent_is_folded(exponent_np_dtype):
+    base = helper.make_node(
+        "Constant",
+        [],
+        ["a"],
+        value=numpy_helper.from_array(np.array([2.0, 12.0], dtype=np.float32), name="a_value"),
+    )
+    expontent = helper.make_node(
+        "Constant",
+        [],
+        ["b"],
+        value=numpy_helper.from_array(np.array([1, 1], dtype=exponent_np_dtype), name="b_value"),
+    )
+    graph = helper.make_graph(
+        [base, exponent, helper.make_node("Pow", ["a", "b"], ["y"])],
+        "pow_float_const_fold",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+    )
+    model = helper.make_model(graph, producer_name="pow_float_const_fold")
+    check_correctness(model, check_dtypes=True)
+    assert "R.power" not in from_onnx(model, opset=14).script()
+
+
+def test_pow_folded_mixed_dtype_constants_can_feed_reshape():
+    nodes = [
+        helper.make_node(
+            "Constant",
+            [],
+            ["a"],
+            value=numpy_helper.from_array(np.array([2.0, 12.0], dtype=np.float32), name="a_value")
+        ),
+        helper.make_node(
+            "Constant",
+            [],
+            ["b"],
+            value=numpy_helper.from_array(np.array([1, 1], dtype=np.int64), name="b_value"),
+        ),
+        helper.make_node("Pow", ["a", "b"], ["p"])
+        helper.make_node("Cast", ["p"], ["shape"], to=TensorProto.INT64),
+        helper.make_node("Reshape", ["x", "shape"], ["y"]),
+    ]
+    graph = helper.make_graph(
+        nodes,
+        "pow_reshape",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 12])],
+    )
+    model = helper.make_model(graph, producer_name="pow_reshape")
+    check_correctness(model, inputs={"x": np.arange(24, dtype=np.float32).reshape(2, 3, 4)})
+
+
+@pytest.mark.parametrize("exponent", [[3, 2], [-1, -2]])
+def test_pow_integer_constant_folding(exponent):
+    a = make_constant_node("a", TensorProto.INT32, [2], [2, 3])
+    b = make_constant_node("b", TensorProto.INT32, [2], exponent)
+    graph = helper.make_graph(
+        [a, b, helper.make_mode("Pow", ["a", "b"], ["y"])],
+        "pow_const_fold",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.INT32, [2])],
+    )
+    model = helper.make_model(graph, producer_name="pow_const_fold")
+    check_correctness(model, check_dtypes=True)
+
+
 def test_div_integer_constant_zero_divisor_raises_valueerror():
     b_init = numpy_helper.from_array(np.array([3, 0, -2, 1], dtype=np.int32), name="b")
     node = helper.make_node("Div", ["a", "b"], ["y"])
