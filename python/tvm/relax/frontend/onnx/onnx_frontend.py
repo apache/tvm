@@ -4275,8 +4275,10 @@ class RoiAlign(OnnxOpConverter):
             coordinate_transformation_mode = coordinate_transformation_mode.decode("ascii")
 
         if coordinate_transformation_mode == "half_pixel":
-            offset = relax.const([-0.5, -0.5, -0.5, -0.5], rois_dtype)
-            rois = relax.op.add(rois, offset)
+            # The half-pixel shift is in feature-map coordinates.
+            rois = relax.op.multiply(rois, relax.const(spatial_scale, rois_dtype))
+            rois = relax.op.subtract(rois, relax.const(0.5, rois_dtype))
+            spatial_scale = 1.0
             aligned = True
         elif coordinate_transformation_mode != "output_half_pixel":
             raise NotImplementedError(
