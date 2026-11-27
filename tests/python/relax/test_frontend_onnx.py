@@ -731,7 +731,7 @@ def test_pow_integer_constant_exponent_with_higher_rank_than_base():
 
 
 @pytest.mark.parametrize(
-    "np.dtype, exponent_mode",
+    "np_dtype, exponent_mode",
     [(np.int32, "input"), (np.int64, "initializer"), (np.int32, "constant")],
 )
 def test_pow_float_base_integer_exponent(np_dtype, exponent_mode):
