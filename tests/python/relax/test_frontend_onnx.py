@@ -747,7 +747,7 @@ def test_pow_float_constant_with_different_dtype_exponent_is_folded(exponent_np_
         ["a"],
         value=numpy_helper.from_array(np.array([2.0, 12.0], dtype=np.float32), name="a_value"),
     )
-    expontent = helper.make_node(
+    exponent = helper.make_node(
         "Constant",
         [],
         ["b"],
@@ -770,7 +770,7 @@ def test_pow_folded_mixed_dtype_constants_can_feed_reshape():
             "Constant",
             [],
             ["a"],
-            value=numpy_helper.from_array(np.array([2.0, 12.0], dtype=np.float32), name="a_value")
+            value=numpy_helper.from_array(np.array([2.0, 12.0], dtype=np.float32), name="a_value"),
         ),
         helper.make_node(
             "Constant",
