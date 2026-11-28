@@ -561,7 +561,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
         ffi::make_object<TupleGetItemObj>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
     new_tuple_get_item->ty = Type::Missing();
-    Expr new_value = TupleGetItem(new_tuple_get_item);
+    Expr new_value = builder_->Normalize(TupleGetItem(new_tuple_get_item));
     if (!binding->var->IsInstance<DataflowVarObj>()) {
       // Global var: store the tensors to the original dtype
       NType to = NTypeFrom(binding->var);
