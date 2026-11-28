@@ -913,6 +913,32 @@ def test_tuple_get():
     _assert_test(Module, expected2=Expected)
 
 
+def test_tuple_get_dataflow_output():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((4, 8), "float32")):
+            with R.dataflow():
+                parts = R.split(x, indices_or_sections=2, axis=1)
+                out = parts[0]
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((4, 8), "float16")):
+            with R.dataflow():
+                parts = R.split(x, indices_or_sections=2, axis=1)
+                out = R.astype(parts[0], dtype="float32")
+                R.output(out)
+            return out
+
+    _assert_test(Module, expected2=Module)
+    mod = ToMixedPrecision(out_dtype="float16", fp16_input_names=["x"])(Module)
+    tvm_tirx.ir.assert_structural_equal(mod, Expected)
+
+
 def test_conv2d_bias_fp32():
     @tvm_tirx.script.ir_module
     class Input:
