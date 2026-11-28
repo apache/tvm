@@ -645,21 +645,43 @@ def _get_prefill_kernel_config(
             tile_z = 4
     if target.kind.name == "metal":
         max_shared_memory_per_block = int(target.attrs["max_shared_memory_per_block"])
-        tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(
-            tile_x,
-            tile_y,
-            tile_z,
-            original_tile_z,
-            max_tile_x,
-            d,
-            d_v,
-            dtype,
-            LOAD_VEC,
-            bdx,
-            num_warps,
-            merged_kv,
-            max_shared_memory_per_block,
-        )
+        try:
+            tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(
+                tile_x,
+                tile_y,
+                tile_z,
+                original_tile_z,
+                max_tile_x,
+                d,
+                d_v,
+                dtype,
+                LOAD_VEC,
+                bdx,
+                num_warps,
+                merged_kv,
+                max_shared_memory_per_block,
+            )
+        except ValueError:
+            if dtype != "float32" or d != 512 or d_v != 512 or merged_kv:
+                raise
+            # Wide FP32 heads need a 4x4 score tile to fit 32 KiB. Sixteen
+            # threads can schedule that tile; a full SIMD group cannot.
+            bdx = 16
+            tile_x, num_warps, tile_z = _fit_prefill_config_to_shared_memory(
+                tile_x,
+                tile_y,
+                tile_z,
+                original_tile_z,
+                max_tile_x,
+                d,
+                d_v,
+                dtype,
+                LOAD_VEC,
+                bdx,
+                num_warps,
+                merged_kv,
+                max_shared_memory_per_block,
+            )
     if target.kind.name == "opencl" and (
         ("android" in str(target.host)) or ("adreno" in str(target.attrs))
     ):
