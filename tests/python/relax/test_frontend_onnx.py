@@ -15546,6 +15546,70 @@ def test_dft():
     verify_dft(x_real, axis=1, inverse=0, onesided=1, opset=20)
 
 
+def _irfft_reference(x, axis, n):
+    """np.fft.irfft along `axis` of an (..., 1 or 2) real/imag tensor, with a trailing 1."""
+    cplx = x[..., 0].astype(np.complex128)
+    if x.shape[-1] == 2:
+        cplx = cplx + 1j * x[..., 1]
+    return np.fft.irfft(cplx, n=n, axis=axis)[..., np.newaxis].astype(np.float32)
+
+
+@pytest.mark.parametrize(
+    "shape, axis, dft_length, opset",
+    [
+        ((1, 4, 2), 1, None, 17),  # default N = 2 * (4 - 1) = 6
+        ((1, 4, 2), 1, 6, 17),
+        ((1, 4, 2), 1, 5, 17),  # odd length, no Nyquist bin
+        ((1, 4, 2), 1, 10, 17),  # input zero-padded up to N // 2 + 1
+        ((1, 4, 2), 1, 2, 17),  # input truncated
+        ((1, 4, 2), 1, None, 20),  # axis passed as an input
+        ((2, 3, 5, 2), 1, None, 17),  # non-last axis, rank 4
+        ((2, 3, 5, 2), 2, 7, 20),
+        ((2, 5, 1), 1, None, 17),  # real input, zero imaginary part
+    ],
+)
+def test_dft_inverse_onesided_irfft(shape, axis, dft_length, opset):
+    """inverse=1 with onesided=1 is an inverse real DFT. ORT rejects it, so compare to numpy."""
+    x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
+    if shape == (1, 4, 2):
+        # Bins 6+0j, 1, 1, 0 from the bug report
+        x = np.array([[6.0, 1.0, 1.0, 0.0], [0.0] * 4], dtype=np.float32).T.reshape(shape)
+
+    inputs_list = ["x"]
+    initializers = []
+    attrs = {"inverse": 1, "onesided": 1}
+    if dft_length is not None:
+        inputs_list.append("dft_length")
+        initializers.append(helper.make_tensor("dft_length", TensorProto.INT64, [], [dft_length]))
+    elif opset >= 20:
+        inputs_list.append("")
+    if opset >= 20:
+        inputs_list.append("axis")
+        initializers.append(helper.make_tensor("axis", TensorProto.INT64, [], [axis]))
+    else:
+        attrs["axis"] = axis
+
+    n = 2 * (shape[axis] - 1) if dft_length is None else dft_length
+    expected = _irfft_reference(x, axis, n)
+
+    node = helper.make_node("DFT", inputs=inputs_list, outputs=["y"], **attrs)
+    graph = helper.make_graph(
+        [node],
+        "dft_irfft_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(shape))],
+        initializer=initializers,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(expected.shape))],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)], ir_version=10)
+    tvm_out = run_in_tvm(model, inputs={"x": x}, opset=opset)
+    res = tvm_out[0].numpy() if isinstance(tvm_out, list | tuple) else tvm_out.numpy()
+    assert res.shape == expected.shape
+    np.testing.assert_allclose(res, expected, atol=1e-4)
+
+    if shape == (1, 4, 2) and dft_length in (None, 6):
+        np.testing.assert_allclose(res.ravel(), [1.666667, 1, 0.666667, 1, 0.666667, 1], atol=1e-4)
+
+
 def test_dft_validation_and_errors():
     """Verify DFT parameter validation and unsupported dynamic inputs."""
     # 1. Non-constant axis in opset 20
@@ -15602,6 +15666,18 @@ def test_dft_validation_and_errors():
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
     with pytest.raises(ValueError, match="exceeds maximum supported length"):
+        from_onnx(model, opset=17, keep_params_in_input=True)
+
+    # 5. IRFFT with a single input bin and no dft_length gives N = 0
+    node = helper.make_node("DFT", inputs=["x"], outputs=["y"], axis=1, inverse=1, onesided=1)
+    graph = helper.make_graph(
+        [node],
+        "test_irfft_zero_len",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 1, 2])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 0, 1])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    with pytest.raises(ValueError, match="dft_length must be positive"):
         from_onnx(model, opset=17, keep_params_in_input=True)
 
 

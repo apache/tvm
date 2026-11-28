@@ -6673,7 +6673,11 @@ class DFT(OnnxOpConverter):
 
         orig_len = int(data_norm.ty.shape[axis])
 
-        dft_len = orig_len
+        # inverse + onesided is an inverse real DFT (IRFFT): the input holds the N//2 + 1
+        # non-negative frequency bins and the output is N real samples.
+        irfft = bool(inverse) and bool(onesided)
+
+        dft_len = 2 * (orig_len - 1) if irfft else orig_len
         if dft_length is not None:
             dft_len_c = get_constant(dft_length, params)
             if isinstance(dft_len_c, tvm_tirx.ir.GenericConst):
@@ -6685,8 +6689,8 @@ class DFT(OnnxOpConverter):
                     "Dynamic or non-constant dft_length is currently not supported for DFT."
                 )
 
-            if dft_len <= 0:
-                raise ValueError(f"dft_length must be positive, but got {dft_len}")
+        if dft_len <= 0:
+            raise ValueError(f"dft_length must be positive, but got {dft_len}")
 
         if dft_len > cls.MAX_DFT_LENGTH:
             raise ValueError(
@@ -6694,12 +6698,14 @@ class DFT(OnnxOpConverter):
                 f"{cls.MAX_DFT_LENGTH} for table-based DFT conversion."
             )
 
-        if dft_len < orig_len:
-            data = relax.op.strided_slice(data, axes=[axis], begin=[0], end=[dft_len])
-        elif dft_len > orig_len:
+        # IRFFT only consumes dft_len // 2 + 1 input bins, like np.fft.irfft.
+        in_len = dft_len // 2 + 1 if irfft else dft_len
+        if in_len < orig_len:
+            data = relax.op.strided_slice(data, axes=[axis], begin=[0], end=[in_len])
+        elif in_len > orig_len:
             pad_before = [0] * ndim
             pad_after = [0] * ndim
-            pad_after[axis] = dft_len - orig_len
+            pad_after[axis] = in_len - orig_len
             data = bb.emit_te(topi.nn.pad, data, pad_before, pad_after, 0.0)
 
         data = bb.normalize(data)
@@ -6727,6 +6733,36 @@ class DFT(OnnxOpConverter):
 
         N = dft_len
         K = (N // 2 + 1) if onesided else N
+
+        if irfft:
+            # Hermitian-weighted tables, k as rows and n as columns. Bins 0 and N/2 count once,
+            # the rest twice. The sin terms vanish at those two bins, so their imaginary parts
+            # are ignored, as in np.fft.irfft.
+            k_col = _np.arange(K, dtype=_np.float64)[:, None]
+            n_row = _np.arange(N, dtype=_np.float64)[None, :]
+            weight = _np.full((K, 1), 2.0)
+            weight[0] = 1.0
+            if N % 2 == 0:
+                weight[-1] = 1.0
+            phase = (2.0 * _np.pi / float(N)) * (k_col * n_row)
+            compute_dtype = "float32" if dtype == "float16" else dtype
+            Cw_np = (weight * _np.cos(phase) / float(N)).astype(compute_dtype)
+            Sw_np = (weight * _np.sin(phase) / float(N)).astype(compute_dtype)
+
+            if compute_dtype != dtype:
+                x_re_t = relax.op.astype(x_re_t, compute_dtype)
+                if x_im_t is not None:
+                    x_im_t = relax.op.astype(x_im_t, compute_dtype)
+
+            y_t = relax.op.matmul(x_re_t, relax.const(Cw_np, compute_dtype))
+            if is_complex:
+                x_im_term = relax.op.matmul(x_im_t, relax.const(Sw_np, compute_dtype))
+                y_t = relax.op.subtract(y_t, x_im_term)
+            if compute_dtype != dtype:
+                y_t = relax.op.astype(y_t, dtype)
+            if axis != rank_no_c - 1:
+                y_t = relax.op.permute_dims(y_t, perm)
+            return relax.op.expand_dims(y_t, axis=-1)
 
         # Compute DFT coefficient phases in float64 to avoid overflow and phase rounding errors
         n_arr = _np.arange(N, dtype=_np.float64)
