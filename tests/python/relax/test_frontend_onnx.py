@@ -11611,6 +11611,45 @@ def test_maxunpool():
     verify_maxunpool([3, 3], [1, 1, 1, 1], [2, 2], ExpectedMaxUnpool7)
 
 
+def test_maxunpool_with_output_shape():
+    data = np.array([[[[5.0, 6.0], [7.0, 8.0]]]], dtype="float32")
+    indices = np.array([[[[5, 7], [13, 15]]]], dtype="int64")
+
+    out_shape = [1, 1, 5, 5]
+
+    def make_model(output_shape_as_input):
+        initializers = [
+            helper.make_tensor("I", TensorProto.INT64, indices.shape, indices.flatten())
+        ]
+        node_inputs = ["X", "I"]
+        graph_inputs = [helper.make_tensor_value_info("X", TensorProto.FLOAT, data.shape)]
+        if output_shape_as_input == "initializer":
+            initializers.append(helper.make_tensor("S", TensorProto.INT64, [4], out_shape))
+            node_inputs.append("S")
+        elif output_shape_as_input == "graph_input":
+            graph_inputs.append(helper.make_tensor_value_info("S", TensorProto.INT64, [4]))
+            node_inputs.append("S")
+        node = helper.make_node(
+            "MaxUnpool", node_inputs, ["y"], kernel_shape=[2, 2], strides=[2, 2]
+        )
+        graph = helper.make_graph(
+            [node],
+            "maxunpool_output_shape_test",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
+            initializer=initializers,
+        )
+        return helper.make_model(graph, producer_name="maxunpool_output_shape_test")
+
+    check_correctness(make_model("initializer"), inputs={"X": data}, opset=11)
+
+    tvm_model = from_onnx(make_model("initializer"))
+    assert [int(d) for d in tvm_model["main"].ret_ty.shape] == out_shape
+
+    with pytest.raises(ValueError, match="constant `output_shape`"):
+        from_onnx(make_model("graph_input"))
+
+
 def test_dropout():
     def verify_dropout_ir(opset, attrs, expected):
         node = helper.make_node("Dropout", ["x"], ["y"], **attrs)
