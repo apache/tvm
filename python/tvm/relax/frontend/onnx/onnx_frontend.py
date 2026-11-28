@@ -5584,6 +5584,9 @@ class TopK(OnnxOpConverter):
 
         return relax.op.topk(data, k, axis, ret_type="both", largest=largest, dtype="int64")
 
+    # Opset 10 takes K as an input and always uses the opset 11 defaults for largest and sorted.
+    _impl_v10 = _impl_v11
+
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         data = inputs[0]
