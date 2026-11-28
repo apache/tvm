@@ -7660,6 +7660,28 @@ def test_topk(axis: int, largest: int):
     check_correctness(model, check_dtypes=True)
 
 
+@pytest.mark.parametrize("opset", [1, 10, 11])
+def test_topk_k_source(opset):
+    if opset == 1:
+        nodes = [helper.make_node("TopK", ["x"], ["values", "indices"], k=2)]
+    else:
+        nodes = [
+            make_constant_node("k", TensorProto.INT64, [1], [2]),
+            helper.make_node("TopK", ["x", "k"], ["values", "indices"]),
+        ]
+    graph = helper.make_graph(
+        nodes,
+        "topk_k_source",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [4])],
+        [
+            helper.make_tensor_value_info("values", TensorProto.FLOAT, [2]),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, [2]),
+        ],
+    )
+    data = np.array([1, 4, 2, 3], dtype="float32")
+    check_correctness(helper.make_model(graph), {"x": data}, opset=opset, check_dtypes=True)
+
+
 def test_expand():
     def _assert_expand_ir(name, input_shape, target_shape, output_shape, expected):
         shape_array = np.array(target_shape)
