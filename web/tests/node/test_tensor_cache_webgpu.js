@@ -411,3 +411,65 @@ test("Tensor parses byte offsets as checked unsigned 64-bit values", () => {
   });
   tvm.dispose();
 });
+
+test("WebGPU byte ranges retain untouched tensor elements", () => {
+  const tvm = createInstance();
+  const gpu = createMockGPUDevice();
+  tvm.initWebGPU(gpu.device);
+  try {
+    tvm.withNewScope(() => {
+      const tensor = tvm.empty([4], "uint32", tvm.webgpu());
+      tensor.copyFromRawBytesRange(new Uint8Array(new Uint32Array([9, 10]).buffer), 4);
+      expect(Array.from(new Uint32Array(gpu.buffers[0].contents))).toEqual([0, 9, 10, 0]);
+      for (const offset of [-1, 0.5, 2, 16, Number.MAX_SAFE_INTEGER + 1]) {
+        expect(() => tensor.copyFromRawBytesRange(new Uint8Array(4), offset)).toThrow();
+      }
+      expect(() => tensor.copyFromRawBytes(new Uint8Array(4))).toThrow("nbytes=16");
+    });
+  } finally {
+    tvm.dispose();
+  }
+});
+
+test("blob-backed raw records preserve offsets and reject inconsistent sizes", async () => {
+  const tvm = createInstance();
+  const gpu = createMockGPUDevice();
+  tvm.initWebGPU(gpu.device);
+  const blob = new Blob([new Uint8Array([99, 99, 99, 99, 1, 2, 3, 4, 5, 6, 7, 8])]);
+  const record = { name: "test.blob", shape: [2], dtype: "uint32", format: "raw", byteOffset: 4, nbytes: 8 };
+  const shard = { nbytes: 12, records: [record] };
+  try {
+    await tvm.loadRawWebGPUShard(blob, shard, tvm.webgpu());
+    expect(Array.from(gpu.writes[0].snapshot)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    await expect(tvm.loadRawWebGPUShard(blob, { ...shard, nbytes: 16 }, tvm.webgpu())).rejects.toThrow("shard size");
+    await expect(tvm.loadRawWebGPUShard(blob, { ...shard, records: [{ ...record, byteOffset: 8 }] }, tvm.webgpu())).rejects.toThrow("exceeds shard");
+    await expect(tvm.loadRawWebGPUShard(blob, { ...shard, records: [{ ...record, shape: [3] }] }, tvm.webgpu())).rejects.toThrow("Raw tensor size");
+  } finally {
+    tvm.tensorCacheClear();
+    tvm.dispose();
+  }
+});
+
+test("oversized raw shards use blobs for both cache population and upload", async () => {
+  const tvm = createInstance();
+  const gpu = createMockGPUDevice();
+  tvm.initWebGPU(gpu.device);
+  const shard = { dataPath: "large.bin", nbytes: 2 ** 31 + 4, records: [{
+    name: "large", shape: [2 ** 29 + 1], dtype: "float32", format: "raw", byteOffset: 0, nbytes: 2 ** 31 + 4,
+  }] };
+  const blob = new Blob();
+  const cache = {
+    hasAllKeys: async () => false,
+    addToCache: jest.fn(),
+    fetchWithCache: jest.fn(async (_url, type) => type === "json" ? { metadata: {}, records: [shard] } : blob),
+  };
+  const load = jest.spyOn(tvm, "loadRawWebGPUShard").mockResolvedValue(undefined);
+  try {
+    await tvm.fetchTensorCache("https://example.test/", tvm.webgpu(), { artifactCache: cache });
+    expect(cache.addToCache).toHaveBeenCalledWith("https://example.test/large.bin", "blob", undefined);
+    expect(cache.fetchWithCache).toHaveBeenCalledWith("https://example.test/large.bin", "blob", undefined);
+    expect(load).toHaveBeenCalledWith(blob, shard, expect.anything());
+  } finally {
+    tvm.dispose();
+  }
+});

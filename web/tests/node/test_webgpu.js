@@ -445,6 +445,23 @@ test("a host write flushes pending GPU copies before writeBuffer", () => {
   expect(events).toEqual(["copy", "finish", "submit", "writeBuffer"]);
 });
 
+test("a raw upload beyond 2 GiB writes the full source range", () => {
+  const { context, queue, destination } = createContext();
+  const maxWriteSize = 256 * 1024 * 1024;
+  // The mock queue checks write ranges without allocating the backing array.
+  const rawBytes = { byteLength: 2179989504 };
+  context.copyRawBytesToBuffer(rawBytes, destination, 4, rawBytes.byteLength);
+
+  const writes = queue.writeBuffer.mock.calls;
+  expect(writes).toHaveLength(9);
+  const buffer = writes[0][0];
+  for (let i = 0; i < 8; ++i) {
+    const offset = i * maxWriteSize;
+    expect(writes[i]).toEqual([buffer, 4 + offset, rawBytes, offset, maxWriteSize]);
+  }
+  expect(writes[8]).toEqual([buffer, 2147483652, rawBytes, 2147483648, 32505856]);
+});
+
 test("an aligned CPU to GPU copy writes the requested bytes", () => {
   const { context, device, queue, memory, destination } = createContext();
   const copyToGPU = context.getDeviceAPI("deviceCopyToGPU");

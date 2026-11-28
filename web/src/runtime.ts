@@ -871,29 +871,33 @@ export class Tensor extends TVMObject {
     }
     // short cut for gpu copy
     if (this.device.deviceType === DeviceStrToEnum.webgpu) {
-      if (this.byteOffset % 4 != 0 || data.length % 4 != 0) {
-        throw new Error(
-          "WebGPU raw byte copies require four-byte-aligned offsets and sizes",
-        );
-      }
-      const webGPUContext = this.lib.webGPUContext;
-      if (webGPUContext === undefined) {
-        throw new Error("WebGPU context is not initialized");
-      }
-      webGPUContext.copyRawBytesToBuffer(
-        data,
-        this.getDataPtr(),
-        this.byteOffset,
-        data.length,
-      );
-      return this;
+      return this.copyFromRawBytesRange(data, 0);
     }
     // CPU copy
     this.ctx.tensorCopyFromJSBytes(this, data);
     return this;
   }
 
-  private numStorageBytes(): number {
+  /** Copy a bounded byte range into an existing WebGPU tensor. */
+  copyFromRawBytesRange(data: Uint8Array, offset: number): this {
+    if (this.device.deviceType !== DeviceStrToEnum.webgpu) {
+      throw new Error("Partial raw byte copies require a WebGPU tensor");
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0 ||
+        offset > this.numStorageBytes() - data.byteLength) {
+      throw new Error("Raw byte range exceeds tensor storage");
+    }
+    if ((this.byteOffset + offset) % 4 !== 0 || data.byteLength % 4 !== 0) {
+      throw new Error("WebGPU raw byte copies require four-byte-aligned offsets and sizes");
+    }
+    const context = this.lib.webGPUContext;
+    if (context === undefined) throw new Error("WebGPU context is not initialized");
+    context.copyRawBytesToBuffer(data, this.getDataPtr(), this.byteOffset + offset, data.byteLength);
+    return this;
+  }
+
+  /** @internal Return the tensor's physical storage size in bytes. */
+  numStorageBytes(): number {
     let totalBits = this.dlDataType.bits * this.dlDataType.lanes;
     if (!Number.isSafeInteger(totalBits) || totalBits < 0) {
       throw new Error(`Invalid tensor dtype bit width: ${totalBits}`);
@@ -1698,7 +1702,11 @@ export class Instance implements Disposable {
         const shard = list[i];
         const dataUrl = new URL(shard.dataPath, tensorCacheUrl).href;
         try {
-          await artifactCache.addToCache(dataUrl, "arraybuffer", signal);
+          const type = shard.nbytes >= 2 ** 31 &&
+            device.deviceType === DeviceStrToEnum.webgpu &&
+            shard.records.every(rec => rec.format === "raw" && rec.nbytes % 4 === 0)
+            ? "blob" : "arraybuffer";
+          await artifactCache.addToCache(dataUrl, type, signal);
         } catch (err) {
           this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
           throw err;
@@ -1727,6 +1735,15 @@ export class Instance implements Disposable {
     for (let i = 0; i < list.length; ++i) {
       const shard = list[i];
       const dataUrl = new URL(shard.dataPath, tensorCacheUrl).href;
+      if (shard.nbytes >= 2 ** 31 && device.deviceType === DeviceStrToEnum.webgpu &&
+          shard.records.every(rec => rec.format === "raw" && rec.nbytes % 4 === 0)) {
+        const blob = await artifactCache.fetchWithCache(dataUrl, "blob", signal);
+        await this.loadRawWebGPUShard(blob, shard, device);
+        fetchedBytes += shard.nbytes;
+        timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+        reportCallback(++fetchedShards, true);
+        continue;
+      }
       let buffer;
       try {
         buffer = await artifactCache.fetchWithCache(dataUrl, "arraybuffer");
@@ -1796,6 +1813,40 @@ export class Instance implements Disposable {
       fetchedBytes += shard.nbytes;
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
       reportCallback(++fetchedShards, /*loading=*/true);
+    }
+  }
+
+  /** Load oversized raw shards without constructing one JavaScript ArrayBuffer. */
+  private async loadRawWebGPUShard(blob: Blob, shard: TensorShardEntry, device: DLDevice) {
+    if (!(blob instanceof Blob) || blob.size !== shard.nbytes) {
+      throw new Error("Tensor shard size differs from its manifest");
+    }
+    for (const rec of shard.records) {
+      if (!Number.isSafeInteger(rec.byteOffset) || rec.byteOffset < 0 ||
+          !Number.isSafeInteger(rec.nbytes) || rec.nbytes < 0 ||
+          rec.byteOffset > blob.size - rec.nbytes) {
+        throw new Error("Tensor record exceeds shard size");
+      }
+      const tensor = this.withNewScope(() => this.detachFromCurrentScope(
+        this.empty(rec.shape, rec.dtype, device),
+      ));
+      try {
+        if (tensor.numStorageBytes() !== rec.nbytes) {
+          throw new Error("Raw tensor size differs from its manifest");
+        }
+        const chunkBytes = 64 * 1024 * 1024;
+        for (let offset = 0; offset < rec.nbytes; offset += chunkBytes) {
+          const end = Math.min(offset + chunkBytes, rec.nbytes);
+          const bytes = new Uint8Array(await blob.slice(
+            rec.byteOffset + offset, rec.byteOffset + end,
+          ).arrayBuffer());
+          tensor.copyFromRawBytesRange(bytes, offset);
+          await device.sync();
+        }
+        this.tensorCacheUpdate(rec.name, tensor, false);
+      } finally {
+        tensor.dispose();
+      }
     }
   }
 
