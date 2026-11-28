@@ -4574,7 +4574,7 @@ class MeanVarianceNormalization(OnnxOpConverter):
         data_mean_squared = relax.op.power(data_mean, relax.const(2, dtype="float32"))
         data_squared = relax.op.power(data, relax.const(2, dtype="float32"))
         data_squared_mean = relax.op.mean(data_squared, axis=axis, keepdims=True)
-        return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
+        return (data - data_mean) / (relax.op.sqrt(data_squared_mean - data_mean_squared) + relax.const(1e-9, dtype=data.ty.dtype))
 
 
 class LocalResponseNormalization(OnnxOpConverter):
